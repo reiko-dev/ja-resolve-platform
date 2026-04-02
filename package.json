@@ -1,0 +1,24 @@
+{
+  "name": "socorre-ai",
+  "version": "1.0.0",
+  "description": "Socorre AI - Sistema completo de assistência automotiva",
+  "private": true,
+  "workspaces": [
+    "socorre_ai_backend",
+    "socorre_ai_admin"
+  ],
+  "scripts": {
+    "backend": "cd socorre_ai_backend && npm run dev",
+    "admin": "cd socorre_ai_admin && npm start",
+    "backend:start": "cd socorre_ai_backend && npm start",
+    "admin:build": "cd socorre_ai_admin && npm run build",
+    "dev": "concurrently \"npm run backend\" \"npm run admin\"",
+    "install:all": "npm install && cd socorre_ai_backend && npm install && cd ../socorre_ai_admin && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "keywords": ["socorre-ai", "automotive", "assistance", "flutter", "react", "nodejs"],
+  "author": "Socorre AI Team",
+  "license": "MIT"
+}
