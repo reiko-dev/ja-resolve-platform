@@ -81,8 +81,3 @@ Aqui entram itens que **já aparecem como intenção no código ou no produto**,
 - **“O que já foi feito”** descreve a **capacidade atual do software** em linguagem de produto.
 - **“O que falta”** mistura **lacunas objetivas** (telas placeholder, rotas quebradas, API a consolidar) com **itens que dependem de decisão** (o que entra no app parceiro final, política de segurança, publicação nas lojas).
 
-Para quem quiser o **mapa técnico** (arquivos, rotas, tabelas), use o arquivo **`DOCUMENTACAO.md`** na mesma pasta.
-
----
-
-*Texto focado em alinhamento entre negócio, parceiros e equipe — atualizado conforme o repositório em abril de 2026.*
