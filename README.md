@@ -105,7 +105,8 @@ Use os scripts na pasta `scripts/`:
 
 ## 📚 Documentação
 
-Documentação do que está implementado: [`docs/DOCUMENTACAO.md`](docs/DOCUMENTACAO.md).
+- Visão de **produto e andamento** (o que já existe e o que falta): [`docs/O-QUE-JA-FOI-FEITO-E-O-QUE-FALTA.md`](docs/O-QUE-JA-FOI-FEITO-E-O-QUE-FALTA.md)
+- Referência **técnica** do que está implementado: [`docs/DOCUMENTACAO.md`](docs/DOCUMENTACAO.md)
 
 ## 👥 Equipe
 
