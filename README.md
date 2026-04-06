@@ -105,7 +105,7 @@ Use os scripts na pasta `scripts/`:
 
 ## 📚 Documentação
 
-Documentação detalhada disponível na pasta `docs/`.
+Documentação do que está implementado: [`docs/DOCUMENTACAO.md`](docs/DOCUMENTACAO.md).
 
 ## 👥 Equipe
 
