@@ -384,4 +384,4 @@ Menu lateral espelha essa ordem em `components/Layout.tsx`.
 
 ---
 
-*Documento gerado a partir da estrutura e do código presentes no repositório.*
+
