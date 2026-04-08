@@ -34,32 +34,54 @@ projeto_socorre_ai/
 
 ## 🔧 Configuração e Execução
 
-### 1. **Backend**
+### 🚀 Quick Start (Recommended)
+```bash
+# One-command setup (requires Docker)
+./quick-start.sh
+```
+
+### 📋 Manual Setup
+
+#### 1. **Prerequisites**
+- Node.js 18+
+- Flutter SDK
+- Docker (recommended) or PostgreSQL + Redis
+
+#### 2. **Backend**
 ```bash
 cd socorre_ai_backend
 npm install
+cp env.example .env
 npm run dev
 ```
 
-### 2. **App Cliente**
+#### 3. **Admin Dashboard**
 ```bash
+cd socorre_ai_admin
+npm install
+npm start
+```
+
+#### 4. **Mobile Apps**
+```bash
+# Client App
 cd socorre_ai_client
 flutter pub get
 flutter run
-```
 
-### 3. **App Parceiro**
-```bash
+# Partner App
 cd socorre_ai_partner
 flutter pub get
 flutter run
 ```
 
-### 4. **Admin Dashboard**
+### 🐳 Docker Setup (Simplified)
 ```bash
-cd socorre_ai_admin
-npm install
-npm start
+# Start all services
+docker-compose -f docker-compose-simple.yml up -d
+
+# View logs
+docker-compose -f docker-compose-simple.yml logs -f
 ```
 
 ## 📋 Funcionalidades
