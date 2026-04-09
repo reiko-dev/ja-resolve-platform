@@ -24,8 +24,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     _loadUserId();
   }
 
-  Future<void> _loadUserId() async {
-    final userId = await AuthService.getUserId();
+  void _loadUserId() {
+    final userId = AuthService.currentUser?.id;
     setState(() {
       _currentUserId = userId;
     });
@@ -53,7 +53,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   Future<void> _createSubscription(SubscriptionType type) async {
     try {
       setState(() => _isLoading = true);
-      
+
       // TODO: Implementar diálogo de pagamento
       final subscription = await SubscriptionService.createSubscription(
         partnerId: '', // TODO: Obter ID do parceiro logado
@@ -85,33 +85,34 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     try {
       final confirmed = await showDialog<bool>(
         context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Cancelar Assinatura'),
-          content: Text(
-            'Tem certeza que deseja cancelar sua assinatura ${subscription.type.displayName}?\n\n'
-            'Você perderá acesso a todos os benefícios imediatamente.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Não'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
+        builder:
+            (context) => AlertDialog(
+              title: const Text('Cancelar Assinatura'),
+              content: Text(
+                'Tem certeza que deseja cancelar sua assinatura ${subscription.type.displayName}?\n\n'
+                'Você perderá acesso a todos os benefícios imediatamente.',
               ),
-              child: const Text('Sim, cancelar'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('Não'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Sim, cancelar'),
+                ),
+              ],
             ),
-          ],
-        ),
       );
 
       if (confirmed != true) return;
 
       setState(() => _isLoading = true);
-      
+
       await SubscriptionService.cancelSubscription(subscription.id);
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -136,7 +137,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   Future<void> _renewSubscription(Subscription subscription) async {
     try {
       setState(() => _isLoading = true);
-      
+
       await SubscriptionService.renewSubscription(subscription.id);
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -164,9 +165,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       appBar: AppBar(
         title: Text(
           'Minhas Assinaturas',
-          style: GoogleFonts.poppins(
-            fontWeight: FontWeight.w600,
-          ),
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
         ),
         backgroundColor: Colors.purple[800],
         foregroundColor: Colors.white,
@@ -179,9 +178,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
   Widget _buildBody() {
     if (_isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
 
     if (_error != null) {
@@ -189,18 +186,11 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.error_outline,
-              size: 64,
-              color: Colors.red[400],
-            ),
+            Icon(Icons.error_outline, size: 64, color: Colors.red[400]),
             const SizedBox(height: 16),
             Text(
               _error!,
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                color: Colors.red[600],
-              ),
+              style: GoogleFonts.poppins(fontSize: 16, color: Colors.red[600]),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
@@ -209,13 +199,14 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.purple[800],
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
               ),
               child: Text(
                 'Tentar novamente',
-                style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.w500,
-                ),
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
               ),
             ),
           ],
@@ -228,11 +219,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.card_membership,
-              size: 64,
-              color: Colors.grey[400],
-            ),
+            Icon(Icons.card_membership, size: 64, color: Colors.grey[400]),
             const SizedBox(height: 16),
             Text(
               'Nenhuma assinatura ativa',
@@ -245,10 +232,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             const SizedBox(height: 8),
             Text(
               'Assine um plano para ter acesso a benefícios exclusivos',
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                color: Colors.grey[500],
-              ),
+              style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[500]),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
@@ -257,14 +241,15 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               icon: const Icon(Icons.add),
               label: Text(
                 'Ver Planos',
-                style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.w500,
-                ),
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.purple[800],
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
               ),
             ),
           ],
@@ -297,13 +282,14 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-          color: isExpired || isCancelled 
-              ? Colors.red 
-              : isExpiringSoon 
-                  ? Colors.orange 
-                  : isActive 
-                      ? Colors.green 
-                      : Colors.grey,
+          color:
+              isExpired || isCancelled
+                  ? Colors.red
+                  : isExpiringSoon
+                  ? Colors.orange
+                  : isActive
+                  ? Colors.green
+                  : Colors.grey,
           width: 2,
         ),
       ),
@@ -316,15 +302,19 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
-                    color: isExpired || isCancelled 
-                        ? Colors.red 
-                        : isExpiringSoon 
-                            ? Colors.orange 
-                            : isActive 
-                                ? Colors.green 
-                                : Colors.grey,
+                    color:
+                        isExpired || isCancelled
+                            ? Colors.red
+                            : isExpiringSoon
+                            ? Colors.orange
+                            : isActive
+                            ? Colors.green
+                            : Colors.grey,
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
@@ -343,9 +333,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 12),
-            
+
             // Nome do plano
             Text(
               subscription.type.displayName,
@@ -355,20 +345,17 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 color: Colors.grey[800],
               ),
             ),
-            
+
             const SizedBox(height: 8),
-            
+
             // Descrição
             Text(
               subscription.type.description,
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                color: Colors.grey[600],
-              ),
+              style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600]),
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             // Informações de período
             Container(
               padding: const EdgeInsets.all(12),
@@ -417,10 +404,11 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                         style: GoogleFonts.poppins(
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
-                          color: isExpiringSoon 
-                              ? Colors.orange 
-                              : isExpired 
-                                  ? Colors.red 
+                          color:
+                              isExpiringSoon
+                                  ? Colors.orange
+                                  : isExpired
+                                  ? Colors.red
                                   : Colors.grey[700],
                         ),
                       ),
@@ -429,9 +417,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 ],
               ),
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             // Preço e renovação
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -471,13 +459,13 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                       onChanged: (value) {
                         // TODO: Implementar atualização de auto-renew
                       },
-                      activeColor: Colors.purple[700],
+                      activeThumbColor: Colors.purple[700],
                     ),
                   ],
-                ],
+                ),
               ],
             ),
-            
+
             if (isExpiringSoon) ...[
               const SizedBox(height: 16),
               Container(
@@ -488,11 +476,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 ),
                 child: Row(
                   children: [
-                    Icon(
-                      Icons.warning,
-                      color: Colors.orange[700],
-                      size: 20,
-                    ),
+                    Icon(Icons.warning, color: Colors.orange[700], size: 20),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
@@ -507,9 +491,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 ),
               ),
             ],
-            
+
             const SizedBox(height: 16),
-            
+
             // Botões de ação
             if (isActive)
               Row(
@@ -541,9 +525,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                       ),
                       child: Text(
                         'Renovar',
-                        style: GoogleFonts.poppins(
-                          fontWeight: FontWeight.w500,
-                        ),
+                        style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
                       ),
                     ),
                   ),
@@ -561,9 +543,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   ),
                   child: Text(
                     'Reativar Assinatura',
-                    style: GoogleFonts.poppins(
-                      fontWeight: FontWeight.w500,
-                    ),
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
                   ),
                 ),
               ),
@@ -581,9 +561,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       icon: const Icon(Icons.add),
       label: Text(
         'Nova Assinatura',
-        style: GoogleFonts.poppins(
-          fontWeight: FontWeight.w500,
-        ),
+        style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
       ),
     );
   }
@@ -598,51 +576,50 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   void _showRenewalDialog(Subscription subscription) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Renovar Assinatura'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Deseja renovar sua assinatura ${subscription.type.displayName}?',
-              style: GoogleFonts.poppins(),
+      builder:
+          (context) => AlertDialog(
+            title: Text('Renovar Assinatura'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Deseja renovar sua assinatura ${subscription.type.displayName}?',
+                  style: GoogleFonts.poppins(),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Valor: ${subscription.formattedMonthlyFee}/mês',
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'A renovação será processada imediatamente.',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Valor: ${subscription.formattedMonthlyFee}/mês',
-              style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w500,
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancelar'),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'A renovação será processada imediatamente.',
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                color: Colors.grey[600],
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _renewSubscription(subscription);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.purple[800],
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Renovar'),
               ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancelar'),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _renewSubscription(subscription);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.purple[800],
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Renovar'),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -653,120 +630,121 @@ class _SubscriptionPlansDialog extends StatelessWidget {
     return AlertDialog(
       title: Text(
         'Planos de Assinatura',
-        style: GoogleFonts.poppins(
-          fontWeight: FontWeight.w600,
-        ),
+        style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
       ),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          children: SubscriptionType.values.map((type) {
-            final monthlyFee = SubscriptionService.getMonthlyFee(type);
-            final features = type.features;
-            
-            return Card(
-              margin: const EdgeInsets.only(bottom: 16),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Header
-                    Row(
+          children:
+              SubscriptionType.values.map((type) {
+                final monthlyFee = SubscriptionService.getMonthlyFee(type);
+                final features = type.features;
+
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          type.icon,
-                          style: const TextStyle(fontSize: 32),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                type.displayName,
-                                style: GoogleFonts.poppins(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              Text(
-                                monthlyFee.toStringAsFixed(2).replaceAll('.', ','),
-                                style: GoogleFonts.poppins(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.purple[700],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    
-                    const SizedBox(height: 16),
-                    
-                    // Benefícios
-                    Text(
-                      'Benefícios:',
-                      style: GoogleFonts.poppins(
-                        fontWeight: FontWeight.w500,
-                        color: Colors.grey[700],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    ...features.map((feature) {
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Row(
+                        // Header
+                        Row(
                           children: [
-                            Icon(
-                              Icons.check_circle,
-                              size: 16,
-                              color: Colors.green[700],
+                            Text(
+                              type.icon,
+                              style: const TextStyle(fontSize: 32),
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 12),
                             Expanded(
-                              child: Text(
-                                feature,
-                                style: GoogleFonts.poppins(
-                                  fontSize: 14,
-                                  color: Colors.grey[600],
-                                ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    type.displayName,
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  Text(
+                                    monthlyFee
+                                        .toStringAsFixed(2)
+                                        .replaceAll('.', ','),
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.purple[700],
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
                         ),
-                      );
-                    }),
-                    
-                    const SizedBox(height: 16),
-                    
-                    // Botão de assinar
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                          // TODO: Implementar criação de assinatura
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.purple[800],
-                          foregroundColor: Colors.white,
-                        ),
-                        child: Text(
-                          'Assinar Agora',
+
+                        const SizedBox(height: 16),
+
+                        // Benefícios
+                        Text(
+                          'Benefícios:',
                           style: GoogleFonts.poppins(
                             fontWeight: FontWeight.w500,
+                            color: Colors.grey[700],
                           ),
                         ),
-                      ),
+                        const SizedBox(height: 8),
+                        ...features.map((feature) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.check_circle,
+                                  size: 16,
+                                  color: Colors.green[700],
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    feature,
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 14,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+
+                        const SizedBox(height: 16),
+
+                        // Botão de assinar
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                              // TODO: Implementar criação de assinatura
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.purple[800],
+                              foregroundColor: Colors.white,
+                            ),
+                            child: Text(
+                              'Assinar Agora',
+                              style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-            );
-          }).toList(),
+                  ),
+                );
+              }).toList(),
         ),
       ),
       actions: [

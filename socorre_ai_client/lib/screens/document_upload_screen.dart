@@ -8,7 +8,8 @@ class DocumentUploadScreen extends StatefulWidget {
   final String userType; // client, partner
   final String partnerType; // mechanic, motoboy, gas_station, auto_parts, tow
 
-  DocumentUploadScreen({
+  const DocumentUploadScreen({
+    super.key,
     required this.userType,
     this.partnerType = '',
   });
@@ -18,7 +19,7 @@ class DocumentUploadScreen extends StatefulWidget {
 }
 
 class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
-  List<Document> _uploadedDocuments = [];
+  final List<Document> _uploadedDocuments = [];
   bool _isLoading = false;
   final ImagePicker _imagePicker = ImagePicker();
 
@@ -106,7 +107,8 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
             RequiredDocument(
               type: 'cnh',
               title: 'CNH (C, D ou E)',
-              description: 'Carteira Nacional de Habilitação categoria C, D ou E',
+              description:
+                  'Carteira Nacional de Habilitação categoria C, D ou E',
               required: true,
             ),
             RequiredDocument(
@@ -248,7 +250,9 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                 LinearProgressIndicator(
                   value: _uploadedDocuments.length / _requiredDocuments.length,
                   backgroundColor: Colors.blue[100],
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.blue[600] ?? Colors.blue),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    Colors.blue[600] ?? Colors.blue,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -261,14 +265,14 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
               ],
             ),
           ),
-          
+
           const SizedBox(height: 24),
-          
+
           // Document list
-          ..._requiredDocuments.map((doc) => _buildDocumentCard(doc)).toList(),
-          
+          ..._requiredDocuments.map((doc) => _buildDocumentCard(doc)),
+
           const SizedBox(height: 24),
-          
+
           // Submit button
           if (_areAllRequiredDocumentsUploaded())
             SizedBox(
@@ -283,17 +287,20 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                child: _isLoading
-                    ? const CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      )
-                    : Text(
-                        'Enviar para Verificação',
-                        style: GoogleFonts.poppins(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
+                child:
+                    _isLoading
+                        ? const CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
+                        )
+                        : Text(
+                          'Enviar para Verificação',
+                          style: GoogleFonts.poppins(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
               ),
             ),
         ],
@@ -302,9 +309,8 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
   }
 
   Widget _buildDocumentCard(RequiredDocument doc) {
-    final uploadedDoc = _uploadedDocuments
-        .where((d) => d.type == doc.type)
-        .firstOrNull;
+    final uploadedDoc =
+        _uploadedDocuments.where((d) => d.type == doc.type).firstOrNull;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -328,7 +334,8 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
               children: [
                 Icon(
                   doc.required ? Icons.priority_high : Icons.description,
-                  color: doc.required ? const Color(0xFFE53E3E) : Colors.grey[600],
+                  color:
+                      doc.required ? const Color(0xFFE53E3E) : Colors.grey[600],
                   size: 24,
                 ),
                 const SizedBox(width: 12),
@@ -356,7 +363,10 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                 ),
                 if (uploadedDoc != null)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.green[100],
                       borderRadius: BorderRadius.circular(12),
@@ -372,9 +382,9 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                   ),
               ],
             ),
-            
+
             SizedBox(height: 16),
-            
+
             // Status do documento
             if (uploadedDoc != null)
               Container(
@@ -390,10 +400,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                     SizedBox(width: 8),
                     Text(
                       'Enviado em ${uploadedDoc.uploadDate}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.green[700],
-                      ),
+                      style: TextStyle(fontSize: 12, color: Colors.green[700]),
                     ),
                   ],
                 ),
@@ -412,15 +419,12 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                     SizedBox(height: 8),
                     Text(
                       'Documento não enviado',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[700],
-                      ),
+                      style: TextStyle(fontSize: 12, color: Colors.grey[700]),
                     ),
                   ],
                 ),
               ),
-            
+
             if (uploadedDoc == null) ...[
               SizedBox(height: 12),
               Row(
@@ -488,9 +492,9 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
         await _uploadDocument(image, document);
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao selecionar imagem')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erro ao selecionar imagem')));
     }
   }
 
@@ -507,9 +511,9 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
         await _uploadDocument(photo, document);
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao tirar foto')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erro ao tirar foto')));
     }
   }
 
@@ -529,19 +533,21 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
         setState(() {
           _uploadedDocuments.add(newDocument);
         });
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Documento enviado com sucesso')),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(response['message'] ?? 'Erro ao enviar documento')),
+          SnackBar(
+            content: Text(response['message'] ?? 'Erro ao enviar documento'),
+          ),
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao enviar documento')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erro ao enviar documento')));
     } finally {
       setState(() => _isLoading = false);
     }
@@ -565,12 +571,12 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Documentos enviados para verificação')),
       );
-      
+
       Navigator.pop(context);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao enviar documentos')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erro ao enviar documentos')));
     }
   }
 }
