@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../screens/dashboard_screen.dart';
 import '../services/api_service.dart';
 
 class ClientOnboardingScreen extends StatefulWidget {
+  const ClientOnboardingScreen({super.key});
+
   @override
   _ClientOnboardingScreenState createState() => _ClientOnboardingScreenState();
 }

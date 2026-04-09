@@ -292,11 +292,11 @@ class TowProposalService {
   }) {
     // Validar preço
     if (proposedPrice < 10.0) {
-      return 'O preço mínimo é R$ 10,00';
+      return 'O preço mínimo é R\$ 10,00';
     }
     
     if (proposedPrice > 1000.0) {
-      return 'O preço máximo é R$ 1.000,00';
+      return 'O preço máximo é R\$ 1.000,00';
     }
 
     // Validar tempo
