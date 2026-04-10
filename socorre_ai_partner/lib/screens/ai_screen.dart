@@ -19,7 +19,6 @@ class _AIScreenState extends State<AIScreen> {
   String _error = '';
   int _selectedTab = 0;
   String? _selectedCategory;
-  String? _selectedType;
 
   @override
   void initState() {

@@ -398,14 +398,6 @@ class SubscriptionService {
 class SystemSettingsService {
   static String get baseUrl => AppConfig.baseUrl;
 
-  // Headers com autenticação
-  static Future<Map<String, String>> get _authHeaders async {
-    final token = await AuthService.getToken();
-    return {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer $token',
-    };
-  }
 
   // Buscar configurações públicas (para apps)
   static Future<List<SystemSettings>> getPublicSettings() async {

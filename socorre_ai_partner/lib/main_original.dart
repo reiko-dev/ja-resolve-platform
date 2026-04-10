@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:socorre_ai_partner/firebase_options.dart';
+import 'package:socorre_ai_partner/models/chat.dart';
 import 'screens/splash_screen.dart';
 import 'screens/partner_type_selection_screen.dart';
 import 'screens/mechanic_registration_screen.dart';
@@ -29,7 +31,6 @@ import 'services/notification_service.dart';
 import 'services/websocket_service.dart';
 import 'services/location_service.dart';
 import 'config/app_config.dart';
-import '../firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

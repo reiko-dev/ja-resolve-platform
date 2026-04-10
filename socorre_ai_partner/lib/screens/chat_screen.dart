@@ -193,7 +193,7 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  void _markAsRead() {
+  void markAsRead() {
     ChatService.markChatAsRead(widget.chat.id);
   }
 

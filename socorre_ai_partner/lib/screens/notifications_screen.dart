@@ -136,7 +136,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     });
   }
 
-  void _deleteNotification(String notificationId) {
+  void deleteNotification(String notificationId) {
     setState(() {
       _notifications.removeWhere((n) => n['id'] == notificationId);
     });

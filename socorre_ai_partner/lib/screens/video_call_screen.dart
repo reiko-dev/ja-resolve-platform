@@ -25,8 +25,6 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
   bool _isCameraEnabled = true;
   bool _isFrontCamera = true;
   bool _isLoading = true;
-  String? _localVideoPath;
-  String? _remoteVideoPath;
   dynamic _rtcPeerConnection;
   dynamic _localStream;
   dynamic _remoteStream;
@@ -99,12 +97,6 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
 
   Future<dynamic> _createPeerConnection() async {
     // Configuração WebRTC simplificada
-    final configuration = {
-      'iceServers': [
-        {'urls': 'stun:stun.l.google.com:19302'},
-      ],
-    };
-
     // Em uma implementação real, usaríamos webdart_package
     // Para este exemplo, vamos simular
     return {};

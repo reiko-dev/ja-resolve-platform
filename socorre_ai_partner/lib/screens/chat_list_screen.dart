@@ -20,7 +20,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
   String _error = '';
   String _searchQuery = '';
   String _filterType = 'all';
-  final bool _showArchived = false;
 
   @override
   void initState() {

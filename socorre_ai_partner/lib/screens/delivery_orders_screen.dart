@@ -19,7 +19,6 @@ class _DeliveryOrdersScreenState extends State<DeliveryOrdersScreen> with Ticker
   String? _error;
   DeliveryOrderStatus? _selectedStatus;
   Timer? _refreshTimer;
-  int _selectedTabIndex = 0;
 
   @override
   void initState() {
@@ -222,7 +221,7 @@ class _DeliveryOrdersScreenState extends State<DeliveryOrdersScreen> with Ticker
     }
   }
 
-  Future<void> _updateLocation(DeliveryOrder order) async {
+  Future<void> updateLocation(DeliveryOrder order) async {
     try {
       // TODO: Obter localização real
       await DeliveryOrderService.updateLocation(
@@ -251,7 +250,7 @@ class _DeliveryOrdersScreenState extends State<DeliveryOrdersScreen> with Ticker
         bottom: TabBar(
           controller: TabController(length: 2, vsync: this),
           onTap: (index) {
-            setState(() => _selectedTabIndex = index);
+            // Tab index: $index
           },
           tabs: const [
             Tab(
@@ -351,7 +350,7 @@ class _DeliveryOrdersScreenState extends State<DeliveryOrdersScreen> with Ticker
             const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: () {
-                setState(() => _selectedTabIndex = 1);
+                // Switch to search tab
               },
               icon: const Icon(Icons.search),
               label: Text(

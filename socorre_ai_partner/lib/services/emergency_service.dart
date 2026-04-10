@@ -7,11 +7,6 @@ import 'auth_service.dart';
 class EmergencyService {
   static String get baseUrl => AppConfig.baseUrl;
 
-  // Headers padrão
-  static Map<String, String> get _defaultHeaders => {
-    'Content-Type': 'application/json',
-  };
-
   // Headers com autenticação
   static Future<Map<String, String>> get _authHeaders async {
     final token = await AuthService.getToken();

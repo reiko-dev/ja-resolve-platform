@@ -6,7 +6,6 @@ import 'package:socorre_ai_partner/core/providers/partner_provider.dart';
 import 'package:socorre_ai_partner/core/theme/app_theme.dart';
 import 'package:socorre_ai_partner/models/mechanic_specialty.dart';
 import 'package:socorre_ai_partner/services/cep_service.dart';
-import '../../../../services/api_service.dart';
 
 class CompletePartnerRegistrationScreen extends StatefulWidget {
   final String partnerType;
@@ -17,15 +16,13 @@ class CompletePartnerRegistrationScreen extends StatefulWidget {
   State<CompletePartnerRegistrationScreen> createState() => _CompletePartnerRegistrationScreenState();
 }
 
-class _CompletePartnerRegistrationScreenState extends State<CompletePartnerRegistrationScreen> {
-  final _formKey = GlobalKey<FormState>();
+class _CompletePartnerRegistrationScreenState
+    extends State<CompletePartnerRegistrationScreen> {
   final ImagePicker _imagePicker = ImagePicker();
-  final ApiService _apiService = ApiService();
   
   // Controladores para formulário
   final TextEditingController _companyNameController = TextEditingController();
   final TextEditingController _tradeNameController = TextEditingController();
-  final TextEditingController _cpfController = TextEditingController();
   final TextEditingController _cnpjController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _cepController = TextEditingController();
@@ -42,7 +39,6 @@ class _CompletePartnerRegistrationScreenState extends State<CompletePartnerRegis
   final Map<String, dynamic> _uploadedDocuments = {};
   List<String> _requiredDocumentTypes = [];
   final List<MechanicSpecialty> _selectedSpecialties = [];
-  final List<MechanicSpecialty> _availableSpecialties = MechanicSpecialty.getAllSpecialties();
   bool _documentsRequired = false;
 
   @override
@@ -491,7 +487,6 @@ class _CompletePartnerRegistrationScreenState extends State<CompletePartnerRegis
   void _handleCompleteRegistration() async {
     // TODO: Implementar lógica de completar cadastro
     // Por enquanto, apenas mostra mensagem e navega
-    final partnerProvider = context.read<PartnerProvider>();
     
     // Simular sucesso
     ScaffoldMessenger.of(context).showSnackBar(

@@ -8,17 +8,8 @@ class ChatService {
   static String get _baseUrl => AppConfig.baseUrl;
   static IO.Socket? _socket;
   static bool _isConnected = false;
-  static String? _currentUserId;
   static Function(ChatMessage)? _onMessageReceived;
   static Function(Chat)? _onChatUpdated;
-
-  // Headers padrão
-  static Map<String, String> get _headers {
-    return {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    };
-  }
 
   // Headers com autenticação
   static Map<String, String> _headersWithAuth(String token) {
@@ -32,8 +23,6 @@ class ChatService {
   // Conectar ao WebSocket
   static Future<void> connect(String userId, String token) async {
     try {
-      _currentUserId = userId;
-      
       _socket = IO.io(_baseUrl, IO.OptionBuilder()
           .setTransports(['websocket'])
           .setAuth({'token': token})
@@ -81,7 +70,6 @@ class ChatService {
       _socket!.disconnect();
       _socket = null;
       _isConnected = false;
-      _currentUserId = null;
     }
   }
 

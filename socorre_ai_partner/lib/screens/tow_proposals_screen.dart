@@ -19,7 +19,6 @@ class _TowProposalsScreenState extends State<TowProposalsScreen> with TickerProv
   bool _isLoadingEmergencies = false;
   String? _error;
   Timer? _refreshTimer;
-  int _selectedTabIndex = 0;
 
   @override
   void initState() {
@@ -103,7 +102,7 @@ class _TowProposalsScreenState extends State<TowProposalsScreen> with TickerProv
     String notes,
   ) async {
     try {
-      final proposal = await TowProposalService.createProposal(
+      await TowProposalService.createProposal(
         emergencyRequestId: emergency['id'],
         proposedPrice: price,
         estimatedTimeMinutes: time,
@@ -167,7 +166,7 @@ class _TowProposalsScreenState extends State<TowProposalsScreen> with TickerProv
         bottom: TabBar(
           controller: TabController(length: 2, vsync: this),
           onTap: (index) {
-            setState(() => _selectedTabIndex = index);
+            // Tab index: $index
           },
           tabs: const [
             Tab(
@@ -267,7 +266,7 @@ class _TowProposalsScreenState extends State<TowProposalsScreen> with TickerProv
             const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: () {
-                setState(() => _selectedTabIndex = 1);
+                // Switch to search tab
               },
               icon: const Icon(Icons.search),
               label: Text(

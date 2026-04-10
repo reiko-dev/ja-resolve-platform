@@ -1125,7 +1125,6 @@ class _EditProductDialogState extends State<_EditProductDialog> {
   Map<String, dynamic> _specifications = {};
   
   final bool _isLoading = false;
-  String? _error;
 
   @override
   void initState() {

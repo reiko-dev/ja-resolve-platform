@@ -14,7 +14,6 @@ class BackupScreen extends StatefulWidget {
 class _BackupScreenState extends State<BackupScreen> {
   List<BackupData> _backups = [];
   List<SyncData> _syncData = [];
-  BackupSettings? _settings;
   bool _isLoading = true;
   String _error = '';
   int _selectedTab = 0;
@@ -53,9 +52,7 @@ class _BackupScreenState extends State<BackupScreen> {
       // Carregar configurações
       final settingsResult = await BackupService.getBackupSettings(token: token);
       if (settingsResult['success']) {
-        setState(() {
-          _settings = settingsResult['data'];
-        });
+        // Configurações carregadas, mas não armazenadas localmente
       }
 
     } catch (e) {
