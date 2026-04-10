@@ -3,7 +3,6 @@ import 'package:google_fonts/google_fonts.dart';
 import '../models/backup.dart';
 import '../services/backup_service.dart';
 import '../widgets/backup_card.dart';
-import '../widgets/sync_card.dart' as sync;
 
 class BackupScreen extends StatefulWidget {
   const BackupScreen({super.key});

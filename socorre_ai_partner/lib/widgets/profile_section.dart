@@ -281,7 +281,7 @@ class ProfileSwitchItem extends StatelessWidget {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: const Color(0xFFE53E3E),
+            activeThumbColor: const Color(0xFFE53E3E),
           ),
         ],
       ),

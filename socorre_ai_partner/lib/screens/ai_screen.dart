@@ -3,8 +3,6 @@ import 'package:google_fonts/google_fonts.dart';
 import '../models/ai_models.dart';
 import '../services/ai_service.dart';
 import '../widgets/ai_model_card.dart';
-import '../widgets/prediction_card.dart' as prediction;
-import '../widgets/ai_insight_card.dart' as insight;
 
 class AIScreen extends StatefulWidget {
   const AIScreen({super.key});

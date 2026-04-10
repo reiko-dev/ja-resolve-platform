@@ -288,7 +288,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
             children: [
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  value: _sortBy,
+                  initialValue: _sortBy,
                   decoration: InputDecoration(
                     labelText: 'Ordenar por',
                     labelStyle: GoogleFonts.poppins(color: Colors.white70),
@@ -321,7 +321,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  value: _filter,
+                  initialValue: _filter,
                   decoration: InputDecoration(
                     labelText: 'Filtrar por',
                     labelStyle: GoogleFonts.poppins(color: Colors.white70),

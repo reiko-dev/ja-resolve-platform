@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_config.dart';

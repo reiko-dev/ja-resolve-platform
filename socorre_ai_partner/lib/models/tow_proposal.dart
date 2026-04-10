@@ -1,4 +1,3 @@
-import 'dart:convert';
 
 class TowProposal {
   final String id;
@@ -126,6 +125,11 @@ class TowProposal {
   String toString() {
     return 'TowProposal(id: $id, partnerName: $partnerName, proposedPrice: $proposedPrice, status: $status)';
   }
+
+  bool get isExpired => status == TowProposalStatus.expired;
+  bool get isActive => status == TowProposalStatus.pending;
+  bool get isCompleted =>
+      status == TowProposalStatus.accepted || status == TowProposalStatus.rejected;
 
   @override
   bool operator ==(Object other) {

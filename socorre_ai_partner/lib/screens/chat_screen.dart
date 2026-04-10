@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:socorre_ai_partner/widgets/chat_card.dart';
 import '../models/chat.dart';
 import '../services/chat_service.dart';
-import '../widgets/chat_message_bubble.dart';
 import '../widgets/chat_input.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -26,7 +26,7 @@ class _ChatScreenState extends State<ChatScreen> {
   String _error = '';
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  bool _isTyping = false;
+  final bool _isTyping = false;
 
   @override
   void initState() {

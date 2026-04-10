@@ -12,7 +12,7 @@ class TowProposalsScreen extends StatefulWidget {
   State<TowProposalsScreen> createState() => _TowProposalsScreenState();
 }
 
-class _TowProposalsScreenState extends State<TowProposalsScreen> {
+class _TowProposalsScreenState extends State<TowProposalsScreen> with TickerProviderStateMixin {
   List<TowProposal> _proposals = [];
   List<Map<String, dynamic>> _availableEmergencies = [];
   bool _isLoading = true;
@@ -744,7 +744,6 @@ class _CreateProposalDialog extends StatefulWidget {
   final Function(double, int, String) onSubmit;
 
   const _CreateProposalDialog({
-    super.key,
     required this.emergency,
     required this.onSubmit,
   });
@@ -758,7 +757,7 @@ class _CreateProposalDialogState extends State<_CreateProposalDialog> {
   final _timeController = TextEditingController();
   final _notesController = TextEditingController();
   
-  bool _isLoading = false;
+  final bool _isLoading = false;
   String? _error;
 
   @override
@@ -842,8 +841,8 @@ class _CreateProposalDialogState extends State<_CreateProposalDialog> {
               controller: _priceController,
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
-                labelText: 'Preço (R$)',
-                prefixText: 'R$ ',
+                labelText: 'Preço (R\$)',
+                prefixText: 'R\$ ',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),

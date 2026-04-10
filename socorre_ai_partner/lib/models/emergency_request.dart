@@ -32,14 +32,7 @@ class EmergencyRequest {
   final Map<String, dynamic>? vehicleInfo;
   final EmergencyStatus status;
   EmergencyStatus currentStatus;
-  
-  // Setter para status
-  set status(String newStatus) {
-    currentStatus = EmergencyStatus.values.firstWhere(
-      (e) => e.toString().split('.').last == newStatus,
-      orElse: () => EmergencyStatus.pending,
-    );
-  }
+
   final DateTime createdAt;
   final DateTime? updatedAt;
   final double? distance;
@@ -112,18 +105,11 @@ class EmergencyRequest {
     };
   }
 
-  // Setter para status
-  set status(String newStatus) {
-    currentStatus = EmergencyStatus.values.firstWhere(
-      (e) => e.toString().split('.').last == newStatus,
-      orElse: () => EmergencyStatus.pending,
-    );
-  }
-
   // Getter para status
   String get statusValue => currentStatus.toString().split('.').last;
 
   // Getters para facilitar acesso
+
   String get emergencyType {
     switch (type) {
       case EmergencyType.mechanical:

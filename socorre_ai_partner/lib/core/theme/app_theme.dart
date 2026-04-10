@@ -37,12 +37,10 @@ class AppTheme {
         primary: primaryColor,
         secondary: primaryLight,
         surface: surfaceColor,
-        background: backgroundColor,
         error: errorColor,
         onPrimary: textPrimary,
         onSecondary: textPrimary,
         onSurface: textPrimary,
-        onBackground: textPrimary,
         onError: textPrimary,
       ),
 

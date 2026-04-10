@@ -171,9 +171,6 @@ class PartnerProvider extends ChangeNotifier {
             'sunday': '08:00-18:00',
           },
         };
-        
-      default:
-        return {};
     }
   }
   

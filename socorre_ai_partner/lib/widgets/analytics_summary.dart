@@ -180,7 +180,7 @@ class AnalyticsSummaryWidget extends StatelessWidget {
                     ],
                   ),
                 );
-              }).toList(),
+              }),
             ],
           ],
         ),

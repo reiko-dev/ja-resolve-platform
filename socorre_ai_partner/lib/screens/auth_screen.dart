@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../services/auth_service.dart';
+import '../services/api_service.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -31,7 +31,7 @@ class _AuthScreenState extends State<AuthScreen> {
     });
 
     try {
-      final response = await AuthService.login(
+      final response = await ApiService.login(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );

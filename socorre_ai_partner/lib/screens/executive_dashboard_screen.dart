@@ -19,8 +19,8 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
   List<DashboardWidget> _widgets = [];
   bool _isLoading = true;
   String _error = '';
-  DateTime _selectedPeriodStart = DateTime.now().subtract(const Duration(days: 30));
-  DateTime _selectedPeriodEnd = DateTime.now();
+  final DateTime _selectedPeriodStart = DateTime.now().subtract(const Duration(days: 30));
+  final DateTime _selectedPeriodEnd = DateTime.now();
 
   @override
   void initState() {

@@ -1,12 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../models/subscription.dart';
-import '../models/tow_proposal.dart';
-import '../models/delivery_order.dart';
 import '../services/subscription_service.dart';
 import '../services/tow_proposal_service.dart';
 import '../services/delivery_order_service.dart';
-import 'package:intl/intl.dart';
 
 class PartnerDashboardScreen extends StatefulWidget {
   const PartnerDashboardScreen({super.key});
@@ -160,7 +157,6 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
                     color: Colors.green,
                     subtitle: 'Últimos 30 dias',
                   ),
-                ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -532,8 +528,8 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
                     ],
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -641,7 +637,7 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
                 child: _MetricItem(
                   label: 'Cancelados',
                   value: '$cancelledOrders',
-                  icon: Icons.cancel',
+                  icon: Icons.cancel,
                   color: Colors.red,
                 ),
               ),
@@ -694,8 +690,8 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
                     ],
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -765,7 +761,7 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
           child: LinearProgressIndicator(
             value: percentage,
             backgroundColor: color,
-            valueColor: Colors.white,
+            valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
           ),
         ),
         const SizedBox(height: 4),

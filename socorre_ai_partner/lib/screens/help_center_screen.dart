@@ -80,9 +80,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
     }
   }
 
-  void _onRefresh() {
-    _loadData();
-  }
+  Future<void> _onRefresh() => _loadData();
 
   void _onSearch(String query) {
     setState(() {
@@ -187,7 +185,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                       padding: const EdgeInsets.only(right: 8),
                       child: _buildCategoryChip(category.name, category.id),
                     );
-                  }).toList(),
+                  }),
                 ],
               ),
             ),

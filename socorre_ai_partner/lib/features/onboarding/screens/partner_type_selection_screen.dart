@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/theme/app_theme.dart';
-import '../../../../core/constants/app_constants.dart';
 import '../../../../core/providers/partner_provider.dart';
 import '../../../../models/subscription.dart';
 

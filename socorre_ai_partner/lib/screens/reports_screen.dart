@@ -3,7 +3,6 @@ import 'package:google_fonts/google_fonts.dart';
 import '../models/reports.dart';
 import '../services/reports_service.dart';
 import '../widgets/report_card.dart';
-import '../widgets/report_template_card.dart';
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});

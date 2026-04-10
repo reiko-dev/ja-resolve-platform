@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../services/partner_type_service.dart';
 
 class StoreRegistrationScreen extends StatefulWidget {
   const StoreRegistrationScreen({super.key});
@@ -21,9 +20,9 @@ class _StoreRegistrationScreenState extends State<StoreRegistrationScreen> {
   final _minOrderValueController = TextEditingController();
   final _deliveryTimeController = TextEditingController();
   
-  List<String> _selectedCategories = [];
-  List<String> _selectedPaymentMethods = [];
-  Map<String, bool> _workingHours = {};
+  final List<String> _selectedCategories = [];
+  final List<String> _selectedPaymentMethods = [];
+  final Map<String, bool> _workingHours = {};
   bool _hasDelivery = false;
   bool _isOnlineStore = true;
   double _deliveryRadius = 15.0;

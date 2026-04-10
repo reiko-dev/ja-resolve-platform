@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:socorre_ai_partner/screens/partner_dashboard_screen.dart';
 import '../services/api_service.dart';
-import '../models/partner_model.dart';
-import '../screens/partner_dashboard.dart';
 
 class PartnerOnboardingScreen extends StatefulWidget {
   final String partnerType; // mechanic, motoboy, gas_station, auto_parts, tow
 
-  PartnerOnboardingScreen({required this.partnerType});
+  const PartnerOnboardingScreen({super.key, required this.partnerType});
 
   @override
   _PartnerOnboardingScreenState createState() => _PartnerOnboardingScreenState();
@@ -17,7 +15,7 @@ class _PartnerOnboardingScreenState extends State<PartnerOnboardingScreen> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
   bool _isLoading = false;
-  Map<String, dynamic> _partnerData = {};
+  final Map<String, dynamic> _partnerData = {};
 
   List<OnboardingPage> _getPagesForType() {
     switch (widget.partnerType) {
@@ -43,7 +41,8 @@ class _PartnerOnboardingScreenState extends State<PartnerOnboardingScreen> {
           ),
           OnboardingPage(
             title: 'Assinatura Mensal',
-            description: '• R$ 49,90/mês\n• Receba solicitações ilimitadas\n• Cancelamento a qualquer momento\n• Suporte 24h',
+            description:
+                '• R\$ 49,90/mês\n• Receba solicitações ilimitadas\n• Cancelamento a qualquer momento\n• Suporte 24h',
             image: 'assets/images/onboarding/subscription.png',
             buttonText: 'Assinar',
           ),
@@ -125,7 +124,8 @@ class _PartnerOnboardingScreenState extends State<PartnerOnboardingScreen> {
           ),
           OnboardingPage(
             title: 'Assinatura Premium',
-            description: '• R$ 199,90/mês\n• Loja no app\n• Destaque nas buscas\n• Relatórios avançados',
+            description:
+                '• R\$ 199,90/mês\n• Loja no app\n• Destaque nas buscas\n• Relatórios avançados',
             image: 'assets/images/onboarding/premium.png',
             buttonText: 'Assinar',
           ),
@@ -245,7 +245,7 @@ class _PartnerOnboardingScreenState extends State<PartnerOnboardingScreen> {
     } catch (e) {
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: 'Erro ao concluir onboarding'),
+        SnackBar(content: Text('Erro ao concluir onboarding')),
       );
     }
   }
@@ -427,17 +427,17 @@ class _PartnerOnboardingScreenState extends State<PartnerOnboardingScreen> {
   Color _getPrimaryColor() {
     switch (widget.partnerType) {
       case 'mechanic':
-        return Colors.red[600];
+        return Colors.red[600]!;
       case 'motoboy':
-        return Colors.blue[800];
+        return Colors.blue[800]!;
       case 'gas_station':
-        return Colors.orange[600];
+        return Colors.orange[600]!;
       case 'auto_parts':
-        return Colors.green[600];
+        return Colors.green[600]!;
       case 'tow':
-        return Colors.purple[600];
+        return Colors.purple[600]!;
       default:
-        return Colors.blue[600];
+        return Colors.blue[600]!;
     }
   }
 

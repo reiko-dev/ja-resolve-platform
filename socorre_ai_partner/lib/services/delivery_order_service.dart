@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/delivery_order.dart';
-import '../models/product.dart';
 import '../config/app_config.dart';
 import 'auth_service.dart';
 
@@ -267,7 +266,7 @@ class DeliveryOrderService {
 
   // Calcular taxa de delivery baseada na distância
   static double calculateDeliveryFee(double distanceKm, DeliveryOrderType orderType) {
-    // Taxa base: R$ 8,00 + R$ 2,00 por km
+    // Taxa base: R\$ 8,00 + R\$ 2,00 por km
     const baseFee = 8.0;
     const feePerKm = 2.0;
     

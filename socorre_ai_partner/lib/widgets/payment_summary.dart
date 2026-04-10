@@ -164,7 +164,7 @@ class PaymentSummaryWidget extends StatelessWidget {
                     ],
                   ),
                 );
-              }).toList(),
+              }),
             ],
             
             const SizedBox(height: 16),
@@ -219,7 +219,7 @@ class PaymentSummaryWidget extends StatelessWidget {
                     ],
                   ),
                 );
-              }).toList(),
+              }),
             ],
           ],
         ),
@@ -364,7 +364,7 @@ class PaymentChartWidget extends StatelessWidget {
                     ],
                   ),
                 );
-              }).toList(),
+              }),
           ],
         ),
       ),

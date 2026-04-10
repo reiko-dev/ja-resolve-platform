@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/delivery_order.dart';
 import '../services/delivery_order_service.dart';
-import 'package:intl/intl.dart';
-import 'package:geolocator/geolocator.dart';
 import 'dart:async';
 
 class DeliveryOrdersScreen extends StatefulWidget {
@@ -13,7 +11,7 @@ class DeliveryOrdersScreen extends StatefulWidget {
   State<DeliveryOrdersScreen> createState() => _DeliveryOrdersScreenState();
 }
 
-class _DeliveryOrdersScreenState extends State<DeliveryOrdersScreen> {
+class _DeliveryOrdersScreenState extends State<DeliveryOrdersScreen> with TickerProviderStateMixin {
   List<DeliveryOrder> _orders = [];
   List<DeliveryOrder> _availableOrders = [];
   bool _isLoading = true;
@@ -400,7 +398,7 @@ class _DeliveryOrdersScreenState extends State<DeliveryOrdersScreen> {
                       _loadOrders();
                     },
                   );
-                }).toList(),
+                }),
               ],
             ),
           ),
@@ -573,9 +571,9 @@ class _DeliveryOrdersScreenState extends State<DeliveryOrdersScreen> {
                 children: [
                   Row(
                     children: [
-                      Icon(
+                      Text(
                         order.orderType.icon,
-                        size: 20,
+                        style: const TextStyle(fontSize: 20),
                       ),
                       const SizedBox(width: 8),
                       Text(
@@ -905,9 +903,9 @@ class _DeliveryOrdersScreenState extends State<DeliveryOrdersScreen> {
             // Header
             Row(
               children: [
-                Icon(
+                Text(
                   order.orderType.icon,
-                  size: 24,
+                  style: const TextStyle(fontSize: 24),
                 ),
                 const SizedBox(width: 12),
                 Expanded(

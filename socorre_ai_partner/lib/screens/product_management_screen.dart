@@ -1,9 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/product.dart';
 import '../services/product_service.dart';
-import 'package:image_picker/image_picker.dart';
-import 'dart:io';
 
 class ProductManagementScreen extends StatefulWidget {
   const ProductManagementScreen({super.key});
@@ -625,12 +624,13 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                       }
                     },
                   ),
-                ],
+                  ],
+                ),
               ],
             ),
-            
+
             const SizedBox(height: 12),
-            
+
             // Nome e categoria
             Row(
               children: [
@@ -722,7 +722,7 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                       ),
                     ),
                   ],
-                ],
+                ),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
@@ -738,15 +738,15 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                       style: GoogleFonts.poppins(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: product.isOutOfStock 
-                            ? Colors.red 
-                            : product.isLowStock 
-                                ? Colors.orange 
+                        color: product.isOutOfStock
+                            ? Colors.red
+                            : product.isLowStock
+                                ? Colors.orange
                                 : Colors.green[700],
                       ),
                     ),
                   ],
-                ],
+                ),
               ],
             ),
             
@@ -814,7 +814,7 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
 class _CreateProductDialog extends StatefulWidget {
   final Function(Map<String, dynamic>) onSubmit;
 
-  const _CreateProductDialog({super.key, required this.onSubmit});
+  const _CreateProductDialog({required this.onSubmit});
 
   @override
   State<_CreateProductDialog> createState() => _CreateProductDialogState();
@@ -832,11 +832,11 @@ class _CreateProductDialogState extends State<_CreateProductDialog> {
   
   ProductCategory _selectedCategory = ProductCategory.other;
   ProductType _selectedType = ProductType.other;
-  List<String> _tags = [];
-  List<String> _photos = [];
-  Map<String, dynamic> _specifications = {};
+  final List<String> _tags = [];
+  final List<String> _photos = [];
+  final Map<String, dynamic> _specifications = {};
   
-  bool _isLoading = false;
+  final bool _isLoading = false;
   String? _error;
 
   @override
@@ -894,7 +894,7 @@ class _CreateProductDialogState extends State<_CreateProductDialog> {
                 children: [
                   Expanded(
                     child: DropdownButtonFormField<ProductCategory>(
-                      value: _selectedCategory,
+                      initialValue: _selectedCategory,
                       decoration: const InputDecoration(
                         labelText: 'Categoria',
                         border: OutlineInputBorder(),
@@ -911,7 +911,7 @@ class _CreateProductDialogState extends State<_CreateProductDialog> {
                   const SizedBox(width: 16),
                   Expanded(
                     child: DropdownButtonFormField<ProductType>(
-                      value: _selectedType,
+                      initialValue: _selectedType,
                       decoration: const InputDecoration(
                         labelText: 'Tipo',
                         border: OutlineInputBorder(),
@@ -938,8 +938,8 @@ class _CreateProductDialogState extends State<_CreateProductDialog> {
                       controller: _priceController,
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(
-                        labelText: 'Preço (R$)',
-                        prefixText: 'R$ ',
+                        labelText: 'Preço (R\$)',
+                        prefixText: 'R\$ ',
                         border: OutlineInputBorder(),
                       ),
                       validator: (value) {
@@ -1101,7 +1101,6 @@ class _EditProductDialog extends StatefulWidget {
   final Function(Map<String, dynamic>) onSubmit;
 
   const _EditProductDialog({
-    super.key,
     required this.product,
     required this.onSubmit,
   });
@@ -1125,7 +1124,7 @@ class _EditProductDialogState extends State<_EditProductDialog> {
   List<String> _photos = [];
   Map<String, dynamic> _specifications = {};
   
-  bool _isLoading = false;
+  final bool _isLoading = false;
   String? _error;
 
   @override
