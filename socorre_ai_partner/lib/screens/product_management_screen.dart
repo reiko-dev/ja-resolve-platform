@@ -86,7 +86,7 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
         _products = filtered;
       });
     } catch (e) {
-      print('Erro ao buscar produtos: $e');
+      debugPrint('Erro ao buscar produtos: $e');
     }
   }
 

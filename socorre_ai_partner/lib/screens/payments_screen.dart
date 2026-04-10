@@ -86,7 +86,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
         });
       }
     } catch (e) {
-      print('Erro ao carregar resumo: $e');
+      debugPrint('Erro ao carregar resumo: $e');
     }
   }
 
@@ -116,7 +116,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
         });
       }
     } catch (e) {
-      print('Erro ao carregar mais pagamentos: $e');
+      debugPrint('Erro ao carregar mais pagamentos: $e');
     } finally {
       setState(() {
         _isLoadingMore = false;

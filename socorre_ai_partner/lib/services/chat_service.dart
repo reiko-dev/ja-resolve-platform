@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/rendering.dart';
 import 'package:http/http.dart' as http;
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import '../config/app_config.dart';
@@ -29,18 +30,18 @@ class ChatService {
           .build());
 
       _socket!.onConnect((_) {
-        print('✅ Conectado ao chat');
+        debugPrint('✅ Conectado ao chat');
         _isConnected = true;
         _socket!.emit('join', {'user_id': userId});
       });
 
       _socket!.onDisconnect((_) {
-        print('❌ Desconectado do chat');
+        debugPrint('❌ Desconectado do chat');
         _isConnected = false;
       });
 
       _socket!.on('message', (data) {
-        print('📱 Mensagem recebida: $data');
+        debugPrint('📱 Mensagem recebida: $data');
         if (_onMessageReceived != null) {
           final message = ChatMessage.fromJson(data);
           _onMessageReceived!(message);
@@ -48,7 +49,7 @@ class ChatService {
       });
 
       _socket!.on('chat_updated', (data) {
-        print('💬 Chat atualizado: $data');
+        debugPrint('💬 Chat atualizado: $data');
         if (_onChatUpdated != null) {
           final chat = Chat.fromJson(data);
           _onChatUpdated!(chat);
@@ -56,11 +57,11 @@ class ChatService {
       });
 
       _socket!.on('error', (error) {
-        print('❌ Erro no chat: $error');
+        debugPrint('❌ Erro no chat: $error');
       });
 
     } catch (e) {
-      print('❌ Erro ao conectar ao chat: $e');
+      debugPrint('❌ Erro ao conectar ao chat: $e');
     }
   }
 

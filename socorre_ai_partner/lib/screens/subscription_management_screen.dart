@@ -67,7 +67,7 @@ class _SubscriptionManagementScreenState extends State<SubscriptionManagementScr
         _subscriptionStatus = status;
       });
     } catch (e) {
-      print('Erro ao carregar status da assinatura: $e');
+      debugPrint('Erro ao carregar status da assinatura: $e');
     }
   }
 

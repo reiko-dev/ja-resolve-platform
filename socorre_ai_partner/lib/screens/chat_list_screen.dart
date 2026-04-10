@@ -124,7 +124,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
         });
       }
     } catch (e) {
-      print('Erro ao carregar mais chats: $e');
+      debugPrint('Erro ao carregar mais chats: $e');
     } finally {
       setState(() {
         _isLoadingMore = false;

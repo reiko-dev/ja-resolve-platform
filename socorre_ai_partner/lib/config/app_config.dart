@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 class AppConfig {
   // Configuração de ambiente
   static const String _environment = String.fromEnvironment(
@@ -32,9 +34,9 @@ class AppConfig {
 
   // Método para debug
   static void printConfig() {
-    print('🌍 Ambiente: ${isProduction ? 'PRODUÇÃO' : 'DESENVOLVIMENTO'}');
-    print('🔗 Base URL: $baseUrl');
-    print('🔑 Auth URL: $authUrl');
+    debugPrint('🌍 Ambiente: ${isProduction ? 'PRODUÇÃO' : 'DESENVOLVIMENTO'}');
+    debugPrint('🔗 Base URL: $baseUrl');
+    debugPrint('🔑 Auth URL: $authUrl');
   }
 
   // Método para forçar ambiente (útil para testes)

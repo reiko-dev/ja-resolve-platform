@@ -85,7 +85,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
         });
       }
     } catch (e) {
-      print('Erro ao carregar estatísticas: $e');
+      debugPrint('Erro ao carregar estatísticas: $e');
     }
   }
 
@@ -114,7 +114,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
         });
       }
     } catch (e) {
-      print('Erro ao carregar mais avaliações: $e');
+      debugPrint('Erro ao carregar mais avaliações: $e');
     } finally {
       setState(() {
         _isLoadingMore = false;

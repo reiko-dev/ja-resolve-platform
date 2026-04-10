@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/rendering.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -57,7 +58,7 @@ class LocationService {
         _sendLocationUpdate(position);
       },
       onError: (error) {
-        print('Erro na localização: $error');
+        debugPrint('Erro na localização: $error');
         _isTracking = false;
       },
     );
@@ -84,7 +85,7 @@ class LocationService {
         _currentAddress = '${place.street}, ${place.locality}';
       }
     } catch (e) {
-      print('Erro ao obter endereço: $e');
+      debugPrint('Erro ao obter endereço: $e');
       _currentAddress = "Endereço não disponível";
     }
   }
@@ -115,7 +116,7 @@ class LocationService {
       
       return position;
     } catch (e) {
-      print('Erro ao obter posição atual: $e');
+      debugPrint('Erro ao obter posição atual: $e');
       return null;
     }
   }
@@ -135,7 +136,7 @@ class LocationService {
       }
       return "Endereço não encontrado";
     } catch (e) {
-      print('Erro ao obter endereço: $e');
+      debugPrint('Erro ao obter endereço: $e');
       return "Endereço não disponível";
     }
   }

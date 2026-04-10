@@ -1,3 +1,4 @@
+import 'package:flutter/rendering.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
 import 'api_service.dart';
@@ -32,7 +33,7 @@ class AuthService {
         }
       }
     } catch (e) {
-      print('Erro ao inicializar AuthService: $e');
+      debugPrint('Erro ao inicializar AuthService: $e');
       await ApiService.clearLocalData();
     } finally {
       _isLoading = false;

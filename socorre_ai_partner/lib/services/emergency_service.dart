@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/rendering.dart';
 import 'package:http/http.dart' as http;
 import '../models/emergency_request.dart';
 import '../config/app_config.dart';
@@ -34,7 +35,7 @@ class EmergencyService {
       }
       return [];
     } catch (e) {
-      print('Erro ao buscar emergências: $e');
+      debugPrint('Erro ao buscar emergências: $e');
       return [];
     }
   }
@@ -55,7 +56,7 @@ class EmergencyService {
       }
       return false;
     } catch (e) {
-      print('Erro ao aceitar emergência: $e');
+      debugPrint('Erro ao aceitar emergência: $e');
       return false;
     }
   }
@@ -76,7 +77,7 @@ class EmergencyService {
       }
       return false;
     } catch (e) {
-      print('Erro ao atualizar status: $e');
+      debugPrint('Erro ao atualizar status: $e');
       return false;
     }
   }
@@ -98,7 +99,7 @@ class EmergencyService {
       }
       return null;
     } catch (e) {
-      print('Erro ao buscar emergência ativa: $e');
+      debugPrint('Erro ao buscar emergência ativa: $e');
       return null;
     }
   }
@@ -119,7 +120,7 @@ class EmergencyService {
       }
       return false;
     } catch (e) {
-      print('Erro ao concluir emergência: $e');
+      debugPrint('Erro ao concluir emergência: $e');
       return false;
     }
   }
@@ -140,7 +141,7 @@ class EmergencyService {
       }
       return false;
     } catch (e) {
-      print('Erro ao cancelar emergência: $e');
+      debugPrint('Erro ao cancelar emergência: $e');
       return false;
     }
   }
@@ -164,7 +165,7 @@ class EmergencyService {
       }
       return false;
     } catch (e) {
-      print('Erro ao atualizar localização: $e');
+      debugPrint('Erro ao atualizar localização: $e');
       return false;
     }
   }
@@ -185,7 +186,7 @@ class EmergencyService {
       }
       return false;
     } catch (e) {
-      print('Erro ao atualizar status: $e');
+      debugPrint('Erro ao atualizar status: $e');
       return false;
     }
   }

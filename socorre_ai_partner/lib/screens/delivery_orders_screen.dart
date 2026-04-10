@@ -230,7 +230,7 @@ class _DeliveryOrdersScreenState extends State<DeliveryOrdersScreen> with Ticker
         -46.6333,
       );
     } catch (e) {
-      print('Erro ao atualizar localização: $e');
+      debugPrint('Erro ao atualizar localização: $e');
     }
   }
 

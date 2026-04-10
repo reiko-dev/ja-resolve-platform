@@ -1,10 +1,11 @@
 import 'dart:async';
-import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:flutter/rendering.dart';
+import 'package:socket_io_client/socket_io_client.dart' as io;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_config.dart';
 
 class WebSocketService {
-  static IO.Socket? _socket;
+  static io.Socket? _socket;
   static bool _isConnected = false;
   static final StreamController<Map<String, dynamic>> _messageController = 
       StreamController<Map<String, dynamic>>.broadcast();
@@ -28,13 +29,13 @@ class WebSocketService {
       final token = prefs.getString('auth_token');
       
       if (token == null) {
-        print('❌ Token de autenticação não encontrado');
+        debugPrint('❌ Token de autenticação não encontrado');
         return;
       }
 
-      _socket = IO.io(
+      _socket = io.io(
         AppConfig.baseUrl,
-        IO.OptionBuilder()
+        io.OptionBuilder()
           .setTransports(['websocket'])
           .setExtraHeaders({'Authorization': 'Bearer $token'})
           .enableAutoConnect()
@@ -44,7 +45,7 @@ class WebSocketService {
       _setupEventListeners();
       
     } catch (e) {
-      print('❌ Erro ao inicializar WebSocket: $e');
+      debugPrint('❌ Erro ao inicializar WebSocket: $e');
     }
   }
 
@@ -52,60 +53,60 @@ class WebSocketService {
     if (_socket == null) return;
 
     _socket!.onConnect((_) {
-      print('✅ WebSocket conectado (Partner)');
+      debugPrint('✅ WebSocket conectado (Partner)');
       _isConnected = true;
     });
 
     _socket!.onDisconnect((_) {
-      print('❌ WebSocket desconectado (Partner)');
+      debugPrint('❌ WebSocket desconectado (Partner)');
       _isConnected = false;
     });
 
     _socket!.onConnectError((error) {
-      print('❌ Erro de conexão WebSocket: $error');
+      debugPrint('❌ Erro de conexão WebSocket: $error');
       _isConnected = false;
     });
 
     // Eventos de chat
     _socket!.on('newMessage', (data) {
-      print('📱 Nova mensagem recebida: $data');
+      debugPrint('📱 Nova mensagem recebida: $data');
       _messageController.add(Map<String, dynamic>.from(data));
     });
 
     _socket!.on('messageSent', (data) {
-      print('📤 Mensagem enviada: $data');
+      debugPrint('📤 Mensagem enviada: $data');
       _messageController.add(Map<String, dynamic>.from(data));
     });
 
     _socket!.on('chatError', (data) {
-      print('❌ Erro no chat: $data');
+      debugPrint('❌ Erro no chat: $data');
       _messageController.add(Map<String, dynamic>.from(data));
     });
 
     // Eventos de emergência
     _socket!.on('newEmergencyAlert', (data) {
-      print('🚨 Nova emergência: $data');
+      debugPrint('🚨 Nova emergência: $data');
       _emergencyController.add(Map<String, dynamic>.from(data));
     });
 
     _socket!.on('emergencyStatusUpdate', (data) {
-      print('🚨 Atualização de emergência: $data');
+      debugPrint('🚨 Atualização de emergência: $data');
       _emergencyController.add(Map<String, dynamic>.from(data));
     });
 
     _socket!.on('emergencyChatUpdate', (data) {
-      print('💬 Atualização de chat de emergência: $data');
+      debugPrint('💬 Atualização de chat de emergência: $data');
       _emergencyController.add(Map<String, dynamic>.from(data));
     });
 
     // Eventos de localização
     _socket!.on('partnerLocationUpdate', (data) {
-      print('📍 Atualização de localização: $data');
+      debugPrint('📍 Atualização de localização: $data');
       _locationController.add(Map<String, dynamic>.from(data));
     });
 
     _socket!.on('locationError', (data) {
-      print('❌ Erro de localização: $data');
+      debugPrint('❌ Erro de localização: $data');
       _locationController.add(Map<String, dynamic>.from(data));
     });
   }
@@ -117,7 +118,7 @@ class WebSocketService {
     String? emergencyRequestId,
   }) {
     if (_socket == null || !_isConnected) {
-      print('❌ WebSocket não conectado');
+      debugPrint('❌ WebSocket não conectado');
       return;
     }
 
@@ -131,23 +132,23 @@ class WebSocketService {
   // Entrar em sala de emergência
   static void joinEmergencyRoom(String emergencyRequestId) {
     if (_socket == null || !_isConnected) {
-      print('❌ WebSocket não conectado');
+      debugPrint('❌ WebSocket não conectado');
       return;
     }
 
     _socket!.emit('joinEmergencyRoom', emergencyRequestId);
-    print('🚪 Entrou na sala de emergência: $emergencyRequestId');
+    debugPrint('🚪 Entrou na sala de emergência: $emergencyRequestId');
   }
 
   // Sair de sala de emergência
   static void leaveEmergencyRoom(String emergencyRequestId) {
     if (_socket == null || !_isConnected) {
-      print('❌ WebSocket não conectado');
+      debugPrint('❌ WebSocket não conectado');
       return;
     }
 
     _socket!.emit('leaveEmergencyRoom', emergencyRequestId);
-    print('🚪 Saiu da sala de emergência: $emergencyRequestId');
+    debugPrint('🚪 Saiu da sala de emergência: $emergencyRequestId');
   }
 
   // Atualizar localização
@@ -157,7 +158,7 @@ class WebSocketService {
     String? emergencyRequestId,
   }) {
     if (_socket == null || !_isConnected) {
-      print('❌ WebSocket não conectado');
+      debugPrint('❌ WebSocket não conectado');
       return;
     }
 
@@ -176,7 +177,7 @@ class WebSocketService {
     required String partnerId,
   }) {
     if (_socket == null || !_isConnected) {
-      print('❌ WebSocket não conectado');
+      debugPrint('❌ WebSocket não conectado');
       return;
     }
 
@@ -191,7 +192,7 @@ class WebSocketService {
   // Marcar mensagem como lida
   static void markMessageAsRead(String messageId) {
     if (_socket == null || !_isConnected) {
-      print('❌ WebSocket não conectado');
+      debugPrint('❌ WebSocket não conectado');
       return;
     }
 
