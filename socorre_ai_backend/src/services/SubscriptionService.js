@@ -2,7 +2,7 @@ const Subscription = require('../models/Subscription');
 const SubscriptionHistory = require('../models/SubscriptionHistory');
 const Payment = require('../models/Payment');
 const NotificationService = require('./NotificationServiceNew');
-const SystemSettings = require('./SystemSettings');
+const SystemSettings = require('../models/SystemSettings');
 
 class SubscriptionService {
   // Criar nova assinatura
