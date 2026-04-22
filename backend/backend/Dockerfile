@@ -1,13 +1,13 @@
-# EasyPanel / monorepo
+# Mesmo conteúdo que backend/Dockerfile — para painéis que exigem caminho `backend/backend/Dockerfile`.
 #
-# Build context: RAIZ do Git (onde existem `socorre_ai_backend/` e `backend/`).
-# Dockerfile: `backend/Dockerfile` OU, se o painel exigir, `backend/backend/Dockerfile` (idêntico).
+# OBRIGATÓRIO no EasyPanel:
+#   • Repositório / clone: projeto COMPLETO (monorepo), não só a pasta `backend`.
+#   • Contexto de build (Build context / Root): RAIZ do repositório — a pasta onde existem
+#     `socorre_ai_backend/` e `backend/` lado a lado.
+#   • Dockerfile: backend/backend/Dockerfile  (este arquivo)
 #
-# No EasyPanel: NÃO defina "subpasta" do código só como `backend` — isso quebra o COPY.
-# O erro `lstat .../backend/backend` costuma ser Dockerfile path = backend/backend com
-# contexto errado; ajuste o contexto para a raiz do repositório.
-#
-# Ex.: docker build -f backend/Dockerfile .
+# ERRADO: contexto = pasta `backend` apenas → os COPY socorre_ai_backend/* falham.
+# Ex.: docker build -f backend/backend/Dockerfile .
 
 FROM node:20-bookworm-slim
 
