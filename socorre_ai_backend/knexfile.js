@@ -1,16 +1,10 @@
 require('dotenv').config();
+const { getPostgresConnection } = require('./src/config/postgresConnection');
 
 module.exports = {
   development: {
     client: 'postgresql',
-    connection: {
-      host: process.env.DB_HOST || 'localhost',
-      port: process.env.DB_PORT || 5432,
-      database: process.env.DB_NAME || 'socorre_ai_db',
-      user: process.env.DB_USER || 'postgres',
-      password: process.env.DB_PASSWORD || '',
-      ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
-    },
+    connection: getPostgresConnection('development'),
     migrations: {
       directory: './database/migrations',
     },
@@ -24,14 +18,7 @@ module.exports = {
   },
   test: {
     client: 'postgresql',
-    connection: {
-      host: process.env.DB_HOST || 'localhost',
-      port: process.env.DB_PORT || 5432,
-      database: process.env.DB_NAME_TEST || 'socorre_ai_test',
-      user: process.env.DB_USER || 'postgres',
-      password: process.env.DB_PASSWORD || '',
-      ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
-    },
+    connection: getPostgresConnection('test'),
     migrations: {
       directory: './database/migrations',
     },
@@ -41,14 +28,7 @@ module.exports = {
   },
   production: {
     client: 'postgresql',
-    connection: {
-      host: process.env.DB_HOST,
-      port: process.env.DB_PORT,
-      database: process.env.DB_NAME,
-      user: process.env.DB_USER,
-      password: process.env.DB_PASSWORD,
-      ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
-    },
+    connection: getPostgresConnection('production'),
     migrations: {
       directory: './database/migrations',
     },
