@@ -1,7 +1,7 @@
 const TowProposal = require('../models/TowProposal');
 const EmergencyRequest = require('../models/EmergencyRequest');
 const Partner = require('../models/Partner');
-const NotificationService = require('./NotificationService');
+const NotificationService = require('./NotificationServiceNew');
 
 class TowProposalService {
   // Criar nova proposta

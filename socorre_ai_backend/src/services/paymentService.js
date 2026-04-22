@@ -1,5 +1,5 @@
 const db = require('../config/database');
-const notificationService = require('./NotificationServiceNew');
+const notificationService = require('./notificationService');
 
 class PaymentService {
   constructor() {
