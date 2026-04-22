@@ -1,6 +1,8 @@
 # Backend Socorre AI — Node 20 (Express + Knex + Socket.IO)
 #
-# EasyPanel: contexto de build = pasta deste Dockerfile (socorre_ai_backend no monorepo).
+# EasyPanel (monorepo): se o painel apontar para backend/Dockerfile, use o arquivo em
+# /backend/Dockerfile na raiz do repo com contexto = raiz. Este Dockerfile serve quando o
+# contexto é só socorre_ai_backend/.
 #
 # Variáveis de ambiente (exemplos — alinhar ao seu .env):
 #   PORT              — porta HTTP (ex.: 3000; mapeie no painel)

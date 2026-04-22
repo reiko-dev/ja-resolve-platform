@@ -1,0 +1,13 @@
+# Contexto na raiz do monorepo (ex.: build -f backend/Dockerfile .)
+.git
+.github
+**/.env
+**/.env.*
+**/node_modules
+socorre_ai_client
+socorre_ai_partner
+socorre_ai_admin
+docs
+scripts
+deploy_temp
+*.md
