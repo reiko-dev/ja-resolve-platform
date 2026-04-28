@@ -1,16 +1,11 @@
 const knex = require('knex');
 require('dotenv').config();
+const { getPostgresConnection } = require('./postgresConnection');
 
 const dbConfig = {
   development: {
     client: 'postgresql',
-    connection: {
-      host: process.env.DB_HOST || 'localhost',
-      port: process.env.DB_PORT || 5432,
-      database: process.env.DB_NAME || 'socorre_ai_db',
-      user: process.env.DB_USER || 'postgres',
-      password: process.env.DB_PASSWORD || '',
-    },
+    connection: getPostgresConnection('development'),
     migrations: {
       directory: '../database/migrations',
     },
@@ -24,13 +19,7 @@ const dbConfig = {
   },
   test: {
     client: 'postgresql',
-    connection: {
-      host: process.env.DB_HOST || 'localhost',
-      port: process.env.DB_PORT || 5432,
-      database: process.env.DB_NAME_TEST || 'socorre_ai_test',
-      user: process.env.DB_USER || 'postgres',
-      password: process.env.DB_PASSWORD || '',
-    },
+    connection: getPostgresConnection('test'),
     migrations: {
       directory: '../database/migrations',
     },
@@ -40,14 +29,7 @@ const dbConfig = {
   },
   production: {
     client: 'postgresql',
-    connection: {
-      host: process.env.DB_HOST,
-      port: process.env.DB_PORT,
-      database: process.env.DB_NAME,
-      user: process.env.DB_USER,
-      password: process.env.DB_PASSWORD,
-      ssl: { rejectUnauthorized: false },
-    },
+    connection: getPostgresConnection('production'),
     migrations: {
       directory: '../database/migrations',
     },

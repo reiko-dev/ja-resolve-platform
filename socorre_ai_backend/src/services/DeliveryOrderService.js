@@ -1,8 +1,8 @@
 const DeliveryOrder = require('../models/DeliveryOrderModel');
 const Product = require('../models/Product');
 const Partner = require('../models/Partner');
-const NotificationService = require('./NotificationService');
-const SystemSettings = require('./SystemSettings');
+const NotificationService = require('./NotificationServiceNew');
+const SystemSettings = require('../models/SystemSettings');
 
 class DeliveryOrderService {
   // Criar novo pedido de delivery

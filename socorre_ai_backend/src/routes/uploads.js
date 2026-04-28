@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const { auth } = require('../middleware/auth');
 const { requireRole } = require('../middleware/permissions');
-const DocumentController = require('../controllers/documentController');
+const DocumentController = require('../controllers/DocumentController');
 
 const router = express.Router();
 

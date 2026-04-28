@@ -2,6 +2,8 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../config/database');
 
+const jwtExpiresIn = process.env.JWT_EXPIRES_IN || '7d';
+
 class AuthController {
   // Registrar novo usuário
   async register(req, res) {
@@ -53,7 +55,7 @@ class AuthController {
       const token = jwt.sign(
         { userId: newUser.id, role: newUser.role },
         process.env.JWT_SECRET || 'dev_secret',
-        { expiresIn: '7d' }
+        { expiresIn: jwtExpiresIn }
       );
 
       res.status(201).json({
@@ -101,7 +103,7 @@ class AuthController {
       const token = jwt.sign(
         { userId: user.id, role: user.role },
         process.env.JWT_SECRET || 'dev_secret',
-        { expiresIn: '7d' }
+        { expiresIn: jwtExpiresIn }
       );
 
       // Remover senha do response

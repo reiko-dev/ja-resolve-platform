@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:socorre_ai_partner/core/providers/partner_provider.dart';
-import 'package:socorre_ai_partner/core/theme/app_theme.dart';
-import 'package:socorre_ai_partner/models/mechanic_specialty.dart';
-import 'package:socorre_ai_partner/services/cep_service.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../core/providers/partner_provider.dart';
+import '../../../services/cep_service.dart';
+import '../../../models/mechanic_specialty.dart';
 
 class CompletePartnerRegistrationScreen extends StatefulWidget {
   final String partnerType;
@@ -16,8 +16,7 @@ class CompletePartnerRegistrationScreen extends StatefulWidget {
   State<CompletePartnerRegistrationScreen> createState() => _CompletePartnerRegistrationScreenState();
 }
 
-class _CompletePartnerRegistrationScreenState
-    extends State<CompletePartnerRegistrationScreen> {
+class _CompletePartnerRegistrationScreenState extends State<CompletePartnerRegistrationScreen> {
   final ImagePicker _imagePicker = ImagePicker();
   
   // Controladores para formulário
@@ -36,9 +35,9 @@ class _CompletePartnerRegistrationScreenState
   // Estados
   bool _isLoading = false;
   bool _isLoadingCep = false;
-  final Map<String, dynamic> _uploadedDocuments = {};
+  final Map<String, Map<String, dynamic>> _uploadedDocuments = {};
   List<String> _requiredDocumentTypes = [];
-  final List<MechanicSpecialty> _selectedSpecialties = [];
+  List<MechanicSpecialty> _selectedSpecialties = [];
   bool _documentsRequired = false;
 
   @override
@@ -341,14 +340,79 @@ class _CompletePartnerRegistrationScreenState
       _buildSpecialtiesGrid(),
     ],
   );
-}
+  }
+
+  Widget _buildSpecialtiesGrid() {
+    final categories = MechanicSpecialty.getCategories();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: categories.map((category) {
+        final specialties = MechanicSpecialty.getByCategory(category);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 8, bottom: 8),
+              child: Text(
+                category,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: context.textPrimary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: specialties.map((s) {
+                final selected = _selectedSpecialties.contains(s);
+                return FilterChip(
+                  label: Text(s.name),
+                  selected: selected,
+                  onSelected: (_) => _toggleSpecialty(s),
+                );
+              }).toList(),
+            ),
+          ],
+        );
+      }).toList(),
+    );
+  }
 
   Widget _buildGasStationForm(BuildContext context) {
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildSectionTitle('Informações do Posto'),
+    return Column(
+      children: [
+        _buildSectionTitle('Informações do Posto'),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: _tradeNameController,
+          decoration: _buildInputDecoration('Nome Fantasia *'),
+          validator: (value) => value?.isEmpty ?? true ? 'Campo obrigatório' : null,
+        ),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: _cnpjController,
+          decoration: _buildInputDecoration('CNPJ *'),
+          keyboardType: TextInputType.number,
+          validator: (value) => value?.isEmpty ?? true ? 'Campo obrigatório' : null,
+        ),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: _phoneController,
+          decoration: _buildInputDecoration('Telefone *'),
+          keyboardType: TextInputType.phone,
+          validator: (value) => value?.isEmpty ?? true ? 'Campo obrigatório' : null,
+        ),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: _addressController,
+          decoration: _buildInputDecoration('Endereço *'),
+          maxLines: 2,
+          validator: (value) => value?.isEmpty ?? true ? 'Campo obrigatório' : null,
+        ),
+        const SizedBox(height: 24),
+        if (_documentsRequired) ...[
+          _buildSectionTitle('Documentos obrigatórios'),
           const SizedBox(height: 16),
           TextFormField(
             controller: _companyNameController,
@@ -423,7 +487,7 @@ class _CompletePartnerRegistrationScreenState
       }).toList(),
     );
   }
-  
+
   Widget _buildAutoPartsForm(BuildContext context) {
     return Column(
       children: [
@@ -487,7 +551,6 @@ class _CompletePartnerRegistrationScreenState
   void _handleCompleteRegistration() async {
     // TODO: Implementar lógica de completar cadastro
     // Por enquanto, apenas mostra mensagem e navega
-    
     // Simular sucesso
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
