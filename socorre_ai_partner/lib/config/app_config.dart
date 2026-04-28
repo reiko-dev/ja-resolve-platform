@@ -9,7 +9,7 @@ class AppConfig {
 
   // URLs base
   static const String _productionBaseUrl = 'https://admin.socorreja.com.br/api';
-  static const String _developmentBaseUrl = 'http://192.168.15.3:3001/api';
+  static const String _developmentBaseUrl = 'http://192.168.100.207:3001/api';
 
   // Getters públicos
   static bool get isDevelopment => _environment == 'development';
@@ -41,7 +41,7 @@ class AppConfig {
 
   // Método para forçar ambiente (útil para testes)
   static String _overrideEnvironment = '';
-  
+
   static void setEnvironment(String env) {
     _overrideEnvironment = env;
   }
@@ -51,4 +51,3 @@ class AppConfig {
     return _environment;
   }
 }
-
