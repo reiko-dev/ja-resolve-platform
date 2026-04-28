@@ -452,39 +452,7 @@ class _CompletePartnerRegistrationScreenState extends State<CompletePartnerRegis
             _buildDocumentUploadSection(context),
           ],
         ],
-      ),
-    );
-  }
-
-  Widget _buildSpecialtiesGrid() {
-    final categories = MechanicSpecialty.getCategories();
-    return Column(
-      children: categories.map((category) {
-        final specialties = MechanicSpecialty.getByCategory(category);
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              category,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: specialties.map((specialty) {
-                final isSelected = _selectedSpecialties.contains(specialty);
-                return FilterChip(
-                  label: Text(specialty.name),
-                  selected: isSelected,
-                  onSelected: (_) => _toggleSpecialty(specialty),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 16),
-          ],
-        );
-      }).toList(),
+      ],
     );
   }
 
