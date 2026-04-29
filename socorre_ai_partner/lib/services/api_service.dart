@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_config.dart';
 
@@ -214,5 +215,139 @@ class ApiService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('auth_token');
     await prefs.remove('user_data');
+  }
+
+  // Iniciar chamada de vídeo
+  static Future<Map<String, dynamic>> startVideoCall(String appointmentId) async {
+    try {
+      final headers = await _authHeaders;
+      final response = await http.post(
+        Uri.parse('$baseUrl/appointments/$appointmentId/video-call/start'),
+        headers: headers,
+      );
+      final data = jsonDecode(response.body);
+      return response.statusCode == 200
+          ? {'success': true, 'data': data['data']}
+          : {'success': false, 'message': data['message'] ?? 'Erro ao iniciar chamada'};
+    } catch (e) {
+      return {'success': false, 'message': 'Erro de conexão: $e'};
+    }
+  }
+
+  // Encerrar chamada de vídeo
+  static Future<Map<String, dynamic>> endVideoCall(String appointmentId) async {
+    try {
+      final headers = await _authHeaders;
+      final response = await http.post(
+        Uri.parse('$baseUrl/appointments/$appointmentId/video-call/end'),
+        headers: headers,
+      );
+      final data = jsonDecode(response.body);
+      return response.statusCode == 200
+          ? {'success': true}
+          : {'success': false, 'message': data['message'] ?? 'Erro ao encerrar chamada'};
+    } catch (e) {
+      return {'success': false, 'message': 'Erro de conexão: $e'};
+    }
+  }
+
+  // Upload de documento do parceiro
+  static Future<Map<String, dynamic>> uploadPartnerDocument({
+    required XFile file,
+    required String documentType,
+    required String partnerType,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/partners/documents/upload'),
+      );
+
+      if (token != null) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
+
+      request.fields['document_type'] = documentType;
+      request.fields['partner_type'] = partnerType;
+      request.files.add(await http.MultipartFile.fromPath('file', file.path));
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return {'success': true, 'data': data['data']};
+      } else {
+        return {'success': false, 'message': data['message'] ?? 'Erro ao enviar documento'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Erro de conexão: $e'};
+    }
+  }
+
+  // Remover documento do parceiro
+  static Future<Map<String, dynamic>> deletePartnerDocument(String documentId) async {
+    try {
+      final headers = await _authHeaders;
+      final response = await http.delete(
+        Uri.parse('$baseUrl/partners/documents/$documentId'),
+        headers: headers,
+      );
+      final data = jsonDecode(response.body);
+      return response.statusCode == 200
+          ? {'success': true}
+          : {'success': false, 'message': data['message'] ?? 'Erro ao remover documento'};
+    } catch (e) {
+      return {'success': false, 'message': 'Erro de conexão: $e'};
+    }
+  }
+
+  // Enviar documentos para verificação
+  static Future<Map<String, dynamic>> submitDocumentsForVerification({
+    required String partnerType,
+    required List<String> documentIds,
+  }) async {
+    try {
+      final headers = await _authHeaders;
+      final response = await http.post(
+        Uri.parse('$baseUrl/partners/documents/submit'),
+        headers: headers,
+        body: jsonEncode({
+          'partner_type': partnerType,
+          'document_ids': documentIds,
+        }),
+      );
+      final data = jsonDecode(response.body);
+      return response.statusCode == 200 || response.statusCode == 201
+          ? {'success': true, 'data': data['data']}
+          : {'success': false, 'message': data['message'] ?? 'Erro ao enviar para verificação'};
+    } catch (e) {
+      return {'success': false, 'message': 'Erro de conexão: $e'};
+    }
+  }
+
+  // Completar onboarding do parceiro
+  static Future<Map<String, dynamic>> completePartnerOnboarding(
+    Map<String, dynamic> partnerData,
+  ) async {
+    try {
+      final headers = await _authHeaders;
+      final response = await http.post(
+        Uri.parse('$baseUrl/partners/onboarding/complete'),
+        headers: headers,
+        body: jsonEncode(partnerData),
+      );
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return {'success': true, 'data': data['data']};
+      } else {
+        return {'success': false, 'message': data['message'] ?? 'Erro ao concluir onboarding'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Erro de conexão: $e'};
+    }
   }
 }

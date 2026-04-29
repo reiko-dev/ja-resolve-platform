@@ -1,5 +1,5 @@
-import 'dart:convert';
 import 'package:dio/dio.dart';
+import 'package:flutter/rendering.dart';
 import '../constants/app_constants.dart';
 
 class ApiService {
@@ -22,7 +22,7 @@ class ApiService {
       responseBody: true,
       logPrint: (object) {
         if (AppConstants.isDebugMode) {
-          print(object);
+            debugPrint(object.toString());
         }
       },
     ));

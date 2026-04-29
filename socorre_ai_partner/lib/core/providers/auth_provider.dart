@@ -59,7 +59,7 @@ class AuthProvider extends ChangeNotifier {
         return false;
       }
     } catch (e) {
-      print('AuthProvider.register error: $e');
+      debugPrint('AuthProvider.register error: $e');
       _setError('Erro inesperado: $e');
       return false;
     } finally {

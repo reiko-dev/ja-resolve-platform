@@ -3,7 +3,6 @@ import 'package:google_fonts/google_fonts.dart';
 import '../models/backup.dart';
 import '../services/backup_service.dart';
 import '../widgets/backup_card.dart';
-import '../widgets/sync_card.dart' as sync;
 
 class BackupScreen extends StatefulWidget {
   const BackupScreen({super.key});
@@ -15,7 +14,6 @@ class BackupScreen extends StatefulWidget {
 class _BackupScreenState extends State<BackupScreen> {
   List<BackupData> _backups = [];
   List<SyncData> _syncData = [];
-  BackupSettings? _settings;
   bool _isLoading = true;
   String _error = '';
   int _selectedTab = 0;
@@ -54,9 +52,7 @@ class _BackupScreenState extends State<BackupScreen> {
       // Carregar configurações
       final settingsResult = await BackupService.getBackupSettings(token: token);
       if (settingsResult['success']) {
-        setState(() {
-          _settings = settingsResult['data'];
-        });
+        // Configurações carregadas, mas não armazenadas localmente
       }
 
     } catch (e) {

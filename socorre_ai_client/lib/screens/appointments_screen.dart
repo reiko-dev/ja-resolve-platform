@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../services/api_service.dart';
 import '../models/appointment_model.dart';
 
 class AppointmentsScreen extends StatefulWidget {
+  const AppointmentsScreen({super.key});
+
   @override
   _AppointmentsScreenState createState() => _AppointmentsScreenState();
 }
@@ -11,7 +12,10 @@ class AppointmentsScreen extends StatefulWidget {
 class _AppointmentsScreenState extends State<AppointmentsScreen> {
   List<Appointment> _appointments = [];
   bool _isLoading = false;
-  String _selectedFilter = 'all'; // all, pending, confirmed, completed, cancelled
+  
+  // all, pending, confirmed, completed, cancelled
+  String _selectedFilter = 'all';
+  
   DateTime? _selectedDate;
 
   @override
@@ -22,24 +26,25 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
 
   Future<void> _loadAppointments() async {
     setState(() => _isLoading = true);
-    
+
     try {
       final response = await ApiService.getAppointments(
         filter: _selectedFilter,
         date: _selectedDate,
       );
-      
+
       if (response['success']) {
         setState(() {
-          _appointments = (response['data'] as List)
-              .map((item) => Appointment.fromJson(item))
-              .toList();
+          _appointments =
+              (response['data'] as List)
+                  .map((item) => Appointment.fromJson(item))
+                  .toList();
         });
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao carregar agendamentos')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erro ao carregar agendamentos')));
     } finally {
       setState(() => _isLoading = false);
     }
@@ -48,7 +53,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
   Future<void> _cancelAppointment(int appointmentId) async {
     try {
       final response = await ApiService.cancelAppointment(appointmentId);
-      
+
       if (response['success']) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Agendamento cancelado com sucesso')),
@@ -60,9 +65,9 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao cancelar agendamento')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erro ao cancelar agendamento')));
     }
   }
 
@@ -73,11 +78,14 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
-    
+
     if (newDate != null) {
       try {
-        final response = await ApiService.rescheduleAppointment(appointmentId, newDate!);
-        
+        final response = await ApiService.rescheduleAppointment(
+          appointmentId,
+          newDate,
+        );
+
         if (response['success']) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Agendamento reagendado com sucesso')),
@@ -120,18 +128,33 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
                     children: [
                       Expanded(
                         child: DropdownButtonFormField<String>(
-                          value: _selectedFilter,
+                          initialValue: _selectedFilter,
                           decoration: InputDecoration(
                             labelText: 'Filtrar por status',
                             border: OutlineInputBorder(),
                             prefixIcon: Icon(Icons.filter_list),
                           ),
                           items: [
-                            DropdownMenuItem(value: 'all', child: Text('Todos')),
-                            DropdownMenuItem(value: 'pending', child: Text('Pendentes')),
-                            DropdownMenuItem(value: 'confirmed', child: Text('Confirmados')),
-                            DropdownMenuItem(value: 'completed', child: Text('Concluídos')),
-                            DropdownMenuItem(value: 'cancelled', child: Text('Cancelados')),
+                            DropdownMenuItem(
+                              value: 'all',
+                              child: Text('Todos'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'pending',
+                              child: Text('Pendentes'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'confirmed',
+                              child: Text('Confirmados'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'completed',
+                              child: Text('Concluídos'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'cancelled',
+                              child: Text('Cancelados'),
+                            ),
                           ],
                           onChanged: (value) {
                             setState(() => _selectedFilter = value!);
@@ -148,7 +171,9 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
                               context: context,
                               initialDate: DateTime.now(),
                               firstDate: DateTime.now(),
-                              lastDate: DateTime.now().add(const Duration(days: 365)),
+                              lastDate: DateTime.now().add(
+                                const Duration(days: 365),
+                              ),
                             );
                             if (date != null) {
                               setState(() => _selectedDate = date);
@@ -175,21 +200,22 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
                 ],
               ),
             ),
-            
+
             // Lista de agendamentos
             Expanded(
-              child: _isLoading
-                  ? Center(child: CircularProgressIndicator())
-                  : _appointments.isEmpty
+              child:
+                  _isLoading
+                      ? Center(child: CircularProgressIndicator())
+                      : _appointments.isEmpty
                       ? _buildEmptyState()
                       : ListView.builder(
-                          padding: EdgeInsets.all(8),
-                          itemCount: _appointments.length,
-                          itemBuilder: (context, index) {
-                            final appointment = _appointments[index];
-                            return _buildAppointmentCard(appointment);
-                          },
-                        ),
+                        padding: EdgeInsets.all(8),
+                        itemCount: _appointments.length,
+                        itemBuilder: (context, index) {
+                          final appointment = _appointments[index];
+                          return _buildAppointmentCard(appointment);
+                        },
+                      ),
             ),
           ],
         ),
@@ -210,11 +236,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.calendar_today,
-            size: 80,
-            color: Colors.grey[400],
-          ),
+          Icon(Icons.calendar_today, size: 80, color: Colors.grey[400]),
           SizedBox(height: 16),
           Text(
             'Nenhum agendamento encontrado',
@@ -227,10 +249,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
           SizedBox(height: 8),
           Text(
             'Toque no + para agendar um serviço',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[500],
-            ),
+            style: TextStyle(fontSize: 14, color: Colors.grey[500]),
           ),
         ],
       ),
@@ -265,10 +284,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
                       SizedBox(height: 4),
                       Text(
                         appointment.partnerName,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[700],
-                        ),
+                        style: TextStyle(fontSize: 14, color: Colors.grey[700]),
                       ),
                     ],
                   ),
@@ -290,9 +306,9 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
                 ),
               ],
             ),
-            
+
             Divider(height: 16),
-            
+
             // Data e hora
             Row(
               children: [
@@ -304,21 +320,18 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
                 ),
               ],
             ),
-            
+
             SizedBox(height: 8),
-            
+
             // Descrição
             if (appointment.description.isNotEmpty)
               Text(
                 appointment.description,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[800],
-                ),
+                style: TextStyle(fontSize: 14, color: Colors.grey[800]),
               ),
-            
+
             SizedBox(height: 12),
-            
+
             // Endereço
             Row(
               children: [
@@ -332,9 +345,9 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
                 ),
               ],
             ),
-            
+
             SizedBox(height: 16),
-            
+
             // Ações
             Row(
               children: [
@@ -347,20 +360,25 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
                 SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: appointment.status == 'pending'
-                        ? () => _cancelAppointment(appointment.id)
-                        : null,
+                    onPressed:
+                        appointment.status == 'pending'
+                            ? () => _cancelAppointment(appointment.id)
+                            : null,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: appointment.status == 'pending'
-                          ? Colors.red[600]
-                          : Colors.grey[300],
+                      backgroundColor:
+                          appointment.status == 'pending'
+                              ? Colors.red[600]
+                              : Colors.grey[300],
                     ),
                     child: Text(
-                      appointment.status == 'pending' ? 'Cancelar' : 'Ver Detalhes',
+                      appointment.status == 'pending'
+                          ? 'Cancelar'
+                          : 'Ver Detalhes',
                       style: TextStyle(
-                        color: appointment.status == 'pending'
-                            ? Colors.white
-                            : Colors.grey[600],
+                        color:
+                            appointment.status == 'pending'
+                                ? Colors.white
+                                : Colors.grey[600],
                       ),
                     ),
                   ),

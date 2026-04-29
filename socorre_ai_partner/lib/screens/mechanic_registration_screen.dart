@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../services/partner_type_service.dart';
 import '../services/partner_service.dart';
 import '../services/location_service.dart';
 
@@ -22,9 +21,9 @@ class _MechanicRegistrationScreenState extends State<MechanicRegistrationScreen>
   final _hourlyRateController = TextEditingController();
   final _experienceController = TextEditingController();
   
-  List<String> _selectedSpecialties = [];
-  List<String> _selectedServices = [];
-  Map<String, bool> _workingHours = {};
+  final List<String> _selectedSpecialties = [];
+  final List<String> _selectedServices = [];
+  final Map<String, bool> _workingHours = {};
   bool _isEmergencyService = false;
   bool _isHomeService = false;
   bool _isWorkshopService = true;

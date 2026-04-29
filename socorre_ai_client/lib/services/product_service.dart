@@ -493,7 +493,7 @@ class ProductService {
     }
 
     if (price > 10000) {
-      return 'O preço não pode ser maior que R$ 10.000,00';
+      return 'O preço não pode ser maior que R\$ 10.000,00';
     }
 
     // Validar estoque

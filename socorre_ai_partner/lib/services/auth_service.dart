@@ -1,3 +1,5 @@
+import 'package:flutter/rendering.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../core/services/api_service.dart';
 import '../models/user.dart';
 
@@ -6,9 +8,13 @@ export '../core/services/api_service.dart' show ApiResult;
 
 class AuthService {
   final ApiService _apiService;
-  
+
   AuthService(this._apiService);
-  
+
+  static Future<void> initialize() async {
+    // Initialization logic placeholder
+  }
+
   // Login
   Future<ApiResult<User>> login(String email, String password) async {
     try {
@@ -48,9 +54,9 @@ class AuthService {
       );
       
       if (result.success && result.data != null) {
-        print('AuthService.register - result.data: ${result.data}');
+        debugPrint('AuthService.register - result.data: ${result.data}');
         final userData = result.data!['data']['user'];
-        print('AuthService.register - userData: $userData');
+        debugPrint('AuthService.register - userData: $userData');
         if (userData != null) {
           final user = User.fromJson(userData);
           
@@ -58,7 +64,7 @@ class AuthService {
           
           return ApiResult.success(user);
         } else {
-          print('AuthService.register - userData is null');
+          debugPrint('AuthService.register - userData is null');
           return ApiResult.error('Dados do usuário não encontrados na resposta');
         }
       } else {
@@ -120,6 +126,16 @@ class AuthService {
     }
   }
   
+  // Obter token de autenticação
+  static Future<String?> getToken() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString('auth_token');
+    } catch (e) {
+      return null;
+    }
+  }
+
   // Atualizar perfil
   Future<ApiResult<User>> updateProfile(Map<String, dynamic> userData) async {
     try {

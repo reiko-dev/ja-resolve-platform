@@ -1,8 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/subscription.dart';
 import '../services/subscription_service.dart';
-import 'package:intl/intl.dart';
 
 class SubscriptionManagementScreen extends StatefulWidget {
   const SubscriptionManagementScreen({super.key});
@@ -67,7 +67,7 @@ class _SubscriptionManagementScreenState extends State<SubscriptionManagementScr
         _subscriptionStatus = status;
       });
     } catch (e) {
-      print('Erro ao carregar status da assinatura: $e');
+      debugPrint('Erro ao carregar status da assinatura: $e');
     }
   }
 
@@ -623,7 +623,7 @@ class _SubscriptionManagementScreenState extends State<SubscriptionManagementScr
                       onChanged: (value) {
                         // TODO: Implementar atualização de auto-renew
                       },
-                      activeColor: Colors.purple[700],
+                      activeThumbColor: Colors.purple[700],
                     ),
                   ],
                 ),
@@ -673,13 +673,13 @@ class _SubscriptionManagementScreenState extends State<SubscriptionManagementScr
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                  'Benefícios Incluídos:',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.blue[700],
+                    'Benefícios Incluídos:',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.blue[700],
+                    ),
                   ),
-                ),
                 const SizedBox(height: 8),
                 ...subscription.type.features.map((benefit) {
                   return Padding(
@@ -694,10 +694,11 @@ class _SubscriptionManagementScreenState extends State<SubscriptionManagementScr
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                          benefit,
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            color: Colors.grey[600],
+                            benefit,
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
                           ),
                         ),
                       ],
@@ -706,9 +707,10 @@ class _SubscriptionManagementScreenState extends State<SubscriptionManagementScr
                 }),
               ],
             ),
-            
+            ),
+
             const SizedBox(height: 16),
-            
+
             // Botões de ação
             if (isActive)
               Row(
@@ -776,7 +778,7 @@ class _SubscriptionManagementScreenState extends State<SubscriptionManagementScr
 class _CreateSubscriptionDialog extends StatefulWidget {
   final Function(Map<String, dynamic>) onSubmit;
 
-  const _CreateSubscriptionDialog({super.key, required this.onSubmit});
+  const _CreateSubscriptionDialog({required this.onSubmit});
 
   @override
   State<_CreateSubscriptionDialog> createState() => _CreateSubscriptionDialogState();
@@ -786,7 +788,7 @@ class _CreateSubscriptionDialogState extends State<_CreateSubscriptionDialog> {
   SubscriptionType _selectedType = SubscriptionType.mechanic;
   String _selectedPaymentMethod = 'credit_card';
   bool _autoRenew = true;
-  bool _isLoading = false;
+  final bool _isLoading = false;
   String? _error;
 
   @override
@@ -900,7 +902,7 @@ class _CreateSubscriptionDialogState extends State<_CreateSubscriptionDialog> {
                   ),
                 ),
               );
-            }).toList(),
+            }),
             
             const SizedBox(height: 24),
             
@@ -914,7 +916,7 @@ class _CreateSubscriptionDialogState extends State<_CreateSubscriptionDialog> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: _selectedPaymentMethod,
+              initialValue: _selectedPaymentMethod,
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
               ),
@@ -950,7 +952,7 @@ class _CreateSubscriptionDialogState extends State<_CreateSubscriptionDialog> {
               onChanged: (value) {
                 setState(() => _autoRenew = value);
               },
-              activeColor: Colors.purple[700],
+              activeThumbColor: Colors.purple[700],
             ),
             
             const SizedBox(height: 24),

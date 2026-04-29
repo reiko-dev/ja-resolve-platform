@@ -52,6 +52,8 @@ dependencies:
   # flutter_stripe: ^9.5.0+1
   # firebase_analytics: ^10.7.4
 
+  mime: any
+  path_provider: any
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -86,8 +88,6 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - assets/images/logosocorre.png
-    - assets/animations/
-    - assets/icons/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

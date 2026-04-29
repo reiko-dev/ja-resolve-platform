@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../services/api_service.dart';
@@ -8,14 +7,14 @@ import '../models/document_model.dart';
 class PartnerDocumentUploadScreen extends StatefulWidget {
   final String partnerType; // mechanic, motoboy, gas_station, auto_parts, tow
 
-  PartnerDocumentUploadScreen({required this.partnerType});
+  const PartnerDocumentUploadScreen({super.key, required this.partnerType});
 
   @override
   _PartnerDocumentUploadScreenState createState() => _PartnerDocumentUploadScreenState();
 }
 
 class _PartnerDocumentUploadScreenState extends State<PartnerDocumentUploadScreen> {
-  List<Document> _uploadedDocuments = [];
+  final List<PartnerDocument> _uploadedDocuments = [];
   bool _isLoading = false;
   final ImagePicker _imagePicker = ImagePicker();
 
@@ -268,7 +267,7 @@ class _PartnerDocumentUploadScreenState extends State<PartnerDocumentUploadScree
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: 'Erro ao selecionar imagem'),
+        const SnackBar(content: Text('Erro ao selecionar imagem')),
       );
     }
   }
@@ -287,7 +286,7 @@ class _PartnerDocumentUploadScreenState extends State<PartnerDocumentUploadScree
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: 'Erro ao tirar foto'),
+        const SnackBar(content: Text('Erro ao tirar foto')),
       );
     }
   }
@@ -303,29 +302,29 @@ class _PartnerDocumentUploadScreenState extends State<PartnerDocumentUploadScree
       );
 
       if (response['success']) {
-        final newDocument = Document.fromJson(response['data']);
+        final newDocument = PartnerDocument.fromJson(response['data']);
         setState(() {
           _uploadedDocuments.add(newDocument);
         });
         
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: 'Documento enviado com sucesso'),
+          const SnackBar(content: Text('Documento enviado com sucesso')),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: response['message'] ?? 'Erro ao enviar documento'),
+          SnackBar(content: Text(response['message'] ?? 'Erro ao enviar documento')),
         );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: 'Erro ao enviar documento'),
+        const SnackBar(content: Text('Erro ao enviar documento')),
       );
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _removeDocument(Document document) async {
+  Future<void> _removeDocument(PartnerDocument document) async {
     try {
       final response = await ApiService.deletePartnerDocument(document.id);
       
@@ -335,16 +334,16 @@ class _PartnerDocumentUploadScreenState extends State<PartnerDocumentUploadScree
         });
         
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: 'Documento removido'),
+          const SnackBar(content: Text('Documento removido')),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: 'Erro ao remover documento'),
+          const SnackBar(content: Text('Erro ao remover documento')),
         );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: 'Erro ao remover documento'),
+        const SnackBar(content: Text('Erro ao remover documento')),
       );
     }
   }
@@ -353,7 +352,7 @@ class _PartnerDocumentUploadScreenState extends State<PartnerDocumentUploadScree
     for (final doc in _requiredDocuments) {
       if (doc.required) {
         final hasDocument = _uploadedDocuments.any(
-          (uploaded) => uploaded.type == doc.type,
+          (uploaded) => uploaded.documentType == doc.type,
         );
         if (!hasDocument) return false;
       }
@@ -364,7 +363,7 @@ class _PartnerDocumentUploadScreenState extends State<PartnerDocumentUploadScree
   Future<void> _submitForVerification() async {
     if (!_areAllRequiredDocumentsUploaded()) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: 'Envie todos os documentos obrigatórios'),
+        const SnackBar(content: Text('Envie todos os documentos obrigatórios')),
       );
       return;
     }
@@ -379,19 +378,19 @@ class _PartnerDocumentUploadScreenState extends State<PartnerDocumentUploadScree
 
       if (response['success']) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: 'Documentos enviados para verificação'),
+          const SnackBar(content: Text('Documentos enviados para verificação')),
         );
-        
+
         // Navegar para tela de status
         Navigator.of(context).pushNamed('/document-status');
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: response['message'] ?? 'Erro ao enviar para verificação'),
+          SnackBar(content: Text(response['message'] ?? 'Erro ao enviar para verificação')),
         );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: 'Erro ao enviar para verificação'),
+        const SnackBar(content: Text('Erro ao enviar para verificação')),
       );
     } finally {
       setState(() => _isLoading = false);
@@ -460,7 +459,7 @@ class _PartnerDocumentUploadScreenState extends State<PartnerDocumentUploadScree
                     itemBuilder: (context, index) {
                       final document = _requiredDocuments[index];
                       final uploadedDoc = _uploadedDocuments
-                          .where((doc) => doc.type == document.type)
+                          .where((doc) => doc.documentType == document.type)
                           .firstOrNull;
                       
                       return _buildDocumentCard(document, uploadedDoc);
@@ -499,7 +498,7 @@ class _PartnerDocumentUploadScreenState extends State<PartnerDocumentUploadScree
     );
   }
 
-  Widget _buildDocumentCard(RequiredDocument document, Document? uploadedDoc) {
+  Widget _buildDocumentCard(RequiredDocument document, PartnerDocument? uploadedDoc) {
     return Card(
       margin: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       elevation: 2,
@@ -566,7 +565,7 @@ class _PartnerDocumentUploadScreenState extends State<PartnerDocumentUploadScree
                 decoration: BoxDecoration(
                   color: Colors.green[50],
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.green[200]),
+                  border: Border.all(color: Colors.green.shade200),
                 ),
                 child: Row(
                   children: [
@@ -607,7 +606,7 @@ class _PartnerDocumentUploadScreenState extends State<PartnerDocumentUploadScree
                 decoration: BoxDecoration(
                   color: Colors.grey[50],
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey[200]),
+                  border: Border.all(color: Colors.grey.shade200),
                 ),
                 child: Column(
                   children: [
@@ -662,17 +661,17 @@ class _PartnerDocumentUploadScreenState extends State<PartnerDocumentUploadScree
   Color _getPrimaryColor() {
     switch (widget.partnerType) {
       case 'mechanic':
-        return Colors.red[600];
+        return Colors.red.shade600;
       case 'motoboy':
-        return Colors.blue[800];
+        return Colors.blue.shade800;
       case 'gas_station':
-        return Colors.orange[600];
+        return Colors.orange.shade600;
       case 'auto_parts':
-        return Colors.green[600];
+        return Colors.green.shade600;
       case 'tow':
-        return Colors.purple[600];
+        return Colors.purple.shade600;
       default:
-        return Colors.blue[600];
+        return Colors.blue.shade600;
     }
   }
 

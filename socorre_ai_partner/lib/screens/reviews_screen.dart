@@ -85,7 +85,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
         });
       }
     } catch (e) {
-      print('Erro ao carregar estatísticas: $e');
+      debugPrint('Erro ao carregar estatísticas: $e');
     }
   }
 
@@ -114,7 +114,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
         });
       }
     } catch (e) {
-      print('Erro ao carregar mais avaliações: $e');
+      debugPrint('Erro ao carregar mais avaliações: $e');
     } finally {
       setState(() {
         _isLoadingMore = false;
@@ -288,7 +288,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
             children: [
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  value: _sortBy,
+                  initialValue: _sortBy,
                   decoration: InputDecoration(
                     labelText: 'Ordenar por',
                     labelStyle: GoogleFonts.poppins(color: Colors.white70),
@@ -321,7 +321,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  value: _filter,
+                  initialValue: _filter,
                   decoration: InputDecoration(
                     labelText: 'Filtrar por',
                     labelStyle: GoogleFonts.poppins(color: Colors.white70),

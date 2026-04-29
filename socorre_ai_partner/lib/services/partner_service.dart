@@ -1,8 +1,73 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import '../core/services/api_service.dart';
 import '../models/subscription.dart';
+import '../config/app_config.dart';
 
 class PartnerService {
   final ApiService _apiService;
+
+  static String get _baseUrl => AppConfig.baseUrl;
+
+  static Future<Map<String, String>> _headersWithToken(String token) async {
+    return {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': 'Bearer $token',
+    };
+  }
+
+  // Cadastrar mecânico (static, usado por MechanicRegistrationScreen)
+  static Future<Map<String, dynamic>> createMechanic({
+    required String token,
+    required String businessName,
+    required String description,
+    required String phone,
+    String? whatsapp,
+    required String address,
+    required double latitude,
+    required double longitude,
+    required List<String> specialties,
+    required List<String> services,
+    required double hourlyRate,
+    required int experienceYears,
+    required double serviceRadius,
+    required bool emergencyService,
+    required bool homeService,
+    required bool workshopService,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$_baseUrl/partners/mechanic'),
+        headers: await _headersWithToken(token),
+        body: jsonEncode({
+          'business_name': businessName,
+          'description': description,
+          'phone': phone,
+          'whatsapp': whatsapp,
+          'address': address,
+          'latitude': latitude,
+          'longitude': longitude,
+          'specialties': specialties,
+          'services': services,
+          'hourly_rate': hourlyRate,
+          'experience_years': experienceYears,
+          'service_radius': serviceRadius,
+          'emergency_service': emergencyService,
+          'home_service': homeService,
+          'workshop_service': workshopService,
+        }),
+      );
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 201) {
+        return {'success': true, 'data': data['data'], 'message': data['message']};
+      } else {
+        return {'success': false, 'message': data['message'] ?? 'Erro ao cadastrar mecânico'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Erro de conexão: $e'};
+    }
+  }
   
   PartnerService(this._apiService);
   

@@ -12,14 +12,13 @@ class TowProposalsScreen extends StatefulWidget {
   State<TowProposalsScreen> createState() => _TowProposalsScreenState();
 }
 
-class _TowProposalsScreenState extends State<TowProposalsScreen> {
+class _TowProposalsScreenState extends State<TowProposalsScreen> with TickerProviderStateMixin {
   List<TowProposal> _proposals = [];
   List<Map<String, dynamic>> _availableEmergencies = [];
   bool _isLoading = true;
   bool _isLoadingEmergencies = false;
   String? _error;
   Timer? _refreshTimer;
-  int _selectedTabIndex = 0;
 
   @override
   void initState() {
@@ -103,7 +102,7 @@ class _TowProposalsScreenState extends State<TowProposalsScreen> {
     String notes,
   ) async {
     try {
-      final proposal = await TowProposalService.createProposal(
+      await TowProposalService.createProposal(
         emergencyRequestId: emergency['id'],
         proposedPrice: price,
         estimatedTimeMinutes: time,
@@ -167,7 +166,7 @@ class _TowProposalsScreenState extends State<TowProposalsScreen> {
         bottom: TabBar(
           controller: TabController(length: 2, vsync: this),
           onTap: (index) {
-            setState(() => _selectedTabIndex = index);
+            // Tab index: $index
           },
           tabs: const [
             Tab(
@@ -267,7 +266,7 @@ class _TowProposalsScreenState extends State<TowProposalsScreen> {
             const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: () {
-                setState(() => _selectedTabIndex = 1);
+                // Switch to search tab
               },
               icon: const Icon(Icons.search),
               label: Text(
@@ -744,7 +743,6 @@ class _CreateProposalDialog extends StatefulWidget {
   final Function(double, int, String) onSubmit;
 
   const _CreateProposalDialog({
-    super.key,
     required this.emergency,
     required this.onSubmit,
   });
@@ -758,7 +756,7 @@ class _CreateProposalDialogState extends State<_CreateProposalDialog> {
   final _timeController = TextEditingController();
   final _notesController = TextEditingController();
   
-  bool _isLoading = false;
+  final bool _isLoading = false;
   String? _error;
 
   @override
@@ -842,8 +840,8 @@ class _CreateProposalDialogState extends State<_CreateProposalDialog> {
               controller: _priceController,
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
-                labelText: 'Preço (R$)',
-                prefixText: 'R$ ',
+                labelText: 'Preço (R\$)',
+                prefixText: 'R\$ ',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),

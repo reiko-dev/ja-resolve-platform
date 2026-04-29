@@ -6,14 +6,6 @@ import '../models/payment.dart';
 class PaymentService {
   static String get _baseUrl => AppConfig.baseUrl;
 
-  // Headers padrão
-  static Map<String, String> get _headers {
-    return {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    };
-  }
-
   // Headers com autenticação
   static Map<String, String> _headersWithAuth(String token) {
     return {

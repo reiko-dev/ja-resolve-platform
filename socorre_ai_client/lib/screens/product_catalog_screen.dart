@@ -687,13 +687,15 @@ class _FilterDialogState extends State<_FilterDialog> {
                   child: TextField(
                     decoration: const InputDecoration(
                       labelText: 'Mínimo',
-                      prefixText: 'R$ ',
+                      prefixText: 'R\$ ',
                     ),
                     keyboardType: TextInputType.number,
                     onChanged: (value) {
                       _minPrice = double.tryParse(value) ?? 0;
                     },
-                    initialValue: _minPrice.toStringAsFixed(2),
+                    controller: TextEditingController(
+                      text: _minPrice.toStringAsFixed(2),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -701,13 +703,15 @@ class _FilterDialogState extends State<_FilterDialog> {
                   child: TextField(
                     decoration: const InputDecoration(
                       labelText: 'Máximo',
-                      prefixText: 'R$ ',
+                      prefixText: 'R\$ ',
                     ),
                     keyboardType: TextInputType.number,
                     onChanged: (value) {
                       _maxPrice = double.tryParse(value) ?? 1000;
                     },
-                    initialValue: _maxPrice.toStringAsFixed(2),
+                    controller: TextEditingController(
+                      text: _maxPrice.toStringAsFixed(2),
+                    ),
                   ),
                 ),
               ],

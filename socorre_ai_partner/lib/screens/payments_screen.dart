@@ -86,7 +86,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
         });
       }
     } catch (e) {
-      print('Erro ao carregar resumo: $e');
+      debugPrint('Erro ao carregar resumo: $e');
     }
   }
 
@@ -116,7 +116,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
         });
       }
     } catch (e) {
-      print('Erro ao carregar mais pagamentos: $e');
+      debugPrint('Erro ao carregar mais pagamentos: $e');
     } finally {
       setState(() {
         _isLoadingMore = false;
@@ -273,7 +273,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
           children: [
             // Filtro por status
             DropdownButtonFormField<String>(
-              value: _filterStatus,
+              initialValue: _filterStatus,
               decoration: InputDecoration(
                 labelText: 'Status',
                 labelStyle: GoogleFonts.poppins(color: Colors.white70),
@@ -311,7 +311,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
             
             // Filtro por método
             DropdownButtonFormField<String>(
-              value: _filterMethod,
+              initialValue: _filterMethod,
               decoration: InputDecoration(
                 labelText: 'Método',
                 labelStyle: GoogleFonts.poppins(color: Colors.white70),

@@ -1,0 +1,86 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:14
+    container_name: socorre_ai_postgres
+    environment:
+      POSTGRES_DB: socorre_ai_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./socorre_ai_backend/database/migrations:/docker-entrypoint-initdb.d/
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: socorre_ai_redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Backend API
+  backend:
+    build:
+      context: ./socorre_ai_backend
+      dockerfile: Dockerfile
+    container_name: socorre_ai_backend
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=socorre_ai_db
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=dev_jwt_secret_2025_change_in_production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./socorre_ai_backend:/app
+      - /app/node_modules
+    working_dir: /app
+    command: npm run dev
+
+  # Admin Panel (React)
+  admin:
+    build:
+      context: ./socorre_ai_admin
+      dockerfile: Dockerfile
+    container_name: socorre_ai_admin
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:3001
+      - CHOKIDAR_USEPOLLING=true
+    volumes:
+      - ./socorre_ai_admin:/app
+      - /app/node_modules
+    working_dir: /app
+    command: npm start
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  redis_data:

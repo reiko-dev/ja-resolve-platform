@@ -287,11 +287,15 @@ class SubscriptionService {
   static double getMonthlyFee(SubscriptionType type) {
     switch (type) {
       case SubscriptionType.mechanic:
-        return 199.90; // R$ 199,90/mês
+        return 199.90; // R\$ 199,90/mês
       case SubscriptionType.gasStation:
-        return 299.90; // R$ 299,90/mês
+        return 299.90; // R\$ 299,90/mês
       case SubscriptionType.autoParts:
-        return 249.90; // R$ 249,90/mês
+        return 249.90; // R\$ 249,90/mês
+      case SubscriptionType.towTruck:
+        return 149.90; // R\$ 149,90/mês
+      case SubscriptionType.delivery:
+        return 99.90; // R\$ 99,90/mês
     }
   }
 
@@ -356,11 +360,15 @@ class SubscriptionService {
     // Simulação de economia baseada em comissões que não seriam pagas
     switch (type) {
       case SubscriptionType.mechanic:
-        return 2400.0; // R$ 200/mês de economia x 12 meses
+        return 2400.0; // R\$ 200/mês de economia x 12 meses
       case SubscriptionType.gasStation:
-        return 3600.0; // R$ 300/mês de economia x 12 meses
+        return 3600.0; // R\$ 300/mês de economia x 12 meses
       case SubscriptionType.autoParts:
-        return 3000.0; // R$ 250/mês de economia x 12 meses
+        return 3000.0; // R\$ 250/mês de economia x 12 meses
+      case SubscriptionType.towTruck:
+        return 1800.0; // R\$ 150/mês de economia x 12 meses
+      case SubscriptionType.delivery:
+        return 1200.0; // R\$ 100/mês de economia x 12 meses
     }
   }
 
@@ -390,14 +398,6 @@ class SubscriptionService {
 class SystemSettingsService {
   static String get baseUrl => AppConfig.baseUrl;
 
-  // Headers com autenticação
-  static Future<Map<String, String>> get _authHeaders async {
-    final token = await AuthService.getToken();
-    return {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer $token',
-    };
-  }
 
   // Buscar configurações públicas (para apps)
   static Future<List<SystemSettings>> getPublicSettings() async {

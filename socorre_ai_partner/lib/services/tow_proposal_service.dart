@@ -180,7 +180,7 @@ class TowProposalService {
 
   // Calcular preço sugerido baseado na distância
   static double calculateSuggestedPrice(double distanceKm) {
-    // Preço base: R$ 50,00 + R$ 3,00 por km
+    // Preço base: R\$ 50,00 + R\$ 3,00 por km
     const basePrice = 50.0;
     const pricePerKm = 3.0;
     

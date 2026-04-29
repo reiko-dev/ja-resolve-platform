@@ -71,10 +71,10 @@ class SystemSettings {
   double? get doubleValue => type == 'decimal' || type == 'float' ? double.tryParse(value) : null;
   bool? get boolValue => type == 'boolean' ? value.toLowerCase() == 'true' : null;
   List<String>? get listValue => type == 'list' || type == 'array' 
-    ? (value is String ? jsonDecode(value) : value)?.cast<String>() 
+    ? (jsonDecode(value))?.cast<String>() 
     : null;
   Map<String, dynamic>? get jsonValue => type == 'json' || type == 'object'
-    ? (value is String ? jsonDecode(value) : value)
+    ? (jsonDecode(value))
     : null;
 
   @override

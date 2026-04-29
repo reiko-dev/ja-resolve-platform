@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:flutter/rendering.dart';
 import 'package:http/http.dart' as http;
 import 'package:mime/mime.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -81,7 +82,7 @@ class ImageUploadService {
         throw Exception(errorData['message'] ?? 'Falha no upload de imagens: ${response.statusCode}');
       }
     } catch (e) {
-      print('Erro no upload de imagens: $e');
+      debugPrint('Erro no upload de imagens: $e');
       rethrow;
     }
   }

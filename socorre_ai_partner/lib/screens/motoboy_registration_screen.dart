@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../services/partner_type_service.dart';
 
 class MotoboyRegistrationScreen extends StatefulWidget {
   const MotoboyRegistrationScreen({super.key});
@@ -21,8 +20,8 @@ class _MotoboyRegistrationScreenState extends State<MotoboyRegistrationScreen> {
   final _deliveryFeeController = TextEditingController();
   final _experienceController = TextEditingController();
   
-  List<String> _selectedDeliveryTypes = [];
-  Map<String, bool> _workingHours = {};
+  final List<String> _selectedDeliveryTypes = [];
+  final Map<String, bool> _workingHours = {};
   String _vehicleType = 'moto';
   String _cnhCategory = 'A';
   bool _isAvailable = true;
@@ -360,7 +359,7 @@ class _MotoboyRegistrationScreenState extends State<MotoboyRegistrationScreen> {
                   const SizedBox(width: 16),
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: _cnhCategory,
+                      initialValue: _cnhCategory,
                       style: GoogleFonts.poppins(color: Colors.white),
                       decoration: InputDecoration(
                         labelText: 'Categoria CNH',
@@ -407,7 +406,7 @@ class _MotoboyRegistrationScreenState extends State<MotoboyRegistrationScreen> {
                 children: [
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: _vehicleType,
+                      initialValue: _vehicleType,
                       style: GoogleFonts.poppins(color: Colors.white),
                       decoration: InputDecoration(
                         labelText: 'Tipo de Veículo',

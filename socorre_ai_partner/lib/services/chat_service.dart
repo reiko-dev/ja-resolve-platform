@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/rendering.dart';
 import 'package:http/http.dart' as http;
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import '../config/app_config.dart';
@@ -8,17 +9,8 @@ class ChatService {
   static String get _baseUrl => AppConfig.baseUrl;
   static IO.Socket? _socket;
   static bool _isConnected = false;
-  static String? _currentUserId;
   static Function(ChatMessage)? _onMessageReceived;
   static Function(Chat)? _onChatUpdated;
-
-  // Headers padrão
-  static Map<String, String> get _headers {
-    return {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    };
-  }
 
   // Headers com autenticação
   static Map<String, String> _headersWithAuth(String token) {
@@ -32,26 +24,24 @@ class ChatService {
   // Conectar ao WebSocket
   static Future<void> connect(String userId, String token) async {
     try {
-      _currentUserId = userId;
-      
       _socket = IO.io(_baseUrl, IO.OptionBuilder()
           .setTransports(['websocket'])
           .setAuth({'token': token})
           .build());
 
       _socket!.onConnect((_) {
-        print('✅ Conectado ao chat');
+        debugPrint('✅ Conectado ao chat');
         _isConnected = true;
         _socket!.emit('join', {'user_id': userId});
       });
 
       _socket!.onDisconnect((_) {
-        print('❌ Desconectado do chat');
+        debugPrint('❌ Desconectado do chat');
         _isConnected = false;
       });
 
       _socket!.on('message', (data) {
-        print('📱 Mensagem recebida: $data');
+        debugPrint('📱 Mensagem recebida: $data');
         if (_onMessageReceived != null) {
           final message = ChatMessage.fromJson(data);
           _onMessageReceived!(message);
@@ -59,7 +49,7 @@ class ChatService {
       });
 
       _socket!.on('chat_updated', (data) {
-        print('💬 Chat atualizado: $data');
+        debugPrint('💬 Chat atualizado: $data');
         if (_onChatUpdated != null) {
           final chat = Chat.fromJson(data);
           _onChatUpdated!(chat);
@@ -67,11 +57,11 @@ class ChatService {
       });
 
       _socket!.on('error', (error) {
-        print('❌ Erro no chat: $error');
+        debugPrint('❌ Erro no chat: $error');
       });
 
     } catch (e) {
-      print('❌ Erro ao conectar ao chat: $e');
+      debugPrint('❌ Erro ao conectar ao chat: $e');
     }
   }
 
@@ -81,7 +71,6 @@ class ChatService {
       _socket!.disconnect();
       _socket = null;
       _isConnected = false;
-      _currentUserId = null;
     }
   }
 

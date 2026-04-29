@@ -1,3 +1,5 @@
+import 'package:flutter/rendering.dart';
+
 class User {
   final int id;
   final String name;
@@ -46,8 +48,8 @@ class User {
         updatedAt: DateTime.parse(json['updated_at'] as String),
       );
     } catch (e) {
-      print('Error parsing User from JSON: $e');
-      print('JSON data: $json');
+      debugPrint('Error parsing User from JSON: $e');
+      debugPrint('JSON data: $json');
       rethrow;
     }
   }

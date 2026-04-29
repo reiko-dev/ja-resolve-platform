@@ -1,5 +1,5 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_config.dart';
 import 'dart:convert';
@@ -25,9 +25,9 @@ class NotificationService {
       _setupMessageHandlers();
 
       _isInitialized = true;
-      print('✅ NotificationService inicializado com sucesso');
+      debugPrint('✅ NotificationService inicializado com sucesso');
     } catch (e) {
-      print('❌ Erro ao inicializar NotificationService: $e');
+      debugPrint('❌ Erro ao inicializar NotificationService: $e');
     }
   }
 
@@ -44,9 +44,9 @@ class NotificationService {
         sound: true,
       );
 
-      print('Permissões de notificação: ${settings.authorizationStatus}');
+      debugPrint('Permissões de notificação: ${settings.authorizationStatus}');
     } catch (e) {
-      print('Erro ao solicitar permissões: $e');
+      debugPrint('Erro ao solicitar permissões: $e');
     }
   }
 
@@ -54,7 +54,7 @@ class NotificationService {
   static Future<void> _getFCMToken() async {
     try {
       _fcmToken = await _firebaseMessaging.getToken();
-      print('FCM Token: $_fcmToken');
+      debugPrint('FCM Token: $_fcmToken');
       
       // Salvar token localmente
       if (_fcmToken != null) {
@@ -62,7 +62,7 @@ class NotificationService {
         await prefs.setString('fcm_token', _fcmToken!);
       }
     } catch (e) {
-      print('Erro ao obter FCM token: $e');
+      debugPrint('Erro ao obter FCM token: $e');
     }
   }
 
@@ -70,13 +70,17 @@ class NotificationService {
   static void _setupMessageHandlers() {
     // Mensagem em primeiro plano
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      print('📱 Mensagem recebida em primeiro plano: ${message.notification?.title}');
+      debugPrint(
+        '📱 Mensagem recebida em primeiro plano: ${message.notification?.title}',
+      );
       _handleForegroundMessage(message);
     });
 
     // Mensagem quando app está em background
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      print('📱 Mensagem aberta do background: ${message.notification?.title}');
+      debugPrint(
+        '📱 Mensagem aberta do background: ${message.notification?.title}',
+      );
       _handleBackgroundMessage(message);
     });
 
@@ -87,9 +91,9 @@ class NotificationService {
   // Handler para mensagens em primeiro plano
   static void _handleForegroundMessage(RemoteMessage message) {
     // Aqui você pode mostrar um dialog, snackbar, etc.
-    print('Título: ${message.notification?.title}');
-    print('Corpo: ${message.notification?.body}');
-    print('Dados: ${message.data}');
+    debugPrint('Título: ${message.notification?.title}');
+    debugPrint('Corpo: ${message.notification?.body}');
+    debugPrint('Dados: ${message.data}');
   }
 
   // Handler para mensagens em background
@@ -143,14 +147,14 @@ class NotificationService {
       );
 
       if (response.statusCode == 200) {
-        print('✅ Token FCM enviado para o servidor');
+        debugPrint('✅ Token FCM enviado para o servidor');
         return true;
       } else {
-        print('❌ Erro ao enviar token FCM: ${response.statusCode}');
+        debugPrint('❌ Erro ao enviar token FCM: ${response.statusCode}');
         return false;
       }
     } catch (e) {
-      print('❌ Erro ao enviar token FCM: $e');
+      debugPrint('❌ Erro ao enviar token FCM: $e');
       return false;
     }
   }
@@ -159,9 +163,9 @@ class NotificationService {
   static Future<void> subscribeToTopic(String topic) async {
     try {
       await _firebaseMessaging.subscribeToTopic(topic);
-      print('✅ Inscrito no tópico: $topic');
+      debugPrint('✅ Inscrito no tópico: $topic');
     } catch (e) {
-      print('❌ Erro ao se inscrever no tópico $topic: $e');
+      debugPrint('❌ Erro ao se inscrever no tópico $topic: $e');
     }
   }
 
@@ -169,9 +173,9 @@ class NotificationService {
   static Future<void> unsubscribeFromTopic(String topic) async {
     try {
       await _firebaseMessaging.unsubscribeFromTopic(topic);
-      print('✅ Desinscrito do tópico: $topic');
+      debugPrint('✅ Desinscrito do tópico: $topic');
     } catch (e) {
-      print('❌ Erro ao se desinscrever do tópico $topic: $e');
+      debugPrint('❌ Erro ao se desinscrever do tópico $topic: $e');
     }
   }
 
@@ -187,9 +191,9 @@ class NotificationService {
       // Tópico de emergências
       await subscribeToTopic('emergencies');
       
-      print('✅ Inscrito nos tópicos para $partnerType');
+      debugPrint('✅ Inscrito nos tópicos para $partnerType');
     } catch (e) {
-      print('❌ Erro ao se inscrever nos tópicos: $e');
+      debugPrint('❌ Erro ao se inscrever nos tópicos: $e');
     }
   }
 
@@ -202,9 +206,9 @@ class NotificationService {
       await unsubscribeFromTopic('partners_motoboy');
       await unsubscribeFromTopic('emergencies');
       
-      print('✅ Desinscrito de todos os tópicos');
+      debugPrint('✅ Desinscrito de todos os tópicos');
     } catch (e) {
-      print('❌ Erro ao se desinscrever dos tópicos: $e');
+      debugPrint('❌ Erro ao se desinscrever dos tópicos: $e');
     }
   }
 
@@ -214,7 +218,7 @@ class NotificationService {
       NotificationSettings settings = await _firebaseMessaging.getNotificationSettings();
       return settings.authorizationStatus == AuthorizationStatus.authorized;
     } catch (e) {
-      print('Erro ao verificar permissões: $e');
+      debugPrint('Erro ao verificar permissões: $e');
       return false;
     }
   }
@@ -232,7 +236,7 @@ class NotificationService {
         sound: true,
       );
     } catch (e) {
-      print('Erro ao abrir configurações: $e');
+      debugPrint('Erro ao abrir configurações: $e');
     }
   }
 
@@ -245,9 +249,9 @@ class NotificationService {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('fcm_token');
       
-      print('✅ Token FCM limpo');
+      debugPrint('✅ Token FCM limpo');
     } catch (e) {
-      print('❌ Erro ao limpar token FCM: $e');
+      debugPrint('❌ Erro ao limpar token FCM: $e');
     }
   }
 }
@@ -255,6 +259,6 @@ class NotificationService {
 // Handler para mensagens em background (deve ser top-level)
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  print('📱 Mensagem em background: ${message.notification?.title}');
+  debugPrint('📱 Mensagem em background: ${message.notification?.title}');
   // Aqui você pode processar a mensagem mesmo com o app fechado
 }

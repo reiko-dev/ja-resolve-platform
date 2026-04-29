@@ -87,9 +87,19 @@ const Partners: React.FC = () => {
       const response = await apiService.getPartners({ page, limit: 10, ...filters });
       
       if (response.success && response.data) {
-        setPartners(response.data.partners || response.data);
-        setTotalPages(response.data.totalPages || 1);
-        setTotal(response.data.total || 0);
+        const data = response.data;
+        // Handle different response structures
+        const partnersArray = data.partners || data.items || data.users || (Array.isArray(data) ? data : []);
+        setPartners(partnersArray);
+        
+        // Handle pagination data
+        if (data.pagination) {
+          setTotalPages(data.pagination.pages || 1);
+          setTotal(data.pagination.total || 0);
+        } else {
+          setTotalPages(data.totalPages || 1);
+          setTotal(data.total || 0);
+        }
       }
     } catch (err) {
       console.error('Erro ao carregar parceiros:', err);
@@ -148,7 +158,7 @@ const Partners: React.FC = () => {
     try {
       if (selectedPartner) {
         // Atualizar parceiro existente
-        await apiService.updatePartner(selectedPartner.id, selectedPartner);
+        await apiService.updatePartnerStatus(selectedPartner.id, selectedPartner.is_online || false);
       } else {
         // Criar novo parceiro
         await apiService.createPartner(selectedPartner);
@@ -646,7 +656,8 @@ const Partners: React.FC = () => {
           </DialogActions>
         </Dialog>
       </Box>
+    </Box>
     );
-};
+  };
 
-export default Partners;
+  export default Partners;

@@ -22,7 +22,6 @@ class _CompletePartnerRegistrationScreenState extends State<CompletePartnerRegis
   // Controladores para formulário
   final TextEditingController _companyNameController = TextEditingController();
   final TextEditingController _tradeNameController = TextEditingController();
-  final TextEditingController _cpfController = TextEditingController();
   final TextEditingController _cnpjController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _cepController = TextEditingController();
@@ -415,7 +414,43 @@ class _CompletePartnerRegistrationScreenState extends State<CompletePartnerRegis
         if (_documentsRequired) ...[
           _buildSectionTitle('Documentos obrigatórios'),
           const SizedBox(height: 16),
-          _buildDocumentUploadSection(context),
+          TextFormField(
+            controller: _companyNameController,
+            decoration: _buildInputDecoration('Nome do Posto *'),
+            validator: (value) => value?.isEmpty ?? true ? 'Campo obrigatório' : null,
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _tradeNameController,
+            decoration: _buildInputDecoration('Nome Fantasia'),
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _cnpjController,
+            decoration: _buildInputDecoration('CNPJ *'),
+            keyboardType: TextInputType.number,
+            validator: (value) => value?.isEmpty ?? true ? 'Campo obrigatório' : null,
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _phoneController,
+            decoration: _buildInputDecoration('Telefone *'),
+            keyboardType: TextInputType.phone,
+            validator: (value) => value?.isEmpty ?? true ? 'Campo obrigatório' : null,
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _addressController,
+            decoration: _buildInputDecoration('Endereço *'),
+            maxLines: 2,
+            validator: (value) => value?.isEmpty ?? true ? 'Campo obrigatório' : null,
+          ),
+          if (_documentsRequired) ...[
+            const SizedBox(height: 24),
+            _buildSectionTitle('Documentos Obrigatórios'),
+            const SizedBox(height: 16),
+            _buildDocumentUploadSection(context),
+          ],
         ],
       ],
     );

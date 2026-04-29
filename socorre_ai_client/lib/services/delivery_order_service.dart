@@ -326,7 +326,7 @@ class DeliveryOrderService {
     try {
       final headers = await _authHeaders;
       
-      final body = {
+      final body = <String, dynamic>{
         'rating': rating,
       };
       if (comment != null) {
