@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -231,7 +230,7 @@ class ApiService {
       final headers = await _authHeaders;
       final request = http.MultipartRequest(
         'POST',
-        Uri.parse('$baseUrl/api/uploads/client-documents'),
+        Uri.parse('$baseUrl/api/users/me/documents'),
       );
 
       // Adicionar headers
@@ -377,7 +376,7 @@ class ApiService {
     try {
       final headers = await _authHeaders;
       final response = await http.delete(
-        Uri.parse('$baseUrl/api/uploads/client-documents/$documentId'),
+        Uri.parse('$baseUrl/api/users/me/documents/$documentId'),
         headers: headers,
       );
 

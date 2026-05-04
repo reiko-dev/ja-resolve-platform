@@ -88,6 +88,10 @@ class Subscription {
         return SubscriptionType.gasStation;
       case 'auto_parts':
         return SubscriptionType.autoParts;
+      case 'tow':
+        return SubscriptionType.towTruck;
+      case 'motoboy':
+        return SubscriptionType.delivery;
       default:
         return SubscriptionType.mechanic;
     }
@@ -245,6 +249,21 @@ enum SubscriptionStatus {
 }
 
 extension SubscriptionTypeExtension on SubscriptionType {
+  String get wireValue {
+    switch (this) {
+      case SubscriptionType.mechanic:
+        return 'mechanic';
+      case SubscriptionType.gasStation:
+        return 'gas_station';
+      case SubscriptionType.autoParts:
+        return 'auto_parts';
+      case SubscriptionType.towTruck:
+        return 'tow';
+      case SubscriptionType.delivery:
+        return 'motoboy';
+    }
+  }
+
   String get displayName {
     switch (this) {
       case SubscriptionType.mechanic:

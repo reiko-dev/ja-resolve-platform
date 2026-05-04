@@ -34,7 +34,7 @@ class WebSocketService {
       }
 
       _socket = IO.io(
-        AppConfig.baseUrl,
+        AppConfig.serverUrl,
         IO.OptionBuilder()
           .setTransports(['websocket'])
           .setExtraHeaders({'Authorization': 'Bearer $token'})

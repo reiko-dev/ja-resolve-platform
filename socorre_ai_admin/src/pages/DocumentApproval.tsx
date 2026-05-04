@@ -28,11 +28,11 @@ import {
 import {
   Check as CheckIcon,
   Close as CloseIcon,
-  Description as DocumentIcon,
   Visibility as ViewIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import uploadService from '../services/uploadService';
 
 interface Document {
   id: string;
@@ -79,20 +79,7 @@ const DocumentApproval: React.FC = () => {
   const fetchPendingDocuments = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('adminToken');
-      
-      const response = await fetch('/api/documents/pending', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Erro ao buscar documentos');
-      }
-
-      const data = await response.json();
+      const data = await uploadService.getPendingDocuments();
       setDocuments(data.data.documents || []);
     } catch (error) {
       console.error('Erro:', error);
@@ -104,22 +91,7 @@ const DocumentApproval: React.FC = () => {
 
   const handleApprove = async (documentId: string) => {
     try {
-      const token = localStorage.getItem('adminToken');
-      
-      const response = await fetch(`/api/documents/${documentId}/verify`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          status: 'approved'
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Erro ao aprovar documento');
-      }
+      await uploadService.verifyDocument(Number(documentId), 'approved');
 
       showSnackbar('Documento aprovado com sucesso', 'success');
       fetchPendingDocuments();
@@ -135,23 +107,11 @@ const DocumentApproval: React.FC = () => {
     }
 
     try {
-      const token = localStorage.getItem('adminToken');
-      
-      const response = await fetch(`/api/documents/${selectedDocument.id}/verify`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          status: 'rejected',
-          rejection_reason: rejectionReason
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Erro ao rejeitar documento');
-      }
+      await uploadService.verifyDocument(
+        Number(selectedDocument.id),
+        'rejected',
+        rejectionReason,
+      );
 
       showSnackbar('Documento rejeitado com sucesso', 'success');
       setRejectDialogOpen(false);
@@ -215,19 +175,7 @@ const DocumentApproval: React.FC = () => {
 
   const downloadDocument = async (documentId: string, fileName: string) => {
     try {
-      const token = localStorage.getItem('adminToken');
-      
-      const response = await fetch(`/api/documents/${documentId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Erro ao baixar documento');
-      }
-
-      const blob = await response.blob();
+      const blob = await uploadService.downloadDocument(Number(documentId));
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;

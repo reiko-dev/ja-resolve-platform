@@ -184,6 +184,8 @@ class _MotoboyRegistrationScreenState extends State<MotoboyRegistrationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
     return Scaffold(
       backgroundColor: const Color(0xFF1A1A1A),
       appBar: AppBar(
@@ -195,13 +197,16 @@ class _MotoboyRegistrationScreenState extends State<MotoboyRegistrationScreen> {
         ),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+      body: SafeArea(
+        child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          physics: const ClampingScrollPhysics(),
+          padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottomInset),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
               // Informações Pessoais
               _buildSectionTitle('Informações Pessoais'),
               const SizedBox(height: 16),
@@ -586,7 +591,8 @@ class _MotoboyRegistrationScreenState extends State<MotoboyRegistrationScreen> {
                       ),
               ),
               const SizedBox(height: 24),
-            ],
+              ],
+            ),
           ),
         ),
       ),

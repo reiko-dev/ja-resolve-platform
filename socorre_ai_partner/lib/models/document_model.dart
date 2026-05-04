@@ -1,3 +1,5 @@
+import '../core/utils/partner_document_rules.dart';
+
 class PartnerDocument {
   final String id;
   final String partnerId;
@@ -37,7 +39,7 @@ class PartnerDocument {
     return PartnerDocument(
       id: json['id'].toString(),
       partnerId: json['partner_id'].toString(),
-      documentType: json['document_type'] ?? '',
+      documentType: PartnerDocumentRules.normalizeDocumentType(json['document_type'] ?? ''),
       title: json['title'] ?? '',
       filename: json['filename'] ?? '',
       originalName: json['original_name'] ?? '',
@@ -45,9 +47,11 @@ class PartnerDocument {
       mimeType: json['mime_type'] ?? '',
       fileSize: int.parse(json['file_size'].toString()),
       status: json['status'] ?? 'pending',
-      uploadDate: DateTime.parse(json['upload_date'] ?? json['created_at']),
-      verifiedDate: json['verified_date'] != null 
-          ? DateTime.parse(json['verified_date']) 
+      uploadDate: DateTime.parse(
+        (json['upload_date'] ?? json['uploaded_at'] ?? json['created_at']).toString(),
+      ),
+      verifiedDate: (json['verified_date'] ?? json['verified_at']) != null
+          ? DateTime.parse((json['verified_date'] ?? json['verified_at']).toString())
           : null,
       verifiedBy: json['verified_by'],
       rejectionReason: json['rejection_reason'],
@@ -110,6 +114,7 @@ class PartnerDocument {
         return 'CNH';
       case 'crlv':
         return 'CRLV';
+      case 'address_proof':
       case 'residence_proof':
         return 'Comprovante de Residência';
       case 'cnpj':

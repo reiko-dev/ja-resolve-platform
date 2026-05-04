@@ -6,6 +6,7 @@ import '../config/app_config.dart';
 
 class PartnerService {
   final ApiService _apiService;
+  static const String _officialSubscriptionsPath = '/subscriptions';
 
   static String get _baseUrl => AppConfig.baseUrl;
 
@@ -80,7 +81,7 @@ class PartnerService {
       final result = await _apiService.post<Map<String, dynamic>>(
         '/partner/complete-registration',
         data: {
-          'type': type.name,
+          'type': type.wireValue,
           'data': data,
         },
       );
@@ -98,11 +99,15 @@ class PartnerService {
   // Obter status da assinatura
   Future<ApiResult<Subscription>> getSubscriptionStatus() async {
     try {
-      final result = await _apiService.get<Map<String, dynamic>>('/partner/subscription');
+      final result = await _apiService.get<List<dynamic>>(_officialSubscriptionsPath);
       
-      if (result.success && result.data != null) {
-        final subscription = Subscription.fromJson(result.data!);
+      if (result.success && result.data != null && result.data!.isNotEmpty) {
+        final subscription = Subscription.fromJson(
+          Map<String, dynamic>.from(result.data!.first as Map),
+        );
         return ApiResult.success(subscription);
+      } else if (result.success) {
+        return ApiResult.error('Nenhuma assinatura encontrada');
       } else {
         return ApiResult.error(result.error ?? 'Erro ao buscar assinatura');
       }
@@ -119,11 +124,11 @@ class PartnerService {
   }) async {
     try {
       final result = await _apiService.post<Map<String, dynamic>>(
-        '/partner/subscription',
+        _officialSubscriptionsPath,
         data: {
-          'type': type.name,
+          'type': type.wireValue,
           'planId': planId,
-          'paymentData': paymentData,
+          ...paymentData,
         },
       );
       
@@ -141,8 +146,13 @@ class PartnerService {
   // Cancelar assinatura
   Future<ApiResult<bool>> cancelSubscription({String? reason}) async {
     try {
-      final result = await _apiService.post<Map<String, dynamic>>(
-        '/partner/subscription/cancel',
+      final currentSubscriptionResult = await getSubscriptionStatus();
+      if (!currentSubscriptionResult.success || currentSubscriptionResult.data == null) {
+        return ApiResult.error(currentSubscriptionResult.error ?? 'Assinatura não encontrada');
+      }
+
+      final result = await _apiService.delete<Map<String, dynamic>>(
+        '$_officialSubscriptionsPath/${currentSubscriptionResult.data!.id}',
         data: {'reason': reason},
       );
       

@@ -4,7 +4,9 @@ import 'package:provider/provider.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/providers/auth_provider.dart';
 import '../../../../core/providers/partner_provider.dart';
+import '../../../../core/utils/partner_type_utils.dart';
 import '../../../../models/subscription.dart';
+import '../../../../services/onboarding_flow_service.dart';
 
 class RegisterScreen extends StatefulWidget {
   final String? partnerType;
@@ -403,6 +405,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (widget.partnerType != null) {
         final type = _getPartnerTypeEnum(widget.partnerType!);
         partnerProvider.selectPartnerType(type);
+        await OnboardingFlowService.persistPartnerType(widget.partnerType!);
       }
       
       final userData = {
@@ -410,6 +413,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
         'email': _emailController.text.trim(),
         'phone': _phoneController.text.trim(),
         'password': _passwordController.text,
+        if (widget.partnerType != null) 'role': 'partner',
+        if (widget.partnerType != null) 'partnerType': widget.partnerType,
       };
       
       final success = await authProvider.register(userData);
@@ -417,46 +422,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (success && mounted) {
         // Se tem tipo de parceiro, vai para completar cadastro
         if (widget.partnerType != null) {
-          context.go('/complete-registration?partnerType=${widget.partnerType}');
+          context.go(OnboardingFlowService.completeRegistrationRoute(widget.partnerType!));
         } else {
-          // Senão, vai direto para o dashboard
-          context.go('/');
+          context.go(await OnboardingFlowService.resolveInitialRoute());
         }
       }
     }
   }
   
   String _getPartnerTypeDisplayName(String partnerType) {
-    switch (partnerType.toLowerCase()) {
-      case 'mechanic':
-        return 'Mecânico';
-      case 'gasstation':
-        return 'Posto de Combustível';
-      case 'autoparts':
-        return 'Auto Peças';
-      case 'towtruck':
-        return 'Guincho';
-      case 'delivery':
-        return 'Motoboy';
-      default:
-        return partnerType;
-    }
+    return PartnerTypeUtils.displayName(partnerType);
   }
   
   SubscriptionType _getPartnerTypeEnum(String partnerType) {
-    switch (partnerType.toLowerCase()) {
-      case 'mechanic':
-        return SubscriptionType.mechanic;
-      case 'gasstation':
-        return SubscriptionType.gasStation;
-      case 'autoparts':
-        return SubscriptionType.autoParts;
-      case 'towtruck':
-        return SubscriptionType.towTruck;
-      case 'delivery':
-        return SubscriptionType.delivery;
-      default:
-        return SubscriptionType.mechanic;
-    }
+    return PartnerTypeUtils.toSubscriptionType(partnerType) ?? SubscriptionType.mechanic;
   }
 }

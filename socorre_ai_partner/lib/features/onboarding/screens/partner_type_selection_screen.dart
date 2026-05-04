@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/providers/auth_provider.dart';
 import '../../../../core/providers/partner_provider.dart';
 import '../../../../models/subscription.dart';
+import '../../../../services/onboarding_flow_service.dart';
 
 class PartnerTypeSelectionScreen extends StatelessWidget {
   const PartnerTypeSelectionScreen({super.key});
@@ -141,9 +143,21 @@ class PartnerTypeSelectionScreen extends StatelessWidget {
         return Card(
           color: context.surface,
           child: InkWell(
-            onTap: () {
+            onTap: () async {
               partnerProvider.selectPartnerType(type);
-              context.go('/register?partnerType=${type.name}');
+              await OnboardingFlowService.persistPartnerType(type.wireValue);
+
+              if (!context.mounted) {
+                return;
+              }
+
+              final authProvider = context.read<AuthProvider>();
+              if (authProvider.isAuthenticated) {
+                context.go(OnboardingFlowService.completeRegistrationRoute(type.wireValue));
+                return;
+              }
+
+              context.go('/register?partnerType=${type.wireValue}');
             },
             borderRadius: BorderRadius.circular(12),
             child: Padding(

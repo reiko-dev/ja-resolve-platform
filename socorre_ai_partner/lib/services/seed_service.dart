@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../core/utils/partner_type_utils.dart';
 import '../config/app_config.dart';
 
 class SeedService {
@@ -17,32 +18,32 @@ class SeedService {
       'cnpj': '12345678000190',
       'specialties': ['motor', 'transmissao', 'freios'],
     },
-    'gasstation': {
+    'gas_station': {
       'name': 'Maria Posto',
       'email': 'maria@posto.com',
       'phone': '11999997777',
       'password': 'senha123456',
-      'partnerType': 'gasstation',
+      'partnerType': 'gas_station',
       'companyName': 'Posto Maria',
       'cnpj': '98765432000111',
       'fuels': ['gasolina', 'diesel', 'etanol'],
     },
-    'autoparts': {
+    'auto_parts': {
       'name': 'Carlos Peças',
       'email': 'carlos@pecas.com',
       'phone': '11999996666',
       'password': 'senha123456',
-      'partnerType': 'autoparts',
+      'partnerType': 'auto_parts',
       'companyName': 'Auto Peças Carlos',
       'cnpj': '55555555000122',
       'categories': ['motor', 'suspensao', 'eletrica'],
     },
-    'towtruck': {
+    'tow': {
       'name': 'Paulo Guincho',
       'email': 'paulo@guincho.com',
       'phone': '11999995555',
       'password': 'senha123456',
-      'partnerType': 'towtruck',
+      'partnerType': 'tow',
       'companyName': 'Guincho Rápido',
       'cnpj': '33333333000133',
       'capacity': 5000,
@@ -86,6 +87,8 @@ class SeedService {
     Map<String, dynamic> data,
   ) async {
     try {
+      final normalizedType = PartnerTypeUtils.normalize(type);
+
       // Primeiro: registrar o usuário
       final registerResponse = await http.post(
         Uri.parse('$_baseUrl/api/auth/register'),
@@ -97,7 +100,7 @@ class SeedService {
           'email': data['email'],
           'phone': data['phone'],
           'password': data['password'],
-          'partnerType': data['partnerType'],
+          'partnerType': PartnerTypeUtils.normalize('${data['partnerType']}'),
         }),
       );
 
@@ -120,7 +123,7 @@ class SeedService {
           'Authorization': 'Bearer $token',
         },
         body: jsonEncode({
-          'partnerType': data['partnerType'],
+          'partnerType': normalizedType,
           'companyName': data['companyName'] ?? data['name'],
           'cnpj': data['cnpj'],
           'cpf': data['cpf'],

@@ -1,7 +1,8 @@
+import '../../config/app_config.dart';
+
 class AppConstants {
-  // API Configuration
-  static const String apiBaseUrl = 'http://192.168.15.3:3001/api';
-  static const String wsUrl = 'ws://192.168.15.3:3001';
+  static String get apiBaseUrl => AppConfig.baseUrl;
+  static String get wsUrl => AppConfig.serverUrl;
   static const bool isDebugMode = true;
   
   // App Configuration

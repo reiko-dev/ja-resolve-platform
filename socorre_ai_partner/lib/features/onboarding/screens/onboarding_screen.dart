@@ -36,6 +36,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   
   @override
   Widget build(BuildContext context) {
+    final isLastPage = _currentPage == _pages.length - 1;
+
     return Scaffold(
       backgroundColor: context.background,
       body: SafeArea(
@@ -45,7 +47,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             Align(
               alignment: Alignment.topRight,
               child: TextButton(
-                onPressed: () => context.go('/partner-type-selection'),
+                onPressed: () {
+                  if (isLastPage) {
+                    context.go('/login');
+                    return;
+                  }
+
+                  _pageController.animateToPage(
+                    _pages.length - 1,
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                  );
+                },
                 child: Text(
                   'Pular',
                   style: TextStyle(color: context.textSecondary),
@@ -75,38 +88,55 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             // Bottom buttons
             Padding(
               padding: const EdgeInsets.all(24.0),
-              child: Row(
-                children: [
-                  if (_currentPage > 0)
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () {
-                          _pageController.previousPage(
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeInOut,
-                          );
-                        },
-                        child: const Text('Anterior'),
-                      ),
+              child: isLastPage
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        SizedBox(
+                          height: 48,
+                          child: ElevatedButton(
+                            onPressed: () => context.go('/login'),
+                            child: const Text('Entrar'),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          height: 48,
+                          child: OutlinedButton(
+                            onPressed: () => context.go('/partner-type-selection'),
+                            child: const Text('Criar conta'),
+                          ),
+                        ),
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        if (_currentPage > 0)
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () {
+                                _pageController.previousPage(
+                                  duration: const Duration(milliseconds: 300),
+                                  curve: Curves.easeInOut,
+                                );
+                              },
+                              child: const Text('Anterior'),
+                            ),
+                          ),
+                        if (_currentPage > 0) const SizedBox(width: 16),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () {
+                              _pageController.nextPage(
+                                duration: const Duration(milliseconds: 300),
+                                curve: Curves.easeInOut,
+                              );
+                            },
+                            child: const Text('Próximo'),
+                          ),
+                        ),
+                      ],
                     ),
-                  if (_currentPage > 0) const SizedBox(width: 16),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        if (_currentPage < _pages.length - 1) {
-                          _pageController.nextPage(
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeInOut,
-                          );
-                        } else {
-                          context.go('/partner-type-selection');
-                        }
-                      },
-                      child: Text(_currentPage < _pages.length - 1 ? 'Próximo' : 'Começar'),
-                    ),
-                  ),
-                ],
-              ),
             ),
           ],
         ),
@@ -125,7 +155,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             width: 120,
             height: 120,
             decoration: BoxDecoration(
-              color: page.color.withOpacity(0.1),
+              color: page.color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(60),
             ),
             child: Icon(
