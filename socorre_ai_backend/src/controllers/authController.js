@@ -1,14 +1,43 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../config/database');
+const { normalizePartnerType } = require('../config/partnerDocumentRules');
+const { ONBOARDING_STAGES } = require('../config/onboardingStages');
 
 const jwtExpiresIn = process.env.JWT_EXPIRES_IN || '7d';
+const jwtSecret = process.env.JWT_SECRET || 'socorre_ai_jwt_secret_dev_2024';
+
+async function getAuthUserById(userId) {
+  return db('users')
+    .leftJoin('partners', 'partners.user_id', 'users.id')
+    .select(
+      'users.id',
+      'users.name',
+      'users.email',
+      'users.phone',
+      'users.role',
+      'users.cpf',
+      'users.cnpj',
+      'users.onboarding_partner_type',
+      'users.onboarding_stage',
+      'users.is_active',
+      'users.email_verified',
+      'users.created_at',
+      'users.updated_at',
+      'partners.id as partner_id',
+      'partners.type as partner_type'
+    )
+    .where('users.id', userId)
+    .first();
+}
 
 class AuthController {
   // Registrar novo usuário
   async register(req, res) {
     try {
-      const { name, email, password, phone, role, cpf, cnpj } = req.body;
+      const { name, email, password, phone, cpf, cnpj } = req.body;
+      const onboardingPartnerType = normalizePartnerType(req.body.partner_type || req.body.partnerType || '');
+      const resolvedRole = onboardingPartnerType ? 'partner' : 'user';
 
       // Verificar se email já existe
       const existingUser = await db('users').where({ email }).first();
@@ -28,7 +57,7 @@ class AuthController {
         email,
         password: hashedPassword,
         phone,
-        role: role || 'user',
+        role: resolvedRole,
         is_active: true,
         email_verified: false,
         created_at: new Date(),
@@ -36,9 +65,13 @@ class AuthController {
       };
 
       // Adicionar CPF/CNPJ se for parceiro
-      if (role === 'partner') {
+      if (resolvedRole === 'partner') {
         userData.cpf = cpf;
         userData.cnpj = cnpj;
+        if (onboardingPartnerType) {
+          userData.onboarding_partner_type = onboardingPartnerType;
+        }
+        userData.onboarding_stage = ONBOARDING_STAGES.ACCOUNT_CREATED;
       }
 
       // Inserir usuário
@@ -46,15 +79,12 @@ class AuthController {
       const userId = result.id;
 
       // Buscar usuário criado (sem senha)
-      const newUser = await db('users')
-        .select('id', 'name', 'email', 'phone', 'role', 'cpf', 'cnpj', 'is_active', 'email_verified', 'created_at', 'updated_at')
-        .where({ id: userId })
-        .first();
+      const newUser = await getAuthUserById(userId);
 
       // Gerar token JWT
       const token = jwt.sign(
         { userId: newUser.id, role: newUser.role },
-        process.env.JWT_SECRET || 'dev_secret',
+        jwtSecret,
         { expiresIn: jwtExpiresIn }
       );
 
@@ -102,12 +132,11 @@ class AuthController {
       // Gerar token JWT
       const token = jwt.sign(
         { userId: user.id, role: user.role },
-        process.env.JWT_SECRET || 'dev_secret',
+        jwtSecret,
         { expiresIn: jwtExpiresIn }
       );
 
-      // Remover senha do response
-      const { password: _, ...userWithoutPassword } = user;
+      const userWithoutPassword = await getAuthUserById(user.id);
 
       res.json({
         success: true,
@@ -127,25 +156,22 @@ class AuthController {
     }
   }
 
-        // Verificar token
-      async verifyToken(req, res) {
-        try {
-          const user = await db('users')
-            .select('id', 'name', 'email', 'phone', 'role', 'cpf', 'cnpj', 'is_active', 'email_verified', 'created_at', 'updated_at')
-            .where({ id: req.user.id })
-            .first();
-          
-          if (!user) {
-            return res.status(404).json({
-              success: false,
-              message: 'Usuário não encontrado'
-            });
-          }
+  // Verificar token
+  async verifyToken(req, res) {
+    try {
+      const user = await getAuthUserById(req.user.id);
+      
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'Usuário não encontrado'
+        });
+      }
 
-                res.json({
-            success: true,
-            data: { user }
-          });
+      res.json({
+        success: true,
+        data: { user }
+      });
 
     } catch (error) {
       console.error('Verify token error:', error);

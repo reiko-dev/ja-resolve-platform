@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:socorre_ai_partner/screens/partner_dashboard_screen.dart';
+import '../core/utils/partner_type_utils.dart';
 import '../services/api_service.dart';
 
 class PartnerOnboardingScreen extends StatefulWidget {
@@ -17,8 +18,10 @@ class _PartnerOnboardingScreenState extends State<PartnerOnboardingScreen> {
   bool _isLoading = false;
   final Map<String, dynamic> _partnerData = {};
 
+  String get _normalizedPartnerType => PartnerTypeUtils.normalize(widget.partnerType);
+
   List<OnboardingPage> _getPagesForType() {
-    switch (widget.partnerType) {
+    switch (_normalizedPartnerType) {
       case 'mechanic':
         return [
           OnboardingPage(
@@ -425,7 +428,7 @@ class _PartnerOnboardingScreenState extends State<PartnerOnboardingScreen> {
   }
 
   Color _getPrimaryColor() {
-    switch (widget.partnerType) {
+    switch (_normalizedPartnerType) {
       case 'mechanic':
         return Colors.red[600]!;
       case 'motoboy':
@@ -442,7 +445,7 @@ class _PartnerOnboardingScreenState extends State<PartnerOnboardingScreen> {
   }
 
   String _getPartnerTypeName() {
-    switch (widget.partnerType) {
+    switch (_normalizedPartnerType) {
       case 'mechanic':
         return 'Mecânico';
       case 'motoboy':

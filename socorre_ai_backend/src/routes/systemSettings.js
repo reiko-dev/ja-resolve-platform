@@ -2,15 +2,16 @@ const express = require('express');
 const router = express.Router();
 const SystemSettingsController = require('../controllers/SystemSettingsController');
 const { auth, requireRole } = require('../middleware/auth');
+const legacyRouteRegistry = require('../services/legacyRouteRegistry');
+const { getLegacyRouteConfigSnapshot } = require('../bootstrap/legacyRoutes');
 
-// Middleware de autenticação para todas as rotas (exceto públicas)
-router.use((req, res, next) => {
-  // Rotas públicas não precisam de autenticação
-  if (req.path.includes('/public') || req.path.includes('/app-settings')) {
-    return next();
-  }
-  auth(req, res, next);
-});
+// Rotas públicas
+router.get('/public', SystemSettingsController.findPublic);
+router.get('/app-settings', SystemSettingsController.getAppSettings);
+
+// Todas as demais rotas deste módulo são administrativas
+router.use(auth);
+router.use(requireRole(['admin']));
 
 // Listar todas as configurações
 router.get('/', SystemSettingsController.findAll);
@@ -23,12 +24,6 @@ router.post('/keys', SystemSettingsController.findByKeys);
 
 // Buscar configurações por categoria
 router.get('/category/:category', SystemSettingsController.findByCategory);
-
-// Buscar configurações públicas (para apps)
-router.get('/public', SystemSettingsController.findPublic);
-
-// Buscar configurações do app
-router.get('/app-settings', SystemSettingsController.getAppSettings);
 
 // Criar ou atualizar configuração
 router.post('/', SystemSettingsController.upsert);
@@ -53,6 +48,31 @@ router.post('/import', SystemSettingsController.import);
 
 // Buscar configurações organizadas por categoria (para admin)
 router.get('/by-category', SystemSettingsController.getSettingsByCategory);
+
+// Obter telemetria de uso das trilhas legadas
+router.get('/legacy-route-usage', (req, res) => {
+  res.json({
+    success: true,
+    data: legacyRouteRegistry.getSnapshot(),
+  });
+});
+
+// Obter configuracao efetiva das trilhas legadas
+router.get('/legacy-route-config', (req, res) => {
+  res.json({
+    success: true,
+    data: getLegacyRouteConfigSnapshot(),
+  });
+});
+
+// Resetar telemetria de uso das trilhas legadas
+router.post('/legacy-route-usage/reset', (req, res) => {
+  legacyRouteRegistry.reset();
+  res.json({
+    success: true,
+    message: 'Telemetria de rotas legadas resetada com sucesso',
+  });
+});
 
 // Validar valor de configuração
 router.post('/validate', SystemSettingsController.validateValue);

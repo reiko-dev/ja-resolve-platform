@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/rendering.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/services/api_service.dart';
 import '../models/user.dart';
+import 'partner_type_service.dart';
 
 // Re-export ApiResult from api_service
 export '../core/services/api_service.dart' show ApiResult;
@@ -27,12 +29,10 @@ class AuthService {
       );
       
       if (result.success && result.data != null) {
+        await _persistSession(result.data!);
         final userData = result.data!['data']['user'];
         if (userData != null) {
           final user = User.fromJson(userData);
-          
-          // TODO: Salvar token e dados do usuário
-          
           return ApiResult.success(user);
         } else {
           return ApiResult.error('Dados do usuário não encontrados na resposta');
@@ -54,14 +54,12 @@ class AuthService {
       );
       
       if (result.success && result.data != null) {
+        await _persistSession(result.data!);
         debugPrint('AuthService.register - result.data: ${result.data}');
         final userData = result.data!['data']['user'];
         debugPrint('AuthService.register - userData: $userData');
         if (userData != null) {
           final user = User.fromJson(userData);
-          
-          // TODO: Salvar token e dados do usuário
-          
           return ApiResult.success(user);
         } else {
           debugPrint('AuthService.register - userData is null');
@@ -83,7 +81,10 @@ class AuthService {
       );
       
       if (result.success) {
-        // TODO: Remover token e dados do usuário
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove('auth_token');
+        await prefs.remove('user_data');
+        await PartnerTypeService.clearPartnerType();
         return ApiResult.success(true);
       } else {
         return ApiResult.error(result.error ?? 'Erro ao fazer logout');
@@ -123,6 +124,30 @@ class AuthService {
       }
     } catch (e) {
       return null;
+    }
+  }
+
+  Future<void> _persistSession(Map<String, dynamic> payload) async {
+    final data = payload['data'] as Map<String, dynamic>?;
+    final token = data?['token'] as String?;
+    final user = data?['user'] as Map<String, dynamic>?;
+
+    final prefs = await SharedPreferences.getInstance();
+
+    if (token != null && token.isNotEmpty) {
+      await prefs.setString('auth_token', token);
+    }
+
+    if (user != null) {
+      await prefs.setString('user_data', jsonEncode(user));
+
+      final onboardingPartnerType =
+          user['onboarding_partner_type'] as String? ??
+          user['partner_type'] as String?;
+
+      if (onboardingPartnerType != null && onboardingPartnerType.isNotEmpty) {
+        await PartnerTypeService.savePartnerType(onboardingPartnerType);
+      }
     }
   }
   

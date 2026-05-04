@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
+
 import '../../../core/theme/app_theme.dart';
-import '../../../core/providers/partner_provider.dart';
-import '../../../services/cep_service.dart';
+import '../../../core/utils/partner_document_rules.dart';
+import '../../../core/utils/partner_type_utils.dart';
 import '../../../models/mechanic_specialty.dart';
+import '../../../services/api_service.dart';
+import '../../../services/cep_service.dart';
+import '../../../services/onboarding_flow_service.dart';
 
 class CompletePartnerRegistrationScreen extends StatefulWidget {
   final String partnerType;
-  
+
   const CompletePartnerRegistrationScreen({super.key, required this.partnerType});
 
   @override
@@ -17,9 +19,7 @@ class CompletePartnerRegistrationScreen extends StatefulWidget {
 }
 
 class _CompletePartnerRegistrationScreenState extends State<CompletePartnerRegistrationScreen> {
-  final ImagePicker _imagePicker = ImagePicker();
-  
-  // Controladores para formulário
+  final _formKey = GlobalKey<FormState>();
   final TextEditingController _companyNameController = TextEditingController();
   final TextEditingController _tradeNameController = TextEditingController();
   final TextEditingController _cnpjController = TextEditingController();
@@ -31,533 +31,558 @@ class _CompletePartnerRegistrationScreenState extends State<CompletePartnerRegis
   final TextEditingController _neighborhoodController = TextEditingController();
   final TextEditingController _cityController = TextEditingController();
   final TextEditingController _stateController = TextEditingController();
-  
-  // Estados
-  bool _isLoading = false;
+  final TextEditingController _descriptionController = TextEditingController();
+
+  bool _isSubmitting = false;
   bool _isLoadingCep = false;
-  final Map<String, Map<String, dynamic>> _uploadedDocuments = {};
-  List<String> _requiredDocumentTypes = [];
-  List<MechanicSpecialty> _selectedSpecialties = [];
-  bool _documentsRequired = false;
+  String? _errorMessage;
+  String? _lastSearchedCep;
+  final List<MechanicSpecialty> _selectedSpecialties = [];
+
+  String get _normalizedPartnerType => PartnerTypeUtils.normalize(widget.partnerType);
+
+  bool get _documentsRequired => PartnerDocumentRules.requiresDocuments(_normalizedPartnerType);
 
   @override
-  void initState() {
-    super.initState();
-    _checkDocumentsRequired();
+  void dispose() {
+    _companyNameController.dispose();
+    _tradeNameController.dispose();
+    _cnpjController.dispose();
+    _phoneController.dispose();
+    _cepController.dispose();
+    _addressController.dispose();
+    _numberController.dispose();
+    _complementController.dispose();
+    _neighborhoodController.dispose();
+    _cityController.dispose();
+    _stateController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
   }
 
-  // Buscar CEP e preencher endereço
   Future<void> _buscarCep() async {
     final cep = _cepController.text.replaceAll(RegExp(r'[^0-9]'), '');
-    
+
     if (cep.length != 8) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('CEP inválido'), backgroundColor: Colors.red),
-      );
+      _showSnackBar('CEP inválido', isError: true);
       return;
     }
 
+    FocusScope.of(context).unfocus();
     setState(() => _isLoadingCep = true);
-    
+
     try {
       final endereco = await CepService.buscarCep(cep);
-      
+
+      if (!mounted) {
+        return;
+      }
+
       setState(() {
         _addressController.text = endereco['logradouro'] ?? '';
-        _numberController.text = ''; // Usuário deve informar
         _complementController.text = endereco['complemento'] ?? '';
         _neighborhoodController.text = endereco['bairro'] ?? '';
         _cityController.text = endereco['cidade'] ?? '';
-        _stateController.text = endereco['uf'] ?? '';
-        _isLoadingCep = false;
+        _stateController.text = (endereco['uf'] ?? '').toString().toUpperCase();
+        _lastSearchedCep = cep;
       });
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Endereço encontrado com sucesso!'),
-          backgroundColor: Colors.green,
-        ),
-      );
+
+      _showSnackBar('Endereço encontrado com sucesso');
     } catch (e) {
-      setState(() => _isLoadingCep = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erro ao buscar CEP: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (!mounted) {
+        return;
+      }
+      _showSnackBar('Erro ao buscar CEP: ${e.toString().replaceFirst('Exception: ', '')}', isError: true);
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingCep = false);
+      }
     }
   }
 
-  // Alternar seleção de especialidade
+  void _handleCepChanged(String value) {
+    final cep = value.replaceAll(RegExp(r'[^0-9]'), '');
+    if (cep.length == 8 && cep != _lastSearchedCep && !_isLoadingCep) {
+      _buscarCep();
+    }
+  }
+
   void _toggleSpecialty(MechanicSpecialty specialty) {
     setState(() {
-      if (_selectedSpecialties.contains(specialty)) {
-        _selectedSpecialties.remove(specialty);
+      final alreadySelected = _selectedSpecialties.any((item) => item.id == specialty.id);
+      if (alreadySelected) {
+        _selectedSpecialties.removeWhere((item) => item.id == specialty.id);
       } else {
         _selectedSpecialties.add(specialty);
       }
     });
   }
 
-  void _checkDocumentsRequired() {
-    final requiredDocs = _getRequiredDocuments(widget.partnerType);
+  Future<void> _handleCompleteRegistration() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    if (_normalizedPartnerType == PartnerTypeUtils.mechanic && _selectedSpecialties.isEmpty) {
+      setState(() => _errorMessage = 'Selecione pelo menos uma especialidade');
+      return;
+    }
+
     setState(() {
-      _documentsRequired = requiredDocs.isNotEmpty;
-      _requiredDocumentTypes = requiredDocs;
+      _isSubmitting = true;
+      _errorMessage = null;
     });
+
+    final payload = <String, dynamic>{
+      'partner_type': _normalizedPartnerType,
+      'company_name': _companyNameController.text.trim(),
+      'trade_name': _tradeNameController.text.trim(),
+      'cnpj': _cnpjController.text.trim(),
+      'phone': _phoneController.text.trim(),
+      'cep': _cepController.text.trim(),
+      'address': _addressController.text.trim(),
+      'number': _numberController.text.trim(),
+      'complement': _complementController.text.trim(),
+      'neighborhood': _neighborhoodController.text.trim(),
+      'city': _cityController.text.trim(),
+      'state': _stateController.text.trim().toUpperCase(),
+      'description': _descriptionController.text.trim(),
+      if (_selectedSpecialties.isNotEmpty)
+        'specialties': _selectedSpecialties.map((item) => item.id).toList(),
+    };
+
+    final response = await ApiService.completePartnerOnboarding(payload);
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() => _isSubmitting = false);
+
+    if (!response['success']) {
+      setState(() => _errorMessage = response['message']?.toString() ?? 'Erro ao completar cadastro');
+      return;
+    }
+
+    await OnboardingFlowService.persistPartnerType(_normalizedPartnerType);
+
+    if (!mounted) {
+      return;
+    }
+
+    final onboarding = (response['data']?['onboarding'] as Map<String, dynamic>?) ?? {};
+    final nextStep = onboarding['nextStep'] as String? ?? 'dashboard';
+
+    _showSnackBar('Cadastro complementar salvo com sucesso');
+
+    if (nextStep == 'document_upload' && _documentsRequired) {
+      context.go(OnboardingFlowService.partnerDocumentsRoute(_normalizedPartnerType));
+      return;
+    }
+
+    if (nextStep == 'pending_review') {
+      context.go(OnboardingFlowService.pendingReviewRoute);
+      return;
+    }
+
+    context.go('/');
   }
 
-  List<String> _getRequiredDocuments(String partnerType) {
-    switch (partnerType.toLowerCase()) {
-      case 'mechanic':
-        return [];
-      case 'gasstation':
-        return ['cnpj', 'address_proof', 'business_license'];
-      case 'autoparts':
-        return ['cnpj', 'address_proof', 'business_license'];
-      case 'towtruck':
-        return ['cpf', 'cnh', 'vehicle_document', 'address_proof'];
-      case 'delivery':
-        return ['cpf', 'cnh', 'vehicle_document', 'address_proof'];
-      default:
-        return [];
-    }
+  void _showSnackBar(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? context.error : context.success,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: context.background,
-      appBar: AppBar(
-        title: Text('Completar Cadastro - ${_getPartnerTypeDisplayName(widget.partnerType)}'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/partner-type-selection'),
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
+        backgroundColor: context.background,
+        appBar: AppBar(
+          automaticallyImplyLeading: false,
+          title: Text('Completar Cadastro - ${PartnerTypeUtils.displayName(_normalizedPartnerType)}'),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
         ),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Text(
-              'Complete seu cadastro',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                color: context.textPrimary,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Precisamos de algumas informações adicionais para configurar seu perfil de ${_getPartnerTypeDisplayName(widget.partnerType)}',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: context.textSecondary,
-              ),
-            ),
-            
-            const SizedBox(height: 32),
-            
-            // Form content based on partner type
-            Expanded(
-              child: _buildFormContent(context, widget.partnerType),
-            ),
-            
-            // Complete button
-            Consumer<PartnerProvider>(
-              builder: (context, partnerProvider, child) {
-                return Column(
-                  children: [
-                    if (partnerProvider.error != null)
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        margin: const EdgeInsets.only(bottom: 16),
-                        decoration: BoxDecoration(
-                          color: context.error.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: context.error.withOpacity(0.3)),
-                        ),
-                        child: Text(
-                          partnerProvider.error!,
-                          style: TextStyle(color: context.error),
-                        ),
-                      ),
-                    
-                    SizedBox(
+        body: SafeArea(
+          child: Form(
+            key: _formKey,
+            child: SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              physics: const ClampingScrollPhysics(),
+              padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottomInset),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Complete seu cadastro',
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      color: context.textPrimary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Precisamos de algumas informações adicionais para configurar seu perfil de ${PartnerTypeUtils.displayName(_normalizedPartnerType)}.',
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: context.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  _buildFormContent(context),
+                  if (_documentsRequired) ...[
+                    const SizedBox(height: 24),
+                    _buildInfoCard(
+                      title: 'Documentos na próxima etapa',
+                      message: 'Depois de salvar estes dados, você vai para a tela de envio dos documentos obrigatórios.',
+                    ),
+                  ],
+                  if (_errorMessage != null) ...[
+                    const SizedBox(height: 24),
+                    Container(
                       width: double.infinity,
-                      height: 48,
-                      child: ElevatedButton(
-                        onPressed: partnerProvider.isLoading ? null : _handleCompleteRegistration,
-                        child: partnerProvider.isLoading
-                            ? const CircularProgressIndicator(color: Colors.white)
-                            : const Text('Completar Cadastro'),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: context.error.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: context.error.withValues(alpha: 0.24)),
+                      ),
+                      child: Text(
+                        _errorMessage!,
+                        style: TextStyle(color: context.error),
                       ),
                     ),
                   ],
-                );
-              },
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: _isSubmitting ? null : _handleCompleteRegistration,
+                      child: _isSubmitting
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : const Text('Completar Cadastro'),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ],
+          ),
         ),
       ),
     );
   }
-  
-  Widget _buildFormContent(BuildContext context, String partnerType) {
-    switch (partnerType.toLowerCase()) {
-      case 'mechanic':
+
+  Widget _buildFormContent(BuildContext context) {
+    switch (_normalizedPartnerType) {
+      case PartnerTypeUtils.mechanic:
         return _buildMechanicForm(context);
-      case 'gasstation':
-        return _buildGasStationForm(context);
-      case 'autoparts':
-        return _buildAutoPartsForm(context);
-      case 'towtruck':
-        return _buildTowTruckForm(context);
-      case 'delivery':
-        return _buildDeliveryForm(context);
+      case PartnerTypeUtils.gasStation:
+        return _buildBusinessForm(
+          context,
+          sectionTitle: 'Informações do posto',
+          companyLabel: 'Nome do posto *',
+        );
+      case PartnerTypeUtils.autoParts:
+        return _buildBusinessForm(
+          context,
+          sectionTitle: 'Informações da loja',
+          companyLabel: 'Nome da autopeças *',
+        );
+      case PartnerTypeUtils.tow:
+        return _buildBusinessForm(
+          context,
+          sectionTitle: 'Informações do guincho',
+          companyLabel: 'Nome da empresa *',
+        );
+      case PartnerTypeUtils.motoboy:
+        return _buildBusinessForm(
+          context,
+          sectionTitle: 'Informações do motoboy',
+          companyLabel: 'Nome completo *',
+        );
       default:
-        return const Center(
-          child: Text('Tipo de parceiro não reconhecido'),
+        return Text(
+          'Tipo de parceiro não reconhecido.',
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: context.textSecondary),
         );
     }
   }
 
   Widget _buildMechanicForm(BuildContext context) {
-  return Column(
-    children: [
-      // Informações básicas
-      _buildSectionTitle('Informações da Oficina'),
-      const SizedBox(height: 16),
-      TextFormField(
-        controller: _companyNameController,
-        decoration: _buildInputDecoration('Nome da Oficina'),
-        validator: (value) => value?.isEmpty ?? true ? 'Campo obrigatório' : null,
-      ),
-      const SizedBox(height: 16),
-      TextFormField(
-        controller: _phoneController,
-        decoration: _buildInputDecoration('Telefone'),
-        keyboardType: TextInputType.phone,
-        validator: (value) => value?.isEmpty ?? true ? 'Campo obrigatório' : null,
-      ),
-      
-      // Endereço com CEP automático
-      const SizedBox(height: 24),
-      _buildSectionTitle('Endereço'),
-      const SizedBox(height: 16),
-      Row(
-        children: [
-          Expanded(
-            flex: 2,
-            child: TextFormField(
-              controller: _cepController,
-              decoration: _buildInputDecoration('CEP *').copyWith(
-                suffixIcon: _isLoadingCep 
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : IconButton(
-                      icon: const Icon(Icons.search),
-                      onPressed: _buscarCep,
-                    ),
-              ),
-              keyboardType: TextInputType.number,
-              maxLength: 8,
-              validator: (value) => value?.isEmpty ?? true ? 'CEP obrigatório' : null,
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildCompanySection(companyLabel: 'Nome da oficina *'),
+        const SizedBox(height: 24),
+        _buildAddressSection(),
+        const SizedBox(height: 24),
+        _buildSectionTitle('Especialidades e serviços'),
+        const SizedBox(height: 8),
+        Text(
+          'Selecione suas especialidades principais. Pelo menos uma precisa ficar marcada.',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: context.textSecondary,
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: TextFormField(
-              controller: _numberController,
-              decoration: _buildInputDecoration('Número *'),
-              keyboardType: TextInputType.number,
-              validator: (value) => value?.isEmpty ?? true ? 'Número obrigatório' : null,
-            ),
-          ),
-        ],
-      ),
-      const SizedBox(height: 16),
-      TextFormField(
-        controller: _addressController,
-        decoration: _buildInputDecoration('Endereço *'),
-        maxLines: 2,
-        validator: (value) => value?.isEmpty ?? true ? 'Endereço obrigatório' : null,
-      ),
-      const SizedBox(height: 16),
-      TextFormField(
-        controller: _complementController,
-        decoration: _buildInputDecoration('Complemento'),
-      ),
-      const SizedBox(height: 16),
-      TextFormField(
-        controller: _neighborhoodController,
-        decoration: _buildInputDecoration('Bairro *'),
-        validator: (value) => value?.isEmpty ?? true ? 'Bairro obrigatório' : null,
-      ),
-      const SizedBox(height: 16),
-      Row(
-        children: [
-          Expanded(
-            child: TextFormField(
-              controller: _cityController,
-              decoration: _buildInputDecoration('Cidade *'),
-              validator: (value) => value?.isEmpty ?? true ? 'Cidade obrigatória' : null,
-            ),
-          ),
-          const SizedBox(width: 16),
-          SizedBox(
-            width: 80,
-            child: TextFormField(
-              controller: _stateController,
-              decoration: _buildInputDecoration('UF *'),
-              maxLength: 2,
-              textCapitalization: TextCapitalization.characters,
-              validator: (value) => value?.isEmpty ?? true ? 'UF obrigatória' : null,
-            ),
-          ),
-        ],
-      ),
-      
-      // Especialidades
-      const SizedBox(height: 24),
-      _buildSectionTitle('Especialidades'),
-      const SizedBox(height: 8),
-      Text(
-        'Selecione suas especialidades (mínimo 1):',
-        style: TextStyle(
-          fontSize: 14,
-          color: context.textSecondary,
         ),
-      ),
-      const SizedBox(height: 16),
-      _buildSpecialtiesGrid(),
-    ],
-  );
+        const SizedBox(height: 16),
+        _buildSpecialtiesGrid(),
+      ],
+    );
+  }
+
+  Widget _buildBusinessForm(
+    BuildContext context, {
+    required String sectionTitle,
+    required String companyLabel,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle(sectionTitle),
+        const SizedBox(height: 16),
+        _buildCompanySection(companyLabel: companyLabel),
+        const SizedBox(height: 24),
+        _buildAddressSection(),
+      ],
+    );
+  }
+
+  Widget _buildCompanySection({required String companyLabel}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle('Dados principais'),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: _companyNameController,
+          decoration: _buildInputDecoration(companyLabel),
+          validator: (value) => value == null || value.trim().isEmpty ? 'Campo obrigatório' : null,
+        ),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: _tradeNameController,
+          decoration: _buildInputDecoration('Nome fantasia'),
+        ),
+        const SizedBox(height: 16),
+        if (_normalizedPartnerType != PartnerTypeUtils.motoboy && _normalizedPartnerType != PartnerTypeUtils.mechanic)
+          Column(
+            children: [
+              TextFormField(
+                controller: _cnpjController,
+                decoration: _buildInputDecoration('CNPJ'),
+                keyboardType: TextInputType.number,
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        TextFormField(
+          controller: _phoneController,
+          decoration: _buildInputDecoration('Telefone *'),
+          keyboardType: TextInputType.phone,
+          validator: (value) => value == null || value.trim().isEmpty ? 'Telefone obrigatório' : null,
+        ),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: _descriptionController,
+          decoration: _buildInputDecoration('Descrição do serviço ou estabelecimento'),
+          maxLines: 3,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAddressSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle('Endereço'),
+        const SizedBox(height: 16),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              flex: 2,
+              child: TextFormField(
+                controller: _cepController,
+                decoration: _buildInputDecoration('CEP *').copyWith(
+                  counterText: '',
+                  suffixIcon: _isLoadingCep
+                      ? const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        )
+                      : IconButton(
+                          icon: const Icon(Icons.search),
+                          onPressed: _buscarCep,
+                        ),
+                ),
+                keyboardType: TextInputType.number,
+                maxLength: 8,
+                onChanged: _handleCepChanged,
+                validator: (value) {
+                  final cep = (value ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+                  return cep.length == 8 ? null : 'CEP obrigatório';
+                },
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: TextFormField(
+                controller: _numberController,
+                decoration: _buildInputDecoration('Número *'),
+                keyboardType: TextInputType.text,
+                validator: (value) => value == null || value.trim().isEmpty ? 'Número obrigatório' : null,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: _addressController,
+          decoration: _buildInputDecoration('Rua / endereço *'),
+          validator: (value) => value == null || value.trim().isEmpty ? 'Endereço obrigatório' : null,
+        ),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: _complementController,
+          decoration: _buildInputDecoration('Complemento'),
+        ),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: _neighborhoodController,
+          decoration: _buildInputDecoration('Bairro *'),
+          validator: (value) => value == null || value.trim().isEmpty ? 'Bairro obrigatório' : null,
+        ),
+        const SizedBox(height: 16),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: TextFormField(
+                controller: _cityController,
+                decoration: _buildInputDecoration('Cidade *'),
+                validator: (value) => value == null || value.trim().isEmpty ? 'Cidade obrigatória' : null,
+              ),
+            ),
+            const SizedBox(width: 16),
+            SizedBox(
+              width: 90,
+              child: TextFormField(
+                controller: _stateController,
+                decoration: _buildInputDecoration('UF *').copyWith(counterText: ''),
+                maxLength: 2,
+                textCapitalization: TextCapitalization.characters,
+                validator: (value) => value == null || value.trim().length != 2 ? 'UF obrigatória' : null,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 
   Widget _buildSpecialtiesGrid() {
     final categories = MechanicSpecialty.getCategories();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: categories.map((category) {
         final specialties = MechanicSpecialty.getByCategory(category);
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 8, bottom: 8),
-              child: Text(
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
                 category,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
                   color: context.textPrimary,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-            ),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: specialties.map((s) {
-                final selected = _selectedSpecialties.contains(s);
-                return FilterChip(
-                  label: Text(s.name),
-                  selected: selected,
-                  onSelected: (_) => _toggleSpecialty(s),
-                );
-              }).toList(),
-            ),
-          ],
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: specialties.map((specialty) {
+                  final isSelected = _selectedSpecialties.any((item) => item.id == specialty.id);
+
+                  return FilterChip(
+                    label: Text(
+                      specialty.name,
+                      style: TextStyle(
+                        color: isSelected ? Colors.white : context.primary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    selected: isSelected,
+                    onSelected: (_) => _toggleSpecialty(specialty),
+                    selectedColor: context.primary,
+                    checkmarkColor: Colors.white,
+                    backgroundColor: context.surface,
+                    side: BorderSide(
+                      color: isSelected ? context.primary : context.border,
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
         );
       }).toList(),
     );
   }
 
-  Widget _buildGasStationForm(BuildContext context) {
-    return Column(
-      children: [
-        _buildSectionTitle('Informações do Posto'),
-        const SizedBox(height: 16),
-        TextFormField(
-          controller: _tradeNameController,
-          decoration: _buildInputDecoration('Nome Fantasia *'),
-          validator: (value) => value?.isEmpty ?? true ? 'Campo obrigatório' : null,
-        ),
-        const SizedBox(height: 16),
-        TextFormField(
-          controller: _cnpjController,
-          decoration: _buildInputDecoration('CNPJ *'),
-          keyboardType: TextInputType.number,
-          validator: (value) => value?.isEmpty ?? true ? 'Campo obrigatório' : null,
-        ),
-        const SizedBox(height: 16),
-        TextFormField(
-          controller: _phoneController,
-          decoration: _buildInputDecoration('Telefone *'),
-          keyboardType: TextInputType.phone,
-          validator: (value) => value?.isEmpty ?? true ? 'Campo obrigatório' : null,
-        ),
-        const SizedBox(height: 16),
-        TextFormField(
-          controller: _addressController,
-          decoration: _buildInputDecoration('Endereço *'),
-          maxLines: 2,
-          validator: (value) => value?.isEmpty ?? true ? 'Campo obrigatório' : null,
-        ),
-        const SizedBox(height: 24),
-        if (_documentsRequired) ...[
-          _buildSectionTitle('Documentos obrigatórios'),
-          const SizedBox(height: 16),
-          TextFormField(
-            controller: _companyNameController,
-            decoration: _buildInputDecoration('Nome do Posto *'),
-            validator: (value) => value?.isEmpty ?? true ? 'Campo obrigatório' : null,
+  Widget _buildInfoCard({required String title, required String message}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: context.primary.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: context.primary.withValues(alpha: 0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              color: context.primary,
+              fontWeight: FontWeight.bold,
+            ),
           ),
-          const SizedBox(height: 16),
-          TextFormField(
-            controller: _tradeNameController,
-            decoration: _buildInputDecoration('Nome Fantasia'),
+          const SizedBox(height: 6),
+          Text(
+            message,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: context.textSecondary,
+            ),
           ),
-          const SizedBox(height: 16),
-          TextFormField(
-            controller: _cnpjController,
-            decoration: _buildInputDecoration('CNPJ *'),
-            keyboardType: TextInputType.number,
-            validator: (value) => value?.isEmpty ?? true ? 'Campo obrigatório' : null,
-          ),
-          const SizedBox(height: 16),
-          TextFormField(
-            controller: _phoneController,
-            decoration: _buildInputDecoration('Telefone *'),
-            keyboardType: TextInputType.phone,
-            validator: (value) => value?.isEmpty ?? true ? 'Campo obrigatório' : null,
-          ),
-          const SizedBox(height: 16),
-          TextFormField(
-            controller: _addressController,
-            decoration: _buildInputDecoration('Endereço *'),
-            maxLines: 2,
-            validator: (value) => value?.isEmpty ?? true ? 'Campo obrigatório' : null,
-          ),
-          if (_documentsRequired) ...[
-            const SizedBox(height: 24),
-            _buildSectionTitle('Documentos Obrigatórios'),
-            const SizedBox(height: 16),
-            _buildDocumentUploadSection(context),
-          ],
         ],
-      ],
-    );
-  }
-
-  Widget _buildAutoPartsForm(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          'Formulário de Auto Peças',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            color: context.textPrimary,
-          ),
-        ),
-        const SizedBox(height: 16),
-        Text(
-          'Em desenvolvimento: Categorias, marcas, estoque, etc.',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: context.textSecondary,
-          ),
-        ),
-      ],
-    );
-  }
-  
-  Widget _buildTowTruckForm(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          'Formulário de Guincho',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            color: context.textPrimary,
-          ),
-        ),
-        const SizedBox(height: 16),
-        Text(
-          'Em desenvolvimento: Tipo de guincho, capacidade, área, etc.',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: context.textSecondary,
-          ),
-        ),
-      ],
-    );
-  }
-  
-  Widget _buildDeliveryForm(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          'Formulário de Motoboy',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            color: context.textPrimary,
-          ),
-        ),
-        const SizedBox(height: 16),
-        Text(
-          'Em desenvolvimento: Tipo de veículo, capacidade, área, etc.',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: context.textSecondary,
-          ),
-        ),
-      ],
-    );
-  }
-  
-  void _handleCompleteRegistration() async {
-    // TODO: Implementar lógica de completar cadastro
-    // Por enquanto, apenas mostra mensagem e navega
-    // Simular sucesso
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Cadastro de ${_getPartnerTypeDisplayName(widget.partnerType)} completado com sucesso!'),
-        backgroundColor: context.success,
       ),
     );
-    
-    // Navegar para dashboard
-    context.go('/');
-  }
-  
-  String _getPartnerTypeDisplayName(String partnerType) {
-    switch (partnerType.toLowerCase()) {
-      case 'mechanic':
-        return 'Mecânico';
-      case 'gasstation':
-        return 'Posto de Combustível';
-      case 'autoparts':
-        return 'Auto Peças';
-      case 'towtruck':
-        return 'Guincho';
-      case 'delivery':
-        return 'Motoboy';
-      default:
-        return partnerType;
-    }
   }
 
-  // Métodos auxiliares
   Widget _buildSectionTitle(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Text(
-        title,
-        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-          color: context.textPrimary,
-          fontWeight: FontWeight.bold,
-        ),
+    return Text(
+      title,
+      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+        color: context.textPrimary,
+        fontWeight: FontWeight.bold,
       ),
     );
   }
@@ -569,6 +594,10 @@ class _CompletePartnerRegistrationScreenState extends State<CompletePartnerRegis
         borderRadius: BorderRadius.circular(8),
         borderSide: BorderSide(color: context.border),
       ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide(color: context.border),
+      ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
         borderSide: BorderSide(color: context.primary),
@@ -576,183 +605,5 @@ class _CompletePartnerRegistrationScreenState extends State<CompletePartnerRegis
       filled: true,
       fillColor: context.surface,
     );
-  }
-
-  Widget _buildDocumentUploadSection(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Envie os documentos obrigatórios:',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: context.textSecondary,
-          ),
-        ),
-        const SizedBox(height: 16),
-        ..._requiredDocumentTypes.map((docType) => _buildDocumentItem(docType)),
-        const SizedBox(height: 16),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: _isLoading ? null : () => _uploadDocuments(),
-            icon: _isLoading 
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.upload_file),
-            label: Text(_isLoading ? 'Enviando...' : 'Enviar Documentos'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: context.primary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDocumentItem(String docType) {
-    final isUploaded = _uploadedDocuments.containsKey(docType);
-    final docName = _getDocumentDisplayName(docType);
-    
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: context.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: isUploaded ? context.success : context.border,
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            isUploaded ? Icons.check_circle : Icons.description,
-            color: isUploaded ? context.success : context.textSecondary,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  docName,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: context.textPrimary,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                if (isUploaded)
-                  Text(
-                    'Documento enviado',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: context.success,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          if (!isUploaded)
-            IconButton(
-              onPressed: () => _pickDocument(docType),
-              icon: const Icon(Icons.camera_alt),
-              tooltip: 'Enviar documento',
-            ),
-        ],
-      ),
-    );
-  }
-
-  String _getDocumentDisplayName(String docType) {
-    switch (docType) {
-      case 'cpf':
-        return 'CPF';
-      case 'cnpj':
-        return 'CNPJ';
-      case 'cnh':
-        return 'CNH';
-      case 'vehicle_document':
-        return 'Documento do Veículo';
-      case 'address_proof':
-        return 'Comprovante de Residência';
-      case 'business_license':
-        return 'Licença de Funcionamento';
-      default:
-        return docType;
-    }
-  }
-
-  Future<void> _pickDocument(String docType) async {
-    try {
-      final XFile? image = await _imagePicker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 80,
-      );
-      
-      if (image != null) {
-        setState(() {
-          _uploadedDocuments[docType] = {
-            'file': image,
-            'name': image.name,
-            'type': docType,
-          };
-        });
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erro ao selecionar documento: $e'),
-          backgroundColor: context.error,
-        ),
-      );
-    }
-  }
-
-  Future<void> _uploadDocuments() async {
-    if (_uploadedDocuments.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Selecione pelo menos um documento'),
-          backgroundColor: context.error,
-        ),
-      );
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    try {
-      // TODO: Implementar upload real para a API
-      await Future.delayed(const Duration(seconds: 2)); // Simulação
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Documentos enviados com sucesso!'),
-            backgroundColor: context.success,
-          ),
-        );
-        
-        // Navegar para dashboard ou tela de espera
-        context.go('/');
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro ao enviar documentos: $e'),
-            backgroundColor: context.error,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
   }
 }

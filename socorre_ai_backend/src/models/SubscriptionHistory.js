@@ -296,37 +296,37 @@ class SubscriptionHistory {
 
   // Estatísticas
   static async getStats(period = 'month') {
-    let dateFormat;
+    let periodExpression;
     switch (period) {
       case 'day':
-        dateFormat = '%Y-%m-%d';
+        periodExpression = "TO_CHAR(created_at, 'YYYY-MM-DD')";
         break;
       case 'week':
-        dateFormat = '%Y-%u';
+        periodExpression = "TO_CHAR(created_at, 'IYYY-IW')";
         break;
       case 'month':
-        dateFormat = '%Y-%m';
+        periodExpression = "TO_CHAR(created_at, 'YYYY-MM')";
         break;
       case 'year':
-        dateFormat = '%Y';
+        periodExpression = "TO_CHAR(created_at, 'YYYY')";
         break;
       default:
-        dateFormat = '%Y-%m';
+        periodExpression = "TO_CHAR(created_at, 'YYYY-MM')";
     }
 
     const stats = await knex('subscription_history')
       .select(
-        knex.raw(`DATE_FORMAT(created_at, '${dateFormat}') as period`),
+        knex.raw(`${periodExpression} as period`),
         knex.raw('COUNT(*) as total'),
-        knex.raw('COUNT(CASE WHEN action = "created" THEN 1 END) as created'),
-        knex.raw('COUNT(CASE WHEN action = "paid" THEN 1 END) as paid'),
-        knex.raw('COUNT(CASE WHEN action = "cancelled" THEN 1 END) as cancelled'),
-        knex.raw('COUNT(CASE WHEN action = "expired" THEN 1 END) as expired'),
+        knex.raw("COUNT(CASE WHEN action = 'created' THEN 1 END) as created"),
+        knex.raw("COUNT(CASE WHEN action = 'paid' THEN 1 END) as paid"),
+        knex.raw("COUNT(CASE WHEN action = 'cancelled' THEN 1 END) as cancelled"),
+        knex.raw("COUNT(CASE WHEN action = 'expired' THEN 1 END) as expired"),
         knex.raw('SUM(amount) as total_amount'),
         knex.raw('AVG(amount) as avg_amount')
       )
-      .groupByRaw(`DATE_FORMAT(created_at, '${dateFormat}')`)
-      .orderByRaw(`DATE_FORMAT(created_at, '${dateFormat}')`)
+      .groupByRaw(periodExpression)
+      .orderByRaw(periodExpression)
       .limit(12);
 
     return stats;

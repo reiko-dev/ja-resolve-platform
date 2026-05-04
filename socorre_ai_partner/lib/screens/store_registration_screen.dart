@@ -190,6 +190,8 @@ class _StoreRegistrationScreenState extends State<StoreRegistrationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
     return Scaffold(
       backgroundColor: const Color(0xFF1A1A1A),
       appBar: AppBar(
@@ -201,13 +203,16 @@ class _StoreRegistrationScreenState extends State<StoreRegistrationScreen> {
         ),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+      body: SafeArea(
+        child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          physics: const ClampingScrollPhysics(),
+          padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottomInset),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
               // Informações Básicas
               _buildSectionTitle('Informações da Loja'),
               const SizedBox(height: 16),
@@ -466,7 +471,8 @@ class _StoreRegistrationScreenState extends State<StoreRegistrationScreen> {
                       ),
               ),
               const SizedBox(height: 24),
-            ],
+              ],
+            ),
           ),
         ),
       ),

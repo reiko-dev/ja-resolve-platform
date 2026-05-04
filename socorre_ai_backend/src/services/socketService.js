@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const db = require('../config/database');
+const jwtSecret = process.env.JWT_SECRET || 'socorre_ai_jwt_secret_dev_2024';
 
 class SocketService {
   constructor() {
@@ -31,8 +32,8 @@ class SocketService {
         return next(new Error('Token de autenticação não fornecido'));
       }
 
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const user = await db('users').where('id', decoded.id).first();
+      const decoded = jwt.verify(token, jwtSecret);
+      const user = await db('users').where('id', decoded.userId).first();
       
       if (!user) {
         return next(new Error('Usuário não encontrado'));

@@ -1,5 +1,7 @@
 const db = require('../config/database');
 const notificationService = require('./notificationService');
+const commissionService = require('./commissionService');
+const EmergencyRequest = require('../models/EmergencyRequest');
 
 class PaymentService {
   constructor() {
@@ -8,6 +10,69 @@ class PaymentService {
       mercadopago: require('./gateways/mercadopagoGateway'),
       pagseguro: require('./gateways/pagseguroGateway'),
     };
+  }
+
+  parseGatewayResponse(gatewayResponse) {
+    if (!gatewayResponse) {
+      return null;
+    }
+
+    if (typeof gatewayResponse === 'object') {
+      return gatewayResponse;
+    }
+
+    if (typeof gatewayResponse === 'string') {
+      try {
+        return JSON.parse(gatewayResponse);
+      } catch (error) {
+        console.warn('Falha ao fazer parse de gateway_response:', error.message);
+        return null;
+      }
+    }
+
+    return null;
+  }
+
+  getEmergencyPaymentSection(paymentType) {
+    if (paymentType === 'fee') {
+      return 'cancellation_payment';
+    }
+
+    return 'payment';
+  }
+
+  shouldProcessCommission(payment) {
+    if (!payment || !payment.partner_id) {
+      return false;
+    }
+
+    return ['emergency_service', 'delivery', 'product_purchase'].includes(payment.payment_type);
+  }
+
+  async handleCompletedPayment(paymentId) {
+    const payment = await db('payments').where('id', paymentId).first();
+    if (!payment || payment.status !== 'completed') {
+      return;
+    }
+
+    if (payment.emergency_request_id) {
+      const emergencyPaymentSection = this.getEmergencyPaymentSection(payment.payment_type);
+      await EmergencyRequest.syncPaymentState(payment.emergency_request_id, {
+        payment_id: payment.id,
+        payment_status: 'completed',
+        payment_type: payment.payment_type,
+        amount: parseFloat(payment.amount),
+        method: payment.method,
+        gateway: payment.gateway,
+        paid_at: new Date().toISOString()
+      }, emergencyPaymentSection);
+    }
+
+    if (!this.shouldProcessCommission(payment)) {
+      return;
+    }
+
+    await commissionService.processCommission(paymentId);
   }
 
   async createPayment(paymentData) {
@@ -91,7 +156,8 @@ class PaymentService {
       }
 
       // Salvar no banco
-      const [paymentId] = await db('payments').insert(paymentRecord);
+      const [payment] = await db('payments').insert(paymentRecord).returning('*');
+      const paymentId = payment.id;
 
       // Processar pagamento no gateway
       const gatewayResponse = await this.processPayment(paymentId, paymentData);
@@ -110,6 +176,24 @@ class PaymentService {
 
       // Enviar notificação
       await this.sendPaymentNotification(userId, paymentId, gatewayResponse.status);
+
+      if (emergencyRequestId) {
+        const emergencyPaymentSection = this.getEmergencyPaymentSection(paymentType);
+        await EmergencyRequest.syncPaymentState(emergencyRequestId, {
+          payment_id: paymentId,
+          payment_status: gatewayResponse.status,
+          payment_type: paymentType,
+          amount: parseFloat(amount),
+          method,
+          gateway,
+          tow_proposal_id: towProposalId || null,
+          created_at: new Date().toISOString()
+        }, emergencyPaymentSection);
+      }
+
+      if (gatewayResponse.status === 'completed') {
+        await this.handleCompletedPayment(paymentId);
+      }
 
       return {
         id: paymentId,
@@ -175,8 +259,25 @@ class PaymentService {
           updated_at: new Date()
         });
 
+      if (payment.emergency_request_id) {
+        const emergencyPaymentSection = this.getEmergencyPaymentSection(payment.payment_type);
+        await EmergencyRequest.syncPaymentState(payment.emergency_request_id, {
+          payment_id: payment.id,
+          payment_status: status,
+          payment_type: payment.payment_type,
+          amount: parseFloat(payment.amount),
+          method: payment.method,
+          gateway: payment.gateway,
+          paid_at: status === 'completed' ? new Date().toISOString() : null
+        }, emergencyPaymentSection);
+      }
+
       // Enviar notificação
       await this.sendPaymentNotification(payment.user_id, paymentId, status);
+
+      if (status === 'completed') {
+        await this.handleCompletedPayment(paymentId);
+      }
 
       return { status };
 
@@ -211,6 +312,19 @@ class PaymentService {
           cancelled_at: new Date(),
           updated_at: new Date()
         });
+
+      if (payment.emergency_request_id) {
+        const emergencyPaymentSection = this.getEmergencyPaymentSection(payment.payment_type);
+        await EmergencyRequest.syncPaymentState(payment.emergency_request_id, {
+          payment_id: payment.id,
+          payment_status: 'cancelled',
+          payment_type: payment.payment_type,
+          amount: parseFloat(payment.amount),
+          method: payment.method,
+          gateway: payment.gateway,
+          cancelled_at: new Date().toISOString()
+        }, emergencyPaymentSection);
+      }
 
       // Enviar notificação
       await this.sendPaymentNotification(payment.user_id, paymentId, 'cancelled');
@@ -253,6 +367,27 @@ class PaymentService {
           updated_at: new Date()
         });
 
+      if (payment.emergency_request_id) {
+        const emergencyPaymentSection = this.getEmergencyPaymentSection(payment.payment_type);
+        await EmergencyRequest.syncPaymentState(payment.emergency_request_id, {
+          payment_id: payment.id,
+          payment_status: 'refunded',
+          payment_type: payment.payment_type,
+          amount: parseFloat(refundAmount),
+          method: payment.method,
+          gateway: payment.gateway,
+          refunded_at: new Date().toISOString()
+        }, emergencyPaymentSection);
+      }
+
+      const existingCommission = await db('commissions')
+        .where('payment_id', paymentId)
+        .first();
+
+      if (existingCommission) {
+        await commissionService.cancelCommission(existingCommission.id, reason || 'Pagamento cancelado');
+      }
+
       // Enviar notificação
       await this.sendPaymentNotification(payment.user_id, paymentId, 'refunded');
 
@@ -281,6 +416,138 @@ class PaymentService {
       console.error('Erro ao buscar pagamento:', error);
       throw error;
     }
+  }
+
+  async createTowEmergencyPayment(emergencyRequest, paymentData) {
+    if (!emergencyRequest) {
+      throw new Error('Solicitação não encontrada');
+    }
+
+    if (emergencyRequest.request_type !== 'tow') {
+      throw new Error('Pagamento oficial desta trilha é exclusivo para guincho');
+    }
+
+    if (!emergencyRequest.partner_id || !emergencyRequest.selected_proposal_id) {
+      throw new Error('A emergência ainda não possui proposta aceita');
+    }
+
+    if (!['accepted', 'in_progress', 'completed'].includes(emergencyRequest.status)) {
+      throw new Error('A emergência ainda não está pronta para cobrança oficial');
+    }
+
+    const existingPayment = await db('payments')
+      .where('emergency_request_id', emergencyRequest.id)
+      .where('payment_type', 'emergency_service')
+      .whereIn('status', ['pending', 'processing', 'completed'])
+      .orderBy('created_at', 'desc')
+      .first();
+
+    if (existingPayment) {
+      return {
+        id: existingPayment.id,
+        status: existingPayment.status,
+        gatewayResponse: this.parseGatewayResponse(existingPayment.gateway_response),
+        existing: true
+      };
+    }
+
+    const amount = parseFloat(emergencyRequest.final_price || emergencyRequest.estimated_price);
+    if (!amount || Number.isNaN(amount) || amount <= 0) {
+      throw new Error('A emergência não possui valor econômico válido para cobrança');
+    }
+
+    return this.createPayment({
+      ...paymentData,
+      userId: emergencyRequest.user_id,
+      partnerId: emergencyRequest.partner_id,
+      emergencyRequestId: emergencyRequest.id,
+      towProposalId: emergencyRequest.selected_proposal_id,
+      amount,
+      description: paymentData.description || `Pagamento do guincho da emergência #${emergencyRequest.id}`,
+      referenceId: paymentData.referenceId || `emergency_request:${emergencyRequest.id}`,
+      paymentType: 'emergency_service'
+    });
+  }
+
+  async createTowCancellationFeePayment(emergencyRequest, paymentData = {}) {
+    if (!emergencyRequest) {
+      throw new Error('Solicitação não encontrada');
+    }
+
+    if (emergencyRequest.request_type !== 'tow') {
+      throw new Error('Taxa de cancelamento oficial é exclusiva para guincho');
+    }
+
+    const priceBreakdown = EmergencyRequest.parseJsonField(emergencyRequest.price_breakdown, {}) || {};
+    const amount = parseFloat(
+      paymentData.amount ??
+      priceBreakdown.cancellation_fee ??
+      0
+    );
+
+    if (!amount || Number.isNaN(amount) || amount <= 0) {
+      throw new Error('A emergência não possui taxa de cancelamento válida');
+    }
+
+    const referenceId = paymentData.referenceId || `emergency_request_cancellation:${emergencyRequest.id}`;
+    const existingPayment = await db('payments')
+      .where('emergency_request_id', emergencyRequest.id)
+      .where('payment_type', 'fee')
+      .where('reference_id', referenceId)
+      .whereIn('status', ['pending', 'processing', 'completed'])
+      .orderBy('created_at', 'desc')
+      .first();
+
+    if (existingPayment) {
+      return {
+        id: existingPayment.id,
+        status: existingPayment.status,
+        gatewayResponse: this.parseGatewayResponse(existingPayment.gateway_response),
+        existing: true
+      };
+    }
+
+    return this.createPayment({
+      userId: emergencyRequest.user_id,
+      partnerId: null,
+      emergencyRequestId: emergencyRequest.id,
+      towProposalId: emergencyRequest.selected_proposal_id || null,
+      amount,
+      currency: paymentData.currency || 'BRL',
+      method: paymentData.method || 'pix',
+      gateway: paymentData.gateway || 'mercadopago',
+      description: paymentData.description || `Taxa de cancelamento do guincho da emergência #${emergencyRequest.id}`,
+      referenceId,
+      cardData: paymentData.cardData,
+      pixData: paymentData.pixData,
+      bankSlipData: paymentData.bankSlipData,
+      paymentType: 'fee'
+    });
+  }
+
+  async getEmergencyActiveServicePayment(emergencyRequestId) {
+    return db('payments')
+      .where('emergency_request_id', emergencyRequestId)
+      .where('payment_type', 'emergency_service')
+      .whereIn('status', ['pending', 'processing', 'completed'])
+      .orderBy('created_at', 'desc')
+      .first();
+  }
+
+  async getEmergencyPaymentSummary(emergencyRequestId) {
+    const payments = await db('payments')
+      .where('emergency_request_id', emergencyRequestId)
+      .orderBy('created_at', 'desc');
+
+    const normalizedPayments = payments.map((payment) => ({
+      ...payment,
+      gateway_response: this.parseGatewayResponse(payment.gateway_response)
+    }));
+
+    return {
+      latest: normalizedPayments[0] || null,
+      payments: normalizedPayments
+    };
   }
 
   async getUserPayments(userId, filters = {}) {
@@ -426,14 +693,14 @@ class PaymentService {
       const stats = await query
         .select(
           db.raw('COUNT(*) as total_payments'),
-          db.raw('SUM(CASE WHEN status = "completed" THEN amount ELSE 0 END) as total_revenue'),
-          db.raw('SUM(CASE WHEN status = "completed" THEN net_amount ELSE 0 END) as net_revenue'),
-          db.raw('SUM(CASE WHEN status = "completed" THEN fee_amount ELSE 0 END) as total_fees'),
-          db.raw('COUNT(CASE WHEN status = "completed" THEN 1 END) as completed_payments'),
-          db.raw('COUNT(CASE WHEN status = "pending" THEN 1 END) as pending_payments'),
-          db.raw('COUNT(CASE WHEN status = "failed" THEN 1 END) as failed_payments'),
-          db.raw('COUNT(CASE WHEN status = "cancelled" THEN 1 END) as cancelled_payments'),
-          db.raw('COUNT(CASE WHEN status = "refunded" THEN 1 END) as refunded_payments')
+          db.raw(`SUM(CASE WHEN status = 'completed' THEN amount ELSE 0 END) as total_revenue`),
+          db.raw(`SUM(CASE WHEN status = 'completed' THEN net_amount ELSE 0 END) as net_revenue`),
+          db.raw(`SUM(CASE WHEN status = 'completed' THEN fee_amount ELSE 0 END) as total_fees`),
+          db.raw(`COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_payments`),
+          db.raw(`COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_payments`),
+          db.raw(`COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed_payments`),
+          db.raw(`COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled_payments`),
+          db.raw(`COUNT(CASE WHEN status = 'refunded' THEN 1 END) as refunded_payments`)
         )
         .first();
 

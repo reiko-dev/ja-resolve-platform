@@ -1,15 +1,21 @@
 const Partner = require('../models/Partner');
 const PartnerDocument = require('../models/PartnerDocument');
+const {
+  getRequiredDocuments,
+  requiresDocuments,
+  normalizeDocumentType,
+  determineDocumentTypeFromFilename,
+} = require('../config/partnerDocumentRules');
 
 class DocumentService {
   // Obter documentos obrigatórios para um tipo de parceiro
   static getRequiredDocuments(partnerType) {
-    return Partner.getRequiredDocuments(partnerType);
+    return getRequiredDocuments(partnerType);
   }
 
   // Verificar se parceiro precisa de documentos
   static requiresDocuments(partnerType) {
-    return Partner.requiresDocuments(partnerType);
+    return requiresDocuments(partnerType);
   }
 
   // Verificar se todos os documentos obrigatórios foram enviados
@@ -34,7 +40,7 @@ class DocumentService {
     const uploadedDocs = await PartnerDocument.findByPartnerId(partnerId);
     const uploadedTypes = uploadedDocs.map(doc => doc.document_type);
     const verifiedTypes = uploadedDocs
-      .filter(doc => doc.status === 'verified')
+      .filter(doc => doc.status === 'approved')
       .map(doc => doc.document_type);
 
     const missingDocuments = requiredDocs.filter(doc => !uploadedTypes.includes(doc));
@@ -47,7 +53,7 @@ class DocumentService {
 
     return {
       requiresDocuments: true,
-      requiredDocuments,
+      requiredDocuments: requiredDocs,
       uploadedDocuments: uploadedDocs,
       missingDocuments,
       pendingDocuments,
@@ -104,12 +110,12 @@ class DocumentService {
       summary: {
         totalRequired: requiredDocs.length,
         totalUploaded: uploadedDocs.length,
-        totalVerified: uploadedDocs.filter(doc => doc.status === 'verified').length,
+        totalVerified: uploadedDocs.filter(doc => doc.status === 'approved').length,
         totalPending: uploadedDocs.filter(doc => doc.status === 'pending').length,
         totalRejected: uploadedDocs.filter(doc => doc.status === 'rejected').length,
         allVerified: requiredDocs.every(doc => 
           uploadedDocs.some(uploaded => 
-            uploaded.document_type === doc && uploaded.status === 'verified'
+            normalizeDocumentType(uploaded.document_type) === doc && uploaded.status === 'approved'
           )
         )
       }
@@ -195,31 +201,7 @@ class DocumentService {
 
   // Determinar tipo de documento baseado no nome
   static determineDocumentType(filename) {
-    const lowerFilename = filename.toLowerCase();
-
-    if (lowerFilename.includes('cpf') || lowerFilename.includes('identidade')) {
-      return 'cpf';
-    }
-    if (lowerFilename.includes('cnpj')) {
-      return 'cnpj';
-    }
-    if (lowerFilename.includes('cnh') || lowerFilename.includes('habilitacao')) {
-      return 'cnh';
-    }
-    if (lowerFilename.includes('crlv') || lowerFilename.includes('veiculo') || lowerFilename.includes('vehicle_document')) {
-      return 'vehicle_document';
-    }
-    if (lowerFilename.includes('residencia') || lowerFilename.includes('endereco') || lowerFilename.includes('comprovante') || lowerFilename.includes('address_proof')) {
-      return 'address_proof';
-    }
-    if (lowerFilename.includes('certificado') || lowerFilename.includes('certification')) {
-      return 'certification';
-    }
-    if (lowerFilename.includes('licenca') || lowerFilename.includes('alvara') || lowerFilename.includes('business') || lowerFilename.includes('business_license')) {
-      return 'business_license';
-    }
-
-    return 'other';
+    return determineDocumentTypeFromFilename(filename);
   }
 
   // Validar documento antes do upload
@@ -265,7 +247,7 @@ class DocumentService {
     const stats = {
       total: documents.length,
       pending: documents.filter(doc => doc.status === 'pending').length,
-      verified: documents.filter(doc => doc.status === 'verified').length,
+      verified: documents.filter(doc => doc.status === 'approved').length,
       rejected: documents.filter(doc => doc.status === 'rejected').length,
       byType: {}
     };
@@ -281,7 +263,11 @@ class DocumentService {
         };
       }
       stats.byType[doc.document_type].total++;
-      stats.byType[doc.document_type][doc.status]++;
+      if (doc.status === 'approved') {
+        stats.byType[doc.document_type].verified++;
+      } else if (stats.byType[doc.document_type][doc.status] != null) {
+        stats.byType[doc.document_type][doc.status]++;
+      }
     });
 
     return stats;

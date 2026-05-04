@@ -20,7 +20,9 @@ const handleValidationErrors = (req, res, next) => {
 // GET /wallets - Obter carteira do usuário autenticado
 router.get('/', auth, async (req, res) => {
   try {
-    let wallet = await walletService.getWalletByUserId(req.user.id);
+    let wallet = req.user.partner_id
+      ? await walletService.getOrCreatePartnerWallet(req.user.id, req.user.partner_id)
+      : await walletService.getWalletByUserId(req.user.id);
     
     if (!wallet) {
       // Criar carteira se não existir
@@ -49,7 +51,9 @@ router.get('/transactions', auth, [
   query('status').optional().isIn(['pending', 'completed', 'failed', 'cancelled'])
 ], async (req, res) => {
   try {
-    const wallet = await walletService.getWalletByUserId(req.user.id);
+    const wallet = req.user.partner_id
+      ? await walletService.getOrCreatePartnerWallet(req.user.id, req.user.partner_id)
+      : await walletService.getWalletByUserId(req.user.id);
     if (!wallet) {
       return res.status(404).json({
         success: false,
@@ -86,7 +90,9 @@ router.post('/withdraw', auth, [
   body('notes').optional().isString()
 ], handleValidationErrors, async (req, res) => {
   try {
-    const wallet = await walletService.getWalletByUserId(req.user.id);
+    const wallet = req.user.partner_id
+      ? await walletService.getOrCreatePartnerWallet(req.user.id, req.user.partner_id)
+      : await walletService.getWalletByUserId(req.user.id);
     if (!wallet) {
       return res.status(404).json({
         success: false,
@@ -125,7 +131,9 @@ router.put('/bank-details', auth, [
   body('account_holder_document').optional().isString()
 ], handleValidationErrors, async (req, res) => {
   try {
-    const wallet = await walletService.getWalletByUserId(req.user.id);
+    const wallet = req.user.partner_id
+      ? await walletService.getOrCreatePartnerWallet(req.user.id, req.user.partner_id)
+      : await walletService.getWalletByUserId(req.user.id);
     if (!wallet) {
       return res.status(404).json({
         success: false,
@@ -175,4 +183,3 @@ router.get('/:id', auth, requireRole(['admin']), async (req, res) => {
 });
 
 module.exports = router;
-

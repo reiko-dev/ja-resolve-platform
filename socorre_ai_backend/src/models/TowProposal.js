@@ -15,12 +15,14 @@ class TowProposal {
         'partners.business_name',
         'partners.phone',
         'partners.rating',
-        'partners.tow_truck_type',
-        'partners.tow_capacity_kg',
+        'tow_proposals.tow_truck_type',
+        'tow_proposals.tow_capacity_kg',
+        'emergency_requests.user_id as emergency_user_id',
         'users.name as user_name',
         'users.phone as user_phone'
       )
       .join('partners', 'tow_proposals.partner_id', 'partners.id')
+      .join('emergency_requests', 'tow_proposals.emergency_request_id', 'emergency_requests.id')
       .join('users', 'partners.user_id', 'users.id')
       .where('tow_proposals.id', id)
       .first();
@@ -34,8 +36,8 @@ class TowProposal {
         'partners.business_name',
         'partners.phone',
         'partners.rating',
-        'partners.tow_truck_type',
-        'partners.tow_capacity_kg',
+        'tow_proposals.tow_truck_type',
+        'tow_proposals.tow_capacity_kg',
         'partners.latitude',
         'partners.longitude',
         'users.name as user_name',
@@ -56,7 +58,7 @@ class TowProposal {
       query = query.where('tow_proposals.status', status);
     }
 
-    return await query.order('tow_proposals.created_at', 'asc');
+    return await query.orderBy('tow_proposals.created_at', 'asc');
   }
 
   // Buscar propostas de um parceiro
@@ -81,7 +83,7 @@ class TowProposal {
       query = query.where('tow_proposals.status', status);
     }
 
-    return await query.order('tow_proposals.created_at', 'desc');
+    return await query.orderBy('tow_proposals.created_at', 'desc');
   }
 
   // Aceitar proposta
@@ -291,11 +293,11 @@ class TowProposal {
     const stats = await knex('tow_proposals')
       .select(
         knex.raw('COUNT(*) as total'),
-        knex.raw('COUNT(CASE WHEN status = "pending" THEN 1 END) as pending'),
-        knex.raw('COUNT(CASE WHEN status = "accepted" THEN 1 END) as accepted'),
-        knex.raw('COUNT(CASE WHEN status = "rejected" THEN 1 END) as rejected'),
-        knex.raw('COUNT(CASE WHEN status = "expired" THEN 1 END) as expired'),
-        knex.raw('COUNT(CASE WHEN status = "withdrawn" THEN 1 END) as withdrawn'),
+        knex.raw(`COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending`),
+        knex.raw(`COUNT(CASE WHEN status = 'accepted' THEN 1 END) as accepted`),
+        knex.raw(`COUNT(CASE WHEN status = 'rejected' THEN 1 END) as rejected`),
+        knex.raw(`COUNT(CASE WHEN status = 'expired' THEN 1 END) as expired`),
+        knex.raw(`COUNT(CASE WHEN status = 'withdrawn' THEN 1 END) as withdrawn`),
         knex.raw('AVG(proposed_price) as avg_price'),
         knex.raw('AVG(estimated_time_minutes) as avg_time'),
         knex.raw('AVG(partner_distance_km) as avg_distance'),

@@ -1,5 +1,11 @@
 #!/bin/bash
 
+set -euo pipefail
+
+COMPOSE_FILE="docker-compose-simple.yml"
+POSTGRES_HOST_PORT="${POSTGRES_HOST_PORT:-5433}"
+BACKEND_URL="${BACKEND_URL:-http://localhost:3001}"
+
 echo "🚀 Socorre AI Quick Start Setup"
 echo "=================================="
 
@@ -10,8 +16,8 @@ if ! docker info > /dev/null 2>&1; then
 fi
 
 # Check if required files exist
-if [ ! -f "docker-compose-simple.yml" ]; then
-    echo "❌ docker-compose-simple.yml not found"
+if [ ! -f "$COMPOSE_FILE" ]; then
+    echo "❌ $COMPOSE_FILE not found"
     exit 1
 fi
 
@@ -24,7 +30,7 @@ fi
 
 # Start all services using simple configuration
 echo "🐘 Starting all services with Docker..."
-docker-compose -f docker-compose-simple.yml up -d
+docker-compose -f "$COMPOSE_FILE" up -d
 
 # Wait for services to be ready
 echo "⏳ Waiting for services to start..."
@@ -35,27 +41,28 @@ echo ""
 echo "✅ Socorre AI Services Started"
 echo "=============================="
 echo "🌐 Admin Panel: http://localhost:3000"
-echo "🔗 Backend API: http://localhost:3001"
-echo "🐘 PostgreSQL: localhost:5432"
+echo "🔗 Backend API: $BACKEND_URL"
+echo "🐘 PostgreSQL: localhost:$POSTGRES_HOST_PORT"
 echo "🔴 Redis: localhost:6379"
 echo ""
 echo "📱 To run mobile apps:"
 echo "   cd socorre_ai_client && flutter run"
 echo "   cd socorre_ai_partner && flutter run"
 echo ""
-echo "📊 View logs: docker-compose -f docker-compose-simple.yml logs -f"
-echo "🛑 Stop services: docker-compose -f docker-compose-simple.yml down"
+echo "📊 View logs: docker-compose -f $COMPOSE_FILE logs -f"
+echo "🛑 Stop services: docker-compose -f $COMPOSE_FILE down"
 
 # Check if services are running
 echo ""
 echo "🔍 Checking service status..."
-docker-compose -f docker-compose-simple.yml ps
+docker-compose -f "$COMPOSE_FILE" ps
 
 # Test backend health endpoint
 echo ""
 echo "🧪 Testing backend health..."
-if curl -s http://localhost:3001/health > /dev/null; then
+if curl -fsS "$BACKEND_URL/health" > /dev/null; then
     echo "✅ Backend API is responding correctly"
 else
     echo "❌ Backend API is not responding"
+    exit 1
 fi

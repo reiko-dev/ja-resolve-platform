@@ -7,14 +7,12 @@ class WalletService {
    */
   async createWallet(userId, partnerId = null) {
     try {
-      const [walletId] = await db('wallets').insert({
+      const [wallet] = await db('wallets').insert({
         user_id: userId,
         partner_id: partnerId,
         created_at: new Date(),
         updated_at: new Date()
-      });
-
-      const wallet = await this.getWalletByUserId(userId);
+      }).returning('*');
       
       // Notificar criação
       await notificationService.sendNotificationToUser(userId, {
@@ -69,12 +67,47 @@ class WalletService {
   }
 
   /**
+   * Obter ou materializar a carteira oficial do parceiro no mesmo registro do usuário
+   */
+  async getOrCreatePartnerWallet(userId, partnerId) {
+    try {
+      let wallet = await this.getWalletByPartnerId(partnerId);
+      if (wallet) {
+        return wallet;
+      }
+
+      wallet = await this.getWalletByUserId(userId);
+      if (wallet) {
+        if (wallet.partner_id !== partnerId) {
+          await db('wallets')
+            .where('id', wallet.id)
+            .update({
+              partner_id: partnerId,
+              updated_at: new Date()
+            });
+
+          wallet = await this.getWallet(wallet.id);
+        }
+
+        return wallet;
+      }
+
+      return await this.createWallet(userId, partnerId);
+    } catch (error) {
+      console.error('Erro ao obter/criar carteira do parceiro:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Adicionar saldo à carteira
    */
   async addBalance(walletId, amount, type, referenceId = null, description = null) {
     const trx = await db.transaction();
 
     try {
+      const normalizedAmount = parseFloat(amount);
+
       // Obter saldo atual
       const wallet = await trx('wallets').where('id', walletId).first();
       if (!wallet) {
@@ -82,23 +115,23 @@ class WalletService {
       }
 
       const balanceBefore = parseFloat(wallet.available_balance);
-      const balanceAfter = balanceBefore + amount;
+      const balanceAfter = balanceBefore + normalizedAmount;
 
       // Atualizar carteira
       await trx('wallets')
         .where('id', walletId)
         .update({
           available_balance: balanceAfter,
-          total_earned: parseFloat(wallet.total_earned) + amount,
+          total_earned: parseFloat(wallet.total_earned) + normalizedAmount,
           updated_at: new Date()
         });
 
       // Criar transação
-      const [transactionId] = await trx('wallet_transactions').insert({
+      const [transaction] = await trx('wallet_transactions').insert({
         wallet_id: walletId,
         type: type,
         direction: 'credit',
-        amount: amount,
+        amount: normalizedAmount,
         balance_before: balanceBefore,
         balance_after: balanceAfter,
         description: description,
@@ -106,14 +139,14 @@ class WalletService {
         processed_at: new Date(),
         created_at: new Date(),
         updated_at: new Date()
-      });
+      }).returning('*');
 
       // Adicionar referência se fornecida
       if (referenceId) {
-        const referenceFields = this.getReferenceFields(type);
+        const referenceFields = this.getReferenceFields(type, referenceId);
         if (referenceFields) {
           await trx('wallet_transactions')
-            .where('id', transactionId)
+            .where('id', transaction.id)
             .update(referenceFields);
         }
       }
@@ -121,17 +154,17 @@ class WalletService {
       await trx.commit();
 
       // Obter transação completa
-      const transaction = await this.getTransaction(transactionId);
+      const completeTransaction = await this.getTransaction(transaction.id);
 
       // Notificar
       await this.sendNotification(wallet.user_id, {
         title: '💵 Saldo Adicionado',
-        body: `R$ ${amount.toFixed(2)} adicionados à sua carteira`,
+        body: `R$ ${normalizedAmount.toFixed(2)} adicionados à sua carteira`,
         type: 'wallet',
-        data: { transactionId, amount, balance: balanceAfter }
+        data: { transactionId: transaction.id, amount: normalizedAmount, balance: balanceAfter }
       });
 
-      return transaction;
+      return completeTransaction;
 
     } catch (error) {
       await trx.rollback();
@@ -147,6 +180,8 @@ class WalletService {
     const trx = await db.transaction();
 
     try {
+      const normalizedAmount = parseFloat(amount);
+
       // Obter saldo atual
       const wallet = await trx('wallets').where('id', walletId).first();
       if (!wallet) {
@@ -154,28 +189,29 @@ class WalletService {
       }
 
       // Validar saldo suficiente
-      if (parseFloat(wallet.available_balance) < amount) {
+      if (parseFloat(wallet.available_balance) < normalizedAmount) {
         throw new Error('Saldo insuficiente');
       }
 
       const balanceBefore = parseFloat(wallet.available_balance);
-      const balanceAfter = balanceBefore - amount;
+      const balanceAfter = balanceBefore - normalizedAmount;
+      const totalWithdrawnIncrement = type === 'withdrawal' ? normalizedAmount : 0;
 
       // Atualizar carteira
       await trx('wallets')
         .where('id', walletId)
         .update({
           available_balance: balanceAfter,
-          total_withdrawn: parseFloat(wallet.total_withdrawn) + amount,
+          total_withdrawn: parseFloat(wallet.total_withdrawn) + totalWithdrawnIncrement,
           updated_at: new Date()
         });
 
       // Criar transação
-      const [transactionId] = await trx('wallet_transactions').insert({
+      const [transaction] = await trx('wallet_transactions').insert({
         wallet_id: walletId,
         type: type,
         direction: 'debit',
-        amount: amount,
+        amount: normalizedAmount,
         balance_before: balanceBefore,
         balance_after: balanceAfter,
         description: description,
@@ -183,21 +219,21 @@ class WalletService {
         processed_at: new Date(),
         created_at: new Date(),
         updated_at: new Date()
-      });
+      }).returning('*');
 
       // Adicionar referência se fornecida
       if (referenceId) {
-        const referenceFields = this.getReferenceFields(type);
+        const referenceFields = this.getReferenceFields(type, referenceId);
         if (referenceFields) {
           await trx('wallet_transactions')
-            .where('id', transactionId)
+            .where('id', transaction.id)
             .update(referenceFields);
         }
       }
 
       await trx.commit();
 
-      return await this.getTransaction(transactionId);
+      return await this.getTransaction(transaction.id);
 
     } catch (error) {
       await trx.rollback();
@@ -262,26 +298,36 @@ class WalletService {
    */
   async createPendingTransaction({ walletId, amount, type, direction, description, referenceId = null }) {
     try {
+      const normalizedAmount = parseFloat(amount);
       const wallet = await this.getWallet(walletId);
       const balanceBefore = parseFloat(wallet.available_balance);
       const balanceAfter = direction === 'credit' 
-        ? balanceBefore + amount 
-        : balanceBefore - amount;
+        ? balanceBefore + normalizedAmount
+        : balanceBefore - normalizedAmount;
 
-      const [transactionId] = await db('wallet_transactions').insert({
+      const [transaction] = await db('wallet_transactions').insert({
         wallet_id: walletId,
         type,
         direction,
-        amount,
+        amount: normalizedAmount,
         balance_before: balanceBefore,
         balance_after: balanceAfter,
         description,
         status: 'pending',
         created_at: new Date(),
         updated_at: new Date()
-      });
+      }).returning('*');
 
-      return await this.getTransaction(transactionId);
+      if (referenceId) {
+        const referenceFields = this.getReferenceFields(type, referenceId);
+        if (referenceFields) {
+          await db('wallet_transactions')
+            .where('id', transaction.id)
+            .update(referenceFields);
+        }
+      }
+
+      return await this.getTransaction(transaction.id);
 
     } catch (error) {
       console.error('Erro ao criar transação pendente:', error);
@@ -324,11 +370,14 @@ class WalletService {
         if (newBalance < 0) {
           throw new Error('Saldo insuficiente');
         }
+        const totalWithdrawnIncrement = transaction.type === 'withdrawal'
+          ? parseFloat(transaction.amount)
+          : 0;
         await trx('wallets')
           .where('id', wallet.id)
           .update({
             available_balance: newBalance,
-            total_withdrawn: parseFloat(wallet.total_withdrawn) + parseFloat(transaction.amount),
+            total_withdrawn: parseFloat(wallet.total_withdrawn) + totalWithdrawnIncrement,
             updated_at: new Date()
           });
       }
@@ -346,15 +395,16 @@ class WalletService {
       await trx.commit();
 
       const updatedTransaction = await this.getTransaction(transactionId);
+      const transactionAmount = parseFloat(transaction.amount);
 
       // Notificar
       await this.sendNotification(wallet.user_id, {
         title: transaction.direction === 'credit' ? '✅ Crédito Confirmado' : '✅ Saque Processado',
         body: transaction.direction === 'credit'
-          ? `R$ ${transaction.amount.toFixed(2)} creditados`
-          : `R$ ${transaction.amount.toFixed(2)} sacados`,
+          ? `R$ ${transactionAmount.toFixed(2)} creditados`
+          : `R$ ${transactionAmount.toFixed(2)} sacados`,
         type: 'wallet',
-        data: { transactionId, amount: transaction.amount, balance: newBalance }
+        data: { transactionId, amount: transactionAmount, balance: newBalance }
       });
 
       return updatedTransaction;
@@ -488,13 +538,22 @@ class WalletService {
   /**
    * Obter campos de referência baseado no tipo
    */
-  getReferenceFields(type) {
+  getReferenceFields(type, referenceId) {
+    const numericReferenceId = Number(referenceId);
+    if (!numericReferenceId) {
+      return null;
+    }
+
     const mapping = {
-      'deposit': { emergency_request_id: 'emergency_request_id' },
-      'commission': { payment_id: 'payment_id' },
-      'refund': { dispute_id: 'dispute_id' }
+      deposit: null,
+      commission: { payment_id: numericReferenceId },
+      refund: { dispute_id: numericReferenceId },
+      withdrawal: null,
+      fee: null,
+      adjustment: null,
     };
-    return mapping[type];
+
+    return mapping[type] || null;
   }
 
   /**
@@ -510,4 +569,3 @@ class WalletService {
 }
 
 module.exports = new WalletService();
-

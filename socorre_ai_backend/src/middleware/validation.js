@@ -9,11 +9,9 @@ const authSchemas = {
     phone: Joi.string().pattern(/^\+?[1-9]\d{1,14}$/).required(),
     role: Joi.string().valid('user', 'partner', 'admin').default('user'),
     cpf: Joi.string().pattern(/^\d{3}\.\d{3}\.\d{3}-\d{2}$/).optional(),
-    cnpj: Joi.string().when('role', {
-      is: 'partner',
-      then: Joi.required(),
-      otherwise: Joi.optional()
-    })
+    partnerType: Joi.string().optional(),
+    partner_type: Joi.string().optional(),
+    cnpj: Joi.string().optional()
   }),
 
   login: Joi.object({
@@ -188,11 +186,14 @@ const appointmentSchemas = {
 // Schemas para avaliações
 const reviewSchemas = {
   createReview: Joi.object({
-    mechanic_id: Joi.number().integer().positive().required(),
+    mechanic_id: Joi.number().integer().positive().optional(),
+    partner_id: Joi.number().integer().positive().optional(),
     appointment_id: Joi.number().integer().positive().optional(),
+    entity_type: Joi.string().valid('appointment', 'purchase_order', 'delivery_order', 'emergency_request').optional(),
+    entity_id: Joi.number().integer().positive().optional(),
     rating: Joi.number().integer().min(1).max(5).required(),
     comment: Joi.string().max(1000).optional()
-  }),
+  }).or('mechanic_id', 'partner_id').with('entity_type', 'entity_id').with('entity_id', 'entity_type'),
 
   updateReview: Joi.object({
     rating: Joi.number().integer().min(1).max(5).optional(),
@@ -286,6 +287,7 @@ const partnerSchemas = {
 const emergencyRequestSchemas = {
   create: Joi.object({
     type: Joi.string().valid('mechanical', 'fuel', 'tire', 'battery', 'other').required(),
+    request_type: Joi.string().valid('mechanic', 'mecanico', 'tow', 'guincho').default('mechanic'),
     description: Joi.string().min(10).max(1000).required(),
     photos: Joi.array().items(Joi.string().uri()).max(5).optional(),
     vehicle_info: Joi.object({
@@ -300,6 +302,14 @@ const emergencyRequestSchemas = {
     latitude: Joi.number().min(-90).max(90).required(),
     longitude: Joi.number().min(-180).max(180).required(),
     address: Joi.string().max(255).required(),
+    vehicle_origin_address: Joi.string().max(255).optional(),
+    vehicle_origin_latitude: Joi.number().min(-90).max(90).optional(),
+    vehicle_origin_longitude: Joi.number().min(-180).max(180).optional(),
+    vehicle_destination_address: Joi.string().max(255).optional(),
+    vehicle_destination_latitude: Joi.number().min(-90).max(90).optional(),
+    vehicle_destination_longitude: Joi.number().min(-180).max(180).optional(),
+    vehicle_type: Joi.string().max(100).optional(),
+    vehicle_notes: Joi.string().max(1000).optional(),
     landmarks: Joi.string().max(255).optional(),
     urgency: Joi.string().valid('low', 'medium', 'high', 'critical').default('medium'),
     is_urgent: Joi.boolean().default(false),

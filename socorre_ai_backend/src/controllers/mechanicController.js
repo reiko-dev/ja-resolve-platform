@@ -7,7 +7,7 @@ class MechanicController {
   static async getAllMechanics(req, res) {
     try {
       const { page = 1, limit = 20 } = req.query;
-      const result = await Mechanic.findAll(parseInt(page), parseInt(limit));
+      const result = await Mechanic.findEligibleAll(parseInt(page), parseInt(limit));
       
       res.json({
         success: true,
@@ -27,7 +27,7 @@ class MechanicController {
   static async getMechanicById(req, res) {
     try {
       const { id } = req.params;
-      const mechanic = await Mechanic.findByIdWithDetails(parseInt(id));
+      const mechanic = await Mechanic.findEligibleWithDetails(parseInt(id));
       
       if (!mechanic) {
         return res.status(404).json({
@@ -61,7 +61,7 @@ class MechanicController {
         });
       }
       
-      const mechanics = await Mechanic.findByProximity(
+      const mechanics = await Mechanic.findEligibleByProximity(
         parseFloat(lat),
         parseFloat(lng),
         parseFloat(radius),
@@ -94,7 +94,7 @@ class MechanicController {
         });
       }
       
-      const mechanics = await Mechanic.findBySpecialty(specialty, parseInt(limit));
+      const mechanics = await Mechanic.findEligibleBySpecialty(specialty, parseInt(limit));
       
       res.json({
         success: true,
@@ -123,7 +123,7 @@ class MechanicController {
       if (filters.homeService !== undefined) filters.homeService = filters.homeService === 'true';
       if (filters.emergencyService !== undefined) filters.emergencyService = filters.emergencyService === 'true';
       
-      const mechanics = await Mechanic.findByFilters(filters, parseInt(limit));
+      const mechanics = await Mechanic.findEligibleByFilters(filters, parseInt(limit));
       
       res.json({
         success: true,
@@ -285,7 +285,8 @@ class MechanicController {
   static async getMechanicServices(req, res) {
     try {
       const { id } = req.params;
-      const services = await Service.findByMechanicId(parseInt(id));
+      const legacyMechanicId = await Mechanic.resolveLegacyMechanicId(parseInt(id));
+      const services = legacyMechanicId ? await Service.findByMechanicId(legacyMechanicId) : [];
       
       res.json({
         success: true,
@@ -305,8 +306,10 @@ class MechanicController {
     try {
       const { id } = req.params;
       const { page = 1, limit = 10 } = req.query;
-      
-      const reviews = await Review.findByMechanicId(parseInt(id), parseInt(page), parseInt(limit));
+      const legacyMechanicId = await Mechanic.resolveLegacyMechanicId(parseInt(id));
+      const reviews = legacyMechanicId
+        ? await Review.findByMechanicId(legacyMechanicId, parseInt(page), parseInt(limit))
+        : { reviews: [], pagination: { page: parseInt(page), limit: parseInt(limit), total: 0, pages: 0 } };
       
       res.json({
         success: true,

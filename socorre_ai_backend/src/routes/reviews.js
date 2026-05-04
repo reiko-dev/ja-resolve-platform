@@ -4,9 +4,11 @@ const ReviewController = require('../controllers/reviewController');
 const { auth, requireRole } = require('../middleware/auth');
 const { validate } = require('../middleware/validation');
 const reviewSchemas = require('../middleware/validation').reviewSchemas;
+const legacyRoute = require('../middleware/legacyRoute');
 
 // Rotas públicas
-router.get('/mechanic/:mechanicId', ReviewController.getReviewsByMechanic);
+router.get('/mechanic/:mechanicId', legacyRoute('/api/reviews/partner/:partnerId'), ReviewController.getReviewsByMechanic);
+router.get('/partner/:partnerId', ReviewController.getReviewsByPartner);
 
 // Rotas protegidas - usuários autenticados
 router.get('/my-reviews', auth, ReviewController.getMyReviews);

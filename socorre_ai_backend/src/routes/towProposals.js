@@ -9,6 +9,12 @@ router.use(auth);
 // Criar nova proposta
 router.post('/', TowProposalController.create);
 
+// Buscar propostas expirando em breve
+router.get('/expiring-soon', TowProposalController.findExpiringSoon);
+
+// Obter estatísticas
+router.get('/stats', TowProposalController.getStats);
+
 // Listar propostas de uma emergência (para cliente)
 router.get('/emergency/:emergency_request_id', TowProposalController.findByEmergency);
 
@@ -33,13 +39,7 @@ router.post('/:id/views', TowProposalController.incrementViews);
 // Listar todas as propostas (admin)
 router.get('/', TowProposalController.findAll);
 
-// Buscar propostas expirando em breve
-router.get('/expiring-soon', TowProposalController.findExpiringSoon);
-
 // Expirar propostas de uma emergência
 router.post('/emergency/:emergency_request_id/expire', TowProposalController.expireProposals);
-
-// Obter estatísticas
-router.get('/stats', TowProposalController.getStats);
 
 module.exports = router;

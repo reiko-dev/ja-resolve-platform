@@ -1,9 +1,109 @@
 const Partner = require('../models/Partner');
+const PartnerDocument = require('../models/PartnerDocument');
+const User = require('../models/User');
+const DocumentService = require('../services/DocumentService');
+const { normalizePartnerType } = require('../config/partnerDocumentRules');
+const { ONBOARDING_STAGES, nextStepFromStage } = require('../config/onboardingStages');
 const { validate } = require('../middleware/validation');
 const { validateMechanic, validateStore, validateMotoboy, validatePartner, handleValidationErrors } = require('../middleware/partnerValidation');
 const { validationResult } = require('express-validator');
 
 class PartnerController {
+  static _buildAddressFromPayload(payload) {
+    const parts = [
+      payload.address,
+      payload.number,
+      payload.complement,
+      payload.neighborhood,
+      payload.city,
+      payload.state,
+      payload.cep,
+    ].filter((part) => typeof part === 'string' && part.trim().length > 0);
+
+    return parts.join(', ');
+  }
+
+  static _serializeIfPresent(value) {
+    if (value == null) {
+      return null;
+    }
+
+    if (Array.isArray(value) || typeof value === 'object') {
+      return JSON.stringify(value);
+    }
+
+    return value;
+  }
+
+  static _resolveOnboardingStage(user, partner, partnerType) {
+    if (user?.onboarding_stage) {
+      return user.onboarding_stage;
+    }
+
+    if (!partner) {
+      return partnerType ? ONBOARDING_STAGES.ACCOUNT_CREATED : null;
+    }
+
+    if (partner.approval_status === 'approved') {
+      return ONBOARDING_STAGES.APPROVED;
+    }
+
+    if (partner.approval_status === 'pending') {
+      return ONBOARDING_STAGES.UNDER_REVIEW;
+    }
+
+    return ONBOARDING_STAGES.DOCUMENTS_PENDING;
+  }
+
+  static async _buildOnboardingStatus(userId, fallbackPartnerType = null) {
+    const partner = await Partner.findByUserId(userId);
+    const user = await User.findById(userId);
+    const partnerType = partner?.type || normalizePartnerType(fallbackPartnerType || user?.onboarding_partner_type || '');
+    const onboardingStage = PartnerController._resolveOnboardingStage(user, partner, partnerType);
+
+    if (!partner) {
+      const requiredDocuments = DocumentService.getRequiredDocuments(partnerType);
+      return {
+        hasPartner: false,
+        partnerType,
+        onboardingStage,
+        profileCompleted: false,
+        documentsRequired: requiredDocuments.length > 0,
+        documentsSubmitted: false,
+        approvalStatus: null,
+        canAccessDashboard: false,
+        nextStep: nextStepFromStage(onboardingStage, partnerType),
+        documents: [],
+        requiredDocuments,
+        missingDocuments: requiredDocuments,
+        pendingDocuments: [],
+      };
+    }
+
+    const documentStatus = await DocumentService.checkRequiredDocuments(partner.id);
+    const documentsSubmitted = onboardingStage === ONBOARDING_STAGES.UNDER_REVIEW || onboardingStage === ONBOARDING_STAGES.APPROVED;
+    const canAccessDashboard = onboardingStage === ONBOARDING_STAGES.APPROVED;
+    const nextStep = nextStepFromStage(onboardingStage, partner.type);
+
+    return {
+      hasPartner: true,
+      partnerId: partner.id,
+      partnerType: partner.type,
+      onboardingStage,
+      profileCompleted: true,
+      documentsRequired: documentStatus.requiresDocuments,
+      documentsSubmitted,
+      approvalStatus: partner.approval_status,
+      canAccessDashboard,
+      nextStep,
+      documents: documentStatus.uploadedDocuments,
+      requiredDocuments: documentStatus.requiredDocuments,
+      missingDocuments: documentStatus.missingDocuments,
+      pendingDocuments: documentStatus.pendingDocuments,
+      rejectionReason: partner.rejection_reason,
+    };
+  }
+
   // Buscar parceiros por proximidade
   static async getNearby(req, res) {
     try {
@@ -321,6 +421,182 @@ class PartnerController {
     }
   }
 
+  static async getCurrentOnboardingStatus(req, res) {
+    try {
+      const fallbackPartnerType = req.query.partner_type;
+      const status = await PartnerController._buildOnboardingStatus(req.user.id, fallbackPartnerType);
+
+      res.json({
+        success: true,
+        data: status,
+      });
+    } catch (error) {
+      console.error('Erro ao buscar status do onboarding do parceiro:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Erro interno do servidor',
+      });
+    }
+  }
+
+  static async completeOnboarding(req, res) {
+    try {
+      const normalizedPartnerType = normalizePartnerType(
+        req.body.partner_type ||
+        req.body.partnerType ||
+        req.user.onboarding_partner_type ||
+        '',
+      );
+      const businessName = (req.body.company_name || req.body.companyName || req.body.trade_name || req.body.tradeName || req.user.name || '').trim();
+      const phone = (req.body.phone || req.user.phone || '').trim();
+      const address = PartnerController._buildAddressFromPayload(req.body);
+
+      if (!normalizedPartnerType) {
+        return res.status(400).json({
+          success: false,
+          message: 'Tipo de parceiro é obrigatório',
+        });
+      }
+
+      if (!businessName) {
+        return res.status(400).json({
+          success: false,
+          message: 'Nome do estabelecimento é obrigatório',
+        });
+      }
+
+      if (!phone) {
+        return res.status(400).json({
+          success: false,
+          message: 'Telefone é obrigatório',
+        });
+      }
+
+      if (!address) {
+        return res.status(400).json({
+          success: false,
+          message: 'Endereço é obrigatório',
+        });
+      }
+
+      const partnerPayload = {
+        user_id: req.user.id,
+        type: normalizedPartnerType,
+        business_name: businessName,
+        description: req.body.description || null,
+        specialties: PartnerController._serializeIfPresent(req.body.specialties),
+        address,
+        phone,
+        whatsapp: req.body.whatsapp || phone,
+        website: req.body.website || null,
+        instagram: req.body.instagram || null,
+        facebook: req.body.facebook || null,
+        working_hours: PartnerController._serializeIfPresent(req.body.working_hours || req.body.workingHours),
+        service_areas: PartnerController._serializeIfPresent(req.body.service_areas || req.body.serviceAreas),
+        certifications: PartnerController._serializeIfPresent(req.body.certifications),
+        emergency_service: !!req.body.emergency_service,
+        home_service: !!req.body.home_service,
+        workshop_service: normalizedPartnerType === 'mechanic',
+        delivery_service: normalizedPartnerType === 'motoboy' || !!req.body.delivery_service,
+        vehicle_type: req.body.vehicle_type || req.body.vehicleType || null,
+        cnh_category: req.body.cnh_category || req.body.cnhCategory || null,
+      };
+
+      const partner = await Partner.createOrUpdate(partnerPayload);
+      await User.update(req.user.id, {
+        onboarding_partner_type: normalizedPartnerType,
+        onboarding_stage: ONBOARDING_STAGES.DOCUMENTS_PENDING,
+      });
+      const status = await PartnerController._buildOnboardingStatus(req.user.id, normalizedPartnerType);
+
+      res.status(201).json({
+        success: true,
+        message: 'Onboarding do parceiro salvo com sucesso',
+        data: {
+          partner,
+          onboarding: status,
+        },
+      });
+    } catch (error) {
+      console.error('Erro ao concluir onboarding do parceiro:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Erro interno do servidor',
+      });
+    }
+  }
+
+  static async listCurrentPartnerDocuments(req, res) {
+    try {
+      const partner = await Partner.findByUserId(req.user.id);
+
+      if (!partner) {
+        return res.status(404).json({
+          success: false,
+          message: 'Parceiro ainda não completou o cadastro',
+        });
+      }
+
+      const documents = await PartnerDocument.findByPartnerId(partner.id);
+
+      res.json({
+        success: true,
+        data: {
+          documents,
+          partner_id: partner.id,
+          partner_type: partner.type,
+        },
+      });
+    } catch (error) {
+      console.error('Erro ao listar documentos do parceiro atual:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Erro interno do servidor',
+      });
+    }
+  }
+
+  static async submitCurrentPartnerDocuments(req, res) {
+    try {
+      const partner = await Partner.findByUserId(req.user.id);
+
+      if (!partner) {
+        return res.status(404).json({
+          success: false,
+          message: 'Parceiro ainda não completou o cadastro',
+        });
+      }
+
+      const documentCheck = await DocumentService.checkRequiredDocuments(partner.id);
+
+      if (documentCheck.missingDocuments.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Ainda faltam documentos obrigatórios',
+          data: documentCheck,
+        });
+      }
+
+      await Partner.updateApprovalStatus(partner.id, 'pending');
+      await User.update(req.user.id, {
+        onboarding_stage: ONBOARDING_STAGES.UNDER_REVIEW,
+      });
+      const status = await PartnerController._buildOnboardingStatus(req.user.id, partner.type);
+
+      res.json({
+        success: true,
+        message: 'Documentos enviados para análise com sucesso',
+        data: status,
+      });
+    } catch (error) {
+      console.error('Erro ao submeter documentos do parceiro:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Erro interno do servidor',
+      });
+    }
+  }
+
   // Deletar parceiro
   static async delete(req, res) {
     try {
@@ -508,24 +784,48 @@ class PartnerController {
   static async approvePartner(req, res) {
     try {
       const { id } = req.params;
-      const { is_verified } = req.body;
+      const { is_verified, status, rejection_reason } = req.body;
+      const existingPartner = await Partner.findById(id);
 
-      const partner = await Partner.update(id, { 
-        is_verified,
-        updated_at: new Date()
-      });
-
-      if (!partner) {
+      if (!existingPartner) {
         return res.status(404).json({
           success: false,
           message: 'Parceiro não encontrado'
         });
       }
 
+      const shouldApprove = status === 'approved' || (status == null && is_verified === true);
+      const approvalStatus = shouldApprove ? 'approved' : 'rejected';
+
+      const partner = await Partner.updateApprovalStatus(
+        id,
+        approvalStatus,
+        req.user.id,
+        shouldApprove ? null : (rejection_reason || null),
+      );
+
+      await PartnerDocument.updateStatusByPartner(
+        id,
+        shouldApprove ? 'approved' : 'rejected',
+        req.user.id,
+        shouldApprove ? null : (rejection_reason || null),
+        ['pending'],
+      );
+
+      await User.update(existingPartner.user_id, {
+        onboarding_stage: shouldApprove
+          ? ONBOARDING_STAGES.APPROVED
+          : ONBOARDING_STAGES.DOCUMENTS_PENDING,
+      });
+
+      if (!shouldApprove && rejection_reason) {
+        partner.rejection_reason = rejection_reason;
+      }
+
       res.json({
         success: true,
         data: partner,
-        message: is_verified ? 'Parceiro aprovado com sucesso' : 'Parceiro rejeitado'
+        message: shouldApprove ? 'Parceiro aprovado com sucesso' : 'Parceiro rejeitado'
       });
     } catch (error) {
       console.error('Erro ao aprovar parceiro:', error);

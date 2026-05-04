@@ -11,6 +11,34 @@ router.get('/',
   EmergencyRequestController.getAll
 );
 
+// Buscar solicitações do usuário
+router.get('/user',
+  auth,
+  requireRole(['user']),
+  EmergencyRequestController.getByUser
+);
+
+// Buscar solicitações do parceiro
+router.get('/partner',
+  auth,
+  requireRole(['partner']),
+  EmergencyRequestController.getByPartner
+);
+
+// Buscar solicitações próximas
+router.get('/nearby',
+  auth,
+  requireRole(['partner', 'admin']),
+  EmergencyRequestController.getNearby
+);
+
+// Obter estatísticas
+router.get('/stats',
+  auth,
+  requireRole(['admin']),
+  EmergencyRequestController.getStats
+);
+
 // Criar nova solicitação de emergência
 router.post('/', 
   auth, 
@@ -38,6 +66,37 @@ router.post('/:id/accept-proposal',
   auth, 
   requireRole(['user']), 
   EmergencyRequestController.acceptProposal
+);
+
+router.post('/:id/cancel',
+  auth,
+  requireRole(['user', 'admin']),
+  EmergencyRequestController.cancel
+);
+
+router.get('/:id/payment-summary',
+  auth,
+  requireRole(['user', 'partner', 'admin']),
+  EmergencyRequestController.getPaymentSummary
+);
+
+router.post('/:id/payment',
+  auth,
+  requireRole(['user', 'admin']),
+  EmergencyRequestController.createPayment
+);
+
+router.post('/:id/rate',
+  auth,
+  requireRole(['user', 'admin']),
+  EmergencyRequestController.rate
+);
+
+// Buscar solicitação por ID
+router.get('/:id',
+  auth,
+  requireRole(['user', 'partner', 'admin']),
+  EmergencyRequestController.getById
 );
 
 module.exports = router;

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { auth } = require('../middleware/auth');
-const notificationService = require('../services/notificationService');
+const notificationService = require('../services/NotificationServiceNew');
 
 // Buscar notificações do usuário
 router.get('/', auth, async (req, res) => {
@@ -92,7 +92,7 @@ router.put('/read-all', auth, async (req, res) => {
 // Atualizar token FCM
 router.put('/fcm-token', auth, async (req, res) => {
   try {
-    const { fcmToken } = req.body;
+    const fcmToken = req.body.fcmToken || req.body.fcm_token;
 
     if (!fcmToken) {
       return res.status(400).json({

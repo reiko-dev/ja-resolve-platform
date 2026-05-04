@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_config.dart';
+import 'partner_type_service.dart';
 
 class ApiService {
   static String get baseUrl => AppConfig.baseUrl;
@@ -215,6 +216,48 @@ class ApiService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('auth_token');
     await prefs.remove('user_data');
+  }
+
+  static Future<Map<String, dynamic>> getPartnerOnboardingStatus() async {
+    try {
+      final headers = await _authHeaders;
+      final partnerType = await PartnerTypeService.getPartnerType();
+      final uri = Uri.parse('$baseUrl/partners/me/onboarding-status').replace(
+        queryParameters: partnerType != null && partnerType.isNotEmpty
+            ? {'partner_type': partnerType}
+            : null,
+      );
+
+      final response = await http.get(uri, headers: headers);
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {'success': true, 'data': data['data']};
+      }
+
+      return {'success': false, 'message': data['message'] ?? 'Erro ao buscar status do onboarding'};
+    } catch (e) {
+      return {'success': false, 'message': 'Erro de conexão: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> getPartnerDocuments() async {
+    try {
+      final headers = await _authHeaders;
+      final response = await http.get(
+        Uri.parse('$baseUrl/partners/documents'),
+        headers: headers,
+      );
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {'success': true, 'data': data['data']};
+      }
+
+      return {'success': false, 'message': data['message'] ?? 'Erro ao buscar documentos'};
+    } catch (e) {
+      return {'success': false, 'message': 'Erro de conexão: $e'};
+    }
   }
 
   // Iniciar chamada de vídeo

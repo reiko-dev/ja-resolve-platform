@@ -1,33 +1,52 @@
 const knex = require('../config/database');
+const {
+  normalizePartnerType,
+  getRequiredDocuments,
+  requiresDocuments,
+} = require('../config/partnerDocumentRules');
 
 class Partner {
+  static calculateDistance(lat1, lon1, lat2, lon2) {
+    if ([lat1, lon1, lat2, lon2].some((value) => value === null || value === undefined)) {
+      return null;
+    }
+
+    const toRadians = (degrees) => (degrees * Math.PI) / 180;
+    const earthRadiusKm = 6371;
+    const deltaLat = toRadians(lat2 - lat1);
+    const deltaLon = toRadians(lon2 - lon1);
+    const originLat = toRadians(lat1);
+    const destinationLat = toRadians(lat2);
+
+    const haversine =
+      Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
+      Math.cos(originLat) *
+        Math.cos(destinationLat) *
+        Math.sin(deltaLon / 2) *
+        Math.sin(deltaLon / 2);
+
+    const distance = 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+    return earthRadiusKm * distance;
+  }
+
   // ===== MÉTODOS PARA SISTEMA DE APROVAÇÃO =====
 
   // Verificar se parceiro precisa de documentos
   static requiresDocuments(partnerType) {
-    return ['towtruck', 'delivery'].includes(partnerType);
+    return requiresDocuments(partnerType);
   }
 
   // Obter documentos obrigatórios por tipo
   static getRequiredDocuments(partnerType) {
-    const documents = {
-      mechanic: [],
-      gasstation: ['cnpj', 'address_proof', 'business_license'],
-      autoparts: ['cnpj', 'address_proof', 'business_license'],
-      towtruck: ['cpf', 'cnh', 'vehicle_document', 'address_proof'],
-      delivery: ['cpf', 'cnh', 'vehicle_document', 'address_proof'],
-      motoboy: ['cpf', 'cnh', 'vehicle_document', 'address_proof'],
-    };
-    return documents[partnerType] || [];
+    return getRequiredDocuments(partnerType);
   }
 
   // Verificar se parceiro pode acessar dashboard
   static canAccessDashboard(partner) {
-    // Mecânicos, postos e auto peças podem acessar após aprovação básica
-    if (['mechanic', 'gasstation', 'autoparts'].includes(partner.type)) {
+    const normalizedType = normalizePartnerType(partner.type);
+    if (['mechanic', 'gas_station', 'auto_parts'].includes(normalizedType)) {
       return partner.approval_status === 'approved';
     }
-    // Guincho e motoboy precisam de documentos aprovados
     return partner.approval_status === 'approved';
   }
 
@@ -52,6 +71,7 @@ class Partner {
       const [partner] = await knex('partners')
         .insert({
           ...partnerData,
+          type: normalizePartnerType(partnerData.type),
           approval_status: this.requiresDocuments(partnerData.type) ? 'documents_required' : 'pending',
           is_verified: false,
           created_at: knex.fn.now(),
@@ -113,7 +133,7 @@ class Partner {
     const uploadedDocs = await knex('partner_documents')
       .where('partner_id', partnerId)
       .whereIn('document_type', requiredDocs)
-      .where('status', 'verified')
+      .where('status', 'approved')
       .pluck('document_type');
 
     return requiredDocs.every(doc => uploadedDocs.includes(doc));
@@ -207,7 +227,7 @@ class Partner {
     }
 
     // Verificar assinatura ativa se necessário
-    if (checkSubscription && ['mechanic', 'gasstation', 'autoparts'].includes(type)) {
+    if (checkSubscription && ['mechanic', 'gas_station', 'auto_parts'].includes(normalizePartnerType(type))) {
       query.whereExists(
         knex('subscriptions')
           .select(1)

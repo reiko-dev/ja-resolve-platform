@@ -3,6 +3,13 @@ const EmergencyRequest = require('../models/EmergencyRequest');
 const Partner = require('../models/Partner');
 const NotificationService = require('../services/NotificationServiceNew');
 
+function normalizePartnerType(partnerType) {
+  if (partnerType === 'guincho') {
+    return 'tow';
+  }
+  return partnerType;
+}
+
 class TowProposalController {
   // Criar nova proposta
   static async create(req, res) {
@@ -35,9 +42,20 @@ class TowProposalController {
 
       // Buscar dados do parceiro
       const partner = await Partner.findById(partner_id);
-      if (!partner || partner.type !== 'guincho') {
+      if (!partner || normalizePartnerType(partner.type) !== 'tow') {
         return res.status(403).json({ 
           error: 'Apenas guinchos podem enviar propostas' 
+        });
+      }
+
+      const priceValidation = await EmergencyRequest.validateTowProposalPrice(
+        emergency_request_id,
+        proposed_price
+      );
+
+      if (!priceValidation.valid) {
+        return res.status(400).json({
+          error: `Proposta abaixo do mínimo permitido pelo backend. Valor mínimo atual: R$ ${priceValidation.minimumAcceptedPrice}`
         });
       }
 
@@ -57,7 +75,7 @@ class TowProposalController {
         tow_capacity_kg: partner.tow_capacity_kg,
         has_winch: partner.has_winch,
         expires_at: expiresAt,
-        partner_distance_km: await this.calculatePartnerDistance(partner_id, emergency_request_id)
+        partner_distance_km: await TowProposalController.calculatePartnerDistance(partner_id, emergency_request_id)
       };
 
       const proposal = await TowProposal.create(proposalData);
@@ -81,6 +99,9 @@ class TowProposalController {
       res.status(201).json({
         success: true,
         data: proposal,
+        pricing_validation: {
+          minimum_accepted_price: priceValidation.minimumAcceptedPrice
+        },
         message: 'Proposta enviada com sucesso'
       });
 
@@ -155,7 +176,7 @@ class TowProposalController {
 
       // Verificar permissões
       const isOwner = proposal.partner_id === req.user.partner_id;
-      const isEmergencyOwner = proposal.emergency_request?.user_id === req.user.id;
+      const isEmergencyOwner = proposal.emergency_user_id === req.user.id;
       
       if (!isOwner && !isEmergencyOwner && req.user.role !== 'admin') {
         return res.status(403).json({ error: 'Acesso negado' });
@@ -203,7 +224,7 @@ class TowProposalController {
       }
 
       // Notificar parceiro
-      await NotificationService.sendNotification(
+      await NotificationService.sendPartnerNotification(
         proposal.partner_id,
         'Proposta Aceita!',
         `Sua proposta de R$ ${proposal.proposed_price} foi aceita!`,
@@ -248,7 +269,7 @@ class TowProposalController {
       const rejectedProposal = await TowProposal.reject(id);
 
       // Notificar parceiro
-      await NotificationService.sendNotification(
+      await NotificationService.sendPartnerNotification(
         proposal.partner_id,
         'Proposta Rejeitada',
         `Sua proposta foi rejeitada pelo cliente`,

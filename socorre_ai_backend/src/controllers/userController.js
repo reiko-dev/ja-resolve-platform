@@ -1,4 +1,35 @@
 const db = require('../config/database');
+const UserDocument = require('../models/UserDocument');
+
+const CLIENT_DOCUMENT_TYPES = new Set([
+  'rg_cpf',
+  'residence_proof',
+]);
+
+function serializeUserDocument(document) {
+  if (!document) {
+    return null;
+  }
+
+  return {
+    id: document.id,
+    document_type: document.document_type,
+    type: document.document_type,
+    title: document.document_type,
+    filename: document.filename,
+    original_name: document.original_name,
+    file_path: document.file_path,
+    mime_type: document.mime_type,
+    file_size: document.file_size,
+    status: document.status,
+    rejection_reason: document.rejection_reason,
+    verified_by: document.verified_by,
+    upload_date: document.uploaded_at || document.created_at,
+    verified_date: document.verified_at,
+    created_at: document.created_at,
+    updated_at: document.updated_at,
+  };
+}
 
 class UserController {
   // Buscar perfil do usuário
@@ -61,6 +92,106 @@ class UserController {
       res.status(500).json({
         success: false,
         message: 'Erro interno do servidor'
+      });
+    }
+  }
+
+  async listCurrentUserDocuments(req, res) {
+    try {
+      const documents = await UserDocument.findByUserId(req.user.id);
+
+      res.json({
+        success: true,
+        data: documents.map(serializeUserDocument),
+      });
+    } catch (error) {
+      console.error('List user documents error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Erro interno do servidor'
+      });
+    }
+  }
+
+  async uploadCurrentUserDocument(req, res) {
+    try {
+      const file = req.file;
+      const { document_type, user_type } = req.body;
+
+      if (!file) {
+        return res.status(400).json({
+          success: false,
+          message: 'Nenhum arquivo enviado'
+        });
+      }
+
+      if (user_type && user_type !== 'client') {
+        return res.status(400).json({
+          success: false,
+          message: 'Esta trilha oficial é exclusiva para usuário final'
+        });
+      }
+
+      if (!CLIENT_DOCUMENT_TYPES.has(document_type)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Tipo de documento não permitido para usuário final'
+        });
+      }
+
+      const existingDocument = await UserDocument.findByType(req.user.id, document_type);
+      if (existingDocument) {
+        await UserDocument.delete(existingDocument.id);
+      }
+
+      const document = await UserDocument.create({
+        user_id: req.user.id,
+        document_type,
+        filename: file.filename,
+        original_name: file.originalname,
+        file_path: file.path,
+        mime_type: file.mimetype,
+        file_size: file.size,
+        status: 'pending',
+      });
+
+      res.status(201).json({
+        success: true,
+        message: 'Documento enviado com sucesso',
+        data: serializeUserDocument(document),
+      });
+    } catch (error) {
+      console.error('Upload user document error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Erro ao fazer upload do documento'
+      });
+    }
+  }
+
+  async deleteCurrentUserDocument(req, res) {
+    try {
+      const { documentId } = req.params;
+      const document = await UserDocument.findById(documentId);
+
+      if (!document || document.user_id !== req.user.id) {
+        return res.status(404).json({
+          success: false,
+          message: 'Documento não encontrado'
+        });
+      }
+
+      await UserDocument.delete(documentId);
+
+      res.json({
+        success: true,
+        message: 'Documento excluído com sucesso'
+      });
+    } catch (error) {
+      console.error('Delete user document error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Erro ao excluir documento'
       });
     }
   }

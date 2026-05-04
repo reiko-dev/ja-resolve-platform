@@ -24,6 +24,15 @@ class CommissionService {
     const trx = await db.transaction();
 
     try {
+      const existingCommission = await trx('commissions')
+        .where('payment_id', paymentId)
+        .first();
+
+      if (existingCommission) {
+        await trx.commit();
+        return existingCommission;
+      }
+
       // Buscar pagamento com todas as informações
       const payment = await trx('payments')
         .where('id', paymentId)
@@ -42,13 +51,12 @@ class CommissionService {
         throw new Error('Parceiro não encontrado');
       }
 
-      let wallet = await walletService.getWalletByPartnerId(partner.id);
-      if (!wallet) {
-        wallet = await walletService.createWallet(partner.user_id, partner.id);
-      }
+      const wallet = await walletService.getOrCreatePartnerWallet(partner.user_id, partner.id);
 
       // Calcular comissão
-      const commissionRate = partner.commission_rate || wallet.platform_commission_rate || 25.00;
+      const commissionRate = parseFloat(
+        partner.commission_rate || wallet.platform_commission_rate || 25.00
+      );
       const { totalAmount, commission, partnerEarnings, commissionRate: calcRate } = 
         this.calculateCommission(parseFloat(payment.amount), commissionRate);
 
@@ -66,7 +74,7 @@ class CommissionService {
       }
 
       // Criar registro de comissão
-      const [commissionId] = await trx('commissions').insert({
+      const [commissionRecord] = await trx('commissions').insert({
         payment_id: paymentId,
         partner_id: partner.id,
         emergency_request_id: serviceType === 'emergency' ? serviceId : null,
@@ -81,7 +89,7 @@ class CommissionService {
         status: 'processed',
         created_at: new Date(),
         updated_at: new Date()
-      });
+      }).returning('*');
 
       await trx.commit();
 
@@ -89,20 +97,19 @@ class CommissionService {
       await walletService.addBalance(
         wallet.id,
         partnerEarnings,
-        'deposit',
-        commissionId,
+        'commission',
+        paymentId,
         `Recebimento por serviço ${serviceType || 'realizado'}`
       );
 
-      // Atualizar comissão com ID da transação de saque
-      const updatedCommission = await this.getCommission(commissionId);
+      const updatedCommission = await this.getCommission(commissionRecord.id);
       
       // Notificar parceiro
       await this.sendNotification(partner.user_id, {
         title: '💰 Pagamento Recebido',
         body: `R$ ${partnerEarnings.toFixed(2)} creditados na sua carteira (comissão: ${calcRate.toFixed(0)}%)`,
         type: 'commission',
-        data: { commissionId, amount: partnerEarnings, commission: commission }
+        data: { commissionId: commissionRecord.id, amount: partnerEarnings, commission: commission }
       });
 
       return updatedCommission;
@@ -191,8 +198,8 @@ class CommissionService {
           db.raw('SUM(platform_commission) as total_platform_commission'),
           db.raw('SUM(partner_earnings) as total_partner_earnings'),
           db.raw('AVG(commission_rate) as avg_commission_rate'),
-          db.raw('COUNT(CASE WHEN status = "processed" THEN 1 END) as processed_commissions'),
-          db.raw('COUNT(CASE WHEN status = "paid" THEN 1 END) as paid_commissions')
+          db.raw("COUNT(CASE WHEN status = 'processed' THEN 1 END) as processed_commissions"),
+          db.raw("COUNT(CASE WHEN status = 'paid' THEN 1 END) as paid_commissions")
         )
         .first();
 
@@ -220,14 +227,14 @@ class CommissionService {
       }
 
       // Se já foi paga, debitar da carteira
-      if (commission.status === 'paid' && commission.withdrawal_transaction_id) {
+      if (commission.status === 'processed' || commission.status === 'paid') {
         const wallet = await walletService.getWalletByPartnerId(commission.partner_id);
         if (wallet) {
           await walletService.deductBalance(
             wallet.id,
             commission.partner_earnings,
-            'refund',
-            commissionId,
+            'adjustment',
+            null,
             `Reembolso: ${reason || 'Serviço cancelado'}`
           );
         }
@@ -265,4 +272,3 @@ class CommissionService {
 }
 
 module.exports = new CommissionService();
-

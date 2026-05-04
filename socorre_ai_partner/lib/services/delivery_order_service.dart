@@ -6,6 +6,7 @@ import 'auth_service.dart';
 
 class DeliveryOrderService {
   static String get baseUrl => AppConfig.baseUrl;
+  static String get _deliveryBasePath => '$baseUrl/api/delivery-orders';
 
   // Headers com autenticação
   static Future<Map<String, String>> get _authHeaders async {
@@ -21,7 +22,7 @@ class DeliveryOrderService {
     try {
       final headers = await _authHeaders;
       
-      String url = '$baseUrl/api/delivery-orders-new/motoboy';
+      String url = '$_deliveryBasePath/motoboy';
       if (status != null) {
         url += '?status=${status.toString().split('.').last}';
       }
@@ -53,7 +54,7 @@ class DeliveryOrderService {
     try {
       final headers = await _authHeaders;
       
-      String url = '$baseUrl/api/delivery-orders-new/available';
+      String url = '$_deliveryBasePath/available';
       url += '?latitude=$latitude&longitude=$longitude&radius=$radius';
       if (orderType != null) {
         url += '&order_type=${orderType.toString().split('.').last}';
@@ -82,7 +83,7 @@ class DeliveryOrderService {
       final headers = await _authHeaders;
       
       final response = await http.post(
-        Uri.parse('$baseUrl/api/delivery-orders-new/$orderId/accept'),
+        Uri.parse('$_deliveryBasePath/$orderId/accept'),
         headers: headers,
       );
 
@@ -103,7 +104,7 @@ class DeliveryOrderService {
       final headers = await _authHeaders;
       
       final response = await http.post(
-        Uri.parse('$baseUrl/api/delivery-orders-new/$orderId/start'),
+        Uri.parse('$_deliveryBasePath/$orderId/start'),
         headers: headers,
       );
 
@@ -124,7 +125,7 @@ class DeliveryOrderService {
       final headers = await _authHeaders;
       
       final response = await http.post(
-        Uri.parse('$baseUrl/api/delivery-orders-new/$orderId/in-transit'),
+        Uri.parse('$_deliveryBasePath/$orderId/in-transit'),
         headers: headers,
       );
 
@@ -150,7 +151,7 @@ class DeliveryOrderService {
       }
 
       final response = await http.post(
-        Uri.parse('$baseUrl/api/delivery-orders-new/$orderId/complete'),
+        Uri.parse('$_deliveryBasePath/$orderId/complete'),
         headers: headers,
         body: jsonEncode(body),
       );
@@ -177,7 +178,7 @@ class DeliveryOrderService {
       }
 
       final response = await http.post(
-        Uri.parse('$baseUrl/api/delivery-orders-new/$orderId/cancel'),
+        Uri.parse('$_deliveryBasePath/$orderId/cancel'),
         headers: headers,
         body: jsonEncode(body),
       );
@@ -204,7 +205,7 @@ class DeliveryOrderService {
       };
 
       final response = await http.post(
-        Uri.parse('$baseUrl/api/delivery-orders-new/$orderId/location'),
+        Uri.parse('$_deliveryBasePath/$orderId/location'),
         headers: headers,
         body: jsonEncode(body),
       );
@@ -226,7 +227,7 @@ class DeliveryOrderService {
       final headers = await _authHeaders;
       
       final response = await http.get(
-        Uri.parse('$baseUrl/api/delivery-orders-new/$orderId'),
+        Uri.parse('$_deliveryBasePath/$orderId'),
         headers: headers,
       );
 
@@ -249,7 +250,7 @@ class DeliveryOrderService {
       final headers = await _authHeaders;
       
       final response = await http.get(
-        Uri.parse('$baseUrl/api/delivery-orders-new/motoboy/stats'),
+        Uri.parse('$_deliveryBasePath/motoboy/stats'),
         headers: headers,
       );
 
@@ -315,7 +316,7 @@ class DeliveryOrderService {
     try {
       final headers = await _authHeaders;
       
-      String url = '$baseUrl/api/delivery-orders-new/motoboy/history?page=$page&limit=$limit';
+      String url = '$_deliveryBasePath/motoboy/history?page=$page&limit=$limit';
       if (startDate != null) {
         url += '&start_date=${startDate.toIso8601String()}';
       }

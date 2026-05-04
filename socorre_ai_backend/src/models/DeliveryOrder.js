@@ -1,4 +1,5 @@
 const knex = require('../config/database');
+const Review = require('./Review');
 
 class DeliveryOrder {
   // Criar nova ordem de entrega
@@ -192,7 +193,7 @@ class DeliveryOrder {
   }
 
   // Avaliar entrega
-  static async rate(id, rating, comment) {
+  static async rate(id, userId, rating, comment) {
     const [order] = await knex('delivery_orders')
       .where('id', id)
       .where('status', 'delivered')
@@ -204,9 +205,15 @@ class DeliveryOrder {
       })
       .returning('*');
     
-    // Atualizar rating do motoboy
     if (order && order.motoboy_id) {
-      await this.updateMotoboyRating(order.motoboy_id);
+      await Review.upsertOperationalReview({
+        user_id: userId,
+        partner_id: order.motoboy_id,
+        rating,
+        comment,
+        entity_type: 'delivery_order',
+        entity_id: order.id
+      });
     }
     
     return order;

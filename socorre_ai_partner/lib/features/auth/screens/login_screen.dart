@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/providers/auth_provider.dart';
+import '../../../../services/onboarding_flow_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -259,7 +260,7 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       
       if (success && mounted) {
-        context.go('/');
+        context.go(await OnboardingFlowService.resolveInitialRoute());
       }
     }
   }

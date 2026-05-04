@@ -31,13 +31,12 @@ class UploadService {
   // Upload de documentos do parceiro
   async uploadPartnerDocuments(partnerId: number, files: File[]): Promise<any> {
     const formData = new FormData();
-    formData.append('partnerId', partnerId.toString());
-    
+
     files.forEach((file) => {
       formData.append('documents', file);
     });
 
-    const response = await this.api.post('/uploads/partner-documents', formData, {
+    const response = await this.api.post(`/partners/${partnerId}/documents/upload`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -57,13 +56,13 @@ class UploadService {
       });
     }
 
-    const response = await this.api.get(`/uploads/partner-documents/list/${partnerId}?${params}`);
+    const response = await this.api.get(`/partners/${partnerId}/documents?${params}`);
     return response.data;
   }
 
   // Verificar documento (aprovar/rejeitar)
   async verifyDocument(documentId: number, status: 'approved' | 'rejected', rejectionReason?: string): Promise<any> {
-    const response = await this.api.put(`/uploads/partner-documents/${documentId}/verify`, {
+    const response = await this.api.put(`/partners/documents/admin/${documentId}/verify`, {
       status,
       rejection_reason: rejectionReason,
     });
@@ -73,7 +72,7 @@ class UploadService {
 
   // Download de documento
   async downloadDocument(documentId: number): Promise<Blob> {
-    const response = await this.api.get(`/uploads/partner-documents/${documentId}/download`, {
+    const response = await this.api.get(`/partners/documents/admin/${documentId}/download`, {
       responseType: 'blob',
     });
 
@@ -82,31 +81,31 @@ class UploadService {
 
   // Excluir documento
   async deleteDocument(documentId: number): Promise<any> {
-    const response = await this.api.delete(`/uploads/partner-documents/${documentId}`);
+    const response = await this.api.delete(`/partners/documents/admin/${documentId}`);
     return response.data;
   }
 
   // Verificar status de documentos de um parceiro
   async checkDocumentStatus(partnerId: number): Promise<any> {
-    const response = await this.api.get(`/uploads/partner-documents/${partnerId}/status`);
+    const response = await this.api.get(`/partners/${partnerId}/documents/status`);
     return response.data;
   }
 
   // Listar documentos pendentes de verificação (admin)
   async getPendingDocuments(limit: number = 50): Promise<any> {
-    const response = await this.api.get(`/uploads/partner-documents/pending?limit=${limit}`);
+    const response = await this.api.get(`/partners/documents/admin/pending?limit=${limit}`);
     return response.data;
   }
 
   // Obter estatísticas de documentos
   async getDocumentStats(partnerId: number): Promise<any> {
-    const response = await this.api.get(`/uploads/partner-documents/${partnerId}/stats`);
+    const response = await this.api.get(`/partners/${partnerId}/documents/stats`);
     return response.data;
   }
 
   // Adicionar metadados de verificação
   async addVerificationMetadata(documentId: number, metadata: any): Promise<any> {
-    const response = await this.api.post(`/uploads/partner-documents/${documentId}/metadata`, {
+    const response = await this.api.post(`/partners/documents/admin/${documentId}/metadata`, {
       metadata,
     });
 
@@ -115,7 +114,7 @@ class UploadService {
 
   // Criar URL para download do documento
   getDocumentDownloadUrl(documentId: number): string {
-    return `${API_BASE_URL}/uploads/partner-documents/${documentId}/download`;
+    return `${API_BASE_URL}/partners/documents/admin/${documentId}/download`;
   }
 }
 

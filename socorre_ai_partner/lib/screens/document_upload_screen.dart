@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../core/utils/partner_document_rules.dart';
+import '../core/utils/partner_type_utils.dart';
 import '../services/api_service.dart';
+import '../services/onboarding_flow_service.dart';
 import '../models/document_model.dart';
 
 class PartnerDocumentUploadScreen extends StatefulWidget {
@@ -18,223 +23,156 @@ class _PartnerDocumentUploadScreenState extends State<PartnerDocumentUploadScree
   bool _isLoading = false;
   final ImagePicker _imagePicker = ImagePicker();
 
-  // Documentos obrigatórios por tipo de parceiro
+  String get _normalizedPartnerType => PartnerTypeUtils.normalize(widget.partnerType);
+
   List<RequiredDocument> get _requiredDocuments {
-    switch (widget.partnerType) {
-      case 'mechanic':
-        return [
-          RequiredDocument(
-            type: 'rg_cpf',
-            title: 'RG ou CPF',
-            description: 'Documento de identidade com foto',
-            required: true,
+    return PartnerDocumentRules.getAll(_normalizedPartnerType)
+        .map(
+          (document) => RequiredDocument(
+            type: document.type,
+            title: document.title,
+            description: document.description,
+            required: document.required,
           ),
-          RequiredDocument(
-            type: 'cnh',
-            title: 'CNH',
-            description: 'Carteira Nacional de Habilitação',
-            required: true,
-          ),
-          RequiredDocument(
-            type: 'residence_proof',
-            title: 'Comprovante de Residência',
-            description: 'Conta de luz, água ou telefone',
-            required: true,
-          ),
-          RequiredDocument(
-            type: 'certification',
-            title: 'Certificados Técnicos',
-            description: 'Certificados de especialização (opcional)',
-            required: false,
-          ),
-          RequiredDocument(
-            type: 'workshop_photos',
-            title: 'Fotos da Oficina',
-            description: 'Fotos do ambiente de trabalho',
-            required: false,
-          ),
-        ];
-      
-      case 'motoboy':
-        return [
-          RequiredDocument(
-            type: 'rg_cpf',
-            title: 'RG ou CPF',
-            description: 'Documento de identidade com foto',
-            required: true,
-          ),
-          RequiredDocument(
-            type: 'cnh',
-            title: 'CNH',
-            description: 'Carteira Nacional de Habilitação (A ou AB)',
-            required: true,
-          ),
-          RequiredDocument(
-            type: 'crlv',
-            title: 'CRLV',
-            description: 'Certificado de Registro e Licenciamento do Veículo',
-            required: true,
-          ),
-          RequiredDocument(
-            type: 'residence_proof',
-            title: 'Comprovante de Residência',
-            description: 'Conta de luz, água ou telefone',
-            required: true,
-          ),
-          RequiredDocument(
-            type: 'vehicle_photos',
-            title: 'Fotos da Moto',
-            description: 'Fotos do veículo (frente, lateral, traseira)',
-            required: false,
-          ),
-        ];
-      
-      case 'tow':
-        return [
-          RequiredDocument(
-            type: 'rg_cpf',
-            title: 'RG ou CPF',
-            description: 'Documento de identidade com foto',
-            required: true,
-          ),
-          RequiredDocument(
-            type: 'cnh',
-            title: 'CNH',
-            description: 'Carteira Nacional de Habilitação (C, D ou E)',
-            required: true,
-          ),
-          RequiredDocument(
-            type: 'crlv',
-            title: 'CRLV',
-            description: 'Certificado de Registro e Licenciamento do Veículo',
-            required: true,
-          ),
-          RequiredDocument(
-            type: 'residence_proof',
-            title: 'Comprovante de Residência',
-            description: 'Conta de luz, água ou telefone',
-            required: true,
-          ),
-          RequiredDocument(
-            type: 'insurance_policy',
-            title: 'Apólice de Seguro',
-            description: 'Seguro do veículo (opcional)',
-            required: false,
-          ),
-          RequiredDocument(
-            type: 'tow_photos',
-            title: 'Fotos do Guincho',
-            description: 'Fotos do equipamento',
-            required: false,
-          ),
-        ];
-      
-      case 'gas_station':
-        return [
-          RequiredDocument(
-            type: 'rg_cpf',
-            title: 'RG ou CPF',
-            description: 'Documento de identidade com foto',
-            required: true,
-          ),
-          RequiredDocument(
-            type: 'cnpj',
-            title: 'CNPJ',
-            description: 'Cadastro Nacional da Pessoa Jurídica',
-            required: true,
-          ),
-          RequiredDocument(
-            type: 'business_license',
-            title: 'Alvará de Funcionamento',
-            description: 'Licença municipal de funcionamento',
-            required: true,
-          ),
-          RequiredDocument(
-            type: 'environmental_license',
-            title: 'Licença Ambiental',
-            description: 'Licença ambiental (se aplicável)',
-            required: false,
-          ),
-          RequiredDocument(
-            type: 'fire_safety',
-            title: 'Alvará do Corpo de Bombeiros',
-            description: 'Certificado de segurança',
-            required: false,
-          ),
-          RequiredDocument(
-            type: 'station_photos',
-            title: 'Fotos do Posto',
-            description: 'Fotos do estabelecimento',
-            required: false,
-          ),
-        ];
-      
-      case 'auto_parts':
-        return [
-          RequiredDocument(
-            type: 'rg_cpf',
-            title: 'RG ou CPF',
-            description: 'Documento de identidade com foto',
-            required: true,
-          ),
-          RequiredDocument(
-            type: 'cnpj',
-            title: 'CNPJ',
-            description: 'Cadastro Nacional da Pessoa Jurídica',
-            required: true,
-          ),
-          RequiredDocument(
-            type: 'business_license',
-            title: 'Alvará de Funcionamento',
-            description: 'Licença municipal de funcionamento',
-            required: true,
-          ),
-          RequiredDocument(
-            type: 'store_photos',
-            title: 'Fotos da Loja',
-            description: 'Fotos do estabelecimento',
-            required: false,
-          ),
-          RequiredDocument(
-            type: 'inventory_photos',
-            title: 'Fotos do Estoque',
-            description: 'Fotos dos produtos',
-            required: false,
-          ),
-        ];
-      
-      default:
-        return [];
-    }
+        )
+        .toList();
   }
 
   @override
   void initState() {
     super.initState();
-    _requestPermissions();
+    _loadExistingDocuments();
   }
 
-  Future<void> _requestPermissions() async {
-    final permissions = [
-      Permission.camera,
-      Permission.storage,
-    ];
+  void _setUploadedDocuments(List<PartnerDocument> documents) {
+    final documentsByType = <String, PartnerDocument>{};
+    for (final document in documents) {
+      documentsByType[PartnerDocumentRules.normalizeDocumentType(document.documentType)] = document;
+    }
 
-    final status = await permissions.request();
-    
-    if (status[Permission.camera] != PermissionStatus.granted ||
-        status[Permission.storage] != PermissionStatus.granted) {
-      _showPermissionDialog();
+    _uploadedDocuments
+      ..clear()
+      ..addAll(documentsByType.values);
+  }
+
+  int get _uploadedRequiredCount {
+    final uploadedTypes = _uploadedDocuments
+        .map((document) => PartnerDocumentRules.normalizeDocumentType(document.documentType))
+        .toSet();
+
+    return _requiredDocuments
+        .where((document) => uploadedTypes.contains(document.type))
+        .length;
+  }
+
+  Future<void> _loadExistingDocuments() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final statusResponse = await ApiService.getPartnerOnboardingStatus();
+      if (!mounted) return;
+
+      if (!statusResponse['success']) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              statusResponse['message'] ?? 'Não foi possível verificar o estágio do onboarding',
+            ),
+          ),
+        );
+        return;
+      }
+
+      final onboardingData = statusResponse['data'] as Map<String, dynamic>;
+      final onboardingStage = onboardingData['onboardingStage'] as String? ?? '';
+
+      if (onboardingStage != 'under_review' && onboardingStage != 'approved') {
+        setState(() {
+          _uploadedDocuments.clear();
+        });
+        return;
+      }
+
+      final response = await ApiService.getPartnerDocuments();
+      if (!mounted) return;
+
+      if (response['success']) {
+        final data = response['data'] as Map<String, dynamic>;
+        final documents = (data['documents'] as List<dynamic>? ?? [])
+            .map((item) => PartnerDocument.fromJson(item as Map<String, dynamic>))
+            .toList();
+
+        setState(() {
+          _setUploadedDocuments(documents);
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              response['message'] ?? 'Não foi possível recarregar os documentos já enviados',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
-  void _showPermissionDialog() {
+  Future<bool> _ensureCameraPermission() async {
+    final status = await Permission.camera.request();
+    if (status.isGranted) {
+      return true;
+    }
+
+    if (mounted) {
+      _showPermissionDialog(forCamera: true);
+    }
+    return false;
+  }
+
+  Future<bool> _ensureGalleryPermission() async {
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      final photosStatus = await Permission.photos.request();
+      if (photosStatus.isGranted || photosStatus.isLimited) {
+        return true;
+      }
+
+      final storageStatus = await Permission.storage.request();
+      if (storageStatus.isGranted) {
+        return true;
+      }
+
+      if (mounted) {
+        _showPermissionDialog(forCamera: false);
+      }
+      return false;
+    }
+
+    final photosStatus = await Permission.photos.request();
+    if (photosStatus.isGranted || photosStatus.isLimited) {
+      return true;
+    }
+
+    if (mounted) {
+      _showPermissionDialog(forCamera: false);
+    }
+    return false;
+  }
+
+  void _showPermissionDialog({required bool forCamera}) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
           title: Text('Permissões Necessárias'),
-          content: Text('Para enviar documentos, precisamos acessar sua câmera e armazenamento.'),
+          content: Text(
+            forCamera
+                ? 'Para tirar a foto do documento, precisamos acessar sua câmera.'
+                : 'Para escolher um documento da galeria, precisamos acessar suas fotos.',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
@@ -255,6 +193,11 @@ class _PartnerDocumentUploadScreenState extends State<PartnerDocumentUploadScree
 
   Future<void> _pickImage(RequiredDocument document) async {
     try {
+      final hasPermission = await _ensureGalleryPermission();
+      if (!hasPermission) {
+        return;
+      }
+
       final XFile? image = await _imagePicker.pickImage(
         source: ImageSource.gallery,
         maxWidth: 1920,
@@ -267,13 +210,18 @@ class _PartnerDocumentUploadScreenState extends State<PartnerDocumentUploadScree
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Erro ao selecionar imagem')),
+        SnackBar(content: Text('Erro ao selecionar imagem: $e')),
       );
     }
   }
 
   Future<void> _takePhoto(RequiredDocument document) async {
     try {
+      final hasPermission = await _ensureCameraPermission();
+      if (!hasPermission) {
+        return;
+      }
+
       final XFile? photo = await _imagePicker.pickImage(
         source: ImageSource.camera,
         maxWidth: 1920,
@@ -286,7 +234,7 @@ class _PartnerDocumentUploadScreenState extends State<PartnerDocumentUploadScree
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Erro ao tirar foto')),
+        SnackBar(content: Text('Erro ao tirar foto: $e')),
       );
     }
   }
@@ -298,12 +246,15 @@ class _PartnerDocumentUploadScreenState extends State<PartnerDocumentUploadScree
       final response = await ApiService.uploadPartnerDocument(
         file: file,
         documentType: document.type,
-        partnerType: widget.partnerType,
+        partnerType: _normalizedPartnerType,
       );
 
       if (response['success']) {
         final newDocument = PartnerDocument.fromJson(response['data']);
         setState(() {
+          _uploadedDocuments.removeWhere(
+            (document) => PartnerDocumentRules.matchesType(document.documentType, newDocument.documentType),
+          );
           _uploadedDocuments.add(newDocument);
         });
         
@@ -317,7 +268,7 @@ class _PartnerDocumentUploadScreenState extends State<PartnerDocumentUploadScree
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Erro ao enviar documento')),
+        SnackBar(content: Text('Erro ao enviar documento: $e')),
       );
     } finally {
       setState(() => _isLoading = false);
@@ -352,7 +303,7 @@ class _PartnerDocumentUploadScreenState extends State<PartnerDocumentUploadScree
     for (final doc in _requiredDocuments) {
       if (doc.required) {
         final hasDocument = _uploadedDocuments.any(
-          (uploaded) => uploaded.documentType == doc.type,
+          (uploaded) => PartnerDocumentRules.matchesType(uploaded.documentType, doc.type),
         );
         if (!hasDocument) return false;
       }
@@ -372,7 +323,7 @@ class _PartnerDocumentUploadScreenState extends State<PartnerDocumentUploadScree
 
     try {
       final response = await ApiService.submitDocumentsForVerification(
-        partnerType: widget.partnerType,
+        partnerType: _normalizedPartnerType,
         documentIds: _uploadedDocuments.map((doc) => doc.id).toList(),
       );
 
@@ -381,8 +332,9 @@ class _PartnerDocumentUploadScreenState extends State<PartnerDocumentUploadScree
           const SnackBar(content: Text('Documentos enviados para verificação')),
         );
 
-        // Navegar para tela de status
-        Navigator.of(context).pushNamed('/document-status');
+        if (mounted) {
+          context.go(OnboardingFlowService.pendingReviewRoute);
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(response['message'] ?? 'Erro ao enviar para verificação')),
@@ -411,7 +363,7 @@ class _PartnerDocumentUploadScreenState extends State<PartnerDocumentUploadScree
           // Header informativo
           Container(
             padding: EdgeInsets.all(16),
-            color: _getPrimaryColor().withOpacity(0.1),
+            color: _getPrimaryColor().withValues(alpha: 0.1),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -428,18 +380,18 @@ class _PartnerDocumentUploadScreenState extends State<PartnerDocumentUploadScree
                   'Complete seu cadastro como ${_getPartnerTypeName()}',
                   style: TextStyle(
                     fontSize: 14,
-                    color: _getPrimaryColor().withOpacity(0.8),
+                    color: _getPrimaryColor().withValues(alpha: 0.8),
                   ),
                 ),
                 SizedBox(height: 12),
                 LinearProgressIndicator(
-                  value: _uploadedDocuments.length / _requiredDocuments.length,
+                  value: _requiredDocuments.isEmpty ? 0 : _uploadedRequiredCount / _requiredDocuments.length,
                   backgroundColor: Colors.white,
                   valueColor: AlwaysStoppedAnimation<Color>(_getPrimaryColor()),
                 ),
                 SizedBox(height: 8),
                 Text(
-                  '${_uploadedDocuments.length} de ${_requiredDocuments.length} documentos enviados',
+                  '$_uploadedRequiredCount de ${_requiredDocuments.length} documentos enviados',
                   style: TextStyle(
                     fontSize: 12,
                     color: _getPrimaryColor(),
@@ -459,7 +411,7 @@ class _PartnerDocumentUploadScreenState extends State<PartnerDocumentUploadScree
                     itemBuilder: (context, index) {
                       final document = _requiredDocuments[index];
                       final uploadedDoc = _uploadedDocuments
-                          .where((doc) => doc.documentType == document.type)
+                          .where((doc) => PartnerDocumentRules.matchesType(doc.documentType, document.type))
                           .firstOrNull;
                       
                       return _buildDocumentCard(document, uploadedDoc);
@@ -469,29 +421,84 @@ class _PartnerDocumentUploadScreenState extends State<PartnerDocumentUploadScree
           
           // Botões de ação
           Container(
-            padding: EdgeInsets.all(16),
-            child: Column(
-              children: [
-                if (_areAllRequiredDocumentsUploaded())
-                  ElevatedButton.icon(
-                    onPressed: _submitForVerification,
-                    icon: Icon(Icons.send),
-                    label: Text('Enviar para Verificação'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _getPrimaryColor(),
-                      padding: EdgeInsets.symmetric(vertical: 16),
+            padding: EdgeInsets.fromLTRB(16, 8, 16, 20),
+            child: _areAllRequiredDocumentsUploaded()
+                ? Container(
+                    width: double.infinity,
+                    padding: EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: _getPrimaryColor().withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: _getPrimaryColor().withValues(alpha: 0.18),
+                      ),
                     ),
-                  ),
-                SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).pushNamed('/dashboard');
-                  },
-                  icon: Icon(Icons.skip_next),
-                  label: Text('Pular por Agora'),
-                ),
-              ],
-            ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: _getPrimaryColor().withValues(alpha: 0.14),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                Icons.verified_outlined,
+                                color: _getPrimaryColor(),
+                              ),
+                            ),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Tudo pronto para análise',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: _getPrimaryColor(),
+                                    ),
+                                  ),
+                                  SizedBox(height: 2),
+                                  Text(
+                                    'Seus documentos obrigatórios foram enviados. Agora finalize esta etapa.',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[700],
+                                      height: 1.35,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: _submitForVerification,
+                            icon: Icon(Icons.send_rounded),
+                            label: Text('Enviar para Verificação'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _getPrimaryColor(),
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : SizedBox.shrink(),
           ),
         ],
       ),
@@ -541,7 +548,7 @@ class _PartnerDocumentUploadScreenState extends State<PartnerDocumentUploadScree
                   Container(
                     padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: _getPrimaryColor().withOpacity(0.2),
+                      color: _getPrimaryColor().withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
@@ -659,7 +666,7 @@ class _PartnerDocumentUploadScreenState extends State<PartnerDocumentUploadScree
   }
 
   Color _getPrimaryColor() {
-    switch (widget.partnerType) {
+    switch (_normalizedPartnerType) {
       case 'mechanic':
         return Colors.red.shade600;
       case 'motoboy':
@@ -676,7 +683,7 @@ class _PartnerDocumentUploadScreenState extends State<PartnerDocumentUploadScree
   }
 
   String _getPartnerTypeName() {
-    switch (widget.partnerType) {
+    switch (_normalizedPartnerType) {
       case 'mechanic':
         return 'Mecânico';
       case 'motoboy':

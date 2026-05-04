@@ -1,4 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import '../core/utils/partner_type_utils.dart';
 
 class PartnerTypeService {
   static const String _partnerTypeKey = 'partner_type';
@@ -6,7 +7,7 @@ class PartnerTypeService {
   // Salvar tipo de parceiro selecionado
   static Future<void> savePartnerType(String partnerType) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_partnerTypeKey, partnerType);
+    await prefs.setString(_partnerTypeKey, PartnerTypeUtils.normalize(partnerType));
   }
   
   // Obter tipo de parceiro salvo
@@ -29,7 +30,7 @@ class PartnerTypeService {
   
   // Obter informações do tipo de parceiro
   static Map<String, dynamic> getPartnerTypeInfo(String partnerType) {
-    switch (partnerType) {
+    switch (PartnerTypeUtils.normalize(partnerType)) {
       case 'mechanic':
         return {
           'name': 'Mecânico',
@@ -43,17 +44,17 @@ class PartnerTypeService {
             'Diagnóstico técnico'
           ]
         };
-      case 'store':
+      case 'gas_station':
         return {
-          'name': 'Lojista',
+          'name': 'Posto de Combustível',
           'icon': 'store',
           'color': 0xFF38A169,
-          'description': 'Venda de peças e acessórios',
+          'description': 'Venda de combustível e serviços automotivos',
           'features': [
-            'Catálogo de produtos',
-            'Gestão de estoque',
-            'Vendas online',
-            'Entrega de produtos'
+            'Combustível e conveniência',
+            'Pedidos de delivery',
+            'Gestão de serviços',
+            'Atendimento ampliado'
           ]
         };
       case 'motoboy':
@@ -67,6 +68,32 @@ class PartnerTypeService {
             'Entrega de peças',
             'Serviços expressos',
             'Cobertura ampla'
+          ]
+        };
+      case 'auto_parts':
+        return {
+          'name': 'Auto Peças',
+          'icon': 'store',
+          'color': 0xFF2F855A,
+          'description': 'Venda de peças e acessórios',
+          'features': [
+            'Catálogo de produtos',
+            'Gestão de estoque',
+            'Vendas online',
+            'Entrega de produtos'
+          ]
+        };
+      case 'tow':
+        return {
+          'name': 'Guincho',
+          'icon': 'local_taxi',
+          'color': 0xFF805AD5,
+          'description': 'Serviços de reboque e remoção',
+          'features': [
+            'Atendimento de emergência',
+            'Cobertura por região',
+            'Propostas para clientes',
+            'Operação 24 horas'
           ]
         };
       default:
@@ -84,7 +111,9 @@ class PartnerTypeService {
   static List<Map<String, dynamic>> getAllPartnerTypes() {
     return [
       getPartnerTypeInfo('mechanic'),
-      getPartnerTypeInfo('store'),
+      getPartnerTypeInfo('gas_station'),
+      getPartnerTypeInfo('auto_parts'),
+      getPartnerTypeInfo('tow'),
       getPartnerTypeInfo('motoboy'),
     ];
   }

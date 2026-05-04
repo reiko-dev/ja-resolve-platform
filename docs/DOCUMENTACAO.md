@@ -109,12 +109,28 @@ Implementação ativa em `src/routes/emergency-requests.js`:
 - Cliente (`user`): `POST /`, `GET /:id/proposals`, `POST /:id/accept-proposal`
 - Parceiro: `POST /:id/accept`
 
-No repositório existem também `emergency-requests-old.js` e `emergency-requests-new.js` com conjuntos maiores de rotas (histórico de evolução da API); **apenas** o arquivo acima é carregado pelo servidor.
+O bootstrap principal já foi consolidado para esta trilha oficial; aliases antigos de emergência foram removidos do runtime.
 
-#### Pedidos de entrega (modelo legado por perfil) — `/api/delivery-orders`
+#### Pedidos de entrega — `/api/delivery-orders`
 
-- Por usuário, criação, atualização de status, avaliação
-- Por motoboy, listagens administrativas, estatísticas, CRUD por id
+- `POST /`
+- `GET /customer`
+- `GET /store`
+- `GET /motoboy`
+- `GET /available`
+- `POST /:id/accept`
+- `POST /:id/start`
+- `POST /:id/pickup`
+- `POST /:id/in-transit`
+- `POST /:id/complete`
+- `POST /:id/cancel`
+- `POST /:id/location`
+- `PATCH /:id/location`
+- `POST /:id/rate`
+- `GET /motoboy/stats`
+- `GET /motoboy/history`
+- `GET /stats`
+- `GET /:id`
 
 #### Pedidos de compra — `/api/purchase-orders`
 
@@ -131,10 +147,6 @@ No repositório existem também `emergency-requests-old.js` e `emergency-request
 - Ações: aceitar, rejeitar, retirar proposta, incremento de visualizações
 - Listagem geral, expirando, expirar por emergência, estatísticas
 
-#### Entregas (fluxo “novo”) — `/api/delivery-orders-new`
-
-- `POST /`, `GET /customer`, `POST /:id/accept`, `POST /:id/complete`, `GET /stats`
-
 #### Produtos — `/api/products`
 
 - CRUD completo, busca por SKU, loja, categoria, combustíveis, autopeças, destaque, similar, estoque, ativo, disponibilidade, estatísticas
@@ -145,11 +157,23 @@ No repositório existem também `emergency-requests-old.js` e `emergency-request
 - Endpoints especializados: guincho, assinatura, delivery
 - Upsert, update, delete, reset, export/import, validação, `PATCH /batch`
 
-#### Documentos de parceiros — `/api/documents`
+#### Documentos de parceiros — `/api/partners/documents` e `/api/partners/:partnerId/documents*`
 
-- Upload múltiplo por parceiro, listagem, download, exclusão
-- Admin: verificação, pendentes, metadados
-- Status e estatísticas por parceiro
+- Parceiro autenticado:
+  - `GET /api/partners/documents`
+  - `POST /api/partners/documents/upload`
+  - `POST /api/partners/documents/submit`
+  - `DELETE /api/partners/documents/:documentId`
+- Admin / backoffice:
+  - `GET /api/partners/documents/admin/pending`
+  - `PUT /api/partners/documents/admin/:documentId/verify`
+  - `GET /api/partners/documents/admin/:documentId/download`
+  - `DELETE /api/partners/documents/admin/:documentId`
+  - `POST /api/partners/documents/admin/:documentId/metadata`
+  - `GET /api/partners/:partnerId/documents`
+  - `GET /api/partners/:partnerId/documents/status`
+  - `GET /api/partners/:partnerId/documents/stats`
+  - `POST /api/partners/:partnerId/documents/upload`
 
 #### Upload genérico — `/api/upload`
 
@@ -174,9 +198,7 @@ No repositório existem também `emergency-requests-old.js` e `emergency-request
 
 - Abertura, listagem, resposta, resolução (admin)
 
-#### Uploads (rotas adicionais) — `/api/uploads`
-
-- Conjunto de rotas espelhando operações de documentos de parceiro (`partner-documents`).
+As trilhas legadas `/api/documents` e `/api/uploads` já foram removidas do runtime principal.
 
 ### 3.4 Camada de aplicação (resumo)
 
@@ -383,5 +405,4 @@ Menu lateral espelha essa ordem em `components/Layout.tsx`.
 | Testes backend | `socorre_ai_backend/tests/` |
 
 ---
-
 

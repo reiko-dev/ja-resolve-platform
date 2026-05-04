@@ -1,6 +1,140 @@
 const knex = require('../config/database');
+const Review = require('./Review');
+
+const REQUEST_TYPE_ALIASES = {
+  mechanic: 'mechanic',
+  mecanico: 'mechanic',
+  tow: 'tow',
+  guincho: 'tow',
+};
+
+function normalizeRequestType(requestType) {
+  return REQUEST_TYPE_ALIASES[requestType] || requestType || 'mechanic';
+}
 
 class EmergencyRequest {
+  static parseJsonField(value, fallback = null) {
+    if (!value) return fallback;
+    if (typeof value === 'object') return value;
+
+    try {
+      return JSON.parse(value);
+    } catch (error) {
+      return fallback;
+    }
+  }
+
+  static calculateDistanceKm(lat1, lon1, lat2, lon2) {
+    const numeric = [lat1, lon1, lat2, lon2].map(value => parseFloat(value));
+    if (numeric.some(value => Number.isNaN(value))) {
+      return null;
+    }
+
+    const [originLat, originLon, destLat, destLon] = numeric;
+    const toRadians = degrees => (degrees * Math.PI) / 180;
+    const earthRadiusKm = 6371;
+    const deltaLat = toRadians(destLat - originLat);
+    const deltaLon = toRadians(destLon - originLon);
+    const originLatRad = toRadians(originLat);
+    const destLatRad = toRadians(destLat);
+
+    const haversine =
+      Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
+      Math.cos(originLatRad) *
+        Math.cos(destLatRad) *
+        Math.sin(deltaLon / 2) *
+        Math.sin(deltaLon / 2);
+
+    const distance = 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+    return earthRadiusKm * distance;
+  }
+
+  static async getTowPricingSettings() {
+    const settings = await knex('system_settings')
+      .whereIn('setting_key', [
+        'tow_price_per_km',
+        'tow_platform_fixed_fee',
+        'tow_minimum_charge',
+        'tow_cancellation_fee'
+      ]);
+
+    const asMap = Object.fromEntries(settings.map(setting => [setting.setting_key, parseFloat(setting.setting_value)]));
+
+    return {
+      tow_price_per_km: asMap.tow_price_per_km ?? 6,
+      tow_platform_fixed_fee: asMap.tow_platform_fixed_fee ?? 25,
+      tow_minimum_charge: asMap.tow_minimum_charge ?? 90,
+      tow_cancellation_fee: asMap.tow_cancellation_fee ?? 40,
+    };
+  }
+
+  static async calculateTowEstimate(requestData) {
+    const pricing = await this.getTowPricingSettings();
+
+    const originLatitude = requestData.vehicle_origin_latitude ?? requestData.latitude;
+    const originLongitude = requestData.vehicle_origin_longitude ?? requestData.longitude;
+    const destinationLatitude = requestData.vehicle_destination_latitude ?? originLatitude;
+    const destinationLongitude = requestData.vehicle_destination_longitude ?? originLongitude;
+
+    const operationalDistanceKm = this.calculateDistanceKm(
+      originLatitude,
+      originLongitude,
+      destinationLatitude,
+      destinationLongitude
+    );
+
+    const normalizedDistance = operationalDistanceKm ? Number(operationalDistanceKm.toFixed(2)) : 0;
+    const distanceCharge = Number((normalizedDistance * pricing.tow_price_per_km).toFixed(2));
+    const subtotal = Number((distanceCharge + pricing.tow_platform_fixed_fee).toFixed(2));
+    const total = Math.max(subtotal, pricing.tow_minimum_charge);
+
+    return {
+      operational_distance_km: normalizedDistance,
+      tow_price_per_km: pricing.tow_price_per_km,
+      platform_fixed_fee: pricing.tow_platform_fixed_fee,
+      minimum_charge: pricing.tow_minimum_charge,
+      cancellation_fee: pricing.tow_cancellation_fee,
+      distance_charge: distanceCharge,
+      subtotal,
+      total_estimated_price: Number(total.toFixed(2)),
+      minimum_applied: total > subtotal,
+      pricing_source: 'system_settings'
+    };
+  }
+
+  static async validateTowProposalPrice(emergencyRequestId, proposedPrice) {
+    const request = await knex('emergency_requests')
+      .select('price_breakdown')
+      .where('id', emergencyRequestId)
+      .first();
+
+    if (!request?.price_breakdown) {
+      return { valid: true, minimumAcceptedPrice: null };
+    }
+
+    let breakdown = null;
+    try {
+      breakdown = typeof request.price_breakdown === 'object'
+        ? request.price_breakdown
+        : JSON.parse(request.price_breakdown);
+    } catch (error) {
+      breakdown = null;
+    }
+
+    const minimumAcceptedPrice = parseFloat(
+      breakdown?.total_estimated_price ?? breakdown?.minimum_charge ?? 0
+    );
+
+    if (!minimumAcceptedPrice) {
+      return { valid: true, minimumAcceptedPrice: null };
+    }
+
+    return {
+      valid: parseFloat(proposedPrice) >= minimumAcceptedPrice,
+      minimumAcceptedPrice
+    };
+  }
+
   // Criar nova solicitação de emergência
   static async create(requestData) {
     const [request] = await knex('emergency_requests').insert(requestData).returning('*');
@@ -89,26 +223,33 @@ class EmergencyRequest {
 
   // Buscar solicitações próximas (para parceiros)
   static async findNearby(latitude, longitude, radius = 15, type = null) {
+    const distanceExpression = `
+      6371 * acos(
+        cos(radians(?)) * cos(radians(latitude)) * 
+        cos(radians(longitude) - radians(?)) + 
+        sin(radians(?)) * sin(radians(latitude))
+      )
+    `;
+
     let query = knex('emergency_requests')
       .select(
         'emergency_requests.*',
         'users.name as user_name',
         'users.phone as user_phone',
-        knex.raw(`
-          6371 * acos(
-            cos(radians(?)) * cos(radians(latitude)) * 
-            cos(radians(longitude) - radians(?)) + 
-            sin(radians(?)) * sin(radians(latitude))
-          ) AS distance
-        `, [latitude, longitude, latitude])
+        knex.raw(`${distanceExpression} AS distance`, [latitude, longitude, latitude])
       )
       .join('users', 'emergency_requests.user_id', 'users.id')
       .where('emergency_requests.status', 'pending')
-      .having('distance', '<=', radius)
+      .whereRaw(`${distanceExpression} <= ?`, [latitude, longitude, latitude, radius])
       .orderBy('distance');
 
+    const normalizedType = normalizeRequestType(type);
     if (type) {
-      query = query.where('emergency_requests.type', type);
+      if (normalizedType === 'tow' || normalizedType === 'mechanic') {
+        query = query.where('emergency_requests.request_type', normalizedType);
+      } else {
+        query = query.where('emergency_requests.type', type);
+      }
     }
 
     return await query;
@@ -119,7 +260,7 @@ class EmergencyRequest {
     const [request] = await knex('emergency_requests')
       .where('id', id)
       .where('status', 'pending')
-      .where('request_type', 'mecanico') // Apenas mecânicos podem aceitar direto
+      .where('request_type', 'mechanic') // Apenas mecânicos podem aceitar direto
       .update({
         partner_id: partnerId,
         status: 'accepted',
@@ -182,7 +323,7 @@ class EmergencyRequest {
   }
 
   // Avaliar serviço
-  static async rate(id, rating, comment) {
+  static async rate(id, userId, rating, comment) {
     const [request] = await knex('emergency_requests')
       .where('id', id)
       .where('status', 'completed')
@@ -194,9 +335,15 @@ class EmergencyRequest {
       })
       .returning('*');
     
-    // Atualizar rating do parceiro
     if (request && request.partner_id) {
-      await this.updatePartnerRating(request.partner_id);
+      await Review.upsertOperationalReview({
+        user_id: userId,
+        partner_id: request.partner_id,
+        rating,
+        comment,
+        entity_type: 'emergency_request',
+        entity_id: request.id
+      });
     }
     
     return request;
@@ -295,15 +442,17 @@ class EmergencyRequest {
     const stats = await knex('emergency_requests')
       .select(
         knex.raw('COUNT(*) as total'),
-        knex.raw('COUNT(CASE WHEN status = "pending" THEN 1 END) as pending'),
-        knex.raw('COUNT(CASE WHEN status = "accepted" THEN 1 END) as accepted'),
-        knex.raw('COUNT(CASE WHEN status = "in_progress" THEN 1 END) as in_progress'),
-        knex.raw('COUNT(CASE WHEN status = "completed" THEN 1 END) as completed'),
-        knex.raw('COUNT(CASE WHEN status = "cancelled" THEN 1 END) as cancelled'),
-        knex.raw('COUNT(CASE WHEN type = "mechanical" THEN 1 END) as mechanical'),
-        knex.raw('COUNT(CASE WHEN type = "fuel" THEN 1 END) as fuel'),
-        knex.raw('COUNT(CASE WHEN type = "tire" THEN 1 END) as tire'),
-        knex.raw('COUNT(CASE WHEN type = "battery" THEN 1 END) as battery'),
+        knex.raw(`COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending`),
+        knex.raw(`COUNT(CASE WHEN status = 'accepted' THEN 1 END) as accepted`),
+        knex.raw(`COUNT(CASE WHEN status = 'in_progress' THEN 1 END) as in_progress`),
+        knex.raw(`COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed`),
+        knex.raw(`COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled`),
+        knex.raw(`COUNT(CASE WHEN type = 'mechanical' THEN 1 END) as mechanical`),
+        knex.raw(`COUNT(CASE WHEN type = 'fuel' THEN 1 END) as fuel`),
+        knex.raw(`COUNT(CASE WHEN type = 'tire' THEN 1 END) as tire`),
+        knex.raw(`COUNT(CASE WHEN type = 'battery' THEN 1 END) as battery`),
+        knex.raw(`COUNT(CASE WHEN request_type = 'mechanic' THEN 1 END) as mechanic_requests`),
+        knex.raw(`COUNT(CASE WHEN request_type = 'tow' THEN 1 END) as tow_requests`),
         knex.raw('AVG(CASE WHEN final_price IS NOT NULL THEN final_price END) as avg_price')
       )
       .first();
@@ -319,29 +468,63 @@ class EmergencyRequest {
     const proposalExpiryMinutes = await this.getProposalExpiryMinutes();
     const maxProposals = await this.getMaxProposals();
     const searchRadius = await this.getSearchRadius('guincho');
+    const towEstimate = await this.calculateTowEstimate(requestData);
     
     const proposalDeadline = new Date();
     proposalDeadline.setMinutes(proposalDeadline.getMinutes() + proposalExpiryMinutes);
 
     const [request] = await knex('emergency_requests').insert({
       ...requestData,
-      request_type: 'guincho',
+      request_type: 'tow',
       proposal_status: 'awaiting_proposals',
       proposal_selection_deadline: proposalDeadline,
       max_proposals: maxProposals,
-      search_radius_km: searchRadius
+      proposals_received: 0,
+      search_radius_km: searchRadius,
+      estimated_price: towEstimate.total_estimated_price,
+      price_breakdown: JSON.stringify(towEstimate)
     }).returning('*');
 
     return request;
   }
 
+  static async syncPaymentState(emergencyRequestId, paymentData = {}, section = 'payment') {
+    const request = await knex('emergency_requests')
+      .select('id', 'price_breakdown')
+      .where('id', emergencyRequestId)
+      .first();
+
+    if (!request) {
+      return null;
+    }
+
+    const priceBreakdown = this.parseJsonField(request.price_breakdown, {}) || {};
+    const mergedPriceBreakdown = {
+      ...priceBreakdown,
+      [section]: {
+        ...(priceBreakdown[section] || {}),
+        ...paymentData
+      }
+    };
+
+    const [updated] = await knex('emergency_requests')
+      .where('id', emergencyRequestId)
+      .update({
+        price_breakdown: JSON.stringify(mergedPriceBreakdown),
+        updated_at: knex.fn.now()
+      })
+      .returning('*');
+
+    return updated;
+  }
+
   // Criar solicitação de mecânico (sem propostas, direto)
   static async createMechanicRequest(requestData) {
-    const searchRadius = await this.getSearchRadius('mecanico');
+    const searchRadius = await this.getSearchRadius('mechanic');
     
     const [request] = await knex('emergency_requests').insert({
       ...requestData,
-      request_type: 'mecanico',
+      request_type: 'mechanic',
       proposal_status: null,
       search_radius_km: searchRadius
     }).returning('*');
@@ -357,7 +540,7 @@ class EmergencyRequest {
         'partners.business_name',
         'partners.phone',
         'partners.rating',
-        'partners.tow_truck_type',
+        'tow_proposals.tow_truck_type',
         'users.name as user_name'
       )
       .join('partners', 'tow_proposals.partner_id', 'partners.id')
@@ -430,7 +613,7 @@ class EmergencyRequest {
       .first();
 
     if (!request) return false;
-    if (request.request_type !== 'guincho') return false;
+    if (normalizeRequestType(request.request_type) !== 'tow') return false;
     if (request.proposal_status !== 'awaiting_proposals') return false;
     if (request.proposals_received >= request.max_proposals) return false;
     if (new Date() > request.proposal_selection_deadline) return false;
@@ -480,50 +663,52 @@ class EmergencyRequest {
 
   // Buscar emergências para guinchos (com sistema de propostas)
   static async findForGuinchos(latitude, longitude, radius = null) {
-    const searchRadius = radius || await this.getSearchRadius('guincho');
+    const searchRadius = radius || await this.getSearchRadius('tow');
+    const distanceExpression = `
+      6371 * acos(
+        cos(radians(?)) * cos(radians(latitude)) * 
+        cos(radians(longitude) - radians(?)) + 
+        sin(radians(?)) * sin(radians(latitude))
+      )
+    `;
     
     return await knex('emergency_requests')
       .select(
         'emergency_requests.*',
         'users.name as user_name',
         'users.phone as user_phone',
-        knex.raw(`
-          6371 * acos(
-            cos(radians(?)) * cos(radians(latitude)) * 
-            cos(radians(longitude) - radians(?)) + 
-            sin(radians(?)) * sin(radians(latitude))
-          ) AS distance
-        `, [latitude, longitude, latitude])
+        knex.raw(`${distanceExpression} AS distance`, [latitude, longitude, latitude])
       )
       .join('users', 'emergency_requests.user_id', 'users.id')
-      .where('emergency_requests.request_type', 'guincho')
+      .where('emergency_requests.request_type', 'tow')
       .where('emergency_requests.proposal_status', 'awaiting_proposals')
       .where('emergency_requests.status', 'pending')
-      .having('distance', '<=', searchRadius)
+      .whereRaw(`${distanceExpression} <= ?`, [latitude, longitude, latitude, searchRadius])
       .orderBy('distance');
   }
 
   // Buscar emergências para mecânicos (direto, sem propostas)
   static async findForMechanics(latitude, longitude, radius = null) {
-    const searchRadius = radius || await this.getSearchRadius('mecanico');
+    const searchRadius = radius || await this.getSearchRadius('mechanic');
+    const distanceExpression = `
+      6371 * acos(
+        cos(radians(?)) * cos(radians(latitude)) * 
+        cos(radians(longitude) - radians(?)) + 
+        sin(radians(?)) * sin(radians(latitude))
+      )
+    `;
     
     return await knex('emergency_requests')
       .select(
         'emergency_requests.*',
         'users.name as user_name',
         'users.phone as user_phone',
-        knex.raw(`
-          6371 * acos(
-            cos(radians(?)) * cos(radians(latitude)) * 
-            cos(radians(longitude) - radians(?)) + 
-            sin(radians(?)) * sin(radians(latitude))
-          ) AS distance
-        `, [latitude, longitude, latitude])
+        knex.raw(`${distanceExpression} AS distance`, [latitude, longitude, latitude])
       )
       .join('users', 'emergency_requests.user_id', 'users.id')
-      .where('emergency_requests.request_type', 'mecanico')
+      .where('emergency_requests.request_type', 'mechanic')
       .where('emergency_requests.status', 'pending')
-      .having('distance', '<=', searchRadius)
+      .whereRaw(`${distanceExpression} <= ?`, [latitude, longitude, latitude, searchRadius])
       .orderBy('distance');
   }
 
@@ -543,9 +728,12 @@ class EmergencyRequest {
   }
 
   static async getSearchRadius(partnerType) {
-    const settingKey = `${partnerType}_search_radius_km`;
+    const normalizedType = normalizeRequestType(partnerType);
+    const legacySettingKey = normalizedType === 'tow' ? 'guincho_search_radius_km' : `${normalizedType}_search_radius_km`;
+    const canonicalSettingKey = normalizedType === 'tow' ? 'tow_search_radius_km' : legacySettingKey;
     const setting = await knex('system_settings')
-      .where('setting_key', settingKey)
+      .whereIn('setting_key', [canonicalSettingKey, legacySettingKey])
+      .orderByRaw(`CASE WHEN setting_key = ? THEN 0 ELSE 1 END`, [canonicalSettingKey])
       .first();
     return parseFloat(setting?.setting_value || '15');
   }

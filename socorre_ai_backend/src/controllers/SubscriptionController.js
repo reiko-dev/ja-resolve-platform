@@ -4,7 +4,80 @@ const Payment = require('../models/Payment');
 const Partner = require('../models/Partner');
 const SystemSettings = require('../models/SystemSettings');
 
+const SUBSCRIPTION_TYPE_TO_CANONICAL = {
+  mecanico: 'mechanic',
+  posto_combustivel: 'gas_station',
+  auto_pecas: 'auto_parts',
+  mechanic: 'mechanic',
+  gas_station: 'gas_station',
+  auto_parts: 'auto_parts'
+};
+
+const CANONICAL_SUBSCRIPTION_TYPE_TO_LEGACY = {
+  mechanic: 'mecanico',
+  gas_station: 'posto_combustivel',
+  auto_parts: 'auto_pecas'
+};
+
+function toCanonicalSubscriptionType(type) {
+  return SUBSCRIPTION_TYPE_TO_CANONICAL[type] || null;
+}
+
+function toLegacySubscriptionType(type) {
+  const canonicalType = toCanonicalSubscriptionType(type);
+  return canonicalType ? CANONICAL_SUBSCRIPTION_TYPE_TO_LEGACY[canonicalType] : null;
+}
+
+function serializeSubscription(subscription) {
+  if (!subscription) return subscription;
+
+  const canonicalType = toCanonicalSubscriptionType(subscription.type) || subscription.type;
+  const startDate = subscription.start_date || subscription.created_at || null;
+  const endDate =
+    subscription.end_date ||
+    subscription.next_billing_date ||
+    subscription.due_date ||
+    null;
+  const monthlyFee = subscription.monthly_fee !== undefined && subscription.monthly_fee !== null
+    ? parseFloat(subscription.monthly_fee)
+    : subscription.monthly_fee;
+  const lastPaymentAmount = subscription.last_payment_amount !== undefined && subscription.last_payment_amount !== null
+    ? parseFloat(subscription.last_payment_amount)
+    : subscription.last_payment_amount;
+
+  return {
+    ...subscription,
+    type: canonicalType,
+    legacy_type: subscription.type,
+    partner_name: subscription.partner_name || subscription.business_name || subscription.user_name || '',
+    monthly_fee: monthlyFee,
+    start_date: startDate,
+    end_date: endDate,
+    cancelled_at: subscription.cancelled_at || null,
+    cancellation_reason: subscription.cancellation_reason || null,
+    failed_payment_attempts: subscription.failed_payment_attempts ?? subscription.failed_attempts ?? 0,
+    last_payment_at: subscription.last_payment_at || subscription.last_successful_payment || null,
+    last_payment_amount: lastPaymentAmount
+  };
+}
+
+function serializeSubscriptionCollection(subscriptions) {
+  return subscriptions.map(serializeSubscription);
+}
+
 class SubscriptionController {
+  static async _getCurrentPartner(req) {
+    if (req.user?.partner_id) {
+      return Partner.findById(req.user.partner_id);
+    }
+
+    if (req.user?.id) {
+      return Partner.findByUserId(req.user.id);
+    }
+
+    return null;
+  }
+
   // Criar nova assinatura
   static async create(req, res) {
     try {
@@ -18,8 +91,10 @@ class SubscriptionController {
       }
 
       // Validar tipo
-      const validTypes = ['mecanico', 'posto_combustivel', 'auto_pecas'];
-      if (!validTypes.includes(type)) {
+      const canonicalType = toCanonicalSubscriptionType(type);
+      const legacyType = toLegacySubscriptionType(type);
+
+      if (!canonicalType || !legacyType) {
         return res.status(400).json({ 
           error: 'Tipo de assinatura inválido' 
         });
@@ -31,6 +106,12 @@ class SubscriptionController {
         return res.status(404).json({ error: 'Parceiro não encontrado' });
       }
 
+      if (partner.type !== canonicalType) {
+        return res.status(400).json({
+          error: 'Tipo de assinatura incompatível com o tipo do parceiro'
+        });
+      }
+
       // Verificar se já tem assinatura ativa
       const existingSubscription = await Subscription.findByPartner(partner_id);
       if (existingSubscription && existingSubscription.status === 'active') {
@@ -40,9 +121,11 @@ class SubscriptionController {
       }
 
       // Obter valor da mensalidade
-      const monthlyFeeKey = `${type}_monthly_fee`;
+      const monthlyFeeKey = `${legacyType}_monthly_fee`;
       const monthlyFeeSetting = await SystemSettings.findByKey(monthlyFeeKey);
-      const monthlyFee = parseFloat(monthlyFeeSetting?.setting_value || '99.00');
+      const monthlyFee = typeof monthlyFeeSetting === 'number'
+        ? monthlyFeeSetting
+        : parseFloat(monthlyFeeSetting || '99.00');
 
       // Criar assinatura
       const nextBillingDate = new Date();
@@ -50,7 +133,7 @@ class SubscriptionController {
 
       const subscriptionData = {
         partner_id,
-        type,
+        type: legacyType,
         monthly_fee: monthlyFee,
         due_date: nextBillingDate,
         next_billing_date: nextBillingDate,
@@ -71,7 +154,7 @@ class SubscriptionController {
 
       res.status(201).json({
         success: true,
-        data: subscription,
+        data: serializeSubscription(subscription),
         message: 'Assinatura criada com sucesso'
       });
 
@@ -89,7 +172,15 @@ class SubscriptionController {
       const { page = 1, limit = 10, type, status, search } = req.query;
 
       const filters = {};
-      if (type) filters.type = type;
+      if (type) {
+        const normalizedType = toLegacySubscriptionType(type);
+        if (!normalizedType) {
+          return res.status(400).json({
+            error: 'Tipo de assinatura inválido'
+          });
+        }
+        filters.type = normalizedType;
+      }
       if (status) filters.status = status;
       if (search) filters.search = search;
 
@@ -101,7 +192,10 @@ class SubscriptionController {
 
       res.json({
         success: true,
-        data: result
+        data: {
+          ...result,
+          subscriptions: serializeSubscriptionCollection(result.subscriptions)
+        }
       });
 
     } catch (error) {
@@ -124,7 +218,7 @@ class SubscriptionController {
 
       res.json({
         success: true,
-        data: subscription
+        data: serializeSubscription(subscription)
       });
 
     } catch (error) {
@@ -155,7 +249,7 @@ class SubscriptionController {
 
       res.json({
         success: true,
-        data: updatedSubscription,
+        data: serializeSubscription(updatedSubscription),
         message: 'Assinatura atualizada com sucesso'
       });
 
@@ -194,7 +288,7 @@ class SubscriptionController {
 
       res.json({
         success: true,
-        data: cancelledSubscription,
+        data: serializeSubscription(cancelledSubscription),
         message: 'Assinatura cancelada com sucesso'
       });
 
@@ -235,7 +329,7 @@ class SubscriptionController {
 
       res.json({
         success: true,
-        data: updatedSubscription,
+        data: serializeSubscription(updatedSubscription),
         message: 'Pagamento processado com sucesso'
       });
 
@@ -270,7 +364,7 @@ class SubscriptionController {
 
       res.json({
         success: true,
-        data: updatedSubscription,
+        data: serializeSubscription(updatedSubscription),
         message: 'Falha de pagamento registrada'
       });
 
@@ -291,7 +385,7 @@ class SubscriptionController {
 
       res.json({
         success: true,
-        data: subscriptions
+        data: serializeSubscriptionCollection(subscriptions)
       });
 
     } catch (error) {
@@ -309,7 +403,7 @@ class SubscriptionController {
 
       res.json({
         success: true,
-        data: subscriptions
+        data: serializeSubscriptionCollection(subscriptions)
       });
 
     } catch (error) {
@@ -327,7 +421,7 @@ class SubscriptionController {
 
       res.json({
         success: true,
-        data: subscriptions
+        data: serializeSubscriptionCollection(subscriptions)
       });
 
     } catch (error) {
@@ -345,7 +439,7 @@ class SubscriptionController {
 
       res.json({
         success: true,
-        data: subscriptions
+        data: serializeSubscriptionCollection(subscriptions)
       });
 
     } catch (error) {
@@ -374,7 +468,7 @@ class SubscriptionController {
         data: {
           partner_id,
           has_active_subscription: hasActiveSubscription,
-          subscription: subscription,
+          subscription: serializeSubscription(subscription),
           partner_type: partner.type
         }
       });
@@ -394,7 +488,12 @@ class SubscriptionController {
 
       res.json({
         success: true,
-        data: stats
+        data: {
+          ...stats,
+          mechanic: stats.mecanico,
+          gas_station: stats.posto_combustivel,
+          auto_parts: stats.auto_pecas
+        }
       });
 
     } catch (error) {
@@ -456,7 +555,7 @@ class SubscriptionController {
 
       res.json({
         success: true,
-        data: updatedSubscription,
+        data: serializeSubscription(updatedSubscription),
         message: 'Assinatura renovada com sucesso'
       });
 
@@ -467,6 +566,7 @@ class SubscriptionController {
       });
     }
   }
+
 }
 
 module.exports = SubscriptionController;

@@ -43,6 +43,28 @@ class ReviewController {
     }
   }
 
+  // Buscar avaliações por parceiro
+  static async getReviewsByPartner(req, res) {
+    try {
+      const { partnerId } = req.params;
+      const { page = 1, limit = 10 } = req.query;
+
+      const result = await Review.findByPartnerId(parseInt(partnerId), parseInt(page), parseInt(limit));
+
+      res.json({
+        success: true,
+        data: result.reviews,
+        pagination: result.pagination
+      });
+    } catch (error) {
+      console.error('Erro ao buscar avaliações do parceiro:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Erro interno do servidor'
+      });
+    }
+  }
+
   // Buscar avaliações do usuário logado
   static async getMyReviews(req, res) {
     try {
@@ -107,7 +129,7 @@ class ReviewController {
     } catch (error) {
       console.error('Erro ao criar avaliação:', error);
       
-      if (error.message === 'Usuário já avaliou este mecânico') {
+      if (error.message === 'Usuário já avaliou este parceiro' || error.message === 'Mecânico não encontrado' || error.message === 'Parceiro não encontrado' || error.message === 'A trilha explícita de reviews ainda está limitada ao parceiro mechanic') {
         return res.status(400).json({
           success: false,
           message: error.message
@@ -215,7 +237,7 @@ class ReviewController {
         });
       }
       
-      await Review.update(parseInt(id), { is_verified });
+      await Review.setVerified(parseInt(id), is_verified);
       
       res.json({
         success: true,

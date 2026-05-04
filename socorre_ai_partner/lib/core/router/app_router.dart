@@ -5,6 +5,7 @@ import '../../features/auth/screens/login_screen.dart';
 import '../../features/auth/screens/register_screen.dart';
 import '../../features/auth/screens/complete_partner_registration_screen.dart';
 import '../../features/onboarding/screens/onboarding_screen.dart';
+import '../../features/onboarding/screens/onboarding_review_screen.dart';
 import '../../features/onboarding/screens/partner_type_selection_screen.dart';
 import '../../features/dashboard/screens/dashboard_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
@@ -13,11 +14,20 @@ import '../../features/services/screens/service_details_screen.dart';
 import '../../features/services/screens/emergency_requests_screen.dart';
 import '../../features/profile/screens/financial_screen.dart';
 import '../../features/profile/screens/settings_screen.dart';
+import '../../screens/document_upload_screen.dart';
+import '../../services/onboarding_flow_service.dart';
 
 class AppRouter {
   static final GoRouter router = GoRouter(
     initialLocation: '/splash',
     debugLogDiagnostics: true,
+    redirect: (context, state) async {
+      if (state.matchedLocation == '/splash') {
+        return null;
+      }
+
+      return OnboardingFlowService.redirectFor(state.uri.toString());
+    },
     errorBuilder: (context, state) => Scaffold(
       body: Center(
         child: Column(
@@ -82,6 +92,19 @@ class AppRouter {
           final partnerType = state.uri.queryParameters['partnerType'] ?? '';
           return CompletePartnerRegistrationScreen(partnerType: partnerType);
         },
+      ),
+
+      GoRoute(
+        path: '/partner-documents',
+        builder: (context, state) {
+          final partnerType = state.uri.queryParameters['partnerType'] ?? '';
+          return PartnerDocumentUploadScreen(partnerType: partnerType);
+        },
+      ),
+
+      GoRoute(
+        path: '/onboarding-review',
+        builder: (context, state) => const OnboardingReviewScreen(),
       ),
       
       // Main App (Bottom Navigation)
@@ -249,12 +272,11 @@ class _SplashScreenState extends State<SplashScreen> {
   }
   
   void _navigateToNextScreen() async {
-    await Future.delayed(const Duration(seconds: 2));
+    await Future.delayed(const Duration(milliseconds: 800));
+    final nextRoute = await OnboardingFlowService.resolveInitialRoute();
     
     if (mounted) {
-      // TODO: Verificar se usuário está logado
-      // Por enquanto, vai para onboarding
-      context.go('/onboarding');
+      context.go(nextRoute);
     }
   }
   
