@@ -1,10 +1,22 @@
 const knex = require('../config/database');
+const Review = require('./Review');
 
 class PurchaseOrder {
+  static parseJsonField(value, fallback = null) {
+    if (!value) return fallback;
+    if (typeof value === 'object') return value;
+
+    try {
+      return JSON.parse(value);
+    } catch (error) {
+      return fallback;
+    }
+  }
+
   // Criar novo pedido de compra
   static async create(orderData) {
     const [order] = await knex('purchase_orders').insert(orderData).returning('*');
-    return order;
+    return this.findById(order.id);
   }
 
   // Buscar por ID
@@ -127,6 +139,42 @@ class PurchaseOrder {
     };
   }
 
+  static async updateStatus(id, status, notes = null) {
+    const allowedStatuses = [
+      'pending',
+      'confirmed',
+      'preparing',
+      'ready',
+      'delivered',
+      'cancelled',
+      'refunded'
+    ];
+
+    if (!allowedStatuses.includes(status)) {
+      throw new Error('Status de pedido inválido');
+    }
+
+    const updateData = {
+      status,
+      updated_at: knex.fn.now()
+    };
+
+    if (notes !== undefined) {
+      updateData.notes = notes;
+    }
+
+    if (status === 'delivered') {
+      updateData.delivered_at = knex.fn.now();
+    }
+
+    const [order] = await knex('purchase_orders')
+      .where('id', id)
+      .update(updateData)
+      .returning('*');
+
+    return order ? this.findById(order.id) : null;
+  }
+
   // Confirmar pedido
   static async confirm(id, estimatedDeliveryTime) {
     const [order] = await knex('purchase_orders')
@@ -139,7 +187,7 @@ class PurchaseOrder {
       })
       .returning('*');
     
-    return order;
+    return order ? this.findById(order.id) : null;
   }
 
   // Marcar como preparando
@@ -153,7 +201,7 @@ class PurchaseOrder {
       })
       .returning('*');
     
-    return order;
+    return order ? this.findById(order.id) : null;
   }
 
   // Marcar como pronto
@@ -167,7 +215,7 @@ class PurchaseOrder {
       })
       .returning('*');
     
-    return order;
+    return order ? this.findById(order.id) : null;
   }
 
   // Atribuir motoboy
@@ -181,7 +229,7 @@ class PurchaseOrder {
       })
       .returning('*');
     
-    return order;
+    return order ? this.findById(order.id) : null;
   }
 
   // Marcar como entregue
@@ -197,7 +245,7 @@ class PurchaseOrder {
       })
       .returning('*');
     
-    return order;
+    return order ? this.findById(order.id) : null;
   }
 
   // Cancelar pedido
@@ -212,7 +260,7 @@ class PurchaseOrder {
       })
       .returning('*');
     
-    return order;
+    return order ? this.findById(order.id) : null;
   }
 
   // Reembolsar pedido
@@ -227,11 +275,11 @@ class PurchaseOrder {
       })
       .returning('*');
     
-    return order;
+    return order ? this.findById(order.id) : null;
   }
 
   // Avaliar pedido
-  static async rate(id, rating, comment) {
+  static async rate(id, userId, rating, comment) {
     const [order] = await knex('purchase_orders')
       .where('id', id)
       .where('status', 'delivered')
@@ -243,12 +291,18 @@ class PurchaseOrder {
       })
       .returning('*');
     
-    // Atualizar rating da loja
     if (order && order.store_id) {
-      await this.updateStoreRating(order.store_id);
+      await Review.upsertOperationalReview({
+        user_id: userId,
+        partner_id: order.store_id,
+        rating,
+        comment,
+        entity_type: 'purchase_order',
+        entity_id: order.id
+      });
     }
     
-    return order;
+    return order ? this.findById(order.id) : null;
   }
 
   // Atualizar rating da loja

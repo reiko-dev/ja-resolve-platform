@@ -17,6 +17,20 @@ const handleValidationErrors = (req, res, next) => {
   next();
 };
 
+const hasPartnerAccess = (req, partnerId) => {
+  if (req.user.role === 'admin') {
+    return true;
+  }
+
+  return req.user.partner_id === Number(partnerId);
+};
+
+const canAccessPayment = (req, payment) => {
+  const ownsUserPayment = payment.user_id === req.user.id;
+  const ownsPartnerPayment = payment.partner_id && req.user.partner_id === payment.partner_id;
+  return ownsUserPayment || ownsPartnerPayment || req.user.role === 'admin';
+};
+
 // Criar pagamento
 router.post('/', auth, [
   body('amount').isFloat({ min: 0.01 }).withMessage('Valor deve ser maior que zero'),
@@ -45,104 +59,6 @@ router.post('/', auth, [
     });
   } catch (error) {
     console.error('Erro ao criar pagamento:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Erro interno do servidor'
-    });
-  }
-});
-
-// Buscar pagamento por ID
-router.get('/:id', auth, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const payment = await paymentService.getPayment(id);
-
-    // Verificar se o usuário tem acesso ao pagamento
-    if (payment.user_id !== req.user.id && payment.partner_id !== req.user.id) {
-      return res.status(403).json({
-        success: false,
-        message: 'Acesso negado'
-      });
-    }
-
-    res.json({
-      success: true,
-      data: payment
-    });
-  } catch (error) {
-    console.error('Erro ao buscar pagamento:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Erro interno do servidor'
-    });
-  }
-});
-
-// Confirmar pagamento
-router.post('/:id/confirm', auth, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const result = await paymentService.confirmPayment(id);
-
-    res.json({
-      success: true,
-      data: result,
-      message: 'Pagamento confirmado com sucesso'
-    });
-  } catch (error) {
-    console.error('Erro ao confirmar pagamento:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Erro interno do servidor'
-    });
-  }
-});
-
-// Cancelar pagamento
-router.post('/:id/cancel', auth, [
-  body('reason').optional().isString().withMessage('Motivo deve ser uma string'),
-  handleValidationErrors
-], async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { reason } = req.body;
-    
-    const result = await paymentService.cancelPayment(id, reason);
-
-    res.json({
-      success: true,
-      data: result,
-      message: 'Pagamento cancelado com sucesso'
-    });
-  } catch (error) {
-    console.error('Erro ao cancelar pagamento:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Erro interno do servidor'
-    });
-  }
-});
-
-// Reembolsar pagamento
-router.post('/:id/refund', auth, [
-  body('amount').optional().isFloat({ min: 0.01 }).withMessage('Valor deve ser maior que zero'),
-  body('reason').optional().isString().withMessage('Motivo deve ser uma string'),
-  handleValidationErrors
-], async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { amount, reason } = req.body;
-    
-    const result = await paymentService.refundPayment(id, amount, reason);
-
-    res.json({
-      success: true,
-      data: result,
-      message: 'Reembolso processado com sucesso'
-    });
-  } catch (error) {
-    console.error('Erro ao reembolsar pagamento:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Erro interno do servidor'
@@ -185,7 +101,7 @@ router.get('/partner/:partnerId', auth, async (req, res) => {
     const { partnerId } = req.params;
     
     // Verificar se o usuário tem acesso aos pagamentos do parceiro
-    if (req.user.role !== 'admin' && req.user.id !== partnerId) {
+    if (!hasPartnerAccess(req, partnerId)) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado'
@@ -223,11 +139,20 @@ router.get('/stats/summary', auth, async (req, res) => {
   try {
     const { partnerId } = req.query;
     
-    let stats;
-    if (partnerId && req.user.role === 'admin') {
-      stats = await paymentService.getPaymentStats(null, partnerId);
+    let stats = null;
+    if (partnerId) {
+      if (!hasPartnerAccess(req, partnerId)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Acesso negado'
+        });
+      }
+
+      stats = await paymentService.getPaymentStats(null, Number(partnerId));
+    } else if (req.user.role === 'partner' && req.user.partner_id) {
+      stats = await paymentService.getPaymentStats(null, req.user.partner_id);
     } else {
-      stats = await paymentService.getPaymentStats(req.user.id);
+      stats = await paymentService.getPaymentStats(req.user.id, null);
     }
 
     res.json({
@@ -236,6 +161,128 @@ router.get('/stats/summary', auth, async (req, res) => {
     });
   } catch (error) {
     console.error('Erro ao buscar estatísticas:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Erro interno do servidor'
+    });
+  }
+});
+
+// Buscar pagamento por ID
+router.get('/:id', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const payment = await paymentService.getPayment(id);
+
+    if (!canAccessPayment(req, payment)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Acesso negado'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: payment
+    });
+  } catch (error) {
+    console.error('Erro ao buscar pagamento:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Erro interno do servidor'
+    });
+  }
+});
+
+// Confirmar pagamento
+router.post('/:id/confirm', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const payment = await paymentService.getPayment(id);
+
+    if (!canAccessPayment(req, payment)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Acesso negado'
+      });
+    }
+
+    const result = await paymentService.confirmPayment(id);
+
+    res.json({
+      success: true,
+      data: result,
+      message: 'Pagamento confirmado com sucesso'
+    });
+  } catch (error) {
+    console.error('Erro ao confirmar pagamento:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Erro interno do servidor'
+    });
+  }
+});
+
+// Cancelar pagamento
+router.post('/:id/cancel', auth, [
+  body('reason').optional().isString().withMessage('Motivo deve ser uma string'),
+  handleValidationErrors
+], async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    const payment = await paymentService.getPayment(id);
+
+    if (!canAccessPayment(req, payment)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Acesso negado'
+      });
+    }
+    
+    const result = await paymentService.cancelPayment(id, reason);
+
+    res.json({
+      success: true,
+      data: result,
+      message: 'Pagamento cancelado com sucesso'
+    });
+  } catch (error) {
+    console.error('Erro ao cancelar pagamento:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Erro interno do servidor'
+    });
+  }
+});
+
+// Reembolsar pagamento
+router.post('/:id/refund', auth, [
+  body('amount').optional().isFloat({ min: 0.01 }).withMessage('Valor deve ser maior que zero'),
+  body('reason').optional().isString().withMessage('Motivo deve ser uma string'),
+  handleValidationErrors
+], async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { amount, reason } = req.body;
+    const payment = await paymentService.getPayment(id);
+
+    if (!canAccessPayment(req, payment)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Acesso negado'
+      });
+    }
+    
+    const result = await paymentService.refundPayment(id, amount, reason);
+
+    res.json({
+      success: true,
+      data: result,
+      message: 'Reembolso processado com sucesso'
+    });
+  } catch (error) {
+    console.error('Erro ao reembolsar pagamento:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Erro interno do servidor'

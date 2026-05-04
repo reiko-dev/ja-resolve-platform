@@ -1,10 +1,56 @@
 const DeliveryOrder = require('../models/DeliveryOrderModel');
 const Product = require('../models/Product');
 const Partner = require('../models/Partner');
+const PurchaseOrder = require('../models/PurchaseOrder');
 const NotificationService = require('./NotificationServiceNew');
 const SystemSettings = require('../models/SystemSettings');
 
 class DeliveryOrderService {
+  static parseJsonField(value, fallback = {}) {
+    if (!value) return fallback;
+    if (typeof value === 'object') return value;
+
+    try {
+      return JSON.parse(value);
+    } catch (error) {
+      return fallback;
+    }
+  }
+
+  static isCompatibleStoreType(type) {
+    return ['gas_station', 'auto_parts', 'posto_combustivel', 'auto_pecas'].includes(type);
+  }
+
+  static getOrderTypeForStore(storeType) {
+    if (['gas_station', 'posto_combustivel'].includes(storeType)) {
+      return 'fuel';
+    }
+
+    return 'auto_parts';
+  }
+
+  static getPurchaseOrderDeliveryMode(purchaseOrder) {
+    const priceBreakdown = this.parseJsonField(purchaseOrder.price_breakdown, {});
+    const paymentInfo = this.parseJsonField(purchaseOrder.payment_info, {});
+    return priceBreakdown.delivery_mode || paymentInfo.delivery_mode || (purchaseOrder.delivery_motoboy_id ? 'app_motoboy' : 'store_delivery');
+  }
+
+  static async notifyStore(storeId, title, message, data = {}) {
+    try {
+      await NotificationService.sendPartnerNotification(storeId, title, message, data);
+    } catch (error) {
+      console.error('Falha ao notificar loja:', error);
+    }
+  }
+
+  static async notifyUser(userId, title, message, data = {}) {
+    try {
+      await NotificationService.sendNotification(userId, title, message, data);
+    } catch (error) {
+      console.error('Falha ao notificar usuário:', error);
+    }
+  }
+
   // Criar novo pedido de delivery
   static async createOrder(orderData, customerId) {
     try {
@@ -38,7 +84,7 @@ class DeliveryOrderService {
         throw new Error('Loja não encontrada');
       }
 
-      if (!['posto_combustivel', 'auto_pecas'].includes(store.type)) {
+      if (!this.isCompatibleStoreType(store.type)) {
         throw new Error('Loja não é compatível com este tipo de pedido');
       }
 
@@ -68,17 +114,7 @@ class DeliveryOrderService {
       const totalAmount = validatedItems.itemsTotal + deliveryFeeData.total_fee;
 
       // Criar pedido
-      const orderDataComplete = {
-        order_type,
-        store_id,
-        customer_id: customerId,
-        pickup_address,
-        pickup_latitude,
-        pickup_longitude,
-        delivery_address,
-        delivery_latitude,
-        delivery_longitude,
-        items: JSON.stringify(validatedItems.items),
+      const priceBreakdown = {
         items_total: validatedItems.itemsTotal,
         items_count: validatedItems.itemsCount,
         delivery_fee: deliveryFeeData.total_fee,
@@ -86,22 +122,44 @@ class DeliveryOrderService {
         platform_fee_percent: platformFeePercent,
         motoboy_fee: motoboyFee,
         motoboy_fee_percent: motoboyFeePercent,
-        total_amount: totalAmount,
-        customer_notes
+        total_amount: totalAmount
+      };
+
+      const orderDataComplete = {
+        user_id: customerId,
+        type: order_type,
+        pickup_address,
+        pickup_latitude,
+        pickup_longitude,
+        delivery_address,
+        delivery_latitude,
+        delivery_longitude,
+        items: JSON.stringify(validatedItems.items),
+        items_description: validatedItems.items.map(item => `${item.quantity}x ${item.name}`).join(', '),
+        delivery_fee: deliveryFeeData.total_fee,
+        items_price: validatedItems.itemsTotal,
+        total_price: totalAmount,
+        price_breakdown: JSON.stringify(priceBreakdown),
+        estimated_delivery_minutes: deliveryFeeData.estimated_time_minutes,
+        distance_km: deliveryFeeData.distance_km,
+        store_info: JSON.stringify({
+          id: store.id,
+          business_name: store.business_name,
+          phone: store.phone,
+          address: store.address
+        }),
+        notes: customer_notes || null
       };
 
       const order = await DeliveryOrder.create(orderDataComplete);
 
-      // Notificar motoboys próximos
       await this.notifyNearbyMotoboys(order);
-
-      // Notificar loja
-      await NotificationService.sendNotification(
+      await this.notifyStore(
         store_id,
         'Novo pedido de delivery!',
         `Novo pedido de ${order_type} recebido`,
         {
-          type: 'new_delivery_order',
+          type: 'delivery.order.created',
           order_id: order.id,
           customer_id: customerId
         }
@@ -133,27 +191,32 @@ class DeliveryOrderService {
       }
 
       const acceptedOrder = await DeliveryOrder.accept(orderId, motoboyId);
+      const linkedPurchaseOrderId = this.parseJsonField(acceptedOrder?.price_breakdown, {}).purchase_order_id;
+
+      if (linkedPurchaseOrderId) {
+        await PurchaseOrder.assignMotoboy(linkedPurchaseOrderId, motoboyId);
+      }
 
       // Notificar cliente e loja
-      await NotificationService.sendNotification(
+      await this.notifyUser(
         order.customer_id,
         'Motoboy a caminho!',
         `Seu pedido foi aceito por ${motoboy.business_name}`,
         {
-          type: 'delivery_accepted',
+          type: 'delivery.order.accepted',
           order_id: orderId,
-          motoboy_id
+          motoboy_id: motoboyId
         }
       );
 
-      await NotificationService.sendNotification(
+      await this.notifyStore(
         order.store_id,
         'Pedido aceito',
         `Seu pedido foi aceito por ${motoboy.business_name}`,
         {
-          type: 'delivery_accepted_store',
+          type: 'delivery.order.accepted',
           order_id: orderId,
-          motoboy_id
+          motoboy_id: motoboyId
         }
       );
 
@@ -179,12 +242,12 @@ class DeliveryOrderService {
       const startedOrder = await DeliveryOrder.startDelivery(orderId);
 
       // Notificar cliente
-      await NotificationService.sendNotification(
+      await this.notifyUser(
         order.customer_id,
         'Pedido a caminho!',
         'Seu pedido está a caminho do destino',
         {
-          type: 'delivery_in_transit',
+          type: 'delivery.order.picked_up',
           order_id: orderId
         }
       );
@@ -220,24 +283,29 @@ class DeliveryOrderService {
       }
 
       const completedOrder = await DeliveryOrder.complete(orderId, actualTimeMinutes);
+      const linkedPurchaseOrderId = this.parseJsonField(completedOrder?.price_breakdown, {}).purchase_order_id;
+
+      if (linkedPurchaseOrderId) {
+        await PurchaseOrder.deliver(linkedPurchaseOrderId);
+      }
 
       // Notificar cliente e loja
-      await NotificationService.sendNotification(
+      await this.notifyUser(
         order.customer_id,
         'Pedido entregue!',
         'Seu pedido foi entregue com sucesso',
         {
-          type: 'delivery_completed',
+          type: 'delivery.order.delivered',
           order_id: orderId
         }
       );
 
-      await NotificationService.sendNotification(
+      await this.notifyStore(
         order.store_id,
         'Pedido entregue',
         'O pedido foi entregue ao cliente',
         {
-          type: 'delivery_completed_store',
+          type: 'delivery.order.delivered',
           order_id: orderId
         }
       );
@@ -261,24 +329,24 @@ class DeliveryOrderService {
 
       // Notificar partes interessadas
       if (cancelledBy === 'customer' && order.motoboy_id) {
-        await NotificationService.sendNotification(
+        await this.notifyUser(
           order.motoboy_id,
           'Pedido cancelado',
           'O cliente cancelou o pedido',
           {
-            type: 'delivery_cancelled',
+            type: 'delivery.order.cancelled',
             order_id: orderId
           }
         );
       }
 
       if (cancelledBy === 'motoboy' || cancelledBy === 'store') {
-        await NotificationService.sendNotification(
+        await this.notifyUser(
           order.customer_id,
           'Pedido cancelado',
           'Seu pedido foi cancelado',
           {
-            type: 'delivery_cancelled',
+            type: 'delivery.order.cancelled',
             order_id: orderId
           }
         );
@@ -326,7 +394,7 @@ class DeliveryOrderService {
         throw new Error('Apenas pedidos entregues podem ser avaliados');
       }
 
-      return await DeliveryOrder.rate(orderId, parseInt(rating), comment);
+      return await DeliveryOrder.rate(orderId, customerId, parseInt(rating), comment);
     } catch (error) {
       console.error('Erro ao avaliar pedido:', error);
       throw error;
@@ -395,7 +463,7 @@ class DeliveryOrderService {
           throw new Error(`Produto ${item.product_id} não encontrado`);
         }
 
-        if (product.store_id !== storeId) {
+        if (Number(product.store_id) !== Number(storeId)) {
           throw new Error(`Produto ${product.name} não pertence a esta loja`);
         }
 
@@ -430,21 +498,22 @@ class DeliveryOrderService {
   // Notificar motoboys próximos
   static async notifyNearbyMotoboys(order) {
     try {
-      const motoboys = await DeliveryOrder.findAvailableForMotoboys(
+      const motoboys = await Partner.findByProximity(
         order.pickup_latitude,
         order.pickup_longitude,
-        10 // raio de 10km
+        10,
+        'motoboy'
       );
 
       for (const motoboy of motoboys) {
-        await NotificationService.sendNotification(
-          motoboy.partner_id,
+        await NotificationService.sendPartnerNotification(
+          motoboy.id,
           'Novo pedido de delivery!',
-          `Pedido de ${order.order_type} disponível próximo de você`,
+          `Pedido de ${order.order_type || order.type} disponível próximo de você`,
           {
-            type: 'new_delivery_order',
+            type: 'delivery.order.available',
             order_id: order.id,
-            order_type: order.order_type,
+            order_type: order.order_type || order.type,
             delivery_fee: order.delivery_fee
           }
         );
@@ -465,6 +534,106 @@ class DeliveryOrderService {
       console.error('Erro ao obter estatísticas:', error);
       throw error;
     }
+  }
+
+  static async ensureOrderForPurchaseOrder(purchaseOrder) {
+    const deliveryMode = this.getPurchaseOrderDeliveryMode(purchaseOrder);
+    if (deliveryMode !== 'app_motoboy') {
+      return null;
+    }
+
+    const existingOrder = await DeliveryOrder.findByPurchaseOrderId(purchaseOrder.id);
+    if (existingOrder) {
+      return existingOrder;
+    }
+
+    if (!purchaseOrder.delivery_address || !purchaseOrder.delivery_latitude || !purchaseOrder.delivery_longitude) {
+      throw new Error('Pedido com app_motoboy exige endereço e coordenadas de entrega');
+    }
+
+    const store = await Partner.findById(purchaseOrder.store_id);
+    if (!store) {
+      throw new Error('Loja não encontrada');
+    }
+
+    if (!store.address || !store.latitude || !store.longitude) {
+      throw new Error('Loja sem endereço e coordenadas válidas para criar delivery');
+    }
+
+    const hasActiveSubscription = await Partner.hasActiveSubscription(purchaseOrder.store_id);
+    if (!hasActiveSubscription) {
+      throw new Error('Loja não possui assinatura ativa');
+    }
+
+    const items = Array.isArray(purchaseOrder.items)
+      ? purchaseOrder.items
+      : this.parseJsonField(purchaseOrder.items, []);
+
+    const itemCount = items.reduce((sum, item) => sum + (parseInt(item.quantity, 10) || 0), 0);
+    const deliveryFee = parseFloat(purchaseOrder.delivery_fee || 0) || 0;
+    const itemsTotal = parseFloat(purchaseOrder.subtotal || 0) || 0;
+    const totalAmount = parseFloat(purchaseOrder.total_price || 0) || 0;
+    const platformFeePercent = await this.getPlatformFeePercent();
+    const motoboyFeePercent = await this.getMotoboyFeePercent();
+    const platformFee = deliveryFee * (platformFeePercent / 100);
+    const motoboyFee = deliveryFee * (motoboyFeePercent / 100);
+
+    const deliveryOrder = await DeliveryOrder.create({
+      user_id: purchaseOrder.user_id,
+      type: this.getOrderTypeForStore(store.type),
+      items: JSON.stringify(items),
+      items_description: purchaseOrder.items_description || items.map(item => `${item.quantity}x ${item.name || `produto ${item.product_id}`}`).join(', '),
+      pickup_address: store.address,
+      pickup_latitude: store.latitude,
+      pickup_longitude: store.longitude,
+      delivery_address: purchaseOrder.delivery_address,
+      delivery_latitude: purchaseOrder.delivery_latitude,
+      delivery_longitude: purchaseOrder.delivery_longitude,
+      delivery_instructions: purchaseOrder.delivery_instructions || purchaseOrder.special_instructions || null,
+      status: 'pending',
+      delivery_fee: deliveryFee,
+      items_price: itemsTotal,
+      total_price: totalAmount,
+      price_breakdown: JSON.stringify({
+        items_total: itemsTotal,
+        items_count: itemCount,
+        delivery_fee: deliveryFee,
+        platform_fee: platformFee,
+        platform_fee_percent: platformFeePercent,
+        motoboy_fee: motoboyFee,
+        motoboy_fee_percent: motoboyFeePercent,
+        total_amount: totalAmount,
+        purchase_order_id: purchaseOrder.id,
+        delivery_mode: deliveryMode,
+        source: 'purchase_order'
+      }),
+      estimated_delivery_minutes: purchaseOrder.estimated_delivery_minutes || null,
+      distance_km: null,
+      store_info: JSON.stringify({
+        id: store.id,
+        business_name: store.business_name,
+        phone: store.phone,
+        address: store.address
+      }),
+      payment_method: purchaseOrder.payment_method || 'cash',
+      payment_status: purchaseOrder.payment_status || 'pending',
+      notes: purchaseOrder.notes || null
+    });
+
+    await this.notifyNearbyMotoboys(deliveryOrder);
+
+    await this.notifyUser(
+      purchaseOrder.user_id,
+      'Entrega por motoboy liberada',
+      'Seu pedido está pronto e já pode ser aceito por um motoboy.',
+      {
+        type: 'purchase_order.out_for_delivery',
+        purchase_order_id: purchaseOrder.id,
+        delivery_order_id: deliveryOrder.id
+      }
+    );
+
+    return deliveryOrder;
   }
 
   // Obter resumo do pedido para dashboard
@@ -509,12 +678,12 @@ class DeliveryOrderService {
   // Métodos auxiliares
   static async getPlatformFeePercent() {
     const setting = await SystemSettings.findByKey('delivery_platform_fee_percent');
-    return parseFloat(setting?.setting_value || '20.0');
+    return parseFloat(setting ?? 20);
   }
 
   static async getMotoboyFeePercent() {
     const setting = await SystemSettings.findByKey('delivery_motoboy_fee_percent');
-    return parseFloat(setting?.setting_value || '80.0');
+    return parseFloat(setting ?? 80);
   }
 
   // Validar dados do pedido
@@ -566,7 +735,7 @@ class DeliveryOrderService {
       }
 
       // Verificar se é posto ou auto peças
-      if (!['posto_combustivel', 'auto_pecas'].includes(store.type)) {
+      if (!this.isCompatibleStoreType(store.type)) {
         return { 
           canReceive: false, 
           reason: 'Apenas postos de combustível e auto peças podem receber pedidos de delivery' 

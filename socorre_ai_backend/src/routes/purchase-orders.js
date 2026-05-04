@@ -21,7 +21,7 @@ router.post('/',
 
 router.put('/:id/status', 
   auth, 
-  requireRole(['user', 'admin']), 
+  requireRole(['user', 'partner', 'admin']), 
   PurchaseOrderController.updateStatus
 );
 
@@ -38,23 +38,29 @@ router.get('/store/:storeId',
   PurchaseOrderController.getByStore
 );
 
-// router.put('/:id/confirm', 
-//   auth, 
-//   requireRole(['partner', 'admin']), 
-//   PurchaseOrderController.confirm
-// );
+router.put('/:id/confirm', 
+  auth, 
+  requireRole(['partner', 'admin']), 
+  PurchaseOrderController.confirm
+);
 
-// router.put('/:id/prepare', 
-//   auth, 
-//   requireRole(['partner', 'admin']), 
-//   PurchaseOrderController.prepare
-// );
+router.put('/:id/prepare', 
+  auth, 
+  requireRole(['partner', 'admin']), 
+  PurchaseOrderController.prepare
+);
 
-// router.put('/:id/ready', 
-//   auth, 
-//   requireRole(['partner', 'admin']), 
-//   PurchaseOrderController.ready
-// );
+router.put('/:id/ready', 
+  auth, 
+  requireRole(['partner', 'admin']), 
+  PurchaseOrderController.ready
+);
+
+router.put('/:id/cancel', 
+  auth, 
+  requireRole(['user', 'partner', 'admin']), 
+  PurchaseOrderController.cancel
+);
 
 // Rotas administrativas
 router.get('/', 

@@ -1,7 +1,143 @@
 const PartnerDocument = require('../models/PartnerDocument');
 const Partner = require('../models/Partner');
+const User = require('../models/User');
+const {
+  getRequiredDocuments,
+  determineDocumentTypeFromFilename,
+} = require('../config/partnerDocumentRules');
+const { ONBOARDING_STAGES } = require('../config/onboardingStages');
 
 class DocumentController {
+  static serializeAdminDocument(document) {
+    if (!document) {
+      return null;
+    }
+
+    return {
+      id: document.id,
+      partner_id: document.partner_id,
+      document_type: document.document_type,
+      filename: document.filename,
+      original_name: document.original_name,
+      file_path: document.file_path,
+      mime_type: document.mime_type,
+      file_size: document.file_size,
+      status: document.status,
+      rejection_reason: document.rejection_reason,
+      uploaded_at: document.uploaded_at,
+      verified_at: document.verified_at,
+      verified_by: document.verified_by,
+      verified_by_name: document.verified_by_name,
+      verification_metadata: document.verification_metadata,
+      created_at: document.created_at,
+      updated_at: document.updated_at,
+      partner: {
+        id: document.partner_id,
+        name: document.partner_name || document.business_name || null,
+        email: document.partner_email || null,
+        phone: document.partner_phone || null,
+        type: document.partner_type || null,
+        business_name: document.business_name || null,
+      },
+    };
+  }
+
+  static async uploadCurrentPartnerDocument(req, res) {
+    try {
+      const file = req.file;
+      const requestedDocumentType = req.body.document_type;
+      const requestedPartnerType = req.body.partner_type;
+
+      if (!file) {
+        return res.status(400).json({
+          success: false,
+          message: 'Nenhum arquivo enviado',
+        });
+      }
+
+      const partner = await Partner.findByUserId(req.user.id);
+      if (!partner) {
+        return res.status(404).json({
+          success: false,
+          message: 'Complete o cadastro do parceiro antes de enviar documentos',
+        });
+      }
+
+      const requiredDocs = getRequiredDocuments(partner.type || requestedPartnerType);
+      const documentType = requestedDocumentType || DocumentController.determineDocumentType(file.originalname);
+
+      if (!requiredDocs.includes(documentType)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Tipo de documento não obrigatório para este parceiro',
+        });
+      }
+
+      const existingDocument = await PartnerDocument.findByType(partner.id, documentType);
+      if (existingDocument) {
+        await PartnerDocument.delete(existingDocument.id);
+      }
+
+      const savedDocument = await PartnerDocument.create({
+        partner_id: partner.id,
+        document_type: documentType,
+        filename: file.filename,
+        original_name: file.originalname,
+        file_path: file.path,
+        mime_type: file.mimetype,
+        file_size: file.size,
+        status: 'pending',
+      });
+
+      res.status(201).json({
+        success: true,
+        message: 'Documento enviado com sucesso',
+        data: savedDocument,
+      });
+    } catch (error) {
+      console.error('Erro ao enviar documento do parceiro atual:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Erro ao fazer upload do documento',
+      });
+    }
+  }
+
+  static async deleteCurrentPartnerDocument(req, res) {
+    try {
+      const { documentId } = req.params;
+      const partner = await Partner.findByUserId(req.user.id);
+
+      if (!partner) {
+        return res.status(404).json({
+          success: false,
+          message: 'Parceiro não encontrado',
+        });
+      }
+
+      const document = await PartnerDocument.findById(documentId);
+      if (!document || document.partner_id !== partner.id) {
+        return res.status(404).json({
+          success: false,
+          message: 'Documento não encontrado',
+        });
+      }
+
+      await PartnerDocument.delete(documentId);
+
+      res.json({
+        success: true,
+        message: 'Documento excluído com sucesso',
+      });
+    } catch (error) {
+      console.error('Erro ao excluir documento do parceiro atual:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Erro ao excluir documento',
+      });
+    }
+  }
+
   // Upload de documentos do parceiro
   static async uploadDocuments(req, res) {
     try {
@@ -32,7 +168,7 @@ class DocumentController {
       }
 
       // Verificar se o parceiro precisa de documentos
-      const requiredDocs = Partner.getRequiredDocuments(partner.type);
+      const requiredDocs = getRequiredDocuments(partner.type);
       if (requiredDocs.length === 0) {
         return res.status(400).json({
           success: false,
@@ -44,7 +180,7 @@ class DocumentController {
 
       for (const file of files) {
         // Determinar o tipo de documento baseado no nome do arquivo
-        const documentType = this.determineDocumentType(file.originalname);
+        const documentType = DocumentController.determineDocumentType(file.originalname);
 
         // Verificar se este tipo de documento é obrigatório
         if (!requiredDocs.includes(documentType)) {
@@ -160,6 +296,17 @@ class DocumentController {
         if (hasAllRequired) {
           // Atualizar status do parceiro para aprovado
           await Partner.updateApprovalStatus(document.partner_id, 'approved', verifiedBy);
+          await User.update(partner.user_id, {
+            onboarding_stage: ONBOARDING_STAGES.APPROVED,
+          });
+        }
+      } else {
+        const partner = await Partner.findById(document.partner_id);
+        if (partner) {
+          await Partner.updateApprovalStatus(document.partner_id, 'rejected', verifiedBy, rejection_reason);
+          await User.update(partner.user_id, {
+            onboarding_stage: ONBOARDING_STAGES.DOCUMENTS_PENDING,
+          });
         }
       }
 
@@ -264,7 +411,7 @@ class DocumentController {
       res.json({
         success: true,
         data: {
-          documents,
+          documents: documents.map((document) => DocumentController.serializeAdminDocument(document)),
           count: documents.length
         }
       });
@@ -301,31 +448,7 @@ class DocumentController {
 
   // Determinar tipo de documento baseado no nome do arquivo
   static determineDocumentType(filename) {
-    const lowerFilename = filename.toLowerCase();
-
-    if (lowerFilename.includes('cpf') || lowerFilename.includes('identidade')) {
-      return 'cpf';
-    }
-    if (lowerFilename.includes('cnpj') || lowerFilename.includes('cnpj')) {
-      return 'cnpj';
-    }
-    if (lowerFilename.includes('cnh') || lowerFilename.includes('habilitacao')) {
-      return 'cnh';
-    }
-    if (lowerFilename.includes('crlv') || lowerFilename.includes('veiculo') || lowerFilename.includes('vehicle_document')) {
-      return 'vehicle_document';
-    }
-    if (lowerFilename.includes('residencia') || lowerFilename.includes('endereco') || lowerFilename.includes('comprovante') || lowerFilename.includes('address_proof')) {
-      return 'address_proof';
-    }
-    if (lowerFilename.includes('certificado') || lowerFilename.includes('certification')) {
-      return 'certification';
-    }
-    if (lowerFilename.includes('licenca') || lowerFilename.includes('alvara') || lowerFilename.includes('business') || lowerFilename.includes('business_license')) {
-      return 'business_license';
-    }
-
-    return 'other';
+    return determineDocumentTypeFromFilename(filename);
   }
 
   // Adicionar metadados de verificação (OCR, validação, etc)

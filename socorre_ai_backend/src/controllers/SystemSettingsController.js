@@ -409,14 +409,26 @@ class SystemSettingsController {
       const keys = [
         'guincho_search_radius_km',
         'guincho_proposal_expiry_minutes',
-        'guincho_max_proposals_per_request'
+        'guincho_max_proposals_per_request',
+        'tow_price_per_km',
+        'tow_platform_fixed_fee',
+        'tow_minimum_charge',
+        'tow_cancellation_fee'
       ];
 
       const settings = await SystemSettings.findByKeys(keys);
 
+      const guinchoSettings = {
+        ...settings,
+        tow_price_per_km: settings.tow_price_per_km ?? 6,
+        tow_platform_fixed_fee: settings.tow_platform_fixed_fee ?? 25,
+        tow_minimum_charge: settings.tow_minimum_charge ?? 90,
+        tow_cancellation_fee: settings.tow_cancellation_fee ?? 40,
+      };
+
       res.json({
         success: true,
-        data: settings
+        data: guinchoSettings
       });
 
     } catch (error) {
@@ -438,10 +450,16 @@ class SystemSettingsController {
       ];
 
       const settings = await SystemSettings.findByKeys(keys);
+      const subscriptionSettings = {
+        ...settings,
+        mechanic_monthly_fee: settings.mecanico_monthly_fee ?? null,
+        gas_station_monthly_fee: settings.posto_combustivel_monthly_fee ?? null,
+        auto_parts_monthly_fee: settings.auto_pecas_monthly_fee ?? null
+      };
 
       res.json({
         success: true,
-        data: settings
+        data: subscriptionSettings
       });
 
     } catch (error) {

@@ -2,7 +2,50 @@ const Product = require('../models/Product');
 const Partner = require('../models/Partner');
 const SystemSettings = require('../models/SystemSettings');
 
+const STORE_TYPE_ALIASES = {
+  posto_combustivel: 'gas_station',
+  auto_pecas: 'auto_parts',
+};
+
+const CATEGORY_ALIASES = {
+  combustivel: 'fuel',
+  fuel: 'fuel',
+  auto_pecas: 'auto_part',
+  auto_part: 'auto_part',
+};
+
+function normalizeStoreType(type) {
+  return STORE_TYPE_ALIASES[type] || type;
+}
+
+function normalizeCategory(category) {
+  return CATEGORY_ALIASES[category] || category;
+}
+
 class ProductController {
+  static calculateDistance(lat1, lon1, lat2, lon2) {
+    if ([lat1, lon1, lat2, lon2].some((value) => value === null || value === undefined)) {
+      return Number.POSITIVE_INFINITY;
+    }
+
+    const toRadians = (degrees) => (degrees * Math.PI) / 180;
+    const earthRadiusKm = 6371;
+    const deltaLat = toRadians(lat2 - lat1);
+    const deltaLon = toRadians(lon2 - lon1);
+    const originLat = toRadians(lat1);
+    const destinationLat = toRadians(lat2);
+
+    const haversine =
+      Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
+      Math.cos(originLat) *
+        Math.cos(destinationLat) *
+        Math.sin(deltaLon / 2) *
+        Math.sin(deltaLon / 2);
+
+    const distance = 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+    return earthRadiusKm * distance;
+  }
+
   // Criar novo produto
   static async create(req, res) {
     try {
@@ -33,9 +76,18 @@ class ProductController {
         return res.status(404).json({ error: 'Loja não encontrada' });
       }
 
-      if (!['posto_combustivel', 'auto_pecas'].includes(store.type)) {
+      const isOwner = store.id === req.user.partner_id;
+      const isAdmin = req.user.role === 'admin';
+      if (!isOwner && !isAdmin) {
+        return res.status(403).json({
+          error: 'Acesso negado',
+        });
+      }
+
+      const normalizedStoreType = normalizeStoreType(store.type);
+      if (!['gas_station', 'auto_parts'].includes(normalizedStoreType)) {
         return res.status(400).json({ 
-          error: 'Apenas postos e auto peças podem cadastrar produtos' 
+          error: 'Apenas parceiros gas_station e auto_parts podem cadastrar produtos' 
         });
       }
 
@@ -63,7 +115,7 @@ class ProductController {
         store_id,
         name,
         description,
-        category,
+        category: normalizeCategory(category),
         subcategory,
         price: parseFloat(price),
         stock: parseInt(stock) || 0,
@@ -108,6 +160,7 @@ class ProductController {
       const filters = {};
       if (store_id) filters.store_id = parseInt(store_id);
       if (category) filters.category = category;
+      if (category) filters.category = normalizeCategory(category);
       if (min_price) filters.min_price = parseFloat(min_price);
       if (max_price) filters.max_price = parseFloat(max_price);
       if (search) filters.search = search;
@@ -194,7 +247,7 @@ class ProductController {
       }
 
       const filters = {};
-      if (category) filters.category = category;
+      if (category) filters.category = normalizeCategory(category);
       if (subcategory) filters.subcategory = subcategory;
       if (min_price) filters.min_price = parseFloat(min_price);
       if (max_price) filters.max_price = parseFloat(max_price);
@@ -221,17 +274,18 @@ class ProductController {
     try {
       const { category } = req.params;
       const { latitude, longitude, radius } = req.query;
+      const normalizedCategory = normalizeCategory(category);
 
       let products;
       if (latitude && longitude) {
         products = await Product.findByCategory(
-          category,
+          normalizedCategory,
           parseFloat(latitude),
           parseFloat(longitude),
           parseFloat(radius) || 25
         );
       } else {
-        products = await Product.findByCategory(category);
+        products = await Product.findByCategory(normalizedCategory);
       }
 
       res.json({
@@ -406,6 +460,10 @@ class ProductController {
         updateData.slug = updateData.name.toLowerCase()
           .replace(/[^a-z0-9]+/g, '-')
           .replace(/(^-|-$)/g, '');
+      }
+
+      if (updateData.category) {
+        updateData.category = normalizeCategory(updateData.category);
       }
 
       // Converter campos JSON

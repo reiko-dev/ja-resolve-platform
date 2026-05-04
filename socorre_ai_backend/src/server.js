@@ -6,6 +6,7 @@ const morgan = require('morgan');
 // const rateLimit = require('express-rate-limit');
 const http = require('http');
 require('dotenv').config();
+const { mountLegacyRoutes } = require('./bootstrap/legacyRoutes');
 
 const app = express();
 const server = http.createServer(app);
@@ -84,24 +85,22 @@ app.use('/api/reviews', require('./routes/reviews'));
 // Rotas do sistema completo de socorro
 app.use('/api/partners', require('./routes/partners'));
 app.use('/api/emergency-requests', require('./routes/emergency-requests'));
-app.use('/api/delivery-orders', require('./routes/delivery-orders'));
 app.use('/api/purchase-orders', require('./routes/purchase-orders'));
 
-// Novas rotas - Nova lógica de parceiros
+// Rotas oficiais do produto
 app.use('/api/subscriptions', require('./routes/subscriptions'));
 app.use('/api/tow-proposals', require('./routes/towProposals'));
-app.use('/api/delivery-orders-new', require('./routes/deliveryOrders'));
+app.use('/api/delivery-orders', require('./routes/deliveryOrders'));
 app.use('/api/products', require('./routes/products'));
 app.use('/api/system-settings', require('./routes/systemSettings'));
-app.use('/api/documents', require('./routes/documentRoutes'));
-
-// Rotas existentes
 app.use('/api/upload', require('./routes/upload'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/payments', require('./routes/payments'));
 app.use('/api/wallets', require('./routes/wallets'));
 app.use('/api/disputes', require('./routes/disputes'));
-app.use('/api/uploads', require('./routes/uploads'));
+
+// Trilhas legadas mantidas por compatibilidade controlada.
+mountLegacyRoutes(app);
 
 // Catch-all para rotas não encontradas
 app.use('*', (req, res) => {

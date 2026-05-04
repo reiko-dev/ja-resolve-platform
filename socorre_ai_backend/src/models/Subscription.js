@@ -237,16 +237,16 @@ class Subscription {
     const stats = await knex('subscriptions')
       .select(
         knex.raw('COUNT(*) as total'),
-        knex.raw('COUNT(CASE WHEN status = "active" THEN 1 END) as active'),
-        knex.raw('COUNT(CASE WHEN status = "expired" THEN 1 END) as expired'),
-        knex.raw('COUNT(CASE WHEN status = "cancelled" THEN 1 END) as cancelled'),
-        knex.raw('COUNT(CASE WHEN status = "suspended" THEN 1 END) as suspended'),
-        knex.raw('COUNT(CASE WHEN status = "pending_payment" THEN 1 END) as pending_payment'),
+        knex.raw("COUNT(CASE WHEN status = 'active' THEN 1 END) as active"),
+        knex.raw("COUNT(CASE WHEN status = 'expired' THEN 1 END) as expired"),
+        knex.raw("COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled"),
+        knex.raw("COUNT(CASE WHEN status = 'suspended' THEN 1 END) as suspended"),
+        knex.raw("COUNT(CASE WHEN status = 'pending_payment' THEN 1 END) as pending_payment"),
         knex.raw('SUM(monthly_fee) as total_monthly_revenue'),
         knex.raw('AVG(monthly_fee) as avg_monthly_fee'),
-        knex.raw('COUNT(CASE WHEN type = "mecanico" THEN 1 END) as mecanico'),
-        knex.raw('COUNT(CASE WHEN type = "posto_combustivel" THEN 1 END) as posto_combustivel'),
-        knex.raw('COUNT(CASE WHEN type = "auto_pecas" THEN 1 END) as auto_pecas')
+        knex.raw("COUNT(CASE WHEN type = 'mecanico' THEN 1 END) as mecanico"),
+        knex.raw("COUNT(CASE WHEN type = 'posto_combustivel' THEN 1 END) as posto_combustivel"),
+        knex.raw("COUNT(CASE WHEN type = 'auto_pecas' THEN 1 END) as auto_pecas")
       )
       .first();
 

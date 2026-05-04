@@ -237,7 +237,7 @@ class DeliveryOrderController {
       const { id } = req.params;
       const { rating, review_comment } = req.body;
       
-      const order = await DeliveryOrder.rate(id, rating, review_comment);
+      const order = await DeliveryOrder.rate(id, req.user.id, rating, review_comment);
       
       if (!order) {
         return res.status(404).json({

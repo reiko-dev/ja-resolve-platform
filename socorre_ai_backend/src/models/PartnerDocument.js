@@ -1,10 +1,21 @@
 const knex = require('../config/database');
+const {
+  normalizeDocumentType,
+  getRequiredDocuments,
+} = require('../config/partnerDocumentRules');
 
 class PartnerDocument {
   // Criar registro de documento
   static async create(documentData) {
     try {
-      const [id] = await knex('partner_documents').insert(documentData);
+      const [inserted] = await knex('partner_documents')
+        .insert({
+          ...documentData,
+          document_type: normalizeDocumentType(documentData.document_type),
+        })
+        .returning('id');
+
+      const id = typeof inserted === 'object' ? inserted.id : inserted;
       return this.findById(id);
     } catch (error) {
       console.error('Erro ao criar documento do parceiro:', error);
@@ -40,7 +51,7 @@ class PartnerDocument {
       }
       
       if (filters.document_type) {
-        query = query.where('document_type', filters.document_type);
+        query = query.where('document_type', normalizeDocumentType(filters.document_type));
       }
 
       if (filters.limit) {
@@ -56,6 +67,20 @@ class PartnerDocument {
       return documents;
     } catch (error) {
       console.error('Erro ao listar documentos do parceiro:', error);
+      throw error;
+    }
+  }
+
+  static async findByType(partnerId, documentType) {
+    try {
+      return await knex('partner_documents')
+        .select('*')
+        .where('partner_id', partnerId)
+        .where('document_type', normalizeDocumentType(documentType))
+        .orderBy('uploaded_at', 'desc')
+        .first();
+    } catch (error) {
+      console.error('Erro ao buscar documento por tipo:', error);
       throw error;
     }
   }
@@ -84,6 +109,40 @@ class PartnerDocument {
       return this.findById(id);
     } catch (error) {
       console.error('Erro ao atualizar status do documento:', error);
+      throw error;
+    }
+  }
+
+  static async updateStatusByPartner(partnerId, status, verifiedBy = null, rejectionReason = null, currentStatuses = null) {
+    try {
+      const query = knex('partner_documents')
+        .where('partner_id', partnerId);
+
+      if (Array.isArray(currentStatuses) && currentStatuses.length > 0) {
+        query.whereIn('status', currentStatuses);
+      }
+
+      const updateData = {
+        status,
+        verified_at: knex.fn.now(),
+        updated_at: knex.fn.now(),
+      };
+
+      if (verifiedBy) {
+        updateData.verified_by = verifiedBy;
+      }
+
+      if (status === 'approved') {
+        updateData.rejection_reason = null;
+      } else if (rejectionReason) {
+        updateData.rejection_reason = rejectionReason;
+      }
+
+      await query.update(updateData);
+
+      return this.findByPartnerId(partnerId);
+    } catch (error) {
+      console.error('Erro ao atualizar status dos documentos do parceiro:', error);
       throw error;
     }
   }
@@ -118,7 +177,8 @@ class PartnerDocument {
   // Verificar se parceiro tem todos os documentos obrigatórios
   static async checkRequiredDocuments(partnerId, partnerType) {
     try {
-      const requiredDocuments = this.getRequiredDocuments(partnerType);
+      const normalizedPartnerType = partnerType || (await knex('partners').where('id', partnerId).first())?.type;
+      const requiredDocuments = this.getRequiredDocuments(normalizedPartnerType);
       
       const existingDocuments = await knex('partner_documents')
         .select('document_type', 'status')
@@ -128,21 +188,21 @@ class PartnerDocument {
       const documentStatus = {};
       
       requiredDocuments.forEach(docType => {
-        const doc = existingDocuments.find(d => d.document_type === docType);
+        const doc = existingDocuments.find(d => normalizeDocumentType(d.document_type) === docType);
         documentStatus[docType] = {
           required: true,
           uploaded: !!doc,
           status: doc ? doc.status : 'missing',
-          verified: doc && doc.status === 'approved'
+          approved: !!doc && doc.status === 'approved'
         };
       });
 
       return {
         allUploaded: requiredDocuments.every(docType => 
-          existingDocuments.some(d => d.document_type === docType)
+          existingDocuments.some(d => normalizeDocumentType(d.document_type) === docType)
         ),
         allVerified: requiredDocuments.every(docType => 
-          existingDocuments.some(d => d.document_type === docType && d.status === 'approved')
+          existingDocuments.some(d => normalizeDocumentType(d.document_type) === docType && d.status === 'approved')
         ),
         documents: documentStatus
       };
@@ -154,22 +214,7 @@ class PartnerDocument {
 
   // Obter documentos obrigatórios por tipo de parceiro
   static getRequiredDocuments(partnerType) {
-    const baseDocuments = ['rg_cpf', 'residence_proof'];
-    
-    switch (partnerType) {
-      case 'mechanic':
-        return [...baseDocuments, 'cnh', 'certification'];
-      case 'motoboy':
-        return [...baseDocuments, 'cnh', 'crlv'];
-      case 'tow':
-        return [...baseDocuments, 'cnh', 'crlv'];
-      case 'gas_station':
-        return [...baseDocuments, 'business_license'];
-      case 'auto_parts':
-        return [...baseDocuments, 'business_license'];
-      default:
-        return baseDocuments;
-    }
+    return getRequiredDocuments(partnerType);
   }
 
   // Obter estatísticas de documentos
@@ -184,9 +229,9 @@ class PartnerDocument {
       const stats = await query
         .select(
           knex.raw('COUNT(*) as total'),
-          knex.raw('SUM(CASE WHEN status = "pending" THEN 1 ELSE 0 END) as pending'),
-          knex.raw('SUM(CASE WHEN status = "approved" THEN 1 ELSE 0 END) as approved'),
-          knex.raw('SUM(CASE WHEN status = "rejected" THEN 1 ELSE 0 END) as rejected')
+          knex.raw("SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending"),
+          knex.raw("SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved"),
+          knex.raw("SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected")
         )
         .first();
 
@@ -210,10 +255,14 @@ class PartnerDocument {
           'partner_documents.*',
           'partners.business_name',
           'partners.type as partner_type',
-          'users.name as verified_by_name'
+          'partner_users.name as partner_name',
+          'partner_users.email as partner_email',
+          'partner_users.phone as partner_phone',
+          'verifier_users.name as verified_by_name'
         )
         .leftJoin('partners', 'partner_documents.partner_id', 'partners.id')
-        .leftJoin('users', 'partner_documents.verified_by', 'users.id')
+        .leftJoin({ partner_users: 'users' }, 'partners.user_id', 'partner_users.id')
+        .leftJoin({ verifier_users: 'users' }, 'partner_documents.verified_by', 'verifier_users.id')
         .where('partner_documents.status', 'pending')
         .orderBy('partner_documents.uploaded_at', 'asc')
         .limit(limit);

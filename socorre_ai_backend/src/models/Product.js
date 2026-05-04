@@ -1,5 +1,20 @@
 const knex = require('../config/database');
 
+const CATEGORY_GROUPS = {
+  fuel: ['fuel', 'combustivel'],
+  combustivel: ['fuel', 'combustivel'],
+  auto_part: ['auto_part', 'auto_pecas'],
+  auto_pecas: ['auto_part', 'auto_pecas'],
+};
+
+function getCategoryVariants(category) {
+  if (!category) {
+    return [];
+  }
+
+  return CATEGORY_GROUPS[category] || [category];
+}
+
 class Product {
   // Criar novo produto
   static async create(productData) {
@@ -43,7 +58,7 @@ class Product {
 
     // Aplicar filtros
     if (filters.category) {
-      query = query.where('category', filters.category);
+      query = query.whereIn('category', getCategoryVariants(filters.category));
     }
     if (filters.subcategory) {
       query = query.where('subcategory', filters.subcategory);
@@ -68,7 +83,7 @@ class Product {
       });
     }
 
-    return await query.order('is_featured', 'desc').order('name', 'asc');
+    return await query.orderBy('is_featured', 'desc').orderBy('name', 'asc');
   }
 
   // Buscar produtos por categoria
@@ -83,7 +98,7 @@ class Product {
         'partners.longitude'
       )
       .leftJoin('partners', 'products.store_id', 'partners.id')
-      .where('products.category', category)
+      .whereIn('products.category', getCategoryVariants(category))
       .where('products.is_active', true)
       .where('products.stock', '>', 0);
 
@@ -102,7 +117,7 @@ class Product {
       .orderBy('distance_km', 'asc');
     }
 
-    return await query.order('products.is_featured', 'desc').order('products.name', 'asc');
+    return await query.orderBy('products.is_featured', 'desc').orderBy('products.name', 'asc');
   }
 
   // Buscar combustíveis (para postos)
@@ -116,15 +131,19 @@ class Product {
         'partners.longitude'
       )
       .leftJoin('partners', 'products.store_id', 'partners.id')
-      .where('products.category', 'combustivel')
+      .whereIn('products.category', getCategoryVariants('fuel'))
       .where('products.is_active', true)
-      .whereNotNull('products.fuel_type');
+      .where('products.stock', '>', 0);
 
     if (storeId) {
       query = query.where('products.store_id', storeId);
     }
 
-    return await query.order('products.fuel_type', 'asc');
+    return await query
+      .orderByRaw('CASE WHEN products.fuel_type IS NULL THEN 1 ELSE 0 END ASC')
+      .orderBy('products.fuel_type', 'asc')
+      .orderBy('products.subcategory', 'asc')
+      .orderBy('products.name', 'asc');
   }
 
   // Buscar peças (para auto peças)
@@ -138,19 +157,19 @@ class Product {
         'partners.longitude'
       )
       .leftJoin('partners', 'products.store_id', 'partners.id')
-      .where('products.category', 'auto_pecas')
+      .whereIn('products.category', getCategoryVariants('auto_part'))
       .where('products.is_active', true)
       .where('products.stock', '>', 0);
 
     // Filtros específicos para auto peças
     if (filters.vehicle_brand) {
-      query = query.whereRaw('JSON_CONTAINS(compatibility, ?)', [JSON.stringify(filters.vehicle_brand)]);
+      query = query.whereRaw('COALESCE(compatibility::text, \'\') ILIKE ?', [`%${filters.vehicle_brand}%`]);
     }
     if (filters.part_category) {
       query = query.where('subcategory', filters.part_category);
     }
 
-    return await query.order('products.is_featured', 'desc').order('products.name', 'asc');
+    return await query.orderBy('products.is_featured', 'desc').orderBy('products.name', 'asc');
   }
 
   // Buscar produtos em destaque
@@ -226,7 +245,7 @@ class Product {
         this.where('products.name', 'like', `%${query}%`)
             .orWhere('products.description', 'like', `%${query}%`)
             .orWhere('products.sku', 'like', `%${query}%`)
-            .orWhere('products.tags', 'like', `%${query}%`);
+            .orWhereRaw('COALESCE(products.tags::text, \'\') ILIKE ?', [`%${query}%`]);
       });
 
     // Se coordenadas fornecidas, adicionar distância
@@ -327,7 +346,7 @@ class Product {
       query = query.where('products.store_id', filters.store_id);
     }
     if (filters.category) {
-      query = query.where('products.category', filters.category);
+      query = query.whereIn('products.category', getCategoryVariants(filters.category));
     }
     if (filters.is_active !== undefined) {
       query = query.where('products.is_active', filters.is_active);
@@ -358,7 +377,7 @@ class Product {
       countQuery.where('products.store_id', filters.store_id);
     }
     if (filters.category) {
-      countQuery.where('products.category', filters.category);
+      countQuery.whereIn('products.category', getCategoryVariants(filters.category));
     }
     if (filters.is_active !== undefined) {
       countQuery.where('products.is_active', filters.is_active);
