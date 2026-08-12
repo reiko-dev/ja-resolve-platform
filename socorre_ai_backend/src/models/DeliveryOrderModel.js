@@ -21,6 +21,65 @@ class DeliveryOrder {
     ];
   }
 
+  static async findAll(page = 1, limit = 10, filters = {}) {
+    const offset = (page - 1) * limit;
+    
+    let query = knex('delivery_orders')
+      .select(this.baseSelect())
+      .leftJoin('users', 'delivery_orders.user_id', 'users.id')
+      .leftJoin('partners as motoboy', 'delivery_orders.motoboy_id', 'motoboy.id');
+
+    // Aplicar filtros
+    if (filters.status) {
+      query = query.where('delivery_orders.status', filters.status);
+    }
+    if (filters.order_type) {
+      query = query.where('delivery_orders.type', filters.order_type);
+    }
+    if (filters.store_id) {
+      query = query.whereRaw("store_info::json->>'id' = ?", [String(filters.store_id)]);
+    }
+    if (filters.customer_id) {
+      query = query.where('delivery_orders.user_id', filters.customer_id);
+    }
+    if (filters.motoboy_id) {
+      query = query.where('delivery_orders.motoboy_id', filters.motoboy_id);
+    }
+
+    // Query para contagem total
+    let countQuery = knex('delivery_orders');
+    if (filters.status) {
+      countQuery = countQuery.where('status', filters.status);
+    }
+    if (filters.order_type) {
+      countQuery = countQuery.where('type', filters.order_type);
+    }
+    if (filters.store_id) {
+      countQuery = countQuery.whereRaw("store_info::json->>'id' = ?", [String(filters.store_id)]);
+    }
+    if (filters.customer_id) {
+      countQuery = countQuery.where('user_id', filters.customer_id);
+    }
+    if (filters.motoboy_id) {
+      countQuery = countQuery.where('motoboy_id', filters.motoboy_id);
+    }
+
+    const [orders, total] = await Promise.all([
+      query.limit(limit).offset(offset).orderBy('delivery_orders.created_at', 'desc'),
+      countQuery.count('* as count').first()
+    ]);
+
+    const countVal = total ? parseInt(total.count, 10) : 0;
+
+    return {
+      orders,
+      total: countVal,
+      page,
+      limit,
+      totalPages: Math.ceil(countVal / limit)
+    };
+  }
+
   static async create(orderData) {
     const [order] = await knex('delivery_orders').insert(orderData).returning('*');
     return this.findById(order.id);
