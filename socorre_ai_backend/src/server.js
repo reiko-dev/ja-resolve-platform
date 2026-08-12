@@ -31,10 +31,27 @@ app.use(helmet());
 console.log('🛡️ Rate limiting desabilitado temporariamente');
 
 // CORS
+const allowedOrigins = process.env.CORS_ORIGIN 
+  ? process.env.CORS_ORIGIN.split(',').map(o => o.trim()) 
+  : ['https://admin.socorreja.com.br', 'http://localhost:3000', 'http://localhost:3001', 'http://localhost:8080'];
+
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://admin.socorreja.com.br'] 
-    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:8080'],
+  origin: function (origin, callback) {
+    // Permitir requisições sem origin (como apps móveis, curl, etc.)
+    if (!origin) return callback(null, true);
+    
+    // Verificar se está listado ou contém curinga *
+    if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
+      return callback(null, true);
+    }
+    
+    // Facilitar testes permitindo domínios temporários do Easypanel
+    if (origin.endsWith('.easypanel.host')) {
+      return callback(null, true);
+    }
+    
+    return callback(new Error('Não permitido por CORS'));
+  },
   credentials: true
 }));
 
