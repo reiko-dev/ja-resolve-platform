@@ -9,6 +9,9 @@ router.use(auth);
 // Criar novo pedido de delivery
 router.post('/', DeliveryOrderController.create);
 
+// Listar todos os pedidos (com filtros)
+router.get('/', DeliveryOrderController.getAll);
+
 // Listar pedidos do cliente
 router.get('/customer', DeliveryOrderController.findByCustomer);
 

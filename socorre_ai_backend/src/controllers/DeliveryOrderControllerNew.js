@@ -441,6 +441,37 @@ class DeliveryOrderController {
       return DeliveryOrderController.errorResponse(res, error);
     }
   }
+
+  static async getAll(req, res) {
+    try {
+      const page = req.query.page || 1;
+      const limit = req.query.limit || 10;
+      const filters = {
+        page: parseInt(page, 10),
+        limit: parseInt(limit, 10),
+        status: req.query.status || null,
+        order_type: req.query.order_type || null,
+        store_id: req.query.store_id || null,
+        customer_id: req.query.customer_id || null,
+        motoboy_id: req.query.motoboy_id || null
+      };
+
+      const result = await DeliveryOrderService.getOrdersWithFilters(filters);
+
+      res.json({
+        success: true,
+        data: DeliveryOrderController.serializeList(result.orders),
+        pagination: {
+          page: result.page,
+          limit: result.limit,
+          total: result.total,
+          totalPages: result.totalPages
+        }
+      });
+    } catch (error) {
+      return DeliveryOrderController.errorResponse(res, error);
+    }
+  }
 }
 
 module.exports = DeliveryOrderController;

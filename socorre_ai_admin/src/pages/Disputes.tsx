@@ -70,7 +70,7 @@ const Disputes: React.FC = () => {
 
   const loadDisputes = async () => {
     try {
-      const response = await apiService.get('/api/disputes');
+      const response = await apiService.get('/disputes');
       const disputeData = response.data?.disputes || [];
       setDisputes(disputeData);
       
@@ -93,7 +93,7 @@ const Disputes: React.FC = () => {
     if (!selectedDispute || !resolution) return;
 
     try {
-      await apiService.put(`/api/disputes/${selectedDispute.id}/resolve`, {
+      await apiService.put(`/disputes/${selectedDispute.id}/resolve`, {
         resolution,
         refundAmount: refundAmount ? parseFloat(refundAmount) : undefined,
       });
