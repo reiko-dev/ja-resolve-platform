@@ -260,45 +260,41 @@ const Partners: React.FC = () => {
 
   return (
     <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3} sx={{ flexDirection: { xs: 'column', sm: 'row' }, gap: 2, alignItems: { xs: 'stretch', sm: 'center' } }}>
         <Typography variant="h4" component="h1" fontWeight="bold">
           Parceiros
         </Typography>
-        <Grid container spacing={2}>
-          <Grid item xs={12} md={3}>
-            <FormControl fullWidth>
-              <InputLabel>Tipo de Parceiro</InputLabel>
-              <Select
-                value={partnerType}
-                onChange={(e) => setPartnerType(e.target.value as any)}
-                label="Tipo de Parceiro"
-              >
-                <MenuItem value="mechanic">Mecânico</MenuItem>
-                <MenuItem value="motoboy">Motoboy</MenuItem>
-                <MenuItem value="gas_station">Posto de Combustível</MenuItem>
-                <MenuItem value="auto_parts">Auto Peças</MenuItem>
-                <MenuItem value="tow">Guincho</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-          <Grid item xs={12} md={3}>
-            <Button
-              variant="contained"
-              startIcon={<Add />}
-              onClick={() => {
-                setSelectedPartner(null);
-                setEditDialogOpen(true);
-              }}
-              fullWidth
-              sx={{ height: 56 }}
+        <Box display="flex" gap={2} sx={{ width: { xs: '100%', sm: 'auto' }, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+          <FormControl sx={{ minWidth: 200, width: { xs: '100%', sm: 'auto' } }}>
+            <InputLabel>Tipo de Parceiro</InputLabel>
+            <Select
+              value={partnerType}
+              onChange={(e) => setPartnerType(e.target.value as any)}
+              label="Tipo de Parceiro"
             >
-              Novo {partnerType === 'mechanic' ? 'Mecânico' : 
-                    partnerType === 'motoboy' ? 'Motoboy' :
-                    partnerType === 'gas_station' ? 'Posto de Combustível' :
-                    partnerType === 'auto_parts' ? 'Auto Peças' : 'Guincho'}
-            </Button>
-          </Grid>
-        </Grid>
+              <MenuItem value="mechanic">Mecânico</MenuItem>
+              <MenuItem value="motoboy">Motoboy</MenuItem>
+              <MenuItem value="gas_station">Posto de Combustível</MenuItem>
+              <MenuItem value="auto_parts">Auto Peças</MenuItem>
+              <MenuItem value="tow">Guincho</MenuItem>
+            </Select>
+          </FormControl>
+          <Button
+            variant="contained"
+            startIcon={<Add />}
+            onClick={() => {
+              setSelectedPartner(null);
+              setEditDialogOpen(true);
+            }}
+            sx={{ height: 56, width: { xs: '100%', sm: 'auto' } }}
+          >
+            Novo {partnerType === 'mechanic' ? 'Mecânico' : 
+                  partnerType === 'motoboy' ? 'Motoboy' :
+                  partnerType === 'gas_station' ? 'Posto de Combustível' :
+                  partnerType === 'auto_parts' ? 'Auto Peças' : 'Guincho'}
+          </Button>
+        </Box>
+      </Box>
 
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
@@ -655,7 +651,6 @@ const Partners: React.FC = () => {
             </Button>
           </DialogActions>
         </Dialog>
-      </Box>
     </Box>
     );
   };
