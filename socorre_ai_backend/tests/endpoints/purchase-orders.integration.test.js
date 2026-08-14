@@ -2,16 +2,16 @@
  * Contrato de integracao do checkout (E2E-010 / E2E-011).
  *
  * Reproduz EXATAMENTE o payload enviado pelo app cliente no device real
- * (PHASE 4): `payment_method = 'credit_card'` nao pertence ao CHECK
- * `purchase_orders_payment_method_check` (`['cash','card','pix','app']`) e o
- * backend atual responde 500 com o SQL do constraint vazado.
+ * (PHASE 4) e define o COMPORTAMENTO ESPERADO do backend.
  *
- * Estes testes definem o COMPORTAMENTO ESPERADO do backend. Eles nao alteram
- * codigo de producao: se falharem contra a main atual, o resultado documenta o
- * blocker a ser implementado pelo backend developer.
+ * Este arquivo NAO altera codigo de producao. Resultado esperado contra a
+ * main atual:
+ *   - grupo A: PASS (fluxos que ja funcionam);
+ *   - grupo B: FAIL (blockers E2E-010 / E2E-011 pendentes de implementacao).
+ * Apos o backend developer implementar os fixes, grupo A + grupo B = 100% PASS.
  *
- * Requer o test harness (PR #5): helpers em `tests/helpers` e PostgreSQL de
- * teste via `npm run test:db:up`.
+ * Requer o backend test harness (PR #5): helpers em `tests/helpers` e
+ * PostgreSQL de teste via `npm run test:db:up`.
  */
 const { api } = require('../helpers/api');
 const { db } = require('../helpers/db');
@@ -66,107 +66,124 @@ function expectNoSqlLeak(body) {
   }
 }
 
-describe('POST /api/purchase-orders — contrato de integracao (E2E-010/E2E-011)', () => {
-  it('exige autenticacao (401 sem token)', async () => {
-    const { partner } = await createStore();
-    const res = await api().post('/api/purchase-orders').send(REAL_DEVICE_PAYLOAD(partner.id));
-    expect(res.status).toBe(401);
+describe('POST /api/purchase-orders — contrato de integracao', () => {
+  describe('GRUPO A — ja funciona contra o backend atual (nao e blocker)', () => {
+    it('exige autenticacao (401 sem token)', async () => {
+      const { partner } = await createStore();
+      const res = await api().post('/api/purchase-orders').send(REAL_DEVICE_PAYLOAD(partner.id));
+      expect(res.status).toBe(401);
+    });
+
+    it('aceita o payment_method canonico card (201)', async () => {
+      const { partner } = await createStore();
+      const { headers } = await createAuthedUser();
+
+      const payload = REAL_DEVICE_PAYLOAD(partner.id);
+      payload.payment_method = 'card';
+
+      const res = await api().post('/api/purchase-orders').set(headers).send(payload);
+      expect(res.status).toBe(201);
+    });
+
+    it('aceita o payment_method canonico pix (201)', async () => {
+      const { partner } = await createStore();
+      const { headers } = await createAuthedUser();
+
+      const payload = REAL_DEVICE_PAYLOAD(partner.id);
+      payload.payment_method = 'pix';
+
+      const res = await api().post('/api/purchase-orders').set(headers).send(payload);
+      expect(res.status).toBe(201);
+    });
   });
 
-  it('cria a PO com o payload real do device (HTTP 201) [E2E-010 — contrato pendente]', async () => {
-    const { partner } = await createStore();
-    const { headers, user } = await createAuthedUser();
+  describe('GRUPO B — blockers E2E-010/E2E-011 (falham contra o backend atual)', () => {
+    it('cria a PO com o payload real do device (HTTP 201) [E2E-010]', async () => {
+      const { partner } = await createStore();
+      const { headers, user } = await createAuthedUser();
 
-    const res = await api().post('/api/purchase-orders').set(headers)
-      .send(REAL_DEVICE_PAYLOAD(partner.id));
+      const res = await api().post('/api/purchase-orders').set(headers)
+        .send(REAL_DEVICE_PAYLOAD(partner.id));
 
-    expect(res.status).toBe(201);
-    expectNoSqlLeak(res.body);
+      expect(res.status).toBe(201);
+      expectNoSqlLeak(res.body);
 
-    const order = await db('purchase_orders').where({ id: res.body.data.id }).first();
-    expect(order).toBeDefined();
-    expect(order.user_id).toBe(user.id);
-    expect(order.store_id).toBe(partner.id);
-    expect(order.subtotal).toBe(459.4);
-    expect(order.delivery_fee).toBe(15.9);
-    expect(order.total_price).toBe(475.3);
-    expect(order.delivery_mode).toBe('store_delivery');
-    expect(order.payment_method).toBe('card');
-  });
+      const order = await db('purchase_orders').where({ id: res.body.data.id }).first();
+      expect(order).toBeDefined();
+      expect(order.user_id).toBe(user.id);
+      expect(order.store_id).toBe(partner.id);
+      expect(Number(order.subtotal)).toBeCloseTo(459.4, 2);
+      expect(Number(order.delivery_fee)).toBeCloseTo(15.9, 2);
+      expect(Number(order.total_price)).toBeCloseTo(475.3, 2);
+      expect(JSON.parse(order.price_breakdown).delivery_mode).toBe('store_delivery');
+      expect(order.payment_method).toBe('card');
+    });
 
-  it('persiste os items corretamente (product_id/name/quantity/unit_price)', async () => {
-    const { partner } = await createStore();
-    const { headers } = await createAuthedUser();
+    it('persiste os items corretamente (product_id/name/quantity/unit_price) [E2E-010]', async () => {
+      const { partner } = await createStore();
+      const { headers } = await createAuthedUser();
 
-    const res = await api().post('/api/purchase-orders').set(headers)
-      .send(REAL_DEVICE_PAYLOAD(partner.id));
+      const res = await api().post('/api/purchase-orders').set(headers)
+        .send(REAL_DEVICE_PAYLOAD(partner.id));
 
-    expect(res.status).toBe(201);
+      expect(res.status).toBe(201);
 
-    const items = await db('purchase_order_items').where({ purchase_order_id: res.body.data.id });
-    expect(items).toHaveLength(4);
-    expect(items[0]).toEqual(
-      expect.objectContaining({
-        product_id: 1,
-        name: 'Filtro de oleo Tecfil',
-        quantity: 1,
-        unit_price: 39.9,
-      })
-    );
-  });
+      const items = res.body.data.items;
+      expect(items).toHaveLength(4);
+      expect(items[0]).toEqual(
+        expect.objectContaining({
+          product_id: 1,
+          name: 'Filtro de oleo Tecfil',
+          quantity: 1,
+          unit_price: 39.9,
+        })
+      );
+    });
 
-  it('aceita o payment_method canonico card (201)', async () => {
-    const { partner } = await createStore();
-    const { headers } = await createAuthedUser();
+    it('rejeita payment_method invalido com HTTP 400, sem INSERT [E2E-010]', async () => {
+      const { partner } = await createStore();
+      const { headers } = await createAuthedUser();
 
-    const payload = REAL_DEVICE_PAYLOAD(partner.id);
-    payload.payment_method = 'card';
+      const payload = REAL_DEVICE_PAYLOAD(partner.id);
+      payload.payment_method = 'bitcoin';
 
-    const res = await api().post('/api/purchase-orders').set(headers).send(payload);
-    expect(res.status).toBe(201);
-  });
+      const before = await db('purchase_orders').count({ n: '*' });
 
-  it('aceita o payment_method canonico pix (201)', async () => {
-    const { partner } = await createStore();
-    const { headers } = await createAuthedUser();
+      const res = await api().post('/api/purchase-orders').set(headers).send(payload);
 
-    const payload = REAL_DEVICE_PAYLOAD(partner.id);
-    payload.payment_method = 'pix';
+      expect(res.status).toBe(400);
+      expectNoSqlLeak(res.body);
 
-    const res = await api().post('/api/purchase-orders').set(headers).send(payload);
-    expect(res.status).toBe(201);
-  });
+      const after = await db('purchase_orders').count({ n: '*' });
+      expect(Number(after[0].n)).toBe(Number(before[0].n));
+    });
 
-  it('rejeita payment_method invalido com HTTP 400, sem INSERT [E2E-010 — contrato pendente]', async () => {
-    const { partner } = await createStore();
-    const { headers } = await createAuthedUser();
+    it('nao vaza SQL/constraint/stack em erro interno [E2E-011]', async () => {
+      const { partner } = await createStore();
+      const { headers } = await createAuthedUser();
 
-    const payload = REAL_DEVICE_PAYLOAD(partner.id);
-    payload.payment_method = 'bitcoin';
+      const payload = REAL_DEVICE_PAYLOAD(partner.id);
+      payload.delivery_latitude = 'valor-que-quebra-o-binding-do-insert';
 
-    const before = await db('purchase_orders').count({ n: '*' });
+      const res = await api().post('/api/purchase-orders').set(headers).send(payload);
 
-    const res = await api().post('/api/purchase-orders').set(headers).send(payload);
+      expect([400, 500]).toContain(res.status);
+      expectNoSqlLeak(res.body);
+      if (res.status === 500) {
+        expect(res.body.message).toBe('Erro interno do servidor');
+      }
+    });
 
-    expect(res.status).toBe(400);
-    expectNoSqlLeak(res.body);
+    it('loja inexistente retorna 404 com mensagem segura [E2E-011]', async () => {
+      const { headers } = await createAuthedUser();
 
-    const after = await db('purchase_orders').count({ n: '*' });
-    expect(Number(after[0].n)).toBe(Number(before[0].n));
-  });
+      const payload = REAL_DEVICE_PAYLOAD(99999);
 
-  it('nao vaza SQL/constraint/stack em erro interno (E2E-011) [contrato pendente]', async () => {
-    const { partner } = await createStore();
-    const { headers } = await createAuthedUser();
+      const res = await api().post('/api/purchase-orders').set(headers).send(payload);
 
-    const payload = REAL_DEVICE_PAYLOAD(partner.id);
-    payload.payment_method = 'credit_card';
-
-    const res = await api().post('/api/purchase-orders').set(headers).send(payload);
-
-    expect([400, 500]).toContain(res.status);
-    expectNoSqlLeak(res.body);
-    expect(res.body.message).not.toContain('constraint');
-    expect(res.body.message).not.toContain('insert into');
+      expect(res.status).toBe(404);
+      expect(res.body.message).toContain('Loja não encontrada');
+      expectNoSqlLeak(res.body);
+    });
   });
 });

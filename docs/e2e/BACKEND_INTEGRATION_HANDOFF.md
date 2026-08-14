@@ -1,119 +1,96 @@
-# Backend Integration Handoff
+# Backend Integration Handoff — Mobile ↔ Backend
 
-> Contrato de integração E2E (frontend Flutter × backend de produção) para o backend developer.
-> Este PR **não** implementa correções: ele define, com testes executáveis, o comportamento esperado.
+> Fonte única de verdade do contrato de integração entre o aplicativo cliente (Flutter) e o backend.
+> Este documento e os testes deste PR **não** implementam correções: definem, de forma executável e objetiva, o comportamento esperado que o backend developer deve entregar.
 
 ## 1. Objetivo
 
-Definir o contrato necessário para o E2E completo do aplicativo cliente contra produção, registrar o que já foi validado em dispositivo físico e entregar ao backend developer os critérios objetivos de aceite dos blockers atuais.
+Depois que o backend developer corrigir os blockers descritos aqui, os contratos registrados neste PR (testes em `tests/endpoints/purchase-orders.integration.test.js`) precisam estar **100% PASS** para considerarmos a integração Mobile ↔ Backend 100% funcional.
 
-## 2. O que já funciona
+## 2. O que JÁ FUNCIONA (não precisa ser alterado pelo backend)
 
-Validado em dispositivo físico real (Samsung SM-S938B, `socorre_client` v1.0.0+1, apontando para `https://api.socorreja.com.br/api`):
+Validado em dispositivo físico real (Samsung SM-S938B, `socorre_client` v1.0.0+1, contra `https://api.socorreja.com.br/api`):
 
-- cold start sem sessão
-- login real
-- logout
-- catálogo real (4 produtos E2E da store 3)
-- autenticação Bearer
-- emergency request autenticada
-- tow flow autenticado
-- cart local
-- checkout UI
-- `POST /purchase-orders` sendo alcançado pelo frontend
+- `POST /auth/login` → 200, token em `data.token`;
+- autenticação Bearer nas chamadas autenticadas;
+- `GET /products` → 200 (4 produtos E2E da store 3);
+- catálogo real após autenticação;
+- `GET /emergency-requests/user` com Bearer;
+- fluxos Emergency/Tow chegam ao backend autenticados (sem o 401 anterior);
+- `POST /purchase-orders` **chega** ao backend — payload completo (`store_id`, `items[product_id|name|quantity|unit_price]`, `subtotal`, `total_price`, `delivery_mode`, `delivery_fee`, `delivery_address`, `payment_method`, `notes`), porém é rejeitado pelo problema de `payment_method` (E2E-010);
+- cart é **local** no Mobile — NÃO requer backend;
+- logout/gate de autenticação já corrigidos no Mobile — NÃO atribuir ao backend.
 
-## 3. O que está bloqueado
+## 3. Blockers — o que o backend precisa corrigir
 
-### E2E-010 — Purchase Order / payment_method — P1 — BACKEND
+### 3.1 E2E-010 — Purchase Order rejeitado por `payment_method`
 
-- **Endpoint:** `POST /api/purchase-orders`
-- **Payload observado (device):**
+| Campo | Valor |
+|---|---|
+| **ID** | E2E-010 |
+| **Prioridade** | P1 |
+| **Endpoint** | `POST /api/purchase-orders` |
+| **Comportamento atual observado** | Mobile envia `payment_method = "credit_card"`; o valor chega ao INSERT e viola o CHECK constraint `purchase_orders_payment_method_check` (conjunto canônico: `cash / card / pix / app`); backend responde **500** com o SQL do constraint vazado |
+| **Comportamento esperado** | `credit_card` é aceito como entrada do Mobile; backend normaliza para o valor canônico oficial (`card`); **201**; valores realmente inválidos → **400** com validação **antes do INSERT**; PO persistido corretamente |
+| **Payload relevante** | `{ "store_id": 3, "items": [...], "subtotal": 459.4, "total_price": 475.3, "delivery_mode": "store_delivery", "delivery_fee": 15.9, "delivery_address": "AV. PAULISTA, 1578 - Bela Vista, Sao Paulo - SP, 01310-200", "payment_method": "credit_card", "notes": "Pedido via app Ja Resolve" }` |
+| **HTTP esperado** | 201 (sucesso) / 400 (payment_method inválido) |
+| **Impacto no fluxo Mobile** | Checkout travado: o usuário não consegue concluir o pedido; ARCH-034 sem conclusão |
+| **Evidência/teste** | Device PHASE 4 (500 + CHECK no body); teste de contrato: `purchase-orders.integration.test.js` — grupo B (`credit_card` → 201; inválido → 400) |
+| **Critério objetivo de aceite** | Payload real do Mobile → `POST /purchase-orders` → **201**, com `user_id`, `store_id`, `items`, `subtotal`, `delivery_fee`, `total_price`, `delivery_mode` corretos e `payment_method` persistido no canônico oficial; `payment_method` inválido → **400** sem tentativa de INSERT |
 
-```json
-{
-  "store_id": 3,
-  "items": [
-    { "product_id": 1, "name": "Filtro de oleo Tecfil", "quantity": 1, "unit_price": 39.9 },
-    { "product_id": 2, "name": "Oleo 5W30 sintetico", "quantity": 4, "unit_price": 44.95 },
-    { "product_id": 3, "name": "E2E Oleo Motor 5W30", "quantity": 2, "unit_price": 89.9 },
-    { "product_id": 4, "name": "E2E Kit Lampadas LED", "quantity": 1, "unit_price": 59.9 }
-  ],
-  "subtotal": 459.4,
-  "total_price": 475.3,
-  "delivery_mode": "store_delivery",
-  "delivery_fee": 15.9,
-  "delivery_address": "AV. PAULISTA, 1578 - Bela Vista, Sao Paulo - SP, 01310-200",
-  "payment_method": "credit_card",
-  "notes": "Pedido via app Ja Resolve"
-}
-```
+### 3.2 E2E-011 — Erro interno vazando para o cliente
 
-- **Campo problemático:** `payment_method = "credit_card"`
-- **Comportamento atual:** o backend/database possui contrato canônico diferente (`cash`, `card`, `pix`, `app`) e o INSERT falha
-- **HTTP observado:** 500
-- **Constraint observada:** `purchase_orders_payment_method_check`
-- **Comportamento esperado:**
-  - payload real do frontend deve ser aceito;
-  - backend deve normalizar/interpretar `credit_card` conforme o contrato oficial;
-  - PO criado com **HTTP 201**;
-  - valor inválido → **HTTP 400**, sem INSERT inválido;
-  - `user_id`, `store_id`, `items`, `subtotal`, `delivery_fee`, `total_price`, `delivery_mode` persistidos corretamente;
-  - `payment_method` persistido no formato canônico definido pelo backend.
+| Campo | Valor |
+|---|---|
+| **ID** | E2E-011 |
+| **Prioridade** | P3 |
+| **Endpoint** | `POST /api/purchase-orders` (tratamento de erro) |
+| **Comportamento atual observado** | O device recebeu na resposta de erro o texto do constraint SQL (tabela/INSERT/CHECK) |
+| **Comportamento esperado** | Erros internos → **HTTP 500**; a resposta NÃO pode expor SQL, nome de constraint, stack trace ou detalhes internos do PostgreSQL; mensagem genérica e segura para o cliente |
+| **Payload relevante** | (resposta de erro) |
+| **HTTP esperado** | 500 genérico |
+| **Impacto no fluxo Mobile** | Exposição de detalhes internos na UI; dificulta diagnóstico e é risco de segurança |
+| **Evidência/teste** | Device PHASE 4 (body com SQL do CHECK); teste de contrato grupo B (asserts anti-leak: sem `insert into`, sem `constraint`, sem `PostgreSQL`, sem stack) |
+| **Critério objetivo de aceite** | Qualquer erro interno do endpoint → **500** com mensagem segura, sem SQL/constraint/stack |
 
-> O contrato é testado em `tests/endpoints/purchase-orders.integration.test.js`.
-> Este PR não prescreve implementação e não altera migration.
+### 3.3 E2E-008 — Emergency lifecycle: start / complete
 
-### E2E-011 — Internal error leakage — P3 — BACKEND
+| Campo | Valor |
+|---|---|
+| **ID** | E2E-008 |
+| **Prioridade** | P2 |
+| **Endpoint** | `POST /emergency-requests/:id/start` e `POST /emergency-requests/:id/complete` |
+| **Comportamento atual observado** | **404** em produção para ambos |
+| **Comportamento esperado** | Endpoints existem em produção; `start` realiza a transição de estado prevista; `complete` realiza a transição de estado prevista |
+| **Payload relevante** | `:id` = id do emergency request autenticado |
+| **HTTP esperado** | 200/201 nos estados válidos; 404/400 para recurso ou estado inválido (a definir pela implementação oficial) |
+| **Impacto no fluxo Mobile** | Fluxo de socorro não avança para execução/conclusão; bloqueia a pós-serviço |
+| **Evidência/teste** | Device PHASE 4 (404 em produção); gap documentado — SEM teste especulativo, pois o contrato não está definido nas rotas atuais de `main` |
+| **Critério objetivo de aceite** | Transições oficiais funcionando em produção (`accepted → start → in_progress → complete → completed → review`) via endpoints oficiais |
 
-Erros internos do INSERT podem expor SQL/constraint ao cliente (observado no device: mensagem com o texto do CHECK constraint).
+> **NÃO usar/deployar `b0999489`** (evidência histórica, fora deste PR). **NÃO implementar a solução neste PR.**
 
-- **Comportamento esperado:**
-  - erro interno → **HTTP 500** apropriado;
-  - resposta não pode expor SQL, constraint, stack trace ou detalhes internos do PostgreSQL;
-  - mensagem segura para o cliente.
+## 4. Separação dos testes
 
-### E2E-008 — start / complete — P2 — BACKEND
+| Grupo | Significado | Estado atual |
+|---|---|---|
+| **A** | Testes que já passam contra o backend atual | 401 sem token; `card` → 201; `pix` → 201 |
+| **B** | Testes que falham porque o backend precisa implementar/corrigir (blockers E2E-010/E2E-011) | `credit_card` → 201 (hoje 500); inválido → 400 (hoje 500); sem vazamento de SQL (hoje vaza); loja inexistente → 404 sem leak (hoje 500) |
+| **C** | Fora de escopo (documentado, sem teste) | start/complete (E2E-008, contrato não definido); detalhe de produto (E2E-006); proposal no fluxo (E2E-009) |
 
-Produção atualmente retorna **404** para:
+Após a implementação dos fixes pelo backend developer, o grupo B deve passar integralmente → **grupos A+B = 100% PASS**.
 
-```text
-POST /emergency-requests/:id/start
-POST /emergency-requests/:id/complete
-```
+## 5. Observações que NÃO são bugs de backend
 
-- Requisito comportamental: os endpoints oficiais precisam existir em produção e permitir a transição correta de estado (`accepted → start → in_progress → complete → completed → review`).
-- **NÃO usar/deployar `b0999489`** (evidência histórica, fora do escopo).
-- Gap documentado, sem teste especulativo: o contrato não está definido nas rotas atuais de `main`.
-
-## 4. Outras observações (não são bugs de backend)
-
-- **E2E-006:** tap no produto não abre detalhe. A aplicação não possui tela/rota de detalhe de produto. **OBSERVATION — NOT A BUG.**
-- **E2E-009:** proposal existente não aparece no fluxo atual sem uma nova request. **OBSERVATION / P3** — questão de fluxo/produto/frontend; não atribuir automaticamente ao backend.
-
-## 5. Matriz de aceite
-
-| ID | Fluxo | Status atual | Responsável | Critério de aceite |
-|---|---|---|---|---|
-| E2E-001 | Cold start sem sessão | RESOLVED | Frontend | Boot sem crash, sem sessão |
-| E2E-002 | Login real | RESOLVED | Frontend | Login 200 com token em `data.token` |
-| E2E-003 | Logout | RESOLVED | Frontend | Logout limpa sessão |
-| E2E-004 | Catálogo real | RESOLVED | Frontend/integration | `GET /products` 200 com produtos reais |
-| E2E-005 | Checkout completo | BLOCKED | Backend (E2E-010) | `POST /purchase-orders` → 201, PO persistido |
-| E2E-006 | Detalhe de produto | OBSERVATION | — | Sem tela de detalhe — NOT A BUG |
-| E2E-007 | Emergency/Tow autenticados | RESOLVED | Frontend/integration | Chamadas com Bearer sem 401 |
-| E2E-008 | start/complete | OPEN — BACKEND | Backend | Endpoints oficiais em produção, transições de estado |
-| E2E-009 | Proposal no fluxo atual | OBSERVATION | Produto/Frontend | Sem nova request, proposal não aparece |
-| E2E-010 | PO payment_method | OPEN — BACKEND | Backend | `credit_card` → 201; inválido → 400 |
-| E2E-011 | Internal error leakage | OPEN — BACKEND | Backend | 500 genérico sem SQL/constraint/stack |
-
-**ARCH-034: NOT VALIDATED TO COMPLETION** — o frontend alcança `POST /purchase-orders`, mas o backend de produção rejeita a requisição.
+- **E2E-006:** tap no produto não abre detalhe — a aplicação não possui tela/rota de detalhe. **OBSERVATION — NOT A BUG.**
+- **E2E-009:** proposal existente não aparece no fluxo atual sem uma nova request. **OBSERVATION / P3** — questão de fluxo/produto/frontend.
 
 ## 6. Separação de responsabilidade
 
-**AUDITORIA / FRONTEND:**
+**AUDITORIA / FRONTEND (este PR):**
 
 - execução E2E em device físico;
-- testes de contrato (este PR);
+- testes de contrato;
 - documentação e evidências;
 - revalidação após deploy do backend.
 
@@ -126,6 +103,10 @@ POST /emergency-requests/:id/complete
 
 Este PR **não** implementa essas correções.
 
-## 7. Revalidação
+## 7. Critérios de revalidação
 
-Quando o backend developer informar que os fixes estão em produção, reexecutar no dispositivo físico, **somente validação**: login → catálogo → cart → checkout → `POST /purchase-orders` → confirmar **201** → PO criado → histórico do pedido → fluxo de pagamento. Em fase separada, validar start/complete.
+Quando o backend developer informar que os fixes estão em produção:
+
+1. executar `purchase-orders.integration.test.js` → grupos A+B **100% PASS**;
+2. reexecutar o E2E no dispositivo físico: login → catálogo → cart → checkout → `POST /purchase-orders` → **201** → PO criado → histórico do pedido → fluxo de pagamento;
+3. em fase separada, validar start/complete em produção.
