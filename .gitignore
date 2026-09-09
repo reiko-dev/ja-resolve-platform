@@ -46,3 +46,14 @@ app.*.map.json
 
 # Dependencies
 **/node_modules/
+
+# Environment / secrets — NEVER commit real credentials.
+# Only sanitized examples (env.example, .env.example) belong in Git.
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+*.pem
+*.key

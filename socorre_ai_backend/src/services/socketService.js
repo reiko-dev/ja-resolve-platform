@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const db = require('../config/database');
-const jwtSecret = process.env.JWT_SECRET || 'socorre_ai_jwt_secret_dev_2024';
+const { getJwtSecret } = require('../config/jwt');
+const { getAllowedOrigins } = require('../config/cors');
 
 class SocketService {
   constructor() {
@@ -13,8 +14,10 @@ class SocketService {
     const { Server } = require('socket.io');
     this.io = new Server(server, {
       cors: {
-        origin: "*",
-        methods: ["GET", "POST"]
+        // Same explicit allowlist as HTTP (CORS_ORIGIN). No open "*".
+        origin: getAllowedOrigins(),
+        methods: ["GET", "POST"],
+        credentials: true,
       }
     });
 
@@ -32,7 +35,7 @@ class SocketService {
         return next(new Error('Token de autenticação não fornecido'));
       }
 
-      const decoded = jwt.verify(token, jwtSecret);
+      const decoded = jwt.verify(token, getJwtSecret());
       const user = await db('users').where('id', decoded.userId).first();
       
       if (!user) {

@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 const db = require('../config/database');
-const jwtSecret = process.env.JWT_SECRET || 'socorre_ai_jwt_secret_dev_2024';
+const { getJwtSecret } = require('../config/jwt');
 
 const auth = async (req, res, next) => {
   try {
@@ -13,7 +13,7 @@ const auth = async (req, res, next) => {
       });
     }
 
-    const decoded = jwt.verify(token, jwtSecret);
+    const decoded = jwt.verify(token, getJwtSecret());
     
     // Buscar usuário no banco com contexto de parceiro quando existir
     const user = await db('users')

@@ -1,11 +1,9 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../config/database');
+const { getJwtSecret, getJwtExpiresIn } = require('../config/jwt');
 const { normalizePartnerType } = require('../config/partnerDocumentRules');
 const { ONBOARDING_STAGES } = require('../config/onboardingStages');
-
-const jwtExpiresIn = process.env.JWT_EXPIRES_IN || '7d';
-const jwtSecret = process.env.JWT_SECRET || 'socorre_ai_jwt_secret_dev_2024';
 
 async function getAuthUserById(userId) {
   return db('users')
@@ -84,8 +82,8 @@ class AuthController {
       // Gerar token JWT
       const token = jwt.sign(
         { userId: newUser.id, role: newUser.role },
-        jwtSecret,
-        { expiresIn: jwtExpiresIn }
+        getJwtSecret(),
+        { expiresIn: getJwtExpiresIn() }
       );
 
       res.status(201).json({
@@ -132,8 +130,8 @@ class AuthController {
       // Gerar token JWT
       const token = jwt.sign(
         { userId: user.id, role: user.role },
-        jwtSecret,
-        { expiresIn: jwtExpiresIn }
+        getJwtSecret(),
+        { expiresIn: getJwtExpiresIn() }
       );
 
       const userWithoutPassword = await getAuthUserById(user.id);

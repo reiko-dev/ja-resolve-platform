@@ -2,54 +2,56 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
-// Rate limiting temporariamente desabilitado devido a conflito com proxy
-// const rateLimit = require('express-rate-limit');
+const rateLimit = require('express-rate-limit');
 const http = require('http');
 require('dotenv').config();
 const { mountLegacyRoutes } = require('./bootstrap/legacyRoutes');
+const { getAllowedOrigins, isOriginAllowed } = require('./config/cors');
+const { getJwtSecret } = require('./config/jwt');
+const db = require('./config/database');
 
 const app = express();
 const server = http.createServer(app);
 
-console.log('🚦 Express trust proxy:', app.get('trust proxy'));
+// Nginx sits in front of Express in production: trust the first proxy
+// so req.ip / secure cookies / rate-limit keys see the real client.
+app.set('trust proxy', 1);
+
+// Fail fast in production without an explicit JWT secret (no weak fallback).
+// Uses the centralized JWT config shared by HTTP and Socket.IO.
+getJwtSecret();
 
 // Middleware de segurança
 app.use(helmet());
 
-// Rate limiting
-// const limiter = rateLimit({
-//   windowMs: 15 * 60 * 1000, // 15 minutos
-//   max: 100, // limite de 100 requests por IP
-//   message: {
-//     success: false,
-//     message: 'Muitas requisições. Tente novamente em alguns minutos.'
-//   },
-//   standardHeaders: true,
-//   legacyHeaders: false
-// });
-// app.use(limiter);
-console.log('🛡️ Rate limiting desabilitado temporariamente');
+// Rate limiting (compatible with trust proxy above).
+// Conservative defaults; override via RATE_LIMIT_WINDOW_MS / RATE_LIMIT_MAX_REQUESTS.
+// /health is skipped so monitoring is never throttled.
+const rateLimitWindowMs = Number(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000;
+const rateLimitMax = Number(process.env.RATE_LIMIT_MAX_REQUESTS) || 100;
+const limiter = rateLimit({
+  windowMs: rateLimitWindowMs,
+  max: rateLimitMax,
+  message: {
+    success: false,
+    message: 'Muitas requisições. Tente novamente em alguns minutos.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.path === '/health',
+});
+app.use(limiter);
 
-// CORS
-const allowedOrigins = process.env.CORS_ORIGIN 
-  ? process.env.CORS_ORIGIN.split(',').map(o => o.trim()) 
-  : ['https://admin.socorreja.com.br', 'http://localhost:3000', 'http://localhost:3001', 'http://localhost:8080'];
+// CORS (shared allowlist also used by Socket.IO)
+const allowedOrigins = getAllowedOrigins();
 
 app.use(cors({
   origin: function (origin, callback) {
     // Permitir requisições sem origin (como apps móveis, curl, etc.)
-    if (!origin) return callback(null, true);
-    
-    // Verificar se está listado ou contém curinga *
-    if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
+    if (isOriginAllowed(origin)) {
       return callback(null, true);
     }
-    
-    // Facilitar testes permitindo domínios temporários do Easypanel
-    if (origin.endsWith('.easypanel.host')) {
-      return callback(null, true);
-    }
-    
+
     return callback(new Error('Não permitido por CORS'));
   },
   credentials: true
@@ -62,14 +64,37 @@ app.use(morgan('combined'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Health check
-app.get('/health', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Socorre AI Backend está funcionando!',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
-  });
+// Health check: proves HTTP + PostgreSQL are operational.
+// Returns 200 only when both work; 503 when the database is unreachable.
+// Never exposes stack traces, passwords or connection details.
+app.get('/health', async (req, res) => {
+  try {
+    await db.raw('SELECT 1');
+    res.json({
+      success: true,
+      status: 'ok',
+      message: 'Socorre AI Backend está funcionando!',
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'development',
+      checks: {
+        http: 'ok',
+        postgres: 'ok',
+      },
+    });
+  } catch (error) {
+    console.error('Health check failed (postgres unreachable):', error.message);
+    res.status(503).json({
+      success: false,
+      status: 'error',
+      message: 'Backend indisponível: banco de dados inacessível.',
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'development',
+      checks: {
+        http: 'ok',
+        postgres: 'unreachable',
+      },
+    });
+  }
 });
 
 // Rotas específicas para frontend (evitar confusão)

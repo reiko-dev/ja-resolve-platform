@@ -290,9 +290,20 @@ router.post('/:id/refund', auth, [
   }
 });
 
-// Webhook para confirmação de pagamento (simulado)
+// Webhook para confirmação de pagamento.
+// Gateways ainda são MOCKADOS (services/gateways/*) e não há validação
+// criptográfica de assinatura. Comportamento por ambiente:
+// - production: 410 Gone — nunca aceitar webhooks como válidos.
+// - demais: mantém a simulação para desenvolvimento/testes.
 router.post('/webhook/:gateway', async (req, res) => {
   try {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(410).json({
+        success: false,
+        message: 'Payment webhooks desabilitados em produção: gateway real com verificação de assinatura ainda não implementado.'
+      });
+    }
+
     const { gateway } = req.params;
     const { transactionId, status } = req.body;
 

@@ -8,6 +8,7 @@ const {
   getNormalizedExtension,
   validateGenericImagePayload,
 } = require('../config/uploadPolicies');
+const { getPublicApiBaseUrl } = require('../config/publicUrl');
 
 // Configuração do multer para upload de arquivos
 const storage = multer.diskStorage({
@@ -54,9 +55,9 @@ router.post('/image', async (req, res) => {
     const filePath = path.join(uploadDir, fileName);
     fs.writeFileSync(filePath, buffer);
     
-    // URL do arquivo (em produção, usar CDN ou S3)
-    const fileUrl = `http://localhost:3001/uploads/images/${fileName}`;
-    
+    // URL pública do arquivo (PUBLIC_API_URL em produção; nunca localhost).
+    const fileUrl = `${getPublicApiBaseUrl()}/uploads/images/${fileName}`;
+
     res.json({
       success: true,
       data: {
@@ -117,8 +118,8 @@ router.post('/images', async (req, res) => {
       const filePath = path.join(uploadDir, fileName);
       fs.writeFileSync(filePath, buffer);
       
-      // URL do arquivo
-      const fileUrl = `http://localhost:3001/uploads/images/${fileName}`;
+      // URL pública do arquivo (PUBLIC_API_URL em produção; nunca localhost).
+      const fileUrl = `${getPublicApiBaseUrl()}/uploads/images/${fileName}`;
       uploadedFiles.push({
         url: fileUrl,
         filename: fileName,
