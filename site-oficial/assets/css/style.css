@@ -1,0 +1,340 @@
+:root {
+    --red-primary: #e31c23;
+    --red-hover: #b8151c;
+    --blue-dark: #0e1b31;
+    --gray-bg: #f8f9fa;
+    --text-color: #333333;
+    --blue-custom: #2155a3;
+    --gray-light: #f8f9fa;
+    --green: #28a745;
+    --orange: #f39c12;
+    --purple: #6f42c1;
+}
+
+body {
+    font-family: 'Poppins', sans-serif;
+    color: var(--text-color);
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Tipografia e Cores Utilities */
+.text-red { color: var(--red-primary) !important; }
+.text-dark-blue { color: var(--blue-dark) !important; }
+.bg-dark-blue { background-color: var(--blue-dark) !important; }
+
+/* Botões Customizados */
+.btn-red-primary {
+    background-color: var(--red-primary);
+    color: #fff;
+    border: none;
+    transition: all 0.3s ease;
+}
+.btn-red-primary:hover {
+    background-color: var(--red-hover);
+    color: #fff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(227, 28, 35, 0.3);
+}
+
+.btn-outline-dark-blue {
+    background-color: transparent;
+    color: var(--blue-dark);
+    border: 1px solid var(--blue-dark);
+    transition: all 0.3s ease;
+}
+.btn-outline-dark-blue:hover {
+    background-color: var(--gray-bg);
+    color: var(--blue-dark);
+}
+
+/* Navbar Ativa com Bordinha Vermelha */
+.navbar-nav .nav-link {
+    color: #555;
+    position: relative;
+    padding-bottom: 5px;
+}
+.navbar-nav .nav-link.active {
+    color: var(--blue-dark);
+    font-weight: 600;
+}
+.navbar-nav .nav-link.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 10%;
+    width: 80%;
+    height: 2px;
+    background-color: var(--red-primary);
+}
+
+/* =========================
+   HERO
+========================= */
+
+.hero-section {
+    position: relative;
+    min-height: 85vh;
+    overflow: hidden;
+    background: #fff;
+}
+
+/* Imagem completa do hero */
+.hero-bg {
+    position: absolute;
+    top: 0;
+    right: 0;
+
+    width: 68%;
+    height: 100%;
+
+    background-image: url('../img/hero-background-road.png');
+    background-repeat: no-repeat;
+    background-size: cover;
+    background-position: center right;
+
+    z-index: 0;
+
+    /* Faz a imagem desaparecer suavemente atrás do conteúdo */
+    mask-image: linear-gradient(
+        to right,
+        transparent 0%,
+        rgba(0,0,0,0.25) 12%,
+        black 28%,
+        black 100%
+    );
+
+    -webkit-mask-image: linear-gradient(
+        to right,
+        transparent 0%,
+        rgba(0,0,0,0.25) 12%,
+        black 28%,
+        black 100%
+    );
+}
+
+/* Conteúdo fica acima da imagem */
+.hero-section .container {
+    position: relative;
+    z-index: 2;
+}
+
+/* Mantém o texto com bastante espaço */
+.hero-section .col-lg-6:first-child {
+    position: relative;
+    z-index: 3;
+}
+
+/* Área dos mockups - não precisamos mais dela */
+.hero-mockups {
+    display: none !important;
+}
+
+
+.avatars-group img {
+    object-fit: cover;
+    background: #fff;
+}
+.ms-n3 {
+    margin-left: -1rem !important; /* Para sobrepor os avatares */
+}
+
+/* Info Bar */
+.info-bar {
+    border-top: 4px solid var(--red-primary);
+}
+.border-secondary {
+    border-color: rgba(255,255,255,0.1) !important;
+}
+
+/* Estrutura para os cards "Como Funciona" e "Categorias" (Use estas classes no seu HTML) */
+.step-card {
+    border: 1px solid #eaeaea;
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    transition: 0.3s;
+    background: #fff;
+}
+.step-card:hover {
+    box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+    border-color: var(--red-primary);
+}
+.step-number {
+    width: 25px;
+    height: 25px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: bold;
+    color: white;
+    margin: 0 auto 10px;
+}
+.step-number.blue { background-color: #2155a3; }
+.step-number.red { background-color: var(--red-primary); }
+
+.text-blue-custom { color: var(--blue-custom) !important; }
+.bg-blue-custom { background-color: var(--blue-custom) !important; }
+.bg-red-primary { background-color: var(--red-primary) !important; }
+.bg-green { background-color: var(--green) !important; }
+.bg-orange { background-color: var(--orange) !important; }
+.bg-purple { background-color: var(--purple) !important; }
+.bg-gray-light { background-color: var(--gray-light) !important; }
+
+/* Títulos com Linhas Laterais (Como Funciona, Categorias, etc) */
+.section-title {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+.section-title::before,
+.section-title::after {
+    content: '';
+    flex: 1;
+    border-bottom: 2px solid #eaeaea;
+    margin: 0 20px;
+}
+.section-title h4 {
+    margin: 0;
+    white-space: nowrap;
+    letter-spacing: 0.5px;
+}
+
+/* Cards Passo a Passo */
+.step-card {
+    border: 1px solid #eee;
+    border-radius: 16px;
+    padding: 25px 15px;
+    height: 100%;
+    text-align: center;
+    background: #fff;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.02);
+}
+.step-number {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    color: white;
+    margin: 0 auto 15px;
+}
+
+/* Ícones das Categorias (Bolinhas) */
+.category-icon {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 6px 15px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease;
+}
+.category-icon:hover {
+    transform: translateY(-5px);
+}
+
+/* SEÇÃO BENEFÍCIOS (SPLIT COM SUAS IMAGENS) */
+.split-container { display: flex; flex-wrap: wrap; }
+.split-half {
+    flex: 0 0 50%;
+    display: flex;
+    min-height: 400px;
+}
+.split-content {
+    flex: 1;
+    padding: 3rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+.split-img-box {
+    flex: 1;
+    background-size: cover;
+    background-position: center;
+}
+@media (max-width: 768px) {
+    .split-half { flex: 0 0 100%; }
+    .split-img-box { display: none; /* Oculta a foto no mobile para focar no texto */ }
+}
+
+/* CTA BANNER (USANDO SUA IMAGEM PRONTA) */
+.cta-wrapper {
+    background-color: var(--blue-dark);
+    border-radius: 16px;
+    overflow: hidden;
+    display: flex;
+    align-items: stretch;
+}
+.cta-text { padding: 4rem; z-index: 2; }
+.cta-image-bg {
+    background-image: url('../img/homem-joia.png');
+    background-size: cover;
+    background-position: right center;
+    background-repeat: no-repeat;
+    min-height: 100%;
+}
+
+/* =========================
+   RESPONSIVIDADE
+========================= */
+
+@media (max-width: 1199px) {
+    .hero-bg {
+        width: 65%;
+    }
+
+    .hero-section {
+        min-height: 760px;
+    }
+}
+
+@media (max-width: 991px) {
+    .hero-bg {
+        width: 100%;
+        opacity: 0.25;
+
+        mask-image: linear-gradient(
+            to bottom,
+            transparent 0%,
+            black 45%,
+            black 100%
+        );
+
+        -webkit-mask-image: linear-gradient(
+            to bottom,
+            transparent 0%,
+            black 45%,
+            black 100%
+        );
+    }
+
+    .hero-section .col-lg-6:first-child {
+        width: 100%;
+    }
+
+    .hero-section .lead {
+        width: 100% !important;
+    }
+}
+
+@media (max-width: 576px) {
+    .hero-section {
+        min-height: auto;
+    }
+
+    .hero-bg {
+        height: 450px;
+        top: auto;
+        bottom: 0;
+        opacity: 0.18;
+        background-size: cover;
+        background-position: center right;
+    }
+}
