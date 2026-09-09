@@ -33,10 +33,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         // 1. Configurações Globais do Servidor SMTP
         // ----------------------------------------------------
         $mail->isSMTP();
-        $mail->Host       = 'smtp.hostinger.com'; // Substitua pelo seu host SMTP (ex: smtp.hostinger.com)
+        // Host/usuário não são segredos; a senha DEVE vir de variável de
+        // ambiente (SMTP_PASS) e nunca hardcoded no repositório.
+        $mail->Host       = getenv('SMTP_HOST') ?: 'smtp.hostinger.com';
         $mail->SMTPAuth   = true;
-        $mail->Username   = 'contato@jaresolve.com.br'; // Seu e-mail de autenticação
-        $mail->Password   = 'Socorre2025@';           // Senha do seu e-mail
+        $mail->Username   = getenv('SMTP_USER') ?: 'contato@jaresolve.com.br';
+        $mail->Password   = getenv('SMTP_PASS') ?: '';
+        if ($mail->Password === '') {
+            echo json_encode(['status' => 'error', 'message' => 'Serviço de e-mail indisponível no momento. Tente novamente mais tarde.']);
+            exit;
+        }
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS; // ENCRYPTION_SMTPS (porta 465) ou ENCRYPTION_STARTTLS (porta 587)
         $mail->Port       = 465; 
         $mail->CharSet    = 'UTF-8';
@@ -92,8 +98,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         echo json_encode(['status' => 'success', 'message' => 'Seus dados foram enviados com sucesso! Entraremos em contato em breve.']);
         
     } catch (Exception $e) {
-        // Retorna o erro exato do PHPMailer caso falhe a autenticação ou envio
-        echo json_encode(['status' => 'error', 'message' => 'Ocorreu um erro ao enviar a solicitação. Erro técnico: ' . $mail->ErrorInfo]);
+        // Nunca expor $mail->ErrorInfo (pode vazar detalhes de autenticação SMTP).
+        error_log('processa_parceiro mail error: ' . $mail->ErrorInfo);
+        echo json_encode(['status' => 'error', 'message' => 'Ocorreu um erro ao enviar a solicitação. Tente novamente mais tarde.']);
     }
 
 } else {
