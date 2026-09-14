@@ -35,7 +35,7 @@ class TowProposalController {
       // Verificar se parceiro já enviou proposta
       const alreadyProposed = await TowProposal.hasPartnerProposed(emergency_request_id, partner_id);
       if (alreadyProposed) {
-        return res.status(400).json({ 
+        return res.status(409).json({
           error: 'Você já enviou uma proposta para esta emergência' 
         });
       }
@@ -107,6 +107,14 @@ class TowProposalController {
 
     } catch (error) {
       console.error('Erro ao criar proposta:', error);
+      if (
+        error?.code === '23505' ||
+        error?.code === 'SQLITE_CONSTRAINT' ||
+        error?.code === 'SQLITE_CONSTRAINT_UNIQUE' ||
+        /UNIQUE constraint failed/i.test(error?.message || '')
+      ) {
+        return res.status(409).json({ error: 'Você já possui uma proposta pendente para esta emergência' });
+      }
       res.status(500).json({ 
         error: 'Erro interno do servidor' 
       });

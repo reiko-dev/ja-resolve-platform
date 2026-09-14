@@ -3,6 +3,7 @@ const Subscription = require('../models/Subscription');
 const Partner = require('../models/Partner');
 const knex = require('../config/database');
 const paymentService = require('../services/paymentService');
+const NotificationService = require('../services/NotificationServiceNew');
 
 const REQUEST_TYPE_ALIASES = {
   mechanic: 'mechanic',
@@ -358,6 +359,9 @@ class EmergencyRequestController {
         });
       }
 
+      if (emergency.status === 'in_progress') {
+        return res.json({ success: true, data: emergency, message: 'Solicitação já foi iniciada' });
+      }
       if (emergency.status !== 'accepted') {
         return res.status(400).json({
           success: false,
@@ -375,6 +379,17 @@ class EmergencyRequestController {
           success: false,
           message: 'Não foi possível iniciar a solicitação: o status mudou durante a operação',
         });
+      }
+
+      try {
+        await NotificationService.sendNotification(
+          emergency.user_id,
+          'Guincho a caminho',
+          'O parceiro iniciou o atendimento da sua solicitação.',
+          { type: 'tow_started', emergency_request_id: id }
+        );
+      } catch (notificationError) {
+        console.error('Falha ao notificar início do guincho:', notificationError);
       }
 
       res.json({
@@ -416,6 +431,9 @@ class EmergencyRequestController {
         });
       }
 
+      if (emergency.status === 'completed') {
+        return res.json({ success: true, data: emergency, message: 'Solicitação já foi concluída' });
+      }
       if (emergency.status !== 'in_progress') {
         return res.status(400).json({
           success: false,
@@ -458,6 +476,17 @@ class EmergencyRequestController {
           success: false,
           message: 'Não foi possível concluir a solicitação: o status mudou durante a operação',
         });
+      }
+
+      try {
+        await NotificationService.sendNotification(
+          emergency.user_id,
+          'Guincho concluído',
+          'O parceiro concluiu o atendimento da sua solicitação.',
+          { type: 'tow_completed', emergency_request_id: id }
+        );
+      } catch (notificationError) {
+        console.error('Falha ao notificar conclusão do guincho:', notificationError);
       }
 
       res.json({
