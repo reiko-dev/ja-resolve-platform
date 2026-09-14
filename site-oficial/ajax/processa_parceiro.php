@@ -3,8 +3,8 @@
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
-// Requer o Autoload do Composer (Ajuste o caminho se sua pasta vendor estiver em outro lugar)
-require 'vendor/autoload.php';
+// Requer o Autoload do Composer (caminho relativo ao arquivo, não ao CWD do PHP-FPM)
+require __DIR__ . '/../vendor/autoload.php';
 
 header('Content-Type: application/json');
 
