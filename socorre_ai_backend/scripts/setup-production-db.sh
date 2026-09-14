@@ -37,10 +37,16 @@ if ! sudo -u postgres psql -c "SELECT 1;" &> /dev/null; then
     error "Usuário não tem permissões para acessar PostgreSQL. Execute com sudo ou configure permissões."
 fi
 
+if ! command -v openssl &> /dev/null; then
+    error "OpenSSL não está instalado; não é seguro gerar credenciais de produção."
+fi
+
 # Configurações do banco
 DB_NAME="socorre_ai_production"
 DB_USER="socorre_ai_user"
-DB_PASSWORD="socorre_ai_secure_password_$(date +%s)"
+DB_PASSWORD="$(openssl rand -hex 32)"
+JWT_SECRET="$(openssl rand -hex 32)"
+SESSION_SECRET="$(openssl rand -hex 32)"
 
 log "Criando banco de dados de produção..."
 
@@ -80,7 +86,7 @@ DB_USER=$DB_USER
 DB_PASSWORD=$DB_PASSWORD
 
 # JWT
-JWT_SECRET=socorre_ai_jwt_secret_$(date +%s)
+JWT_SECRET=$JWT_SECRET
 JWT_EXPIRES_IN=7d
 
 # CORS
@@ -106,14 +112,10 @@ LOG_FILE=logs/app.log
 
 # Security
 BCRYPT_ROUNDS=12
-SESSION_SECRET=socorre_ai_session_$(date +%s)
+SESSION_SECRET=$SESSION_SECRET
 EOF
 
 log "✅ Banco de dados de produção configurado com sucesso!"
-log "📝 Credenciais do banco:"
-log "   Database: $DB_NAME"
-log "   User: $DB_USER"
-log "   Password: $DB_PASSWORD"
 log ""
 log "⚠️  IMPORTANTE:"
 log "   1. Salve as credenciais em local seguro"
