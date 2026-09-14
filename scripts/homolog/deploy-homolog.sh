@@ -107,11 +107,10 @@ log "Publicando o site oficial..."
 rsync -a --delete "$REPO/site-oficial/" "$STAGING/site/"
 
 log "Ajustando permissões..."
-sudo chown -R www-data:www-data "$STAGING/admin" "$STAGING/site"
-sudo find "$STAGING/admin" -type d -exec chmod 755 {} +
-sudo find "$STAGING/admin" -type f -exec chmod 644 {} +
-sudo find "$STAGING/site" -type d -exec chmod 755 {} +
-sudo find "$STAGING/site" -type f -exec chmod 644 {} +
+find "$STAGING/admin" -type d -exec chmod 755 {} +
+find "$STAGING/admin" -type f -exec chmod 644 {} +
+find "$STAGING/site" -type d -exec chmod 755 {} +
+find "$STAGING/site" -type f -exec chmod 644 {} +
 sudo systemctl reload php8.3-fpm
 
 log "Reiniciando o backend (PM2)..."
