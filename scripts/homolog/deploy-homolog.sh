@@ -125,7 +125,8 @@ find "$STAGING/admin" -type d -exec chmod 755 {} +
 find "$STAGING/admin" -type f -exec chmod 644 {} +
 find "$STAGING/site" -type d -exec chmod 755 {} +
 find "$STAGING/site" -type f -exec chmod 644 {} +
-sudo systemctl reload php8.3-fpm
+# Restart (não reload): o systemd só injeta o EnvironmentFile no start do serviço.
+sudo systemctl restart php8.3-fpm
 
 log "Reiniciando o backend (PM2)..."
 pm2 startOrReload "$REPO/scripts/homolog/ecosystem.homolog.config.js" --update-env

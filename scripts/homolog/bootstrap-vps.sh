@@ -138,8 +138,13 @@ EOF
 sudo tee "/etc/php/${PHP_VER}/fpm/pool.d/zz-socorre-homolog.conf" >/dev/null <<'EOF'
 [www]
 env[SMTP_HOST] = $SMTP_HOST
+env[SMTP_PORT] = $SMTP_PORT
 env[SMTP_USER] = $SMTP_USER
 env[SMTP_PASS] = $SMTP_PASS
+env[SMTP_FROM_EMAIL] = $SMTP_FROM_EMAIL
+env[SMTP_FROM_NAME] = $SMTP_FROM_NAME
+env[SMTP_TO_EMAIL] = $SMTP_TO_EMAIL
+env[SMTP_TO_NAME] = $SMTP_TO_NAME
 EOF
 sudo systemctl daemon-reload
 sudo systemctl restart "php${PHP_VER}-fpm"
