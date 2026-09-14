@@ -91,6 +91,14 @@ EOF
   chmod 600 "$SHARED/site.env"
 fi
 
+if [ ! -f "$SHARED/admin.env" ]; then
+  cat > "$SHARED/admin.env" <<'EOF'
+# Chave do Google Maps (Geocoding API) embutida no build do admin
+GOOGLE_MAPS_API_KEY=
+EOF
+  chmod 600 "$SHARED/admin.env"
+fi
+
 cat > "$SHARED/homolog.env" <<EOF
 HOMOLOG_ADMIN_HOST=$ADMIN_HOST
 HOMOLOG_SITE_HOST=$SITE_HOST

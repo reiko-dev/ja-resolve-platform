@@ -44,16 +44,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             exit;
         }
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS; // ENCRYPTION_SMTPS (porta 465) ou ENCRYPTION_STARTTLS (porta 587)
-        $mail->Port       = 465; 
+        $mail->Port       = (int) (getenv('SMTP_PORT') ?: 465);
         $mail->CharSet    = 'UTF-8';
 
+        $fromEmail = getenv('SMTP_FROM_EMAIL') ?: 'contato@jaresolve.com.br';
+        $fromName  = getenv('SMTP_FROM_NAME') ?: 'Já Resolve';
+        $toEmail   = getenv('SMTP_TO_EMAIL') ?: 'contato@jaresolve.com.br';
+        $toName    = getenv('SMTP_TO_NAME') ?: 'Equipe Já Resolve';
+
         // Remetente padrão
-        $mail->setFrom('contato@jaresolve.com.br', 'Já Resolve');
+        $mail->setFrom($fromEmail, $fromName);
 
         // ----------------------------------------------------
         // 2. Envio de E-mail para a Equipe (Admin)
         // ----------------------------------------------------
-        $mail->addAddress('contato@jaresolve.com.br', 'Equipe Já Resolve'); // Para quem vai o aviso
+        $mail->addAddress($toEmail, $toName); // Para quem vai o aviso
         $mail->addReplyTo($email, $nome); // Permite responder direto pro cliente
 
         $mail->isHTML(true);
@@ -78,21 +83,28 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         // ----------------------------------------------------
         // 3. Envio de E-mail de Confirmação para o Parceiro
         // ----------------------------------------------------
-        $mail->clearAddresses(); // Limpa os destinatários anteriores
-        $mail->clearReplyTos();  // Limpa o reply-to anterior
-        
-        $mail->addAddress($email, $nome); // Agora envia para o e-mail do parceiro
-        
-        $mail->Subject = 'Recebemos sua solicitação - Já Resolve';
-        $mail->Body = "
-            <h2>Olá, {$nome}!</h2>
-            <p>Recebemos seus dados com sucesso. Agradecemos o interesse em fazer parte da rede <strong>Já Resolve</strong>.</p>
-            <p>Você se cadastrou para oferecer serviços de <strong>{$servico}</strong>. Nossa equipe vai analisar suas informações e entrará em contato em breve através do WhatsApp cadastrado.</p>
-            <br>
-            <p>Abraços,<br>Equipe Já Resolve</p>
-        ";
+        // Best-effort: provedores em modo de teste (ex.: Resend sem domínio
+        // verificado) podem rejeitar o destinatário sem invalidar o aviso
+        // já entregue à equipe.
+        try {
+            $mail->clearAddresses(); // Limpa os destinatários anteriores
+            $mail->clearReplyTos();  // Limpa o reply-to anterior
 
-        $mail->send();
+            $mail->addAddress($email, $nome); // Agora envia para o e-mail do parceiro
+
+            $mail->Subject = 'Recebemos sua solicitação - Já Resolve';
+            $mail->Body = "
+                <h2>Olá, {$nome}!</h2>
+                <p>Recebemos seus dados com sucesso. Agradecemos o interesse em fazer parte da rede <strong>Já Resolve</strong>.</p>
+                <p>Você se cadastrou para oferecer serviços de <strong>{$servico}</strong>. Nossa equipe vai analisar suas informações e entrará em contato em breve através do WhatsApp cadastrado.</p>
+                <br>
+                <p>Abraços,<br>Equipe Já Resolve</p>
+            ";
+
+            $mail->send();
+        } catch (Exception $e) {
+            error_log('processa_parceiro confirmation mail error: ' . $mail->ErrorInfo);
+        }
 
         // Se chegou até aqui sem cair no 'catch', tudo deu certo
         echo json_encode(['status' => 'success', 'message' => 'Seus dados foram enviados com sucesso! Entraremos em contato em breve.']);

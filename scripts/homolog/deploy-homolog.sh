@@ -25,6 +25,10 @@ source "$SHARED/homolog.env"
 : "${HOMOLOG_ADMIN_HOST:?defina HOMOLOG_ADMIN_HOST no shared/homolog.env}"
 : "${HOMOLOG_SITE_HOST:?defina HOMOLOG_SITE_HOST no shared/homolog.env}"
 : "${HOMOLOG_BRANCH:=main}"
+if [ -f "$SHARED/admin.env" ]; then
+  # shellcheck source=/dev/null
+  source "$SHARED/admin.env"
+fi
 
 log() { printf '\n[%s] %s\n' "$(date +'%F %T')" "$1"; }
 
@@ -67,7 +71,7 @@ log "Buildando o admin (React, API em /api)..."
     log "npm ci falhou; usando npm install"
     npm install --no-audit --no-fund
   fi
-  REACT_APP_API_URL=/api npm run build
+  REACT_APP_API_URL=/api REACT_APP_GOOGLE_MAPS_API_KEY="${GOOGLE_MAPS_API_KEY:-}" npm run build
 )
 
 log "Publicando o backend..."
