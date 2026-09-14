@@ -29,7 +29,9 @@ function getAllowedOrigins() {
 function isOriginAllowed(origin) {
   if (!origin) return true;
   const allowed = getAllowedOrigins();
-  return allowed.includes(origin) || allowed.includes('*');
+  // Wildcards não são aceitos: apps móveis não precisam de Origin, enquanto
+  // origens de navegador e Socket.IO devem estar explicitamente permitidas.
+  return allowed.includes(origin);
 }
 
 module.exports = { getAllowedOrigins, isOriginAllowed, DEFAULT_ORIGINS };
