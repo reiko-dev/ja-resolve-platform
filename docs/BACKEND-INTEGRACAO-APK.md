@@ -297,6 +297,28 @@ Exemplo parceiro:
 
 Use `verify` como fonte oficial da sessão autenticada.
 
+### 5.4 Contrato de sessão e logout
+
+- O token deve ser enviado como `Authorization: Bearer <JWT>` nas rotas protegidas.
+- `GET /api/auth/verify` retorna `401` para token ausente, inválido, expirado ou revogado.
+- `POST /api/auth/logout` revoga somente o token apresentado. Reutilizar esse token retorna `401`.
+- A revogação é persistida em `revoked_tokens` e expira automaticamente no vencimento do JWT.
+- O mesmo estado de revogação é aplicado à autenticação HTTP e Socket.IO.
+- Usuários com `is_active=false` não podem fazer login, usar tokens existentes ou abrir sessões Socket.IO; o login retorna `401` genérico para evitar enumeração de contas.
+- Credenciais inválidas retornam resposta genérica; detalhes internos de banco e exceções não fazem parte do contrato.
+- O backend não aceita `role=admin` vindo do cadastro; o papel é resolvido no servidor.
+
+### 5.5 Deploy e ordem de migration
+
+- A migration `042_create_revoked_tokens_table.js` deve ser aplicada antes de encaminhar tráfego autenticado para uma nova instância.
+- A migration `043_enforce_case_insensitive_user_email.js` cria unicidade por `LOWER(email)`; duplicidades históricas devem ser saneadas antes da aplicação.
+- Antes de aplicar `043`, executar no PostgreSQL: `SELECT LOWER(email) AS normalized_email, COUNT(*) FROM users GROUP BY LOWER(email) HAVING COUNT(*) > 1;`. Resultado esperado: zero linhas. A migration mantém falha explícita quando houver colisões; saneamento exige decisão de negócio e backup.
+- `043` usa índice único transacional, não `CONCURRENTLY`; aplicar em janela de manutenção ou após confirmar ausência de escrita concorrente em `users`.
+- O `docker-entrypoint.sh` executa `knex migrate:latest --env production` automaticamente quando `NODE_ENV=production`. Os únicos valores aceitos para `RUN_MIGRATIONS` são vazio, `1`/`true` (executa) e `0`/`false` (assume migration externa); valores desconhecidos fazem o processo parar antes de iniciar o Node.
+- Em deploy com PM2 ou execução manual, executar explicitamente `npx knex migrate:latest --knexfile knexfile.js --env production` antes do restart.
+- O deploy deve possuir backup/rollback do banco antes de migrations e deve verificar `/health` e uma autenticação sintética sem credenciais reais.
+- Rollback de código não desfaz automaticamente tokens já revogados; a tabela deve ser preservada durante rollback de aplicação.
+
 Campos relevantes para o app:
 
 - `role`

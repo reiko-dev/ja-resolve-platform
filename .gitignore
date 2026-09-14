@@ -1,6 +1,7 @@
 # Miscellaneous
 *.class
 *.log
+.npm-cache/
 *.pyc
 *.swp
 .DS_Store

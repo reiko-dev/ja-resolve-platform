@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const db = require('../config/database');
 const { getJwtSecret } = require('../config/jwt');
 const { getAllowedOrigins } = require('../config/cors');
+const { isTokenRevoked } = require('./tokenRevocationService');
 
 class SocketService {
   constructor() {
@@ -36,10 +37,19 @@ class SocketService {
       }
 
       const decoded = jwt.verify(token, getJwtSecret());
+
+      if (await isTokenRevoked(token)) {
+        return next(new Error('Token revogado'));
+      }
+
       const user = await db('users').where('id', decoded.userId).first();
       
       if (!user) {
         return next(new Error('Usuário não encontrado'));
+      }
+
+      if (!user.is_active) {
+        return next(new Error('Token inválido'));
       }
 
       socket.userId = user.id;
@@ -268,8 +278,35 @@ class SocketService {
     console.log(`Usuário desconectado: ${socket.userId}`);
     
     // Remover das listas de usuários conectados
-    this.connectedUsers.delete(socket.userId);
     this.userSockets.delete(socket.id);
+    if (this.connectedUsers.get(socket.userId) === socket.id) {
+      const remainingSocketId = Array.from(this.userSockets.entries())
+        .find(([, userId]) => userId === socket.userId)?.[0];
+      if (remainingSocketId) {
+        this.connectedUsers.set(socket.userId, remainingSocketId);
+      } else {
+        this.connectedUsers.delete(socket.userId);
+      }
+    }
+  }
+
+  disconnectUserSockets(userId, reason = 'server namespace disconnect') {
+    if (!this.io) {
+      return;
+    }
+
+    for (const [socketId, connectedUserId] of this.userSockets.entries()) {
+      if (connectedUserId !== userId) {
+        continue;
+      }
+
+      const socket = this.io.sockets.sockets.get(socketId);
+      if (socket) {
+        socket.disconnect(true);
+      } else {
+        this.userSockets.delete(socketId);
+      }
+    }
   }
 
   // Métodos para enviar notificações
