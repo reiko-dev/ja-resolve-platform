@@ -1,0 +1,82 @@
+## Socorre AI - homologação
+## Template renderizado por bootstrap-vps.sh (__ADMIN_HOST__ / __SITE_HOST__)
+## O certbot adiciona os blocos TLS 443 ao aplicar o Let's Encrypt.
+
+# Admin + API + uploads + socket.io
+server {
+    listen 80;
+    listen [::]:80;
+    server_name __ADMIN_HOST__;
+
+    root /var/www/socorre-ai/staging/admin;
+    index index.html;
+    client_max_body_size 20m;
+
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header Referrer-Policy "no-referrer-when-downgrade" always;
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 90;
+    }
+
+    location /socket.io/ {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /uploads/ {
+        alias /var/www/socorre-ai/staging/backend/uploads/;
+        expires 7d;
+        add_header Cache-Control "public";
+        access_log off;
+    }
+
+    location = /health {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+
+# Site oficial Já Resolve (PHP)
+server {
+    listen 80;
+    listen [::]:80;
+    server_name __SITE_HOST__;
+
+    root /var/www/socorre-ai/staging/site;
+    index index.php index.html;
+    client_max_body_size 20m;
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+    }
+
+    location ~ /\.(?!well-known) {
+        deny all;
+    }
+}
