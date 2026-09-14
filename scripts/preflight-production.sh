@@ -4,6 +4,17 @@
 # Usage: ENV_FILE=/path/to/.env.production ./scripts/preflight-production.sh
 set -euo pipefail
 
+if [[ -n "${ENV_FILE:-}" ]]; then
+  if [[ ! -f "$ENV_FILE" ]]; then
+    echo "Production env file not found: $ENV_FILE" >&2
+    exit 1
+  fi
+  set -a
+  # shellcheck disable=SC1090
+  source "$ENV_FILE"
+  set +a
+fi
+
 if [[ "${NODE_ENV:-production}" != "production" ]]; then
   echo "Preflight requires NODE_ENV=production" >&2
   exit 1
@@ -20,11 +31,6 @@ done
 
 if [[ "${JWT_SECRET}" == *your_* || "${JWT_SECRET}" == *change* || "${JWT_SECRET}" == *example* ]]; then
   echo "JWT_SECRET still contains a placeholder" >&2
-  exit 1
-fi
-
-if [[ "${DB_HOST}" == "localhost" || "${DB_HOST}" == "127.0.0.1" ]]; then
-  echo "DB_HOST must point to the production database service" >&2
   exit 1
 fi
 

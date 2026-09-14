@@ -5,6 +5,10 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$PROJECT_ROOT"
+
 # Cores para output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -35,8 +39,12 @@ PROJECT_NAME="socorre-ai"
 DEPLOY_DIR="/var/www/$PROJECT_NAME"
 BACKUP_DIR="/var/backups/$PROJECT_NAME"
 SERVICE_USER="www-data"
+ENV_FILE="${ENV_FILE:-$PROJECT_ROOT/socorre_ai_backend/.env.production}"
 
 log "🚀 Iniciando deploy de produção do Socorre AI..."
+
+# Fail before changing the host when production inputs are absent or unsafe.
+NODE_ENV=production ENV_FILE="$ENV_FILE" "$SCRIPT_DIR/preflight-production.sh"
 
 # Verificar se está executando como root
 if [[ $EUID -ne 0 ]]; then
