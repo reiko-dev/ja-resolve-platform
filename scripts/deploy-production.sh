@@ -100,7 +100,9 @@ cp .env.production $DEPLOY_DIR/backend/.env
 
 # Configurar permissões
 chown -R $SERVICE_USER:$SERVICE_USER $DEPLOY_DIR/backend
-chmod -R 755 $DEPLOY_DIR/backend
+find "$DEPLOY_DIR/backend" -type d -exec chmod 755 {} +
+find "$DEPLOY_DIR/backend" -type f -exec chmod 644 {} +
+chmod 600 "$DEPLOY_DIR/backend/.env"
 
 # Configurar PM2
 log "⚙️ Configurando PM2..."

@@ -53,8 +53,8 @@ log "Criando banco de dados de produção..."
 # Criar banco de dados
 sudo -u postgres psql -c "CREATE DATABASE $DB_NAME;" || warning "Banco de dados já existe"
 
-# Criar usuário
-sudo -u postgres psql -c "CREATE USER $DB_USER WITH PASSWORD '$DB_PASSWORD';" || warning "Usuário já existe"
+# Criar usuário; a senha segue por stdin e nunca como argumento do processo.
+printf "CREATE USER %s WITH PASSWORD '%s';\n" "$DB_USER" "$DB_PASSWORD" | sudo -u postgres psql || warning "Usuário já existe"
 
 # Conceder permissões
 sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE $DB_NAME TO $DB_USER;"
@@ -114,6 +114,8 @@ LOG_FILE=logs/app.log
 BCRYPT_ROUNDS=12
 SESSION_SECRET=$SESSION_SECRET
 EOF
+
+chmod 600 .env.production
 
 log "✅ Banco de dados de produção configurado com sucesso!"
 log ""

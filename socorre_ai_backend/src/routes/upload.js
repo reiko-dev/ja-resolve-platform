@@ -9,6 +9,10 @@ const {
   validateGenericImagePayload,
 } = require('../config/uploadPolicies');
 const { getPublicApiBaseUrl } = require('../config/publicUrl');
+const { auth } = require('../middleware/auth');
+
+// Uploads mutate persistent storage and must be tied to an authenticated user.
+router.use(auth);
 
 // Configuração do multer para upload de arquivos
 const storage = multer.diskStorage({

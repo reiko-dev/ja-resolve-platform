@@ -34,7 +34,14 @@ if [[ "${JWT_SECRET}" == *your_* || "${JWT_SECRET}" == *change* || "${JWT_SECRET
   exit 1
 fi
 
-if [[ "${CORS_ORIGIN}" == "*" || "${CORS_ORIGIN}" == *yourdomain.com* ]]; then
+IFS=',' read -r -a cors_origins <<< "$CORS_ORIGIN"
+for origin in "${cors_origins[@]}"; do
+  if [[ "$origin" =~ ^[[:space:]]*\*[[:space:]]*$ ]]; then
+    echo "CORS_ORIGIN must not contain a wildcard origin" >&2
+    exit 1
+  fi
+done
+if [[ "${CORS_ORIGIN}" == *yourdomain.com* ]]; then
   echo "CORS_ORIGIN must contain explicit production origins" >&2
   exit 1
 fi
