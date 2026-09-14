@@ -116,6 +116,12 @@ git -C "$REPO_DIR" checkout -f "$BRANCH"
 git -C "$REPO_DIR" reset --hard "origin/$BRANCH"
 git -C "$REPO_DIR" clean -fd
 
+# O bash mantém o descritor do arquivo antigo quando o git substitui este script
+# durante a execução; reexecutar garante que a versão publicada seja a usada.
+if [ "${BOOTSTRAP_REEXEC:-}" != "1" ]; then
+  BOOTSTRAP_REEXEC=1 exec bash "$TEMPLATE_DIR/bootstrap-vps.sh"
+fi
+
 log "Configurando banco PostgreSQL de homologação ($DB_NAME)..."
 DB_PASSWORD="$(grep -E '^DB_PASSWORD=' "$SHARED/backend.env" | cut -d= -f2-)"
 if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='$DB_USER'" | grep -q 1; then
@@ -166,7 +172,7 @@ pm2 save >/dev/null 2>&1 || true
 
 if [ "${SKIP_TLS:-0}" = "1" ]; then
   log "TLS pulado (SKIP_TLS=1)"
-elif [ -d "/etc/letsencrypt/live/$ADMIN_HOST" ]; then
+elif sudo test -d "/etc/letsencrypt/live/$ADMIN_HOST"; then
   log "Certificado já existe para $ADMIN_HOST; pulando emissão"
 else
   log "Emitindo certificados TLS (Let's Encrypt) para $ADMIN_HOST e $SITE_HOST..."
