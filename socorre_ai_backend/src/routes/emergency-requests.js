@@ -57,14 +57,14 @@ router.post('/:id/accept',
 // Buscar propostas de uma emergência (para cliente)
 router.get('/:id/proposals', 
   auth, 
-  requireRole(['user']), 
+  requireRole(['user', 'admin']),
   EmergencyRequestController.getProposals
 );
 
 // Aceitar proposta (cliente)
 router.post('/:id/accept-proposal', 
   auth, 
-  requireRole(['user']), 
+  requireRole(['user', 'admin']),
   EmergencyRequestController.acceptProposal
 );
 
@@ -72,6 +72,18 @@ router.post('/:id/cancel',
   auth,
   requireRole(['user', 'admin']),
   EmergencyRequestController.cancel
+);
+
+router.post('/:id/start',
+  auth,
+  requireRole(['partner', 'admin']),
+  EmergencyRequestController.start
+);
+
+router.post('/:id/complete',
+  auth,
+  requireRole(['partner', 'admin']),
+  EmergencyRequestController.complete
 );
 
 router.get('/:id/payment-summary',

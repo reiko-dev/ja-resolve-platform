@@ -124,7 +124,7 @@ class TowProposalController {
         return res.status(404).json({ error: 'Emergência não encontrada' });
       }
 
-      if (emergency.user_id !== req.user.id) {
+      if (emergency.user_id !== req.user.id && req.user.role !== 'admin') {
         return res.status(403).json({ error: 'Acesso negado' });
       }
 
@@ -207,7 +207,7 @@ class TowProposalController {
 
       // Verificar se usuário é o dono da emergência
       const emergency = await EmergencyRequest.findById(proposal.emergency_request_id);
-      if (!emergency || emergency.user_id !== req.user.id) {
+      if (!emergency || (emergency.user_id !== req.user.id && req.user.role !== 'admin')) {
         return res.status(403).json({ error: 'Acesso negado' });
       }
 
@@ -262,7 +262,7 @@ class TowProposalController {
 
       // Verificar se usuário é o dono da emergência
       const emergency = await EmergencyRequest.findById(proposal.emergency_request_id);
-      if (!emergency || emergency.user_id !== req.user.id) {
+      if (!emergency || (emergency.user_id !== req.user.id && req.user.role !== 'admin')) {
         return res.status(403).json({ error: 'Acesso negado' });
       }
 
