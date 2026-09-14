@@ -93,11 +93,13 @@ class SocketService {
       
       // Verificar se o usuário tem acesso ao chat
       const chat = await db('emergency_requests')
-        .where('id', chatId)
+        .leftJoin('partners', 'emergency_requests.partner_id', 'partners.id')
+        .where('emergency_requests.id', chatId)
         .where(function() {
-          this.where('user_id', socket.userId)
-            .orWhere('partner_id', socket.userId);
+          this.where('emergency_requests.user_id', socket.userId)
+            .orWhere('partners.user_id', socket.userId);
         })
+        .select('emergency_requests.*')
         .first();
 
       if (!chat) {
@@ -127,11 +129,13 @@ class SocketService {
       
       // Verificar se o usuário tem acesso ao chat
       const chat = await db('emergency_requests')
-        .where('id', chatId)
+        .leftJoin('partners', 'emergency_requests.partner_id', 'partners.id')
+        .where('emergency_requests.id', chatId)
         .where(function() {
-          this.where('user_id', socket.userId)
-            .orWhere('partner_id', socket.userId);
+          this.where('emergency_requests.user_id', socket.userId)
+            .orWhere('partners.user_id', socket.userId);
         })
+        .select('emergency_requests.*')
         .first();
 
       if (!chat) {
@@ -167,6 +171,7 @@ class SocketService {
 
   handleTypingStart(socket, data) {
     const { chatId } = data;
+    if (!socket.rooms?.has?.(`chat_${chatId}`)) return;
     socket.to(`chat_${chatId}`).emit('user_typing', {
       userId: socket.userId,
       isTyping: true
@@ -175,6 +180,7 @@ class SocketService {
 
   handleTypingStop(socket, data) {
     const { chatId } = data;
+    if (!socket.rooms?.has?.(`chat_${chatId}`)) return;
     socket.to(`chat_${chatId}`).emit('user_typing', {
       userId: socket.userId,
       isTyping: false
@@ -187,11 +193,13 @@ class SocketService {
       
       // Verificar se o usuário tem acesso à emergência
       const emergency = await db('emergency_requests')
-        .where('id', emergencyId)
+        .leftJoin('partners', 'emergency_requests.partner_id', 'partners.id')
+        .where('emergency_requests.id', emergencyId)
         .where(function() {
-          this.where('user_id', socket.userId)
-            .orWhere('partner_id', socket.userId);
+          this.where('emergency_requests.user_id', socket.userId)
+            .orWhere('partners.user_id', socket.userId);
         })
+        .select('emergency_requests.*')
         .first();
 
       if (!emergency) {
@@ -211,25 +219,21 @@ class SocketService {
 
   async handleEmergencyUpdate(socket, data) {
     try {
-      const { emergencyId, status, location } = data;
-      
-      // Atualizar status da emergência no banco
-      await db('emergency_requests')
-        .where('id', emergencyId)
-        .update({
-          status: status,
-          updated_at: new Date()
-        });
+      const { emergencyId, location } = data;
+      const emergency = await this.findSocketEmergency(socket, emergencyId);
+      if (!emergency || (socket.userRole !== 'admin' && emergency.partner_user_id !== socket.userId)) {
+        socket.emit('error', { message: 'Emergência não encontrada ou acesso negado' });
+        return;
+      }
 
-      // Notificar todos os participantes da emergência
+      // Status transitions must use HTTP endpoints, which enforce state, price,
+      // ownership and idempotency rules. Socket.IO only broadcasts the update.
       this.io.to(`emergency_${emergencyId}`).emit('emergency_updated', {
-        emergencyId: emergencyId,
-        status: status,
-        location: location,
-        timestamp: new Date()
+        emergencyId,
+        status: emergency.status,
+        location,
+        timestamp: new Date(),
       });
-
-      console.log(`Emergência ${emergencyId} atualizada: ${status}`);
     } catch (error) {
       console.error('Erro ao atualizar emergência:', error);
       socket.emit('error', { message: 'Erro ao atualizar emergência' });
@@ -239,21 +243,39 @@ class SocketService {
   async handlePartnerLocationUpdate(socket, data) {
     try {
       const { emergencyId, latitude, longitude } = data;
-      
-      // Atualizar localização do parceiro
+      const emergency = await this.findSocketEmergency(socket, emergencyId);
+      if (!emergency || (socket.userRole !== 'admin' && emergency.partner_user_id !== socket.userId)) {
+        socket.emit('error', { message: 'Emergência não encontrada ou acesso negado' });
+        return;
+      }
+      if (!['accepted', 'in_progress'].includes(emergency.status)) {
+        socket.emit('error', { message: 'Localização indisponível para este estado' });
+        return;
+      }
+      if (!Number.isFinite(Number(latitude)) || !Number.isFinite(Number(longitude)) ||
+          Number(latitude) < -90 || Number(latitude) > 90 ||
+          Number(longitude) < -180 || Number(longitude) > 180) {
+        socket.emit('error', { message: 'Coordenadas inválidas' });
+        return;
+      }
+
       await db('emergency_requests')
         .where('id', emergencyId)
+        .whereIn('status', ['accepted', 'in_progress'])
+        .where(function() {
+          this.where('partner_id', emergency.partner_id);
+        })
         .update({
-          partner_latitude: latitude,
-          partner_longitude: longitude,
+          partner_latitude: Number(latitude),
+          partner_longitude: Number(longitude),
           updated_at: new Date()
         });
 
       // Notificar cliente sobre a localização do parceiro
       this.io.to(`emergency_${emergencyId}`).emit('partner_location_updated', {
         emergencyId: emergencyId,
-        latitude: latitude,
-        longitude: longitude,
+        latitude: Number(latitude),
+        longitude: Number(longitude),
         timestamp: new Date()
       });
 
@@ -262,6 +284,14 @@ class SocketService {
       console.error('Erro ao atualizar localização do parceiro:', error);
       socket.emit('error', { message: 'Erro ao atualizar localização' });
     }
+  }
+
+  async findSocketEmergency(socket, emergencyId) {
+    return db('emergency_requests')
+      .leftJoin('partners', 'emergency_requests.partner_id', 'partners.id')
+      .where('emergency_requests.id', emergencyId)
+      .select('emergency_requests.*', 'partners.user_id as partner_user_id')
+      .first();
   }
 
   handleSubscribeNotifications(socket) {
