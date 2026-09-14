@@ -505,6 +505,8 @@ Rotas oficiais:
 - `POST /api/emergency-requests/:id/payment`
 - `GET /api/emergency-requests/:id/payment-summary`
 - `POST /api/emergency-requests/:id/cancel`
+- `POST /api/emergency-requests/:id/start`
+- `POST /api/emergency-requests/:id/complete`
 - `GET /api/emergency-requests/stats`
 
 Rotas oficiais de proposta:
@@ -525,6 +527,22 @@ Rotas oficiais de proposta:
 
 - `mechanic` opera por aceite direto
 - `tow` opera por proposta e seleção
+
+Estados oficiais de emergência `tow`:
+
+- `pending` + `awaiting_proposals`: aguardando propostas;
+- `accepted` + `proposal_selected`: proposta aceita;
+- `in_progress`: atendimento iniciado pelo parceiro atribuído;
+- `completed`: atendimento concluído pelo parceiro atribuído;
+- `cancelled`: cancelada pelo cliente ou administrador.
+
+Rotas de transição:
+
+- `POST /api/emergency-requests/:id/start` — parceiro atribuído ou administrador;
+- `POST /api/emergency-requests/:id/complete` — parceiro atribuído ou administrador;
+- `POST /api/emergency-requests/:id/cancel` — cliente proprietário ou administrador.
+
+Aceite concorrente usa lock transacional e atualização condicional: apenas emergência `pending`, `proposal_status=awaiting_proposals` e dentro do prazo pode selecionar proposta. Segunda tentativa retorna erro sem alterar proposta ou emergência.
 
 ### 11.2 Regras econômicas oficiais já ativas
 

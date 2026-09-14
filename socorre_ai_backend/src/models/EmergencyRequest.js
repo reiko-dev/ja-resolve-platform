@@ -275,10 +275,13 @@ class EmergencyRequest {
   }
 
   // Iniciar serviço
-  static async start(id) {
+  static async start(id, partnerId = null) {
     const [request] = await knex('emergency_requests')
       .where('id', id)
       .where('status', 'accepted')
+      .modify(builder => {
+        if (partnerId !== null) builder.where('partner_id', partnerId);
+      })
       .update({
         status: 'in_progress',
         started_at: knex.fn.now(),
@@ -290,10 +293,13 @@ class EmergencyRequest {
   }
 
   // Completar serviço
-  static async complete(id, finalPrice, solutionDescription, partsUsed) {
+  static async complete(id, finalPrice, solutionDescription, partsUsed, partnerId = null) {
     const [request] = await knex('emergency_requests')
       .where('id', id)
       .where('status', 'in_progress')
+      .modify(builder => {
+        if (partnerId !== null) builder.where('partner_id', partnerId);
+      })
       .update({
         status: 'completed',
         final_price: finalPrice,
@@ -556,11 +562,26 @@ class EmergencyRequest {
     const trx = await knex.transaction();
     
     try {
+      // Lock the request row so concurrent accepts serialize on PostgreSQL.
+      const currentRequest = await trx('emergency_requests')
+        .where('id', emergencyRequestId)
+        .where('request_type', 'tow')
+        .where('status', 'pending')
+        .where('proposal_status', 'awaiting_proposals')
+        .where('proposal_selection_deadline', '>', knex.fn.now())
+        .forUpdate()
+        .first();
+      if (!currentRequest) {
+        await trx.rollback();
+        return null;
+      }
+
       // Atualizar proposta para aceita
       const [proposal] = await trx('tow_proposals')
         .where('id', proposalId)
         .where('emergency_request_id', emergencyRequestId)
         .where('status', 'pending')
+        .where('expires_at', '>', knex.fn.now())
         .update({
           status: 'accepted',
           accepted_at: knex.fn.now(),
@@ -583,9 +604,15 @@ class EmergencyRequest {
           responded_at: knex.fn.now()
         });
 
-      // Atualizar emergência
+      // Atualizar emergência.
+      // Exigir status 'pending' na MESMA transação garante que duas
+      // aceitações concorrentes não possam ambas vencer: a segunda
+      // atualização não encontra a linha e a transação é revertida,
+      // desfazendo também o aceite da proposta.
       const [request] = await trx('emergency_requests')
         .where('id', emergencyRequestId)
+        .where('status', 'pending')
+        .where('proposal_status', 'awaiting_proposals')
         .update({
           partner_id: proposal.partner_id,
           selected_proposal_id: proposalId,
@@ -597,6 +624,11 @@ class EmergencyRequest {
           first_proposal_at: knex.fn.now()
         })
         .returning('*');
+
+      if (!request) {
+        await trx.rollback();
+        return null;
+      }
 
       await trx.commit();
       return { request, proposal };
@@ -748,10 +780,13 @@ class EmergencyRequest {
   }
 
   // Finalizar emergência com proposta aceita
-  static async completeWithProposal(emergencyRequestId, finalPrice, solutionDescription, partsUsed = null) {
+  static async completeWithProposal(emergencyRequestId, finalPrice, solutionDescription, partsUsed = null, partnerId = null) {
     const [request] = await knex('emergency_requests')
       .where('id', emergencyRequestId)
       .where('status', 'in_progress')
+      .modify(builder => {
+        if (partnerId !== null) builder.where('partner_id', partnerId);
+      })
       .update({
         status: 'completed',
         final_price: finalPrice,

@@ -6,10 +6,11 @@ describe('TowProposal Model - Basic Tests', () => {
       expect(TowProposal).toBeDefined();
       expect(typeof TowProposal.create).toBe('function');
       expect(typeof TowProposal.findById).toBe('function');
-      expect(typeof TowProposal.findByEmergencyRequest).toBe('function');
+      expect(typeof TowProposal.findByEmergency).toBe('function');
       expect(typeof TowProposal.findByPartner).toBe('function');
-      expect(typeof TowProposal.updateStatus).toBe('function');
-      expect(typeof TowProposal.delete).toBe('function');
+      expect(typeof TowProposal.accept).toBe('function');
+      expect(typeof TowProposal.reject).toBe('function');
+      expect(typeof TowProposal.withdraw).toBe('function');
       expect(typeof TowProposal.getStats).toBe('function');
     });
   });
@@ -19,14 +20,14 @@ describe('TowProposal Model - Basic Tests', () => {
       const validData = {
         emergency_request_id: 1,
         partner_id: 1,
-        estimated_value: 150.00,
+        proposed_price: 150.00,
         estimated_time_minutes: 30
       };
       
       // Teste básico de validação
       expect(validData.emergency_request_id).toBe(1);
       expect(validData.partner_id).toBe(1);
-      expect(validData.estimated_value).toBe(150.00);
+      expect(validData.proposed_price).toBe(150.00);
       expect(validData.estimated_time_minutes).toBe(30);
     });
     
@@ -34,13 +35,13 @@ describe('TowProposal Model - Basic Tests', () => {
       const invalidData = {
         emergency_request_id: null,
         partner_id: null,
-        estimated_value: -50,
+        proposed_price: -50,
         estimated_time_minutes: 0
       };
       
       expect(invalidData.emergency_request_id).toBeNull();
       expect(invalidData.partner_id).toBeNull();
-      expect(invalidData.estimated_value).toBe(-50);
+      expect(invalidData.proposed_price).toBe(-50);
       expect(invalidData.estimated_time_minutes).toBe(0);
     });
   });
@@ -50,7 +51,8 @@ describe('TowProposal Model - Basic Tests', () => {
       const validTransitions = [
         { from: 'pending', to: 'accepted' },
         { from: 'pending', to: 'rejected' },
-        { from: 'accepted', to: 'completed' },
+        { from: 'accepted', to: 'in_progress' },
+        { from: 'in_progress', to: 'completed' },
         { from: 'accepted', to: 'cancelled' }
       ];
       

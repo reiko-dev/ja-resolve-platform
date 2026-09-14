@@ -314,7 +314,7 @@ class EmergencyRequestController {
       const { proposal_id } = req.body;
 
       const emergency = await EmergencyRequest.findById(id);
-      if (!emergency || emergency.user_id !== req.user.id) {
+      if (!emergency || (emergency.user_id !== req.user.id && req.user.role !== 'admin')) {
         return res.status(403).json({ error: 'Acesso negado' });
       }
 
@@ -334,6 +334,142 @@ class EmergencyRequestController {
       console.error('Erro ao aceitar proposta:', error);
       res.status(500).json({
         error: 'Erro interno do servidor',
+      });
+    }
+  }
+
+  static async start(req, res) {
+    try {
+      const { id } = req.params;
+
+      const emergency = await EmergencyRequest.findById(id);
+      if (!emergency) {
+        return res.status(404).json({
+          success: false,
+          message: 'Solicitação não encontrada',
+        });
+      }
+
+      const isAssignedPartner = emergency.partner_id && emergency.partner_id === req.user.partner_id;
+      if (req.user.role !== 'admin' && !isAssignedPartner) {
+        return res.status(403).json({
+          success: false,
+          message: 'Acesso negado',
+        });
+      }
+
+      if (emergency.status !== 'accepted') {
+        return res.status(400).json({
+          success: false,
+          message: 'Transição inválida: apenas solicitações aceitas podem ser iniciadas',
+          current_status: emergency.status,
+        });
+      }
+
+      const request = await EmergencyRequest.start(
+        id,
+        req.user.role === 'admin' ? null : req.user.partner_id
+      );
+      if (!request) {
+        return res.status(400).json({
+          success: false,
+          message: 'Não foi possível iniciar a solicitação: o status mudou durante a operação',
+        });
+      }
+
+      res.json({
+        success: true,
+        data: request,
+        message: 'Solicitação iniciada com sucesso',
+      });
+    } catch (error) {
+      console.error('Erro ao iniciar solicitação:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Erro interno do servidor',
+      });
+    }
+  }
+
+  static async complete(req, res) {
+    try {
+      const { id } = req.params;
+      const { final_price, solution_description, parts_used } = req.body;
+
+      if (final_price !== undefined && (!Number.isFinite(Number(final_price)) || Number(final_price) < 0)) {
+        return res.status(400).json({ success: false, message: 'final_price deve ser um valor não negativo' });
+      }
+
+      const emergency = await EmergencyRequest.findById(id);
+      if (!emergency) {
+        return res.status(404).json({
+          success: false,
+          message: 'Solicitação não encontrada',
+        });
+      }
+
+      const isAssignedPartner = emergency.partner_id && emergency.partner_id === req.user.partner_id;
+      if (req.user.role !== 'admin' && !isAssignedPartner) {
+        return res.status(403).json({
+          success: false,
+          message: 'Acesso negado',
+        });
+      }
+
+      if (emergency.status !== 'in_progress') {
+        return res.status(400).json({
+          success: false,
+          message: 'Transição inválida: apenas solicitações em andamento podem ser concluídas',
+          current_status: emergency.status,
+        });
+      }
+
+      let request;
+      if (emergency.request_type === 'tow') {
+        if (final_price === undefined) {
+          return res.status(400).json({ success: false, message: 'final_price é obrigatório para concluir um guincho' });
+        }
+        const priceValidation = await EmergencyRequest.validateTowProposalPrice(id, final_price);
+        if (!priceValidation.valid) {
+          return res.status(400).json({
+            success: false,
+            message: `final_price abaixo do mínimo permitido: R$ ${priceValidation.minimumAcceptedPrice}`,
+          });
+        }
+        request = await EmergencyRequest.completeWithProposal(
+          id,
+          final_price,
+          solution_description,
+          parts_used,
+          req.user.role === 'admin' ? null : req.user.partner_id
+        );
+      } else {
+        request = await EmergencyRequest.complete(
+          id,
+          final_price,
+          solution_description,
+          parts_used,
+          req.user.role === 'admin' ? null : req.user.partner_id
+        );
+      }
+
+      if (!request) {
+        return res.status(400).json({
+          success: false,
+          message: 'Não foi possível concluir a solicitação: o status mudou durante a operação',
+        });
+      }
+
+      res.json({
+        success: true,
+        data: request,
+        message: 'Solicitação concluída com sucesso',
+      });
+    } catch (error) {
+      console.error('Erro ao concluir solicitação:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Erro interno do servidor',
       });
     }
   }
