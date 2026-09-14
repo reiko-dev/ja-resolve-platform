@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const db = require('../config/database');
 const { getJwtSecret } = require('../config/jwt');
+const { isTokenRevoked } = require('../services/tokenRevocationService');
 
 const auth = async (req, res, next) => {
   try {
@@ -14,6 +15,13 @@ const auth = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, getJwtSecret());
+
+    if (await isTokenRevoked(token)) {
+      return res.status(401).json({
+        success: false,
+        message: 'Token revogado'
+      });
+    }
     
     // Buscar usuário no banco com contexto de parceiro quando existir
     const user = await db('users')
@@ -33,8 +41,16 @@ const auth = async (req, res, next) => {
       });
     }
 
+    if (!user.is_active) {
+      return res.status(401).json({
+        success: false,
+        message: 'Token inválido'
+      });
+    }
+
     req.user = user;
     req.token = token;
+    req.decodedToken = decoded;
     next();
   } catch (error) {
     console.error('Auth middleware error:', error);

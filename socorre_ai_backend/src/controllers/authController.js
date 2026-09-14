@@ -4,6 +4,12 @@ const db = require('../config/database');
 const { getJwtSecret, getJwtExpiresIn } = require('../config/jwt');
 const { normalizePartnerType } = require('../config/partnerDocumentRules');
 const { ONBOARDING_STAGES } = require('../config/onboardingStages');
+const { revokeToken, fallbackExpiration } = require('../services/tokenRevocationService');
+const socketService = require('../services/socketService');
+
+function normalizeEmail(email) {
+  return String(email || '').trim().toLowerCase();
+}
 
 async function getAuthUserById(userId) {
   return db('users')
@@ -33,12 +39,13 @@ class AuthController {
   // Registrar novo usuário
   async register(req, res) {
     try {
-      const { name, email, password, phone, cpf, cnpj } = req.body;
+      const { name, password, phone, cpf, cnpj } = req.body;
+      const email = normalizeEmail(req.body.email);
       const onboardingPartnerType = normalizePartnerType(req.body.partner_type || req.body.partnerType || '');
       const resolvedRole = onboardingPartnerType ? 'partner' : 'user';
 
-      // Verificar se email já existe
-      const existingUser = await db('users').where({ email }).first();
+      // Verificar se email já existe (case-insensitive)
+      const existingUser = await db('users').whereRaw('LOWER(email) = ?', [email]).first();
       if (existingUser) {
         return res.status(400).json({
           success: false,
@@ -73,7 +80,19 @@ class AuthController {
       }
 
       // Inserir usuário
-      const [result] = await db('users').insert(userData).returning('id');
+      let result;
+      try {
+        [result] = await db('users').insert(userData).returning('id');
+      } catch (insertError) {
+        // Violação de unicidade (corrida entre o check acima e o insert)
+        if (insertError.code === '23505' || /UNIQUE constraint failed/i.test(insertError.message || '')) {
+          return res.status(400).json({
+            success: false,
+            message: 'Email já cadastrado'
+          });
+        }
+        throw insertError;
+      }
       const userId = result.id;
 
       // Buscar usuário criado (sem senha)
@@ -99,7 +118,7 @@ class AuthController {
       console.error('Register error:', error);
       res.status(500).json({
         success: false,
-        message: 'Erro interno do servidor: ' + error.message
+        message: 'Erro interno do servidor'
       });
     }
   }
@@ -107,11 +126,20 @@ class AuthController {
   // Login de usuário
   async login(req, res) {
     try {
-      const { email, password } = req.body;
+      const { password } = req.body;
+      const email = normalizeEmail(req.body.email);
 
-      // Buscar usuário por email
-      const user = await db('users').where({ email }).first();
+      // Buscar usuário por email (case-insensitive)
+      const user = await db('users').whereRaw('LOWER(email) = ?', [email]).first();
       if (!user) {
+        return res.status(401).json({
+          success: false,
+          message: 'Email ou senha inválidos'
+        });
+      }
+
+      // Conta desativada não pode autenticar
+      if (!user.is_active) {
         return res.status(401).json({
           success: false,
           message: 'Email ou senha inválidos'
@@ -149,7 +177,7 @@ class AuthController {
       console.error('Login error:', error);
       res.status(500).json({
         success: false,
-        message: 'Erro interno do servidor: ' + error.message
+        message: 'Erro interno do servidor'
       });
     }
   }
@@ -175,14 +203,22 @@ class AuthController {
       console.error('Verify token error:', error);
       res.status(500).json({
         success: false,
-        message: 'Erro interno do servidor: ' + error.message
+        message: 'Erro interno do servidor'
       });
     }
   }
 
-  // Logout
+  // Logout: revoga o token apresentado (tabela de denylist com expiração automática)
   async logout(req, res) {
     try {
+      const expMs = Number(req.decodedToken?.exp) * 1000;
+      const expiresAt = Number.isFinite(expMs)
+        ? new Date(expMs)
+        : fallbackExpiration();
+
+      await revokeToken(req.token, req.user.id, expiresAt);
+      socketService.disconnectUserSockets(req.user.id, 'logout');
+
       res.json({
         success: true,
         message: 'Logout realizado com sucesso'
@@ -192,7 +228,7 @@ class AuthController {
       console.error('Logout error:', error);
       res.status(500).json({
         success: false,
-        message: 'Erro interno do servidor: ' + error.message
+        message: 'Erro interno do servidor'
       });
     }
   }
