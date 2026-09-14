@@ -18,6 +18,7 @@ SEED=0
 if [ "${1:-}" = "--seed" ]; then
   SEED=1
 fi
+ORIG_ARGS=("$@")
 
 [ -f "$SHARED/homolog.env" ] || { echo "[erro] rode bootstrap-vps.sh antes do primeiro deploy" >&2; exit 1; }
 # shellcheck source=/dev/null
@@ -38,10 +39,19 @@ git fetch --prune origin "$HOMOLOG_BRANCH"
 git checkout -f "$HOMOLOG_BRANCH"
 git reset --hard "origin/$HOMOLOG_BRANCH"
 git clean -fd
+
+# O bash mantém o descritor do arquivo antigo quando o git substitui este script
+# durante a execução; reexecutar garante que a versão publicada seja a usada.
+if [ "${HOMOLOG_REEXEC:-}" != "1" ]; then
+  HOMOLOG_REEXEC=1 exec bash "$REPO/scripts/homolog/deploy-homolog.sh" ${ORIG_ARGS[@]+"${ORIG_ARGS[@]}"}
+fi
+
 REV="$(git rev-parse --short HEAD)"
 log "Release: $REV $(git log -1 --format='- %s')"
 
 mkdir -p "$RELEASES" "$STAGING/backend" "$STAGING/admin" "$STAGING/site"
+# Autocura: qualquer deploy anterior pode ter deixado os diretórios com outro dono.
+sudo chown -R deploy:deploy "$STAGING"
 TS="$(date +%Y%m%d-%H%M%S)"
 
 if [ -d "$STAGING/backend/src" ]; then
