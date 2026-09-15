@@ -283,6 +283,21 @@ const partnerSchemas = {
   })
 };
 
+// G2 — campos comuns do payload de conclusão. O schema mechanic/legado e o
+// schema tow compartilham exatamente estes campos; a única diferença é a
+// obrigatoriedade de `final_price` no tow.
+const completePayloadFields = Object.freeze({
+  solution_description: Joi.string().max(1000).optional().allow(null),
+  parts_used: Joi.array().items(Joi.alternatives().try(
+    Joi.string(),
+    Joi.object({
+      name: Joi.string().required(),
+      quantity: Joi.number().integer().min(1).required(),
+      price: Joi.number().min(0).precision(2).required()
+    })
+  )).optional().allow(null)
+});
+
 // Schemas para solicitações de emergência
 const emergencyRequestSchemas = {
   create: Joi.object({
@@ -321,15 +336,37 @@ const emergencyRequestSchemas = {
     estimated_duration: Joi.number().integer().min(1).max(1440).required()
   }),
 
+  // G2 — payload de conclusão do fluxo mechanic/legado. Preserva o contrato
+  // vigente desde G1: `final_price` é OPCIONAL (mechanic conclui sem preço) e,
+  // quando presente, precisa ser número finito >= 0; `null` é sempre 400.
+  // `solution_description` e `parts_used` seguem opcionais como no
+  // comportamento documentado/testado em G1/G2.
+  completeMechanic: Joi.object({
+    ...completePayloadFields,
+    final_price: Joi.number().min(0).precision(2).optional()
+  }).unknown(true),
+
+  // Alias do contrato mechanic (nome histórico usado por rotas/integrações).
   complete: Joi.object({
-    final_price: Joi.number().min(0).precision(2).required(),
-    solution_description: Joi.string().min(10).max(1000).required(),
-    parts_used: Joi.array().items(Joi.object({
-      name: Joi.string().required(),
-      quantity: Joi.number().integer().min(1).required(),
-      price: Joi.number().min(0).precision(2).required()
-    })).optional()
-  }),
+    ...completePayloadFields,
+    final_price: Joi.number().min(0).precision(2).optional()
+  }).unknown(true),
+
+  // G2 — guincho exige preço final. Única diferença em relação ao schema
+  // mechanic é `final_price` obrigatório; não há teto (o piso vem de
+  // system_settings e ausência de piso não vira default inventado).
+  completeTow: Joi.object({
+    ...completePayloadFields,
+    final_price: Joi.number().min(0).precision(2).required()
+  }).unknown(true),
+
+  // G2 — upload de foto privada de guincho (JSON com base64 real).
+  uploadPhoto: Joi.object({
+    photo_type: Joi.string().valid('pickup', 'delivery').required(),
+    image: Joi.string().min(1).required(),
+    filename: Joi.string().min(1).max(255).required(),
+    mimeType: Joi.string().valid('image/jpeg', 'image/webp').required()
+  }).unknown(true),
 
   rate: Joi.object({
     rating: Joi.number().integer().min(1).max(5).required(),

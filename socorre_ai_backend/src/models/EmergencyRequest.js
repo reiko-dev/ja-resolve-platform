@@ -12,6 +12,48 @@ function normalizeRequestType(requestType) {
   return REQUEST_TYPE_ALIASES[requestType] || requestType || 'mechanic';
 }
 
+// G2 — contrato de fotos privadas de guincho (uma pickup + uma delivery).
+const PHOTO_COLUMNS = Object.freeze({
+  pickup: Object.freeze({ url: 'pickup_photo_url', metadata: 'pickup_photo_metadata' }),
+  delivery: Object.freeze({ url: 'delivery_photo_url', metadata: 'delivery_photo_metadata' }),
+});
+
+// G2 — pricing do guincho vem exclusivamente de system_settings/price_breakdown.
+// Nenhum valor default é fabricado em código (6/25/90/40 eram hardcoded).
+const TOW_PRICING_KEYS = Object.freeze([
+  'tow_price_per_km',
+  'tow_platform_fixed_fee',
+  'tow_minimum_charge',
+  'tow_cancellation_fee',
+]);
+
+// Chaves usadas no cálculo do estimate; `tow_cancellation_fee` compõe o
+// breakdown mas não o total, então pode faltar sem inventar valor.
+const TOW_ESTIMATE_REQUIRED_KEYS = Object.freeze([
+  'tow_price_per_km',
+  'tow_platform_fixed_fee',
+  'tow_minimum_charge',
+]);
+
+/**
+ * G2 — ausência/incompletude de configuração de pricing. Erro controlado (503)
+ * para o caller virar resposta explícita, nunca preço inventado.
+ */
+class TowPricingNotConfiguredError extends Error {
+  constructor(missingKeys = []) {
+    super('Configuração de preço de guincho ausente em system_settings');
+    this.name = 'TowPricingNotConfiguredError';
+    this.code = 'tow_pricing_not_configured';
+    this.status = 503;
+    this.missingKeys = [...missingKeys];
+  }
+}
+
+function isPostgresClient(instance) {
+  const client = instance?.client?.config?.client;
+  return client === 'pg' || client === 'postgresql';
+}
+
 class EmergencyRequest {
   static parseJsonField(value, fallback = null) {
     if (!value) return fallback;
@@ -21,6 +63,139 @@ class EmergencyRequest {
       return JSON.parse(value);
     } catch (error) {
       return fallback;
+    }
+  }
+
+  // G2 — colunas contratuais de foto por tipo (null quando o tipo é inválido).
+  static photoColumns(photoType) {
+    const columns = PHOTO_COLUMNS[photoType];
+    return columns ? { url: columns.url, metadata: columns.metadata } : null;
+  }
+
+  // G2 — metadata persistida da foto (objeto) ou null quando ausente/ilegível.
+  static parsePhotoMetadata(row, photoType) {
+    const columns = this.photoColumns(photoType);
+    if (!columns) return null;
+
+    const parsed = this.parseJsonField(row?.[columns.metadata], null);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  }
+
+  /**
+   * G2 — referências de arquivos de foto persistidas nas quatro colunas do
+   * contrato (URL + metadata de pickup/delivery), usadas pela reconciliação de
+   * órfãos.
+   *
+   * Devolve chaves exatas (`<id>/<tipo>-<uuid>.<ext>`) e prefixos
+   * (`<id>/<tipo>-`) para linhas cuja URL existe mas cuja metadata é ilegível:
+   * na dúvida o arquivo é tratado como referenciado e nunca é removido.
+   */
+  static async listPhotoStorageReferences() {
+    const rows = await knex('emergency_requests').select(
+      'id',
+      'pickup_photo_url',
+      'delivery_photo_url',
+      'pickup_photo_metadata',
+      'delivery_photo_metadata'
+    );
+
+    const keys = new Set();
+    const prefixes = new Set();
+
+    for (const row of rows) {
+      for (const photoType of Object.keys(PHOTO_COLUMNS)) {
+        const columns = PHOTO_COLUMNS[photoType];
+        const metadata = this.parseJsonField(row[columns.metadata], null);
+        const storageKey = metadata && typeof metadata === 'object' ? metadata.storage_key : null;
+
+        if (typeof storageKey === 'string' && storageKey.trim()) {
+          keys.add(storageKey.trim());
+          prefixes.add(`${row.id}/${photoType}-`);
+        }
+
+        if (row[columns.url]) {
+          prefixes.add(`${row.id}/${photoType}-`);
+        }
+      }
+    }
+
+    return { keys: [...keys], prefixes: [...prefixes] };
+  }
+
+  /**
+   * G2 — anexa a foto ao pedido de forma atômica e idempotente.
+   *
+   * Uma única transação:
+   *   1. lê o pedido (com FOR UPDATE quando o banco é PostgreSQL);
+   *   2. se a coluna do tipo já tem valor, devolve `existing` sem escrever nada;
+   *   3. delega a escrita física ao callback `store()` (temp + rename);
+   *   4. atualiza com CAS (`WHERE <coluna> IS NULL`) e faz commit.
+   *
+   * Qualquer falha faz rollback da transação e do arquivo recém-escrito, de
+   * modo que nunca sobra órfão no filesystem nem URL sem arquivo no banco.
+   */
+  static async attachServicePhoto(emergencyRequestId, photoType, { url, store } = {}) {
+    const columns = this.photoColumns(photoType);
+    if (!columns) {
+      throw new Error(`photo_type inválido: ${photoType}`);
+    }
+    if (typeof url !== 'string' || !url.trim()) {
+      throw new Error('url da foto é obrigatória');
+    }
+    if (typeof store !== 'function') {
+      throw new Error('callback de armazenamento da foto é obrigatório');
+    }
+
+    const trx = await knex.transaction();
+    let stored = null;
+    let committed = false;
+
+    try {
+      let lockQuery = trx('emergency_requests').where('id', emergencyRequestId);
+      if (isPostgresClient(knex)) {
+        lockQuery = lockQuery.forUpdate();
+      }
+
+      const current = await lockQuery.first();
+
+      if (!current) {
+        await trx.rollback();
+        return { status: 'missing', request: null };
+      }
+
+      if (current[columns.url]) {
+        await trx.rollback();
+        return { status: 'existing', request: current };
+      }
+
+      stored = await store();
+
+      const [updated] = await trx('emergency_requests')
+        .where('id', emergencyRequestId)
+        .whereNull(columns.url)
+        .update({
+          [columns.url]: url,
+          [columns.metadata]: JSON.stringify(stored.metadata),
+          updated_at: knex.fn.now()
+        })
+        .returning('*');
+
+      if (!updated) {
+        throw new Error('anexo de foto conflitou com atualização concorrente');
+      }
+
+      await trx.commit();
+      committed = true;
+
+      return { status: 'created', request: updated };
+    } catch (error) {
+      await trx.rollback().catch(() => {});
+
+      if (!committed && stored && typeof stored.rollback === 'function') {
+        await stored.rollback().catch(() => {});
+      }
+
+      throw error;
     }
   }
 
@@ -49,27 +224,38 @@ class EmergencyRequest {
     return earthRadiusKm * distance;
   }
 
+  /**
+   * G2 — pricing do guincho lido exclusivamente de system_settings.
+   *
+   * Nunca fabrica default: chave ausente, vazia, não numérica, infinita ou
+   * negativa vira `null`. Quando nenhuma das chaves tem valor utilizável,
+   * devolve `null` (ausência explícita de configuração) — os chamadores
+   * decidem entre erro controlado (estimate) e ausência de piso (complete).
+   */
   static async getTowPricingSettings() {
-    const settings = await knex('system_settings')
-      .whereIn('setting_key', [
-        'tow_price_per_km',
-        'tow_platform_fixed_fee',
-        'tow_minimum_charge',
-        'tow_cancellation_fee'
-      ]);
+    const settings = await knex('system_settings').whereIn('setting_key', TOW_PRICING_KEYS);
+    const values = new Map(
+      settings.map(setting => [setting.setting_key, parseFloat(setting.setting_value)])
+    );
 
-    const asMap = Object.fromEntries(settings.map(setting => [setting.setting_key, parseFloat(setting.setting_value)]));
+    const resolved = {};
+    for (const key of TOW_PRICING_KEYS) {
+      const value = values.get(key);
+      resolved[key] = Number.isFinite(value) && value >= 0 ? value : null;
+    }
 
-    return {
-      tow_price_per_km: asMap.tow_price_per_km ?? 6,
-      tow_platform_fixed_fee: asMap.tow_platform_fixed_fee ?? 25,
-      tow_minimum_charge: asMap.tow_minimum_charge ?? 90,
-      tow_cancellation_fee: asMap.tow_cancellation_fee ?? 40,
-    };
+    return TOW_PRICING_KEYS.every(key => resolved[key] === null) ? null : resolved;
   }
 
   static async calculateTowEstimate(requestData) {
     const pricing = await this.getTowPricingSettings();
+    const missingKeys = TOW_ESTIMATE_REQUIRED_KEYS.filter(
+      key => !Number.isFinite(pricing?.[key])
+    );
+
+    if (missingKeys.length > 0) {
+      throw new TowPricingNotConfiguredError(missingKeys);
+    }
 
     const originLatitude = requestData.vehicle_origin_latitude ?? requestData.latitude;
     const originLongitude = requestData.vehicle_origin_longitude ?? requestData.longitude;
@@ -102,35 +288,47 @@ class EmergencyRequest {
     };
   }
 
-  static async validateTowProposalPrice(emergencyRequestId, proposedPrice) {
+  /**
+   * Piso de preço do guincho. Preferência pelo snapshot gravado em
+   * price_breakdown no momento da criação; quando o pedido não tem snapshot
+   * (linhas legadas), usa exclusivamente o valor vigente em system_settings —
+   * nunca um teto, piso ou default (90) inventado. Sem configuração utilizável,
+   * devolve `null`: não há piso a aplicar.
+   */
+  static async resolveTowMinimumPrice(emergencyRequestId) {
     const request = await knex('emergency_requests')
       .select('price_breakdown')
       .where('id', emergencyRequestId)
       .first();
 
-    if (!request?.price_breakdown) {
-      return { valid: true, minimumAcceptedPrice: null };
+    const breakdown = this.parseJsonField(request?.price_breakdown, null);
+    const snapshot = parseFloat(breakdown?.total_estimated_price ?? breakdown?.minimum_charge);
+
+    if (Number.isFinite(snapshot) && snapshot > 0) {
+      return snapshot;
     }
 
-    let breakdown = null;
-    try {
-      breakdown = typeof request.price_breakdown === 'object'
-        ? request.price_breakdown
-        : JSON.parse(request.price_breakdown);
-    } catch (error) {
-      breakdown = null;
+    const pricing = await this.getTowPricingSettings();
+    const minimum = parseFloat(pricing?.tow_minimum_charge);
+
+    return Number.isFinite(minimum) && minimum > 0 ? minimum : null;
+  }
+
+  static async validateTowProposalPrice(emergencyRequestId, proposedPrice) {
+    const numericPrice = typeof proposedPrice === 'number' ? proposedPrice : parseFloat(proposedPrice);
+    const minimumAcceptedPrice = await this.resolveTowMinimumPrice(emergencyRequestId);
+
+    if (!Number.isFinite(numericPrice)) {
+      return { valid: false, minimumAcceptedPrice };
     }
 
-    const minimumAcceptedPrice = parseFloat(
-      breakdown?.total_estimated_price ?? breakdown?.minimum_charge ?? 0
-    );
-
-    if (!minimumAcceptedPrice) {
+    if (minimumAcceptedPrice === null) {
+      // Sem regra de preço configurada: não há piso a aplicar.
       return { valid: true, minimumAcceptedPrice: null };
     }
 
     return {
-      valid: parseFloat(proposedPrice) >= minimumAcceptedPrice,
+      valid: numericPrice >= minimumAcceptedPrice,
       minimumAcceptedPrice
     };
   }
@@ -294,6 +492,11 @@ class EmergencyRequest {
 
   // Completar serviço
   static async complete(id, finalPrice, solutionDescription, partsUsed, partnerId = null) {
+    // G1/G2 — mechanic conclui sem preço: `undefined` é persistido como NULL.
+    // Sem esta normalização o knex recusaria o binding indefinido (erro 500),
+    // quebrando o contrato documentado de conclusão sem `final_price`.
+    const normalizedFinalPrice = finalPrice === undefined ? null : finalPrice;
+
     const [request] = await knex('emergency_requests')
       .where('id', id)
       .where('status', 'in_progress')
@@ -302,7 +505,7 @@ class EmergencyRequest {
       })
       .update({
         status: 'completed',
-        final_price: finalPrice,
+        final_price: normalizedFinalPrice,
         solution_description: solutionDescription,
         parts_used: partsUsed ? JSON.stringify(partsUsed) : null,
         completed_at: knex.fn.now(),
@@ -836,5 +1039,9 @@ class EmergencyRequest {
     }
   }
 }
+
+EmergencyRequest.TOW_PRICING_KEYS = TOW_PRICING_KEYS;
+EmergencyRequest.TOW_ESTIMATE_REQUIRED_KEYS = TOW_ESTIMATE_REQUIRED_KEYS;
+EmergencyRequest.TowPricingNotConfiguredError = TowPricingNotConfiguredError;
 
 module.exports = EmergencyRequest;
