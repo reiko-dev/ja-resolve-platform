@@ -3,23 +3,26 @@ status: IN_PROGRESS
 terminal_state: null
 repository: reiko-dev/socorre-ja-platform
 base_branch: main
-head: 4859f57e0b61cefcc0dd75157c131591caf997f0
+head: 42b2d7ab
 worktree: clean
 remote: https://github.com/reiko-dev/socorre-ja-platform.git
 max_execution_cycles: 3
 cycle: 0
-current_task: orchestration-capability-check
+current_task: G2-G3-planning
 workstreams:
   G1:
-    status: NOT_STARTED
-    branch: null
-    commit: null
+    status: COMPLETE
+    branch: codex/g1-routes-permissions-idempotency
+    commit: 48c531d0
+    merge_commit: 42b2d7ab
+    muse_verdict: APPROVE_WITH_FINDINGS
+    luna_adjudication: ACCEPT_WITH_DEFERRED_FINDINGS
   G2:
-    status: NOT_STARTED
+    status: NEXT
     branch: null
     commit: null
   G3:
-    status: NOT_STARTED
+    status: NEXT
     branch: null
     commit: null
 blockers:
@@ -33,7 +36,7 @@ blockers:
     owner: user/session-capability
     attempts: 1
     last_checked_at: "2026-09-15T10:26:08-05:00"
-    next_check_at: "2026-09-15T10:36:08-05:00"
+    next_check_at: null
     status: RESOLVED
 quotas:
   LUNA_POOL:
@@ -50,10 +53,27 @@ quotas:
 cronjobs:
   - name: "gauntlet-blocker-watch:socorre-ja-platform:orchestration-capability-check:provider-interfaces-dsh-opencode"
     id: "gauntlet-blocker-watch-socorre-ja-platform-orchestration-capability-check-provider-interfaces-dsh-opencode"
-    status: ACTIVE
+    status: CANCELLED
     interval: 10m
-branches: []
-commits: []
-validations: []
-findings: []
-next_action: "Receber TaskSpec Luna; então delegar implementação ao DSH e executar gates determinísticos antes do Muse."
+branches:
+  - name: codex/g1-routes-permissions-idempotency
+    status: merged
+commits:
+  - 48c531d0
+  - 42b2d7ab
+validations:
+  - task: G1
+    command: "npx jest tests/tow/towLifecycleController.test.js tests/tow/towHttp.transport.test.js --runInBand --forceExit --detectOpenHandles"
+    result: "2 suites, 43/43 PASS"
+findings:
+  - id: muse-1
+    task_id: G1
+    decision: BUSINESS_RULE_AMBIGUITY
+    owner: G2
+    description: "final_price null pode ser aceito quando price_breakdown ausente; schema deve rejeitar null."
+  - id: muse-2
+    task_id: G1
+    decision: BUSINESS_RULE_AMBIGUITY
+    owner: contract-formalization
+    description: "Contrato ainda não fixa 200 versus 409 para retry idempotente; implementação mantém 200."
+next_action: "Gerar TaskSpec G2/G3 com Luna; DSH implementa G2 em branch isolada; Muse revisa."
