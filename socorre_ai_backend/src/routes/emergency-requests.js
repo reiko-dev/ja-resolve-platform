@@ -4,6 +4,15 @@ const EmergencyRequestController = require('../controllers/emergencyRequestContr
 const { auth, requireRole } = require('../middleware/auth');
 const { emergencyRequestSchemas, validate } = require('../middleware/validation');
 
+// Guarda de boot do contrato mobile (docs/MOBILE-AUTH-TOW-CONTRACT-V1.md §4.4):
+// start/complete são endpoints oficiais do ciclo tow. Um merge/deploy que perca
+// os handlers deve falhar no start do processo, não responder 404 em produção.
+for (const handler of ['start', 'complete']) {
+  if (typeof EmergencyRequestController[handler] !== 'function') {
+    throw new Error(`[routes/emergency-requests] handler ausente no controller: ${handler}`);
+  }
+}
+
 // Listar solicitações de emergência
 router.get('/', 
   auth, 
@@ -74,6 +83,9 @@ router.post('/:id/cancel',
   EmergencyRequestController.cancel
 );
 
+// Transições oficiais do ciclo de vida (accepted → in_progress → completed).
+// Papéis na rota: parceiro ou administrador; o vínculo "parceiro atribuído" é
+// validado no controller (outro parceiro e cliente recebem 403).
 router.post('/:id/start',
   auth,
   requireRole(['partner', 'admin']),

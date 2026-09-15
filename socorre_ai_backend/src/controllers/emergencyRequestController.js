@@ -45,6 +45,35 @@ class EmergencyRequestController {
     return isOwner || isAssignedPartner || isAdmin;
   }
 
+  /**
+   * Matriz oficial de start/complete (docs/MOBILE-AUTH-TOW-CONTRACT-V1.md §4.4/§6):
+   * apenas o parceiro atribuído ao pedido ou um administrador operam as transições.
+   * Cliente (mesmo proprietário) e qualquer outro parceiro recebem 403 na rota.
+   */
+  static canOperateLifecycle(req, request) {
+    if (req.user?.role === 'admin') {
+      return true;
+    }
+
+    return Boolean(request.partner_id) && request.partner_id === req.user?.partner_id;
+  }
+
+  /**
+   * Notificação de ciclo de vida é efeito colateral da transição: só é emitida
+   * pelo request que efetivamente gravou o novo estado (nunca por repetições
+   * sequenciais ou concorrentes). Falha de notificação não reverte a transição.
+   */
+  static async notifyLifecycle(userId, emergencyRequestId, type, title, message) {
+    try {
+      await NotificationService.sendNotification(userId, title, message, {
+        type,
+        emergency_request_id: emergencyRequestId,
+      });
+    } catch (notificationError) {
+      console.error(`Falha ao notificar ${type}:`, notificationError);
+    }
+  }
+
   static async create(req, res) {
     try {
       const resolvedRequestType = resolveRequestType(req.body.type, req.body.request_type);
@@ -351,14 +380,15 @@ class EmergencyRequestController {
         });
       }
 
-      const isAssignedPartner = emergency.partner_id && emergency.partner_id === req.user.partner_id;
-      if (req.user.role !== 'admin' && !isAssignedPartner) {
+      if (!EmergencyRequestController.canOperateLifecycle(req, emergency)) {
         return res.status(403).json({
           success: false,
           message: 'Acesso negado',
         });
       }
 
+      // Repetição sequencial: o recurso já está no estado de destino.
+      // Resposta idempotente sem nova mutação, notificação ou cobrança.
       if (emergency.status === 'in_progress') {
         return res.json({ success: true, data: emergency, message: 'Solicitação já foi iniciada' });
       }
@@ -374,23 +404,31 @@ class EmergencyRequestController {
         id,
         req.user.role === 'admin' ? null : req.user.partner_id
       );
+
       if (!request) {
+        // A atualização condicional do model (WHERE status = 'accepted') perdeu
+        // a corrida para outra requisição. Reler o recurso separa a repetição
+        // concorrente idempotente (destino já aplicado, sem novos efeitos) de
+        // uma transição incompatível (ex.: cancelamento venceu a corrida).
+        const current = await EmergencyRequest.findById(id);
+        if (current && current.status === 'in_progress') {
+          return res.json({ success: true, data: current, message: 'Solicitação já foi iniciada' });
+        }
+
         return res.status(400).json({
           success: false,
           message: 'Não foi possível iniciar a solicitação: o status mudou durante a operação',
+          current_status: current ? current.status : null,
         });
       }
 
-      try {
-        await NotificationService.sendNotification(
-          emergency.user_id,
-          'Guincho a caminho',
-          'O parceiro iniciou o atendimento da sua solicitação.',
-          { type: 'tow_started', emergency_request_id: id }
-        );
-      } catch (notificationError) {
-        console.error('Falha ao notificar início do guincho:', notificationError);
-      }
+      await EmergencyRequestController.notifyLifecycle(
+        emergency.user_id,
+        id,
+        'tow_started',
+        'Guincho a caminho',
+        'O parceiro iniciou o atendimento da sua solicitação.'
+      );
 
       res.json({
         success: true,
@@ -423,14 +461,15 @@ class EmergencyRequestController {
         });
       }
 
-      const isAssignedPartner = emergency.partner_id && emergency.partner_id === req.user.partner_id;
-      if (req.user.role !== 'admin' && !isAssignedPartner) {
+      if (!EmergencyRequestController.canOperateLifecycle(req, emergency)) {
         return res.status(403).json({
           success: false,
           message: 'Acesso negado',
         });
       }
 
+      // Repetição sequencial: conclusão já aplicada. Nenhum efeito novo
+      // (mutação, cobrança, evento, notificação ou registro).
       if (emergency.status === 'completed') {
         return res.json({ success: true, data: emergency, message: 'Solicitação já foi concluída' });
       }
@@ -472,22 +511,27 @@ class EmergencyRequestController {
       }
 
       if (!request) {
+        // Mesma separação do start: repetição concorrente idempotente versus
+        // transição incompatível vencida por outra requisição.
+        const current = await EmergencyRequest.findById(id);
+        if (current && current.status === 'completed') {
+          return res.json({ success: true, data: current, message: 'Solicitação já foi concluída' });
+        }
+
         return res.status(400).json({
           success: false,
           message: 'Não foi possível concluir a solicitação: o status mudou durante a operação',
+          current_status: current ? current.status : null,
         });
       }
 
-      try {
-        await NotificationService.sendNotification(
-          emergency.user_id,
-          'Guincho concluído',
-          'O parceiro concluiu o atendimento da sua solicitação.',
-          { type: 'tow_completed', emergency_request_id: id }
-        );
-      } catch (notificationError) {
-        console.error('Falha ao notificar conclusão do guincho:', notificationError);
-      }
+      await EmergencyRequestController.notifyLifecycle(
+        emergency.user_id,
+        id,
+        'tow_completed',
+        'Guincho concluído',
+        'O parceiro concluiu o atendimento da sua solicitação.'
+      );
 
       res.json({
         success: true,
