@@ -24,7 +24,7 @@ services:
 
   # Backend API (development mode)
   backend:
-    image: node:18-alpine
+    image: node:20-alpine
     container_name: socorre_ai_backend
     ports:
       - "3001:3001"
@@ -49,7 +49,7 @@ services:
   # Backend API with selected legacy routes disabled for smoke validation
   backend_legacy_off:
     profiles: ["legacy-off"]
-    image: node:18-alpine
+    image: node:20-alpine
     container_name: socorre_ai_backend_legacy_off
     ports:
       - "3002:3001"
@@ -73,7 +73,7 @@ services:
 
   # Admin Panel (development mode)
   admin:
-    image: node:18-alpine
+    image: node:20-alpine
     container_name: socorre_ai_admin
     ports:
       - "3000:3000"
