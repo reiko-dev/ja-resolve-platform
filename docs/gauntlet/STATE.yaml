@@ -8,7 +8,7 @@ worktree: clean
 remote: https://github.com/reiko-dev/socorre-ja-platform.git
 max_execution_cycles: 3
 cycle: 0
-current_task: G2-G3-planning
+current_task: G2-business-rule-ambiguity
 workstreams:
   G1:
     status: COMPLETE
@@ -18,11 +18,11 @@ workstreams:
     muse_verdict: APPROVE_WITH_FINDINGS
     luna_adjudication: ACCEPT_WITH_DEFERRED_FINDINGS
   G2:
-    status: NEXT
+    status: BLOCKED_FOR_BUSINESS_RULE
     branch: null
     commit: null
   G3:
-    status: NEXT
+    status: BLOCKED_BY_G2
     branch: null
     commit: null
 blockers:
@@ -38,6 +38,18 @@ blockers:
     last_checked_at: "2026-09-15T10:26:08-05:00"
     next_check_at: null
     status: RESOLVED
+  - id: g2-photo-contract
+    task_id: G2
+    type: business_rule_ambiguity
+    reason: "Contrato não define transporte e persistência de pickup_photo_url/delivery_photo_url."
+    dependency: "Decisão do produto/contrato Mobile sobre URLs externas versus multipart/backend, MIME, tamanho, quantidade e retenção."
+    verification_predicate: "docs/MOBILE-AUTH-TOW-CONTRACT-V1.md define payload, validação e persistência das duas fotos."
+    evidence: "Contrato atual documenta apenas photos no create como array de URLs; complete não define fotos pickup/delivery."
+    owner: product-contract
+    attempts: 1
+    last_checked_at: "2026-09-15T11:10:00-05:00"
+    next_check_at: "2026-09-15T11:20:00-05:00"
+    status: OPEN
 quotas:
   LUNA_POOL:
     short_window_remaining_percent: 91
@@ -76,4 +88,4 @@ findings:
     decision: BUSINESS_RULE_AMBIGUITY
     owner: contract-formalization
     description: "Contrato ainda não fixa 200 versus 409 para retry idempotente; implementação mantém 200."
-next_action: "Gerar TaskSpec G2/G3 com Luna; DSH implementa G2 em branch isolada; Muse revisa."
+next_action: "Aguardar decisão do contrato de fotos; então DSH implementa G2, Muse revisa e Luna adjudica."
