@@ -1,10 +1,10 @@
 objective: "Corrigir e validar o Serviço de Guincho no backend"
-status: BLOCKED
-terminal_state: BLOCKED_PENDING_MUSE_REVIEW_AFTER_FINDINGS_RESOLUTION
+status: HUMAN_REQUIRED
+terminal_state: HUMAN_REQUIRED_EXTERNAL_DEPLOY_ACCESS
 repository: reiko-dev/socorre-ja-platform
 base_branch: main
-head: 0ee3b010
-worktree: codex/g3-nearby-proposals-coordinates
+head: dfc014f0
+worktree: main
 remote: https://github.com/reiko-dev/socorre-ja-platform.git
 max_execution_cycles: 3
 cycle: 0
@@ -18,28 +18,40 @@ workstreams:
     muse_verdict: APPROVE_WITH_FINDINGS
     luna_adjudication: ACCEPT_WITH_DEFERRED_FINDINGS
   G2:
-    status: FINDINGS_ADDRESSED_PENDING_REVIEW
+    status: COMPLETE
     branch: codex/g2-photo-schema-pricing
     commit: 99215384
     fix_commit_message: "fix(g2): address Muse pricing schema and orphan findings"
     fix_commit_hash: "registrado no work_result (não é possível embutir o próprio hash no commit)"
     findings_resolution_doc: docs/gauntlet/G2-MUSE-FINDINGS-RESOLUTION.md
-    muse_verdict: UNAVAILABLE_AFTER_FOUR_ATTEMPTS
-    luna_adjudication: ACCEPT_WITH_BLOCKER
+    muse_verdict: APPROVE_WITH_FINDINGS
+    luna_adjudication: ACCEPT_WITH_DEFERRED_FINDINGS
   G3:
-    status: FINDINGS_ADDRESSED_PENDING_REVIEW
+    status: COMPLETE
     branch: codex/g3-nearby-proposals-coordinates
-    commit: 0ee3b010
+    commit: bfc484bd
     fix_commit_message: "fix(g3): close concurrency and coordinate review findings"
     fix_commit_hash: "registrado no work_result (não é possível embutir o próprio hash no commit)"
     findings_resolution_doc: docs/gauntlet/G3-MUSE-FINDINGS-RESOLUTION.md
     evidence_doc: docs/evidence/g3-tow-postgres.md
-    muse_verdict: REVIEW_WITH_FINDINGS
-    luna_adjudication: ACCEPT_VALID_FINDINGS_AND_FIX
+    muse_verdict: APPROVE_WITH_FINDINGS
+    luna_adjudication: ACCEPT_WITH_DEFERRED_FINDINGS
     findings_fixed: [F1, F4, F5, F6, F7, F2]
     findings_registered: [F3]
     findings_out_of_scope: [F8]
 blockers:
+  - id: production-deploy-access
+    task_id: release-validation
+    type: access
+    reason: "O código e o stack local estão validados, mas não há credenciais, domínio/IP ou acesso ao ambiente de homologação/produção para confirmar processo, imagem, variáveis, migrations e endpoint externo."
+    dependency: "Acesso operacional ao ambiente Hostinger/homologação e secrets de deploy"
+    verification_predicate: "A instância externa responde /health e executa o commit dfc014f0 com migrations aplicadas"
+    evidence: "Validação local PASS; deploy externo não foi simulado."
+    owner: user/operations
+    attempts: 0
+    last_checked_at: "2026-09-15T18:05:00-05:00"
+    next_check_at: null
+    status: HUMAN_REQUIRED
   - id: provider-interfaces-dsh-opencode
     task_id: orchestration-capability-check
     type: capability
@@ -75,7 +87,7 @@ blockers:
     attempts: 4
     last_checked_at: "2026-09-15T13:07:00-05:00"
     next_check_at: null
-    status: BLOCKED
+    status: RESOLVED
   - id: g2-docker-compose-config
     task_id: G2
     type: environment
@@ -125,14 +137,16 @@ branches:
   - name: codex/g1-routes-permissions-idempotency
     status: merged
   - name: codex/g2-photo-schema-pricing
-    status: findings_addressed_pending_review
+    status: merged
   - name: codex/g3-nearby-proposals-coordinates
-    status: findings_addressed_pending_review
+    status: merged
 commits:
   - 48c531d0
   - 42b2d7ab
   - 99215384
   - 0ee3b010
+  - bfc484bd
+  - dfc014f0
 validations:
   - task: G1
     command: "npx jest tests/tow/towLifecycleController.test.js tests/tow/towHttp.transport.test.js --runInBand --forceExit --detectOpenHandles"
@@ -176,6 +190,9 @@ validations:
   - task: G3-static-and-migrations
     command: "node --check (10 arquivos); git diff --check; scan de segredos no diff; knex migrate:latest/list --env test; docker compose -f docker-compose-simple.yml config"
     result: "PASS: sem segredos adicionados; 43 migrations aplicadas e 0 pending (nenhuma nova); compose config exit 0"
+  - task: current-main-runtime
+    command: "docker compose -f docker-compose-simple.yml config; docker compose up -d --force-recreate backend admin; curl /health; knex migrate:list"
+    result: "PASS: backend/admin em node:20-alpine; sharp carregado; backend HTTP 200 com postgres ok; admin HTTP 200; 43 migrations aplicadas, 0 pending; código montado de /Volumes/Reiko/projects/work/socorre-system"
 findings:
   - id: muse-1
     task_id: G1
@@ -219,12 +236,12 @@ findings:
     description: "Conclusão de guincho sem snapshot de breakdown e sem configuração aceita sem piso (minimumAcceptedPrice null, comportamento legado preservado). Risco residual de aceitar valor abaixo do desejado se a configuração sumir."
   - id: muse-adversarial-review-missing
     task_id: G2
-    decision: REQUIRES_HUMAN
-    description: "Muse não emitiu review YAML após três tentativas; não há aprovação adversarial válida."
+    decision: FIXED
+    description: "Review adversarial do Muse foi obtida posteriormente; findings G2 foram adjudicados pela Luna e resolvidos ou classificados como ambiguidade de negócio."
   - id: docker-compose-config-unverified
     task_id: G2
-    decision: REQUIRES_HUMAN
-    description: "Docker indisponível; parse YAML passou, mas docker compose config não foi executado."
+    decision: FIXED
+    description: "Docker Compose foi instalado/ativado localmente; config, stack, health check e migrations foram executados com sucesso."
   - id: task-spec-scope
     task_id: G2
     decision: OUT_OF_SCOPE
