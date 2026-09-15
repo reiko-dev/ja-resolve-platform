@@ -4,6 +4,15 @@ const Partner = require('../models/Partner');
 const knex = require('../config/database');
 const paymentService = require('../services/paymentService');
 const NotificationService = require('../services/NotificationServiceNew');
+const { emergencyRequestSchemas } = require('../middleware/validation');
+
+function invalidPayload(res, error) {
+  return res.status(400).json({
+    success: false,
+    message: 'Dados inválidos',
+    errors: error.details.map(detail => detail.message),
+  });
+}
 
 const REQUEST_TYPE_ALIASES = {
   mechanic: 'mechanic',
@@ -447,7 +456,15 @@ class EmergencyRequestController {
   static async complete(req, res) {
     try {
       const { id } = req.params;
-      const { final_price, solution_description, parts_used } = req.body;
+      const payload = req.body || {};
+      const { final_price, solution_description, parts_used } = payload;
+
+      // Schema efetivo do payload de conclusão (G2): rejeita null/NaN/Infinity/
+      // negativo/string não numérica ANTES de qualquer leitura ou UPDATE.
+      const payloadValidation = emergencyRequestSchemas.complete.validate(payload);
+      if (payloadValidation.error) {
+        return invalidPayload(res, payloadValidation.error);
+      }
 
       if (final_price !== undefined && (!Number.isFinite(Number(final_price)) || Number(final_price) < 0)) {
         return res.status(400).json({ success: false, message: 'final_price deve ser um valor não negativo' });
@@ -483,9 +500,15 @@ class EmergencyRequestController {
 
       let request;
       if (emergency.request_type === 'tow') {
-        if (final_price === undefined) {
+        if (final_price === undefined || final_price === null) {
           return res.status(400).json({ success: false, message: 'final_price é obrigatório para concluir um guincho' });
         }
+
+        const towValidation = emergencyRequestSchemas.completeTow.validate({ final_price });
+        if (towValidation.error) {
+          return invalidPayload(res, towValidation.error);
+        }
+
         const priceValidation = await EmergencyRequest.validateTowProposalPrice(id, final_price);
         if (!priceValidation.valid) {
           return res.status(400).json({

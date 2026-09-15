@@ -12,6 +12,17 @@ function normalizeRequestType(requestType) {
   return REQUEST_TYPE_ALIASES[requestType] || requestType || 'mechanic';
 }
 
+// G2 — contrato de fotos privadas de guincho (uma pickup + uma delivery).
+const PHOTO_COLUMNS = Object.freeze({
+  pickup: Object.freeze({ url: 'pickup_photo_url', metadata: 'pickup_photo_metadata' }),
+  delivery: Object.freeze({ url: 'delivery_photo_url', metadata: 'delivery_photo_metadata' }),
+});
+
+function isPostgresClient(instance) {
+  const client = instance?.client?.config?.client;
+  return client === 'pg' || client === 'postgresql';
+}
+
 class EmergencyRequest {
   static parseJsonField(value, fallback = null) {
     if (!value) return fallback;
@@ -21,6 +32,98 @@ class EmergencyRequest {
       return JSON.parse(value);
     } catch (error) {
       return fallback;
+    }
+  }
+
+  // G2 — colunas contratuais de foto por tipo (null quando o tipo é inválido).
+  static photoColumns(photoType) {
+    const columns = PHOTO_COLUMNS[photoType];
+    return columns ? { url: columns.url, metadata: columns.metadata } : null;
+  }
+
+  // G2 — metadata persistida da foto (objeto) ou null quando ausente/ilegível.
+  static parsePhotoMetadata(row, photoType) {
+    const columns = this.photoColumns(photoType);
+    if (!columns) return null;
+
+    const parsed = this.parseJsonField(row?.[columns.metadata], null);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  }
+
+  /**
+   * G2 — anexa a foto ao pedido de forma atômica e idempotente.
+   *
+   * Uma única transação:
+   *   1. lê o pedido (com FOR UPDATE quando o banco é PostgreSQL);
+   *   2. se a coluna do tipo já tem valor, devolve `existing` sem escrever nada;
+   *   3. delega a escrita física ao callback `store()` (temp + rename);
+   *   4. atualiza com CAS (`WHERE <coluna> IS NULL`) e faz commit.
+   *
+   * Qualquer falha faz rollback da transação e do arquivo recém-escrito, de
+   * modo que nunca sobra órfão no filesystem nem URL sem arquivo no banco.
+   */
+  static async attachServicePhoto(emergencyRequestId, photoType, { url, store } = {}) {
+    const columns = this.photoColumns(photoType);
+    if (!columns) {
+      throw new Error(`photo_type inválido: ${photoType}`);
+    }
+    if (typeof url !== 'string' || !url.trim()) {
+      throw new Error('url da foto é obrigatória');
+    }
+    if (typeof store !== 'function') {
+      throw new Error('callback de armazenamento da foto é obrigatório');
+    }
+
+    const trx = await knex.transaction();
+    let stored = null;
+    let committed = false;
+
+    try {
+      let lockQuery = trx('emergency_requests').where('id', emergencyRequestId);
+      if (isPostgresClient(knex)) {
+        lockQuery = lockQuery.forUpdate();
+      }
+
+      const current = await lockQuery.first();
+
+      if (!current) {
+        await trx.rollback();
+        return { status: 'missing', request: null };
+      }
+
+      if (current[columns.url]) {
+        await trx.rollback();
+        return { status: 'existing', request: current };
+      }
+
+      stored = await store();
+
+      const [updated] = await trx('emergency_requests')
+        .where('id', emergencyRequestId)
+        .whereNull(columns.url)
+        .update({
+          [columns.url]: url,
+          [columns.metadata]: JSON.stringify(stored.metadata),
+          updated_at: knex.fn.now()
+        })
+        .returning('*');
+
+      if (!updated) {
+        throw new Error('anexo de foto conflitou com atualização concorrente');
+      }
+
+      await trx.commit();
+      committed = true;
+
+      return { status: 'created', request: updated };
+    } catch (error) {
+      await trx.rollback().catch(() => {});
+
+      if (!committed && stored && typeof stored.rollback === 'function') {
+        await stored.rollback().catch(() => {});
+      }
+
+      throw error;
     }
   }
 
@@ -102,35 +205,46 @@ class EmergencyRequest {
     };
   }
 
-  static async validateTowProposalPrice(emergencyRequestId, proposedPrice) {
+  /**
+   * Piso de preço do guincho. Preferência pelo snapshot gravado em
+   * price_breakdown no momento da criação; quando o pedido não tem snapshot
+   * (linhas legadas), usa exclusivamente o valor vigente em system_settings —
+   * nunca um teto ou piso inventado.
+   */
+  static async resolveTowMinimumPrice(emergencyRequestId) {
     const request = await knex('emergency_requests')
       .select('price_breakdown')
       .where('id', emergencyRequestId)
       .first();
 
-    if (!request?.price_breakdown) {
-      return { valid: true, minimumAcceptedPrice: null };
+    const breakdown = this.parseJsonField(request?.price_breakdown, null);
+    const snapshot = parseFloat(breakdown?.total_estimated_price ?? breakdown?.minimum_charge);
+
+    if (Number.isFinite(snapshot) && snapshot > 0) {
+      return snapshot;
     }
 
-    let breakdown = null;
-    try {
-      breakdown = typeof request.price_breakdown === 'object'
-        ? request.price_breakdown
-        : JSON.parse(request.price_breakdown);
-    } catch (error) {
-      breakdown = null;
+    const pricing = await this.getTowPricingSettings();
+    const minimum = parseFloat(pricing?.tow_minimum_charge);
+
+    return Number.isFinite(minimum) && minimum > 0 ? minimum : null;
+  }
+
+  static async validateTowProposalPrice(emergencyRequestId, proposedPrice) {
+    const numericPrice = typeof proposedPrice === 'number' ? proposedPrice : parseFloat(proposedPrice);
+    const minimumAcceptedPrice = await this.resolveTowMinimumPrice(emergencyRequestId);
+
+    if (!Number.isFinite(numericPrice)) {
+      return { valid: false, minimumAcceptedPrice };
     }
 
-    const minimumAcceptedPrice = parseFloat(
-      breakdown?.total_estimated_price ?? breakdown?.minimum_charge ?? 0
-    );
-
-    if (!minimumAcceptedPrice) {
+    if (minimumAcceptedPrice === null) {
+      // Sem regra de preço configurada: não há piso a aplicar.
       return { valid: true, minimumAcceptedPrice: null };
     }
 
     return {
-      valid: parseFloat(proposedPrice) >= minimumAcceptedPrice,
+      valid: numericPrice >= minimumAcceptedPrice,
       minimumAcceptedPrice
     };
   }

@@ -321,15 +321,35 @@ const emergencyRequestSchemas = {
     estimated_duration: Joi.number().integer().min(1).max(1440).required()
   }),
 
+  // G2 — schema efetivo do payload de conclusão. Este schema é aplicado pelo
+  // controller antes de qualquer leitura/UPDATE: `final_price` nulo, NaN,
+  // infinito, negativo ou não numérico é sempre 400. Para guincho o valor é
+  // obrigatório (ver `completeTow`).
   complete: Joi.object({
-    final_price: Joi.number().min(0).precision(2).required(),
-    solution_description: Joi.string().min(10).max(1000).required(),
-    parts_used: Joi.array().items(Joi.object({
-      name: Joi.string().required(),
-      quantity: Joi.number().integer().min(1).required(),
-      price: Joi.number().min(0).precision(2).required()
-    })).optional()
-  }),
+    final_price: Joi.number().min(0).precision(2).optional(),
+    solution_description: Joi.string().max(1000).optional().allow(null),
+    parts_used: Joi.array().items(Joi.alternatives().try(
+      Joi.string(),
+      Joi.object({
+        name: Joi.string().required(),
+        quantity: Joi.number().integer().min(1).required(),
+        price: Joi.number().min(0).precision(2).required()
+      })
+    )).optional().allow(null)
+  }).unknown(true),
+
+  // G2 — guincho exige preço final; não há teto (o piso vem de system_settings).
+  completeTow: Joi.object({
+    final_price: Joi.number().min(0).precision(2).required()
+  }).unknown(true),
+
+  // G2 — upload de foto privada de guincho (JSON com base64 real).
+  uploadPhoto: Joi.object({
+    photo_type: Joi.string().valid('pickup', 'delivery').required(),
+    image: Joi.string().min(1).required(),
+    filename: Joi.string().min(1).max(255).required(),
+    mimeType: Joi.string().valid('image/jpeg', 'image/webp').required()
+  }).unknown(true),
 
   rate: Joi.object({
     rating: Joi.number().integer().min(1).max(5).required(),

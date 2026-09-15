@@ -10,9 +10,17 @@ const {
 } = require('../config/uploadPolicies');
 const { getPublicApiBaseUrl } = require('../config/publicUrl');
 const { auth } = require('../middleware/auth');
+const ServicePhotoController = require('../controllers/servicePhotoController');
 
 // Uploads mutate persistent storage and must be tied to an authenticated user.
 router.use(auth);
+
+// G2 — fotos privadas de guincho (armazenamento local na VPS, sem bucket).
+router.post('/emergency-requests/:id/photos', ServicePhotoController.uploadEmergencyRequestPhoto);
+router.get(
+  '/emergency-requests/:id/photos/:photo_type',
+  ServicePhotoController.getEmergencyRequestPhoto
+);
 
 // Configuração do multer para upload de arquivos
 const storage = multer.diskStorage({
