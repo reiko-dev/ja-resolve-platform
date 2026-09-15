@@ -84,7 +84,7 @@ ambiguities:
   - "final_price acima da proposta aceita e limite"
   - "limite máximo de radius e obrigatoriedade de origem/destino"
   - "camada oficial de regras de proposta"
-  rule: "Não inventar regra; registrar BUSINESS_RULE_AMBIGUITY."
+ambiguity_rule: "Não inventar regra; registrar BUSINESS_RULE_AMBIGUITY."
 cycles:
   - cycle: 1
     focus: G1+G2
@@ -108,3 +108,43 @@ final_acceptance:
   - "parceiro consulta nearby, propõe, inicia e conclui pedido atribuído"
   - "fotos, coordenadas e payloads inválidos são rejeitados deterministicamente"
   - "contrato Mobile atualizado; produção revalidada após deploy"
+g3_findings_resolution:
+  doc: docs/gauntlet/G3-MUSE-FINDINGS-RESOLUTION.md
+  evidence_doc: docs/evidence/g3-tow-postgres.md
+  branch: codex/g3-nearby-proposals-coordinates
+  base_commit: 0ee3b010
+  fix_commit_message: "fix(g3): close concurrency and coordinate review findings"
+  findings:
+    - id: F1
+      severity: MEDIUM
+      decision: FIXED
+      summary: "max_proposals reservado em transação (FOR UPDATE só no PostgreSQL) com revalidação sob lock; e2e PG na última vaga e prova 10/10 com lock versus 8/10 de violação sem lock."
+    - id: F4
+      severity: MEDIUM
+      decision: FIXED
+      summary: "INSERT da proposta + incremento de proposals_received no mesmo trx; falha no incremento faz rollback sem notificação; notificação segue pós-commit best-effort, sem outbox."
+    - id: F5
+      severity: LOW
+      decision: FIXED
+      summary: "String vazia/só espaços em latitude/longitude do nearby é entrada inválida (400 invalid_coordinates) e não cai no cadastro do parceiro; ausência real mantém o fallback."
+    - id: F6
+      severity: LOW
+      decision: FIXED
+      summary: "Joi do POST /api/emergency-requests rejeita 0,0 e par origem/destino incompleto antes do INSERT; codeResolver mapeia falhas de coordenada para invalid_coordinates sem mudar invalid_payload das demais."
+    - id: F7
+      severity: LOW
+      decision: FIXED
+      summary: "Nearby tow ignora pedidos legados com coordenada nula/fora dos limites/0,0 (CASE + filtros); dados históricos não foram corrigidos."
+    - id: F2
+      severity: MEDIUM
+      decision: FIXED
+      summary: "Deadline unificado por proposalDeadlineReference (Date no PG, Date.now() no SQLite) em canReceiveProposals/findNearby/acceptProposal/expireProposals; evidência PG local registrada; e2e continua opt-in, sem alegar CI."
+  ambiguities:
+    - id: F3
+      decision: BUSINESS_RULE_AMBIGUITY
+      owner: product-contract
+      summary: "withdraw não decrementa proposals_received (contador histórico); retirar não reabre vaga para outro parceiro e reenviar consome outra. Comportamento preservado, coberto por teste e registrado no contrato."
+  out_of_scope:
+    - id: F8
+      decision: OUT_OF_SCOPE
+      summary: "Helper legado EmergencyRequest.canPartnerPropose não é caminho HTTP ativo; não foi alterado para não arriscar regressão fora do escopo."

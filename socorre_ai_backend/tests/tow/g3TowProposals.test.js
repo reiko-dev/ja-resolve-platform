@@ -30,6 +30,7 @@ const request = require('supertest');
 const db = require('../../src/config/database');
 const { createApp } = require('../../src/app');
 const NotificationService = require('../../src/services/NotificationServiceNew');
+const EmergencyRequest = require('../../src/models/EmergencyRequest');
 const harness = require('./helpers/g3TestHarness');
 
 const EMERGENCIES = '/api/emergency-requests';
@@ -146,6 +147,60 @@ describe('POST /api/emergency-requests — coordenadas antes do INSERT', () => {
 
     expect(response.status).toBe(400);
     expect(response.body.code).toBe('invalid_coordinates');
+    expect(await db('emergency_requests').count('* as total').first()).toEqual({ total: 0 });
+  });
+
+  test('par destination incompleto (só longitude) => 400 invalid_coordinates', async () => {
+    const { requester } = await seedActors();
+
+    const response = await post(
+      EMERGENCIES,
+      requester,
+      emergencyCreatePayload({ vehicle_destination_longitude: -46.6 })
+    );
+
+    expect(response.status).toBe(400);
+    expect(response.body.code).toBe('invalid_coordinates');
+    expect(await db('emergency_requests').count('* as total').first()).toEqual({ total: 0 });
+  });
+
+  test('0,0 em par opcional => 400 invalid_coordinates antes do INSERT', async () => {
+    const { requester } = await seedActors();
+
+    const response = await post(
+      EMERGENCIES,
+      requester,
+      emergencyCreatePayload({ vehicle_destination_latitude: 0, vehicle_destination_longitude: 0 })
+    );
+
+    expect(response.status).toBe(400);
+    expect(response.body.code).toBe('invalid_coordinates');
+    expect(await db('emergency_requests').count('* as total').first()).toEqual({ total: 0 });
+  });
+
+  test('coordenada ausente no schema => 400 invalid_coordinates (não invalid_payload)', async () => {
+    const { requester } = await seedActors();
+    const payload = emergencyCreatePayload();
+    delete payload.latitude;
+
+    const response = await post(EMERGENCIES, requester, payload);
+
+    expect(response.status).toBe(400);
+    expect(response.body.code).toBe('invalid_coordinates');
+    expect(await db('emergency_requests').count('* as total').first()).toEqual({ total: 0 });
+  });
+
+  test('falha não-coordenada do schema continua 400 invalid_payload', async () => {
+    const { requester } = await seedActors();
+
+    const response = await post(
+      EMERGENCIES,
+      requester,
+      emergencyCreatePayload({ description: 'curto' })
+    );
+
+    expect(response.status).toBe(400);
+    expect(response.body.code).toBe('invalid_payload');
     expect(await db('emergency_requests').count('* as total').first()).toEqual({ total: 0 });
   });
 
@@ -375,6 +430,106 @@ describe('POST /api/tow-proposals — sucesso e duplicidade', () => {
     expect(await db('tow_proposals').count('* as total').first()).toEqual({ total: 2 });
     const updatedEmergency = await db('emergency_requests').where('id', emergency.id).first();
     expect(updatedEmergency.proposals_received).toBe(2);
+  });
+
+  test('parceiros distintos concorrentes na última vaga => exatamente um 201 e um 400 pelo limite', async () => {
+    const { requester, partnerUserA, partnerUserB } = await seedActors();
+    const emergency = await harness.seedEmergency(db, {
+      user_id: requester.id,
+      price_breakdown: JSON.stringify({ minimum_charge: 50 }),
+      max_proposals: 1,
+      proposals_received: 0,
+    });
+
+    const [first, second] = await Promise.all([
+      post(PROPOSALS, partnerUserA, proposalPayload({ emergency_request_id: emergency.id })),
+      post(PROPOSALS, partnerUserB, proposalPayload({ emergency_request_id: emergency.id })),
+    ]);
+
+    const statuses = [first.status, second.status].sort((left, right) => left - right);
+    expect(statuses).toEqual([201, 400]);
+    const rejected = [first, second].find((response) => response.status === 400);
+    expect(rejected.body.code).toBe('emergency_not_accepting_proposals');
+
+    expect(await db('tow_proposals').where('emergency_request_id', emergency.id).count('* as total').first())
+      .toEqual({ total: 1 });
+    const updatedEmergency = await db('emergency_requests').where('id', emergency.id).first();
+    expect(updatedEmergency.proposals_received).toBe(1);
+    expect(updatedEmergency.proposals_received).toBe(updatedEmergency.max_proposals);
+    expect(NotificationService.sendNotification).toHaveBeenCalledTimes(1);
+  });
+
+  test('falha do incremento => rollback da proposta e contador intacto (atomicidade)', async () => {
+    const { requester, partnerUserA } = await seedActors();
+    const emergency = await harness.seedEmergency(db, {
+      user_id: requester.id,
+      price_breakdown: JSON.stringify({ minimum_charge: 50 }),
+    });
+
+    const incrementSpy = jest
+      .spyOn(EmergencyRequest, 'incrementProposalCount')
+      .mockRejectedValueOnce(new Error('falha simulada no incremento'));
+
+    try {
+      const response = await post(PROPOSALS, partnerUserA, proposalPayload({ emergency_request_id: emergency.id }));
+
+      expect(response.status).toBe(500);
+      expect(await db('tow_proposals').where('emergency_request_id', emergency.id).count('* as total').first())
+        .toEqual({ total: 0 });
+      const updatedEmergency = await db('emergency_requests').where('id', emergency.id).first();
+      expect(updatedEmergency.proposals_received).toBe(0);
+      expect(NotificationService.sendNotification).not.toHaveBeenCalled();
+    } finally {
+      incrementSpy.mockRestore();
+    }
+  });
+});
+
+describe('withdraw — proposals_received é histórico (BUSINESS_RULE_AMBIGUITY)', () => {
+  test('withdraw não devolve a vaga: propostas_received permanece e novo POST só entra se houver vaga', async () => {
+    const { requester, partnerUserA } = await seedActors();
+    const emergency = await harness.seedEmergency(db, {
+      user_id: requester.id,
+      price_breakdown: JSON.stringify({ minimum_charge: 50 }),
+      max_proposals: 2,
+      proposals_received: 0,
+    });
+
+    const first = await post(PROPOSALS, partnerUserA, proposalPayload({ emergency_request_id: emergency.id }));
+    expect(first.status).toBe(201);
+    expect((await db('emergency_requests').where('id', emergency.id).first()).proposals_received).toBe(1);
+
+    const withdrawn = await post(`${PROPOSALS}/${first.body.data.id}/withdraw`, partnerUserA);
+    expect(withdrawn.status).toBe(200);
+
+    // Decisão de produto pendente: `proposals_received` é contador histórico e
+    // NÃO é decrementado no withdraw (ver G3-MUSE-FINDINGS-RESOLUTION.md).
+    expect((await db('emergency_requests').where('id', emergency.id).first()).proposals_received).toBe(1);
+
+    const second = await post(PROPOSALS, partnerUserA, proposalPayload({ emergency_request_id: emergency.id }));
+    expect(second.status).toBe(201);
+    expect((await db('emergency_requests').where('id', emergency.id).first()).proposals_received).toBe(2);
+    expect(await db('tow_proposals').where('emergency_request_id', emergency.id).count('* as total').first())
+      .toEqual({ total: 2 });
+  });
+
+  test('vaga consumida por proposta retirada não é reaberta para outro parceiro', async () => {
+    const { requester, partnerUserA, partnerUserB } = await seedActors();
+    const emergency = await harness.seedEmergency(db, {
+      user_id: requester.id,
+      price_breakdown: JSON.stringify({ minimum_charge: 50 }),
+      max_proposals: 1,
+      proposals_received: 0,
+    });
+
+    const first = await post(PROPOSALS, partnerUserA, proposalPayload({ emergency_request_id: emergency.id }));
+    expect(first.status).toBe(201);
+    expect((await post(`${PROPOSALS}/${first.body.data.id}/withdraw`, partnerUserA)).status).toBe(200);
+
+    const fromOtherPartner = await post(PROPOSALS, partnerUserB, proposalPayload({ emergency_request_id: emergency.id }));
+    expect(fromOtherPartner.status).toBe(400);
+    expect(fromOtherPartner.body.code).toBe('emergency_not_accepting_proposals');
+    expect((await db('emergency_requests').where('id', emergency.id).first()).proposals_received).toBe(1);
   });
 });
 

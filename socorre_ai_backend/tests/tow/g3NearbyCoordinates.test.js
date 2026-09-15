@@ -158,6 +158,34 @@ describe('nearby — coordenadas explícitas', () => {
     expect(response.status).toBe(400);
     expect(response.body.code).toBe('invalid_coordinates');
   });
+
+  test('par vazio explícito (latitude=&longitude=) => 400 invalid_coordinates, sem fallback cadastral', async () => {
+    const { partnerUserA } = await seedScenario();
+    const response = await get({ type: 'tow', latitude: '', longitude: '' }, partnerUserA);
+
+    expect(response.status).toBe(400);
+    expect(response.body.code).toBe('invalid_coordinates');
+    // O parceiro TEM cadastro válido; ainda assim o par explícito vazio não pode
+    // cair silenciosamente para partners.latitude/longitude.
+    expect(response.body).not.toHaveProperty('search.coordinate_source');
+    expect(response.body).not.toHaveProperty('data');
+  });
+
+  test('latitude vazia + longitude ausente => 400 invalid_coordinates (par incompleto, não fallback)', async () => {
+    const { partnerUserA } = await seedScenario();
+    const response = await get({ type: 'tow', latitude: '' }, partnerUserA);
+
+    expect(response.status).toBe(400);
+    expect(response.body.code).toBe('invalid_coordinates');
+  });
+
+  test('latitude só com espaços => 400 invalid_coordinates', async () => {
+    const { partnerUserA } = await seedScenario();
+    const response = await get({ type: 'tow', latitude: '   ', longitude: '-46.63' }, partnerUserA);
+
+    expect(response.status).toBe(400);
+    expect(response.body.code).toBe('invalid_coordinates');
+  });
 });
 
 describe('nearby — raio', () => {
@@ -303,6 +331,23 @@ describe('nearby — oportunidades tow reais', () => {
 
     expect(response.status).toBe(200);
     expect(response.body.data.map((item) => item.id)).toEqual([mechanical.id]);
+  });
+
+  test('linhas legadas com coordenada nula, fora dos limites ou 0,0 não viram oportunidade tow', async () => {
+    const { requester, partnerUserA } = await seedScenario();
+    const valid = await harness.seedEmergency(db, { user_id: requester.id });
+    const semCoordenada = await harness.seedEmergency(db, { user_id: requester.id });
+    await db('emergency_requests').where('id', semCoordenada.id).update({ latitude: null, longitude: null });
+    const foraDosLimites = await harness.seedEmergency(db, { user_id: requester.id, latitude: 91.5, longitude: 10 });
+    const zeroZero = await harness.seedEmergency(db, { user_id: requester.id, latitude: 0, longitude: 0 });
+
+    const response = await get({ type: 'tow', ...SAO_PAULO, radius: 30000 }, partnerUserA);
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.map((item) => item.id)).toEqual([valid.id]);
+    expect(response.body.data.map((item) => item.id)).not.toContain(semCoordenada.id);
+    expect(response.body.data.map((item) => item.id)).not.toContain(foraDosLimites.id);
+    expect(response.body.data.map((item) => item.id)).not.toContain(zeroZero.id);
   });
 });
 

@@ -54,6 +54,27 @@ function isPostgresClient(instance) {
   return client === 'pg' || client === 'postgresql';
 }
 
+/**
+ * G3 — referência única de "agora" para comparar prazos (`proposal_selection_deadline`)
+ * e expiração de proposta (`expires_at`).
+ *
+ * PostgreSQL usa colunas `timestamp` e recebe `Date`; o SQLite do harness guarda
+ * epoch ms (inteiro), então recebe `Date.now()`. Centralizar aqui evita que cada
+ * consulta invente seu próprio dialeto e mantém PG/SQLite com a mesma semântica.
+ */
+function resolveProposalDeadlineReference(instance) {
+  return isPostgresClient(instance) ? new Date() : Date.now();
+}
+
+/**
+ * G3 — aceita Date (PostgreSQL), epoch ms (SQLite/harness) e ISO string.
+ * Valor ausente/ilegível nunca é considerado prazo futuro.
+ */
+function isFutureProposalDeadline(rawDeadline) {
+  const deadline = rawDeadline instanceof Date ? rawDeadline : new Date(rawDeadline);
+  return Number.isFinite(deadline.getTime()) && deadline.getTime() > Date.now();
+}
+
 class EmergencyRequest {
   static parseJsonField(value, fallback = null) {
     if (!value) return fallback;
@@ -427,12 +448,27 @@ class EmergencyRequest {
   // remove apenas a proposta `pending` do próprio parceiro solicitante;
   // withdrawn/rejected/expired continuam listados (histórico não exclui).
   static async findNearby(latitude, longitude, radius = 15, type = null, options = {}) {
-    const distanceExpression = `
+    // G3 — linhas legadas podem ter latitude/longitude nulas, fora dos limites ou
+    // o par (0,0). Em PostgreSQL `acos` fora de [-1,1] levanta "input is out of
+    // range"; o CASE garante que a expressão só é avaliada para coordenadas
+    // operacionais (a ordem de ANDs no planner não é garantida). Linhas inválidas
+    // viram distância NULL e ficam fora da listagem — os dados históricos não são
+    // corrigidos por migration.
+    const rawDistanceExpression = `
       6371 * acos(
         cos(radians(?)) * cos(radians(latitude)) * 
         cos(radians(longitude) - radians(?)) + 
         sin(radians(?)) * sin(radians(latitude))
       )
+    `;
+    const distanceExpression = `
+      CASE
+        WHEN latitude IS NULL OR longitude IS NULL THEN NULL
+        WHEN latitude < -90 OR latitude > 90 THEN NULL
+        WHEN longitude < -180 OR longitude > 180 THEN NULL
+        WHEN latitude = 0 AND longitude = 0 THEN NULL
+        ELSE ${rawDistanceExpression}
+      END
     `;
 
     let query = knex('emergency_requests')
@@ -458,13 +494,22 @@ class EmergencyRequest {
 
     const towOnly = options.towOnly ?? (Boolean(type) && normalizedType === 'tow');
     if (towOnly) {
-      // SQLite (harness de teste) não aceita binding de Date: o valor vira
-      // texto inválido e o filtro não casa. Em PostgreSQL (runtime real) o
-      // binding é Date, como manda o tipo timestamp.
-      const deadlineReference = isPostgresClient(knex) ? new Date() : Date.now();
+      // Intenção explícita (o CASE acima já garante a avaliação segura): tow nunca
+      // lista pedido sem par operacional.
       query = query
+        .whereNotNull('emergency_requests.latitude')
+        .whereNotNull('emergency_requests.longitude')
+        .whereBetween('emergency_requests.latitude', [-90, 90])
+        .whereBetween('emergency_requests.longitude', [-180, 180])
+        .whereNot(function excludeZeroZeroCoordinates() {
+          this.where('emergency_requests.latitude', 0).where('emergency_requests.longitude', 0);
+        })
         .where('emergency_requests.proposal_status', 'awaiting_proposals')
-        .where('emergency_requests.proposal_selection_deadline', '>', deadlineReference);
+        .where(
+          'emergency_requests.proposal_selection_deadline',
+          '>',
+          resolveProposalDeadlineReference(knex)
+        );
     }
 
     if (options.excludePartnerId) {
@@ -791,6 +836,7 @@ class EmergencyRequest {
   static async acceptProposal(emergencyRequestId, proposalId) {
     // Iniciar transação
     const trx = await knex.transaction();
+    const nowReference = resolveProposalDeadlineReference(trx);
     
     try {
       // Lock the request row so concurrent accepts serialize on PostgreSQL.
@@ -799,7 +845,7 @@ class EmergencyRequest {
         .where('request_type', 'tow')
         .where('status', 'pending')
         .where('proposal_status', 'awaiting_proposals')
-        .where('proposal_selection_deadline', '>', knex.fn.now())
+        .where('proposal_selection_deadline', '>', nowReference)
         .forUpdate()
         .first();
       if (!currentRequest) {
@@ -812,7 +858,7 @@ class EmergencyRequest {
         .where('id', proposalId)
         .where('emergency_request_id', emergencyRequestId)
         .where('status', 'pending')
-        .where('expires_at', '>', knex.fn.now())
+        .where('expires_at', '>', nowReference)
         .update({
           status: 'accepted',
           accepted_at: knex.fn.now(),
@@ -869,12 +915,30 @@ class EmergencyRequest {
     }
   }
 
-  // Verificar se ainda pode receber propostas
-  static async canReceiveProposals(emergencyRequestId) {
-    const request = await knex('emergency_requests')
-      .where('id', emergencyRequestId)
-      .first();
+  /**
+   * G3 — referência pública de "agora" para prazos (ver
+   * `resolveProposalDeadlineReference`): Date no PostgreSQL, epoch ms no SQLite
+   * do harness.
+   */
+  static proposalDeadlineReference(instance = knex) {
+    return resolveProposalDeadlineReference(instance);
+  }
 
+  /**
+   * G3 — prazo futuro aceitando Date (PostgreSQL), epoch ms (SQLite) e ISO
+   * string; ausente/ilegível => false.
+   */
+  static hasFutureProposalDeadline(rawDeadline) {
+    return isFutureProposalDeadline(rawDeadline);
+  }
+
+  /**
+   * G3 — avaliação pura da janela de propostas para uma linha de
+   * `emergency_requests` já carregada. É a MESMA regra usada pelo pré-check HTTP
+   * e pela revalidação dentro da transação de reserva (lock), para não existirem
+   * duas semânticas de "aceita propostas".
+   */
+  static isAcceptingProposals(request) {
     if (!request) return false;
     if (normalizeRequestType(request.request_type) !== 'tow') return false;
     // Pedido fechado (accepted/completed/cancelled) não recebe novas propostas.
@@ -882,23 +946,44 @@ class EmergencyRequest {
     if (request.proposal_status !== 'awaiting_proposals') return false;
     if (request.proposals_received >= request.max_proposals) return false;
 
-    // Aceita Date (PostgreSQL), epoch ms (SQLite/harness) e ISO string.
-    const deadline = request.proposal_selection_deadline instanceof Date
-      ? request.proposal_selection_deadline
-      : new Date(request.proposal_selection_deadline);
-    if (!Number.isFinite(deadline.getTime()) || Date.now() > deadline.getTime()) return false;
-
-    return true;
+    return isFutureProposalDeadline(request.proposal_selection_deadline);
   }
 
-  // Incrementar contador de propostas recebidas
-  static async incrementProposalCount(emergencyRequestId) {
-    return await knex('emergency_requests')
+  // Verificar se ainda pode receber propostas
+  static async canReceiveProposals(emergencyRequestId) {
+    const request = await knex('emergency_requests')
+      .where('id', emergencyRequestId)
+      .first();
+
+    return this.isAcceptingProposals(request);
+  }
+
+  /**
+   * G3 — lock da linha da emergência para a seção crítica
+   * validação → INSERT da proposta → incremento de `proposals_received`.
+   *
+   * PostgreSQL usa `SELECT ... FOR UPDATE` (a transação concorrente espera o
+   * commit e relê a linha, enxergando o contador já atualizado). O SQLite do
+   * harness tem uma única conexão/pool de 1, então as transações serializam
+   * naturalmente e `FOR UPDATE` (sintaxe inválida) não é emitido.
+   */
+  static async lockForProposalReservation(emergencyRequestId, trx) {
+    const query = trx('emergency_requests').where('id', emergencyRequestId);
+    if (isPostgresClient(trx)) {
+      query.forUpdate();
+    }
+    return await query.first();
+  }
+
+  // Incrementar contador de propostas recebidas (aceita transação do chamador
+  // para ser atômico com o INSERT da proposta).
+  static async incrementProposalCount(emergencyRequestId, trx = knex) {
+    return await trx('emergency_requests')
       .where('id', emergencyRequestId)
       .increment('proposals_received', 1)
       .update({
-        last_proposal_at: knex.fn.now(),
-        updated_at: knex.fn.now()
+        last_proposal_at: trx.fn.now(),
+        updated_at: trx.fn.now()
       });
   }
 
@@ -907,7 +992,7 @@ class EmergencyRequest {
     const result = await knex('tow_proposals')
       .where('emergency_request_id', emergencyRequestId)
       .where('status', 'pending')
-      .where('expires_at', '<=', new Date())
+      .where('expires_at', '<=', resolveProposalDeadlineReference(knex))
       .update({
         status: 'expired',
         responded_at: knex.fn.now()

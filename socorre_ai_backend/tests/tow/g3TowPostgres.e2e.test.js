@@ -215,4 +215,106 @@ describePostgres('PostgreSQL E2E G3: nearby, propostas e coordenadas', () => {
     expect(adminNoCoords.status).toBe(400);
     expect(adminNoCoords.body.code).toBe('coordinates_required');
   });
+
+  test('limite de propostas no PostgreSQL: parceiros distintos concorrentes na última vaga => um 201 e um 400', async () => {
+    const created = await post(EMERGENCIES, clientToken, baseEmergency({
+      description: 'Pedido para disputa da última vaga de propostas',
+    }));
+    expect(created.status).toBe(201);
+    const emergencyId = created.body.data.id;
+
+    // max_proposals = 1 com exatamente uma vaga livre: a transação de reserva
+    // (FOR UPDATE + revalidação) precisa deixar passar só um parceiro.
+    await db('emergency_requests').where('id', emergencyId).update({ max_proposals: 1, proposals_received: 0 });
+
+    const payload = {
+      emergency_request_id: emergencyId, proposed_price: 500, estimated_time_minutes: 30,
+    };
+    const responses = await Promise.all([
+      post(PROPOSALS, partnerAToken, payload),
+      post(PROPOSALS, partnerBToken, payload),
+    ]);
+
+    const statuses = responses.map((response) => response.status).sort((x, y) => x - y);
+    expect(statuses).toEqual([201, 400]);
+    expect(responses.find((response) => response.status === 400).body.code)
+      .toBe('emergency_not_accepting_proposals');
+
+    const rows = await db('tow_proposals').where({ emergency_request_id: emergencyId });
+    expect(rows).toHaveLength(1);
+    const emergency = await db('emergency_requests').where('id', emergencyId).first();
+    expect(Number(emergency.proposals_received)).toBe(1);
+    expect(Number(emergency.proposals_received)).toBe(Number(emergency.max_proposals));
+  });
+
+  test('coordenada explícita vazia no PostgreSQL => 400 invalid_coordinates sem fallback cadastral', async () => {
+    const emptyPair = await get(`${EMERGENCIES}/nearby?type=tow&latitude=&longitude=`, partnerAToken);
+    expect(emptyPair.status).toBe(400);
+    expect(emptyPair.body.code).toBe('invalid_coordinates');
+
+    const halfPair = await get(`${EMERGENCIES}/nearby?type=tow&latitude=`, partnerAToken);
+    expect(halfPair.status).toBe(400);
+    expect(halfPair.body.code).toBe('invalid_coordinates');
+  });
+
+  test('linhas legadas no PostgreSQL (fora dos limites ou 0,0) não quebram nem aparecem no nearby tow', async () => {
+    const valid = await post(EMERGENCIES, clientToken, baseEmergency({
+      description: 'Pedido válido para a listagem com linhas legadas',
+    }));
+    expect(valid.status).toBe(201);
+    const validId = valid.body.data.id;
+
+    const legacyOutOfBounds = await post(EMERGENCIES, clientToken, baseEmergency({
+      description: 'Pedido legado fora dos limites',
+    }));
+    const legacyZero = await post(EMERGENCIES, clientToken, baseEmergency({
+      description: 'Pedido legado com par zero zero',
+    }));
+
+    // 0,0 e fora dos limites são aceitos pelo UPDATE direto (dado legado), não
+    // pelo POST validado.
+    await db('emergency_requests').where('id', legacyOutOfBounds.body.data.id).update({ latitude: 91.5, longitude: 10 });
+    await db('emergency_requests').where('id', legacyZero.body.data.id).update({ latitude: 0, longitude: 0 });
+
+    // O schema atual tem latitude/longitude NOT NULL, então o caso "nula" não
+    // existe aqui; a guarda SQL/CASE também o cobre (ver teste do harness SQLite).
+    await expect(
+      db('emergency_requests').where('id', legacyOutOfBounds.body.data.id).update({ latitude: null })
+    ).rejects.toThrow();
+
+    // Antes da guarda SQL, latitude 91.5 fazia o `acos` do PostgreSQL estourar
+    // ("input is out of range") e derrubava a listagem inteira com 500.
+    const nearby = await get(
+      `${EMERGENCIES}/nearby?type=tow&latitude=-23.55&longitude=-46.63&radius=30000`,
+      partnerBToken
+    );
+    expect(nearby.status).toBe(200);
+    const ids = nearby.body.data.map((row) => row.id);
+    expect(ids).toContain(validId);
+    expect(ids).not.toContain(legacyOutOfBounds.body.data.id);
+    expect(ids).not.toContain(legacyZero.body.data.id);
+  });
+
+  test('schema do POST no PostgreSQL: par opcional incompleto/0,0 => invalid_coordinates; demais falhas => invalid_payload', async () => {
+    const incompletePair = await post(EMERGENCIES, clientToken, baseEmergency({
+      description: 'Pedido com par opcional incompleto',
+      vehicle_origin_latitude: -23.55,
+    }));
+    expect(incompletePair.status).toBe(400);
+    expect(incompletePair.body.code).toBe('invalid_coordinates');
+
+    const zeroZeroPair = await post(EMERGENCIES, clientToken, baseEmergency({
+      description: 'Pedido com par opcional zero zero',
+      vehicle_destination_latitude: 0,
+      vehicle_destination_longitude: 0,
+    }));
+    expect(zeroZeroPair.status).toBe(400);
+    expect(zeroZeroPair.body.code).toBe('invalid_coordinates');
+
+    const badPayload = await post(EMERGENCIES, clientToken, baseEmergency({
+      description: 'curto',
+    }));
+    expect(badPayload.status).toBe(400);
+    expect(badPayload.body.code).toBe('invalid_payload');
+  });
 });

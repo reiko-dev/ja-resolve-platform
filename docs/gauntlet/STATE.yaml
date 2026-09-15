@@ -3,12 +3,12 @@ status: BLOCKED
 terminal_state: BLOCKED_PENDING_MUSE_REVIEW_AFTER_FINDINGS_RESOLUTION
 repository: reiko-dev/socorre-ja-platform
 base_branch: main
-head: 99215384
-worktree: codex/g2-photo-schema-pricing
+head: 0ee3b010
+worktree: codex/g3-nearby-proposals-coordinates
 remote: https://github.com/reiko-dev/socorre-ja-platform.git
 max_execution_cycles: 3
 cycle: 0
-current_task: G2-implementation
+current_task: G3-findings-resolution
 workstreams:
   G1:
     status: COMPLETE
@@ -27,9 +27,18 @@ workstreams:
     muse_verdict: UNAVAILABLE_AFTER_FOUR_ATTEMPTS
     luna_adjudication: ACCEPT_WITH_BLOCKER
   G3:
-    status: NEXT
-    branch: null
-    commit: null
+    status: FINDINGS_ADDRESSED_PENDING_REVIEW
+    branch: codex/g3-nearby-proposals-coordinates
+    commit: 0ee3b010
+    fix_commit_message: "fix(g3): close concurrency and coordinate review findings"
+    fix_commit_hash: "registrado no work_result (não é possível embutir o próprio hash no commit)"
+    findings_resolution_doc: docs/gauntlet/G3-MUSE-FINDINGS-RESOLUTION.md
+    evidence_doc: docs/evidence/g3-tow-postgres.md
+    muse_verdict: REVIEW_WITH_FINDINGS
+    luna_adjudication: ACCEPT_VALID_FINDINGS_AND_FIX
+    findings_fixed: [F1, F4, F5, F6, F7, F2]
+    findings_registered: [F3]
+    findings_out_of_scope: [F8]
 blockers:
   - id: provider-interfaces-dsh-opencode
     task_id: orchestration-capability-check
@@ -117,10 +126,13 @@ branches:
     status: merged
   - name: codex/g2-photo-schema-pricing
     status: findings_addressed_pending_review
+  - name: codex/g3-nearby-proposals-coordinates
+    status: findings_addressed_pending_review
 commits:
   - 48c531d0
   - 42b2d7ab
   - 99215384
+  - 0ee3b010
 validations:
   - task: G1
     command: "npx jest tests/tow/towLifecycleController.test.js tests/tow/towHttp.transport.test.js --runInBand --forceExit --detectOpenHandles"
@@ -152,6 +164,18 @@ validations:
   - task: G2-reconcile-cli
     command: "node scripts/reconcile-service-photos.js [--apply] (dry-run default)"
     result: "PASS: órfão de chave válida listado/removido; arquivo fora do contrato preservado; exit 0"
+  - task: G3-tow-suite
+    command: "npx jest tests/tow --runInBand"
+    result: "7 passed, 2 skipped (e2e opt-in); 181 passed, 9 skipped, 190 total (aviso pré-existente de open handle do Jest após a conclusão)"
+  - task: G3-postgres-e2e
+    command: "NODE_ENV=test DB_HOST=localhost DB_PORT=5434 DB_NAME_TEST=socorre_g3_e2e TOW_POSTGRES_E2E=1 npx jest tests/tow/g3TowPostgres.e2e.test.js tests/tow/towPostgres.e2e.test.js --runInBand"
+    result: "PASS: 7/7 no G3 (limite concorrente max_proposals=1 => [201,400], 1 linha, contador 1; coordenadas vazias/legadas; schema) e 2/2 no G1 (start/complete e aceite concorrente) em PostgreSQL 14.24"
+  - task: G3-lock-vacuity-proof
+    command: "10 rodadas de POST concorrente (2 parceiros, max_proposals=1) com e sem FOR UPDATE, PostgreSQL do stack"
+    result: "com lock: 10/10 com 1 proposta/contador 1/[201,400]; sem lock: 8/10 com 2 propostas/contador 2"
+  - task: G3-static-and-migrations
+    command: "node --check (10 arquivos); git diff --check; scan de segredos no diff; knex migrate:latest/list --env test; docker compose -f docker-compose-simple.yml config"
+    result: "PASS: sem segredos adicionados; 43 migrations aplicadas e 0 pending (nenhuma nova); compose config exit 0"
 findings:
   - id: muse-1
     task_id: G1
@@ -209,4 +233,44 @@ findings:
     task_id: G2
     decision: OUT_OF_SCOPE
     description: "tests/unit completo tem 5 suítes legadas quebradas (DeliveryOrder, DeliveryOrder.basic, Subscription, Subscription.basic, TowProposal): sem banco falham por AggregateError e com o PostgreSQL do stack falham porque consultam colunas inexistentes no schema real. Não têm relação com G2; servicePhotoStorage.test.js passa 28/28."
-next_action: "Retomar revisão Muse quando OpenCode emitir review YAML válido; ver docs/gauntlet/G2-MUSE-FINDINGS-RESOLUTION.md para a resolução dos achados e os dois BUSINESS_RULE_AMBIGUITY registrados."
+  - id: muse-g3-max-proposals-race
+    task_id: G3
+    decision: FIXED
+    owner: G3
+    description: "MEDIUM — parceiros distintos podiam estourar max_proposals em corrida. Agora a proposta roda em transação com SELECT ... FOR UPDATE (só PostgreSQL), revalida isAcceptingProposals e hasPartnerProposed sob lock. e2e PG na última vaga: [201,400], 1 linha, contador 1; prova de vacuidade 10/10 com lock versus 8/10 de violação sem lock."
+  - id: muse-g3-proposal-counter-atomicity
+    task_id: G3
+    decision: FIXED
+    owner: G3
+    description: "MEDIUM — INSERT da proposta e incremento de proposals_received não eram atômicos. Agora usam o mesmo trx; falha no incremento faz rollback (sem linha e sem notificação). Notificação segue pós-commit best-effort, sem outbox."
+  - id: muse-g3-nearby-empty-string
+    task_id: G3
+    decision: FIXED
+    owner: G3
+    description: "LOW — latitude/longitude explícitas como string vazia/espaços caíam no cadastro do parceiro. Agora são entrada inválida (400 invalid_coordinates); ausência real mantém o fallback."
+  - id: muse-g3-emergency-schema-coordinates
+    task_id: G3
+    decision: FIXED
+    owner: G3
+    description: "LOW — Joi do POST de emergência aceitava 0,0 e par origem/destino incompleto, e falhas de coordenada retornavam invalid_payload. Agora o schema rejeita 0,0 e pares incompletos antes do INSERT e o codeResolver devolve invalid_coordinates, preservando invalid_payload nas demais falhas."
+  - id: muse-g3-nearby-legacy-coordinates
+    task_id: G3
+    decision: FIXED
+    owner: G3
+    description: "LOW — nearby tow podia listar pedido legado com coordenada nula, fora dos limites ou 0,0 (e no PostgreSQL uma linha fora dos limites derrubava a query com acos out of range). Expressão de distância com CASE + filtros no ramo tow; dados históricos não foram corrigidos."
+  - id: muse-g3-deadline-and-pg-evidence
+    task_id: G3
+    decision: FIXED
+    owner: G3
+    description: "MEDIUM — deadline misturava Date/knex.fn.now()/epoch entre canReceiveProposals, findNearby, acceptProposal e expireProposals. Unificado via proposalDeadlineReference (Date no PG, Date.now() no SQLite). Evidência local registrada em docs/evidence/g3-tow-postgres.md; e2e PostgreSQL segue opt-in, sem alegação de CI."
+  - id: g3-withdraw-proposals-received
+    task_id: G3
+    decision: BUSINESS_RULE_AMBIGUITY
+    owner: product-contract
+    description: "withdraw não decrementa proposals_received: o contador é histórico, retirar não reabre vaga para outro parceiro e reenviar consome outra. Comportamento preservado e coberto por teste; mudar exige decisão de produto."
+  - id: g3-canpartnerpropose-legacy-helper
+    task_id: G3
+    decision: OUT_OF_SCOPE
+    owner: G3
+    description: "EmergencyRequest.canPartnerPropose não é o caminho HTTP ativo (o Service é) e não foi alterado, para não arriscar regressão fora do escopo adjudicado."
+next_action: "Revisão do commit fix(g3): close concurrency and coordinate review findings; ver docs/gauntlet/G3-MUSE-FINDINGS-RESOLUTION.md e docs/evidence/g3-tow-postgres.md. Pendências de produto: semântica de proposals_received no withdraw (F3) e dívida técnica do helper canPartnerPropose (F8)."

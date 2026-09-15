@@ -49,6 +49,12 @@ function resolveRequestType(type, requestType) {
 /**
  * Aceita apenas número finito ou string numérica. Booleano, array, objeto,
  * `NaN`, `Infinity` e string vazia não são coordenadas.
+ *
+ * G3 — string vazia/whitespace é tratada como valor EXPLICITAMENTE inválido
+ * (`provided: true, invalid: true`), não como ausência: em `GET /nearby`,
+ * `latitude=&longitude=` precisa responder `400 invalid_coordinates` e nunca
+ * cair silenciosamente para o cadastro do parceiro. Ausência real (chave fora
+ * da query) continua `provided: false` e mantém o fallback cadastral.
  */
 function parseCoordinate(raw) {
   if (raw === undefined || raw === null) {
@@ -56,10 +62,7 @@ function parseCoordinate(raw) {
   }
 
   if (typeof raw === 'string') {
-    if (raw.trim() === '') {
-      return { provided: false, invalid: false, value: null };
-    }
-    const parsed = Number(raw.trim());
+    const parsed = raw.trim() === '' ? NaN : Number(raw.trim());
     return { provided: true, invalid: !Number.isFinite(parsed), value: Number.isFinite(parsed) ? parsed : null };
   }
 
@@ -127,12 +130,23 @@ function parseTypeFilter(rawType) {
 }
 
 /**
- * Guarda de dialeto: aceita Date (PostgreSQL), epoch ms (SQLite/harness) e ISO
- * string. Valor ausente/ilegível nunca é considerado prazo futuro.
+ * G3 — coordenadas operacionais de uma linha de emergência: par finito, dentro
+ * dos limites e diferente de (0,0). Usado como segunda barreira (além do SQL)
+ * para que linhas legadas inválidas nunca virem oportunidade tow.
  */
-function hasFutureProposalDeadline(rawDeadline) {
-  const deadline = rawDeadline instanceof Date ? rawDeadline : new Date(rawDeadline);
-  return Number.isFinite(deadline.getTime()) && deadline.getTime() > Date.now();
+function hasOperationalEmergencyCoordinates(row) {
+  const latitude = parseCoordinate(row?.latitude);
+  const longitude = parseCoordinate(row?.longitude);
+
+  if (!latitude.provided || !longitude.provided || latitude.invalid || longitude.invalid) {
+    return false;
+  }
+
+  if (latitude.value < -90 || latitude.value > 90) return false;
+  if (longitude.value < -180 || longitude.value > 180) return false;
+  if (latitude.value === 0 && longitude.value === 0) return false;
+
+  return true;
 }
 
 function coordinatesFromPartner(partner) {
@@ -290,10 +304,15 @@ class EmergencyRequestService {
       { excludePartnerId: search.exclude_partner_id }
     );
 
-    // Guarda de dialeto/robustez: além do filtro SQL, garante que a listagem
-    // tow só entregue oportunidades com prazo realmente futuro.
+    // Guarda de dialeto/robustez: além do filtro SQL, garante que a listagem tow
+    // só entregue oportunidades com prazo realmente futuro e coordenadas
+    // operacionais (linhas legadas nulas/fora dos limites/(0,0) nunca aparecem).
     const requests = isTowSearch
-      ? rows.filter((row) => hasFutureProposalDeadline(row.proposal_selection_deadline))
+      ? rows.filter(
+        (row) =>
+          EmergencyRequest.hasFutureProposalDeadline(row.proposal_selection_deadline) &&
+          hasOperationalEmergencyCoordinates(row)
+      )
       : rows;
 
     return {
@@ -391,3 +410,4 @@ module.exports.normalizePartnerType = normalizePartnerType;
 module.exports.normalizeRequestType = normalizeRequestType;
 module.exports.assertOperationalCoordinates = assertOperationalCoordinates;
 module.exports.parseCoordinate = parseCoordinate;
+module.exports.hasOperationalEmergencyCoordinates = hasOperationalEmergencyCoordinates;

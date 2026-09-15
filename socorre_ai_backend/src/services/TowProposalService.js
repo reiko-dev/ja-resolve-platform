@@ -1,6 +1,7 @@
 const TowProposal = require('../models/TowProposal');
 const EmergencyRequest = require('../models/EmergencyRequest');
 const Partner = require('../models/Partner');
+const knex = require('../config/database');
 const NotificationService = require('./NotificationServiceNew');
 const EmergencyRequestService = require('./EmergencyRequestService');
 const { ServiceError } = require('./ServiceError');
@@ -119,20 +120,65 @@ class TowProposalService {
       partner_distance_km: partnerDistance,
     };
 
+    // G3 — seção crítica: revalidação + INSERT da proposta + incremento de
+    // `proposals_received` na MESMA transação. O lock na linha da emergência
+    // serializa parceiros distintos disputando a última vaga de `max_proposals`
+    // (PostgreSQL usa SELECT ... FOR UPDATE; o SQLite do harness tem pool de 1
+    // conexão e serializa naturalmente).
+    const trx = await knex.transaction();
     let proposal;
+
     try {
-      proposal = await TowProposal.create(proposalDataComplete);
+      const lockedEmergency = await EmergencyRequest.lockForProposalReservation(requestId, trx);
+
+      if (!lockedEmergency) {
+        throw new ServiceError(404, 'emergency_not_found', 'Emergência não encontrada');
+      }
+
+      // Revalida com a linha travada: entre o pré-check e o lock outro parceiro
+      // pode ter consumido a última vaga (mesma regra JS do pré-check).
+      if (!EmergencyRequest.isAcceptingProposals(lockedEmergency)) {
+        throw new ServiceError(
+          400,
+          'emergency_not_accepting_proposals',
+          'Esta emergência não está mais aceitando propostas'
+        );
+      }
+
+      // Rede de segurança da migration 044 dentro da transação: mesma duplicata
+      // sequencial/concorrente continua 409.
+      const alreadyProposedInTransaction = await TowProposal.hasPartnerProposed(requestId, partnerId, trx);
+      if (alreadyProposedInTransaction) {
+        throw new ServiceError(409, 'proposal_duplicate', 'Você já enviou uma proposta para esta emergência');
+      }
+
+      proposal = await TowProposal.create(proposalDataComplete, trx);
+      await EmergencyRequest.incrementProposalCount(requestId, trx);
+
+      await trx.commit();
     } catch (error) {
+      // Rollback cobre falha do INSERT e falha do incremento: o contador nunca
+      // fica dessincronizado da proposta persistida.
+      try {
+        if (!trx.isCompleted()) {
+          await trx.rollback();
+        }
+      } catch (rollbackError) {
+        console.error('Falha ao reverter transação de proposta:', rollbackError);
+      }
+
+      if (error instanceof ServiceError) {
+        throw error;
+      }
+
       // Duplicidade concorrente: a constraint da migration 044 vence a corrida
       // e a resposta continua 409 — sem contador/notificação duplicados.
       if (isDuplicatePendingProposalError(error)) {
         throw new ServiceError(409, 'proposal_duplicate', 'Você já enviou uma proposta para esta emergência');
       }
+
       throw error;
     }
-
-    // Efeitos colaterais só depois do INSERT vencedor.
-    await EmergencyRequest.incrementProposalCount(requestId);
 
     try {
       await NotificationService.sendNotification(
