@@ -273,4 +273,14 @@ findings:
     decision: OUT_OF_SCOPE
     owner: G3
     description: "EmergencyRequest.canPartnerPropose não é o caminho HTTP ativo (o Service é) e não foi alterado, para não arriscar regressão fora do escopo adjudicado."
-next_action: "Revisão do commit fix(g3): close concurrency and coordinate review findings; ver docs/gauntlet/G3-MUSE-FINDINGS-RESOLUTION.md e docs/evidence/g3-tow-postgres.md. Pendências de produto: semântica de proposals_received no withdraw (F3) e dívida técnica do helper canPartnerPropose (F8)."
+  - id: g3-pricing-toctou
+    task_id: G3
+    decision: ACCEPT_WITH_DEFERRED_HARDENING
+    owner: backend-maintenance
+    description: "LOW — validateTowProposalPrice ocorre antes da transação; revalidar no lock ou formalizar snapshot de pricing antes de mudar a regra."
+  - id: g3-pg-evidence-reproducibility
+    task_id: G3
+    decision: ACCEPT_WITH_DEFERRED_EVIDENCE_HARDENING
+    owner: backend-maintenance
+    description: "LOW — evidência PG local e comando estão documentados, mas a prova de vacuidade usou script temporário; não é gate CI."
+next_action: "G3 adjudicada pela Luna como ACCEPT_WITH_DEFERRED_FINDINGS no commit ca86fda9. Mesclar/publicar após preservar docs/evidence; follow-ups: F3 semântica de proposals_received, F9 snapshot/revalidação de pricing, F10 script/seed PG reproduzível e F8 helper legado fora de escopo."

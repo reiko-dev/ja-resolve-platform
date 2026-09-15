@@ -19,6 +19,8 @@ evidência real de validação (PostgreSQL 14 do stack local, opt-in).
 | F2 | Evidência PostgreSQL local não registrada e deadline comparado de formas diferentes (MEDIUM, VALID) | `FIXED` + evidência | `src/models/EmergencyRequest.js`, `docs/evidence/g3-tow-postgres.md` |
 | F3 | Semântica de `proposals_received` no `withdraw` não definida (BUSINESS_RULE_AMBIGUITY) | `REGISTERED` (comportamento preservado) | `src/services/TowProposalService.js` (inalterado) + testes |
 | F8 | Helper legado `canPartnerPropose` divergente do Service (OUT_OF_SCOPE) | `NOT_TOUCHED` | `src/models/EmergencyRequest.js` |
+| F9 | Piso de preço pode mudar entre pré-check e transação (LOW, VALID) | `DEFERRED_HARDENING` | Revalidar preço em transação ou formalizar snapshot |
+| F10 | Prova de vacuidade PG usa script temporário (LOW, VALID) | `DEFERRED_EVIDENCE_HARDENING` | Manter comando/seed reproduzível; não alegar CI |
 
 Migração 044 (`tow_proposals_one_pending_per_partner`) e o comportamento G1/G2
 (start/complete/idempotência, fotos, pricing, autorização de cancelamento,
