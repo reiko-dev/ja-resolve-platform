@@ -1073,6 +1073,10 @@ Response esperada:
 }
 ```
 
+Regras G3 desta rota: somente parceiro `tow` com `partners.latitude`/`longitude` válidas (nunca `0,0` — senão `400 partner_onboarding_required`); o pedido precisa existir (`404 emergency_not_found`), ter coordenadas válidas (`400 emergency_invalid_coordinates`) e estar `pending + awaiting_proposals` com deadline futuro (`400 emergency_not_accepting_proposals`); `proposed_price`/`estimated_time_minutes` precisam ser positivos (`400 invalid_payload`); duplicata `pending` do mesmo parceiro retorna `409 proposal_duplicate` (sequencial ou concorrente), sem duplicar contador nem notificação. A retirada (`POST /api/tow-proposals/:id/withdraw`) é exclusiva do parceiro dono, só vale `pending` → `withdrawn` (`400 proposal_not_pending` na repetição, `403 forbidden` para outro parceiro, `404 proposal_not_found` se não existir) e não há `PATCH`/`DELETE`: editar é retirar e enviar nova proposta.
+
+O `GET /api/emergency-requests/nearby?type=tow` lista apenas oportunidades reais (`pending`, `awaiting_proposals`, deadline futuro, ordenadas por distância); usa `latitude`/`longitude` explícitas em par válido ou o cadastro do parceiro (`partners.latitude`/`longitude`). Coordenadas ausentes/inválidas/`0,0` explícitas retornam `400 invalid_coordinates`; admin sem par explícito retorna `400 coordinates_required`; cadastro de parceiro sem coordenadas retorna `400 partner_onboarding_required`; `radius` precisa ser finito `> 0` (`400 invalid_radius`); `exclude_proposed=true` remove apenas o pedido em que o próprio parceiro tem proposta `pending`.
+
 ### 18.9 Pagamento e carteira
 
 Request de `POST /api/payments`:

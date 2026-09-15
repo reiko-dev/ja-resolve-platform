@@ -20,7 +20,7 @@ Conectar ao mesmo host da API com `auth: { token: accessToken }` (ou `Authorizat
 
 ## 3. Fluxo do cliente: solicitar e escolher guincho
 
-1. `POST /api/emergency-requests` com `type` válido (`mechanical`, `fuel`, `tire`, `battery` ou `other`), `request_type: "tow"`, `description` (mín. 10), `vehicle_info` (`brand`, `model`, `year`) e localização (`location_type`, `latitude`, `longitude`, `address`). Origem/destino específicos são opcionais; não enviar `type: "tow"`.
+1. `POST /api/emergency-requests` com `type` válido (`mechanical`, `fuel`, `tire`, `battery` ou `other`), `request_type: "tow"`, `description` (mín. 10), `vehicle_info` (`brand`, `model`, `year`) e localização (`location_type`, `latitude`, `longitude`, `address`). Origem/destino específicos são opcionais; não enviar `type: "tow"`. `latitude`/`longitude` são obrigatórias, finitas, dentro dos limites (±90/±180) e nunca `0,0`; pares opcionais de origem/destino, quando usados, precisam vir completos (`*_latitude` + `*_longitude`). Violação retorna `400` com `code: "invalid_coordinates"` antes de qualquer INSERT.
 2. Ler `data.id`, `data.status`, `data.proposal_status` e `data.price_breakdown` da resposta. `price_breakdown` pode ser JSON serializado; não calcular preço localmente.
 3. `GET /api/tow-proposals/emergency/:emergency_request_id` para listar propostas do próprio pedido.
 4. `POST /api/tow-proposals/:proposal_id/accept` para selecionar uma proposta, ou `POST /api/emergency-requests/:id/accept-proposal` com `{ "proposal_id": "..." }`.
@@ -31,14 +31,19 @@ Rotas: `GET /api/emergency-requests/:id/payment-summary`, `POST /api/emergency-r
 
 ## 4. Fluxo do parceiro guincho
 
-1. Após onboarding de parceiro tow (`POST /api/partners/onboarding/complete`), `GET /api/emergency-requests/nearby?latitude=...&longitude=...&radius=15&type=tow` lista oportunidades. O backend aplica raio e retorna pedidos `pending`; o app deve confirmar `proposal_status` antes de propor.
-2. `POST /api/tow-proposals` com `emergency_request_id`, `proposed_price`, `estimated_time_minutes` e, opcionalmente, `message`. O backend exige parceiro do tipo tow, proposta única, prazo aberto e preço mínimo; sucesso `201`.
+1. Após onboarding de parceiro tow (`POST /api/partners/onboarding/complete`), `GET /api/emergency-requests/nearby?type=tow&radius=15` (com ou sem `latitude`/`longitude`) lista oportunidades. Regras do backend:
+   - `type=tow` retorna somente pedidos `status=pending`, `proposal_status=awaiting_proposals` e `proposal_selection_deadline` futuro, ordenados por distância crescente.
+   - Coordenadas explícitas (`latitude` + `longitude`) valem para parceiro e admin; precisam ser um par finito, dentro dos limites e diferente de `0,0` (`400 invalid_coordinates`). Sem o par explícito, o parceiro usa `partners.latitude`/`partners.longitude` do cadastro; admin sem par explícito recebe `400 coordinates_required`.
+   - Cadastro de parceiro ausente/nulo/`NaN`/`Infinity`/`0,0` retorna `400 partner_onboarding_required`: o app deve concluir o onboarding antes de listar oportunidades, nunca assumir `0,0`.
+   - `radius` é um número finito `> 0` (default 15); valor inválido retorna `400 invalid_radius`.
+   - `exclude_proposed=true` remove da lista apenas pedidos em que o **próprio** parceiro tem proposta `pending`; propostas `withdrawn`/`rejected`/`expired` não removem a oportunidade.
+2. `POST /api/tow-proposals` com `emergency_request_id`, `proposed_price` (número finito `> 0`), `estimated_time_minutes` (inteiro `> 0`) e, opcionalmente, `message`. O backend exige parceiro do tipo tow, localização válida do parceiro e do pedido, proposta única para o pedido, prazo aberto e preço mínimo; sucesso `201`. Erros: `400 invalid_payload` (payload), `403 partner_not_tow`, `400 partner_onboarding_required`, `404 emergency_not_found`, `400 emergency_not_accepting_proposals` (fechado/expirado/não-tow), `400 emergency_invalid_coordinates`, `400 proposal_price_below_minimum` e `409 proposal_duplicate` (sequencial ou concorrente, sem duplicar contador/notificação).
 3. `GET /api/tow-proposals/partner` para propostas próprias.
 4. Depois da seleção, somente o parceiro atribuído pode executar:
    - `POST /api/emergency-requests/:id/start` → `accepted` para `in_progress`;
    - `POST /api/emergency-requests/:id/complete` com `{ "final_price": 120.00, "solution_description": "...", "parts_used": [] }` → `completed`.
 5. Administrador pode operar transições para suporte. Outro parceiro recebe `403`.
-6. Rejeição do cliente: `POST /api/tow-proposals/:id/reject`. Retirada pelo parceiro: `POST /api/tow-proposals/:id/withdraw`.
+6. Rejeição do cliente: `POST /api/tow-proposals/:id/reject`. Retirada pelo parceiro: `POST /api/tow-proposals/:id/withdraw`, somente pelo parceiro dono da proposta e somente enquanto `pending` (`200` na transição real `pending` → `withdrawn`). Repetir a retirada ou tentar retirar proposta `accepted`/`rejected`/`expired` retorna `400 proposal_not_pending`; proposta inexistente retorna `404 proposal_not_found`; outro parceiro recebe `403 forbidden`. O histórico é preservado (a linha vira `withdrawn`), então a edição formal de uma proposta é `withdraw` seguido de novo `POST /api/tow-proposals`; não existem `PATCH`/`DELETE` de proposta.
 
 ## 5. Estados canônicos
 
@@ -55,7 +60,7 @@ Expiração pode produzir `no_proposals`; pedidos sem proposta usam `proposal_st
 
 O endpoint direto `POST /api/emergency-requests/:id/accept` é exclusivo do fluxo mechanic; tow usa propostas.
 
-Respostas de erro podem usar `{ "error": "..." }` ou `{ "success": false, "message": "..." }`; o app deve exibir mensagem sem depender do texto para controle de fluxo. Controle de fluxo usa status HTTP e campos de estado. `400` = payload/transição/regra de negócio; `401` = autenticação; `403` = permissão; `404` = recurso inexistente; `500` = erro transitório.
+Respostas de erro podem usar `{ "error": "..." }` ou `{ "success": false, "message": "..." }`; erros de regra do fluxo tow também trazem `code` estável (`invalid_coordinates`, `coordinates_required`, `partner_onboarding_required`, `invalid_radius`, `invalid_payload`, `partner_not_tow`, `emergency_not_found`, `emergency_not_accepting_proposals`, `emergency_invalid_coordinates`, `proposal_price_below_minimum`, `proposal_duplicate`, `proposal_not_found`, `proposal_not_pending`, `forbidden`). O app deve exibir mensagem e usar `status` + `code` para controle de fluxo, nunca o texto. `400` = payload/transição/regra de negócio; `401` = autenticação; `403` = permissão; `404` = recurso inexistente; `409` = duplicidade; `500` = erro transitório.
 
 ## 7. Checklist de aceite mobile
 

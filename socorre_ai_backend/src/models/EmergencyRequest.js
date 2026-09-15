@@ -420,7 +420,13 @@ class EmergencyRequest {
   }
 
   // Buscar solicitações próximas (para parceiros)
-  static async findNearby(latitude, longitude, radius = 15, type = null) {
+  //
+  // G3: quando o filtro é `type=tow`, a listagem é de oportunidades reais de
+  // guincho — somente `status=pending`, `proposal_status=awaiting_proposals` e
+  // prazo (`proposal_selection_deadline`) ainda no futuro. `excludePartnerId`
+  // remove apenas a proposta `pending` do próprio parceiro solicitante;
+  // withdrawn/rejected/expired continuam listados (histórico não exclui).
+  static async findNearby(latitude, longitude, radius = 15, type = null, options = {}) {
     const distanceExpression = `
       6371 * acos(
         cos(radians(?)) * cos(radians(latitude)) * 
@@ -448,6 +454,27 @@ class EmergencyRequest {
       } else {
         query = query.where('emergency_requests.type', type);
       }
+    }
+
+    const towOnly = options.towOnly ?? (Boolean(type) && normalizedType === 'tow');
+    if (towOnly) {
+      // SQLite (harness de teste) não aceita binding de Date: o valor vira
+      // texto inválido e o filtro não casa. Em PostgreSQL (runtime real) o
+      // binding é Date, como manda o tipo timestamp.
+      const deadlineReference = isPostgresClient(knex) ? new Date() : Date.now();
+      query = query
+        .where('emergency_requests.proposal_status', 'awaiting_proposals')
+        .where('emergency_requests.proposal_selection_deadline', '>', deadlineReference);
+    }
+
+    if (options.excludePartnerId) {
+      query = query.whereNotExists(function excludeOwnPendingProposals() {
+        this.select(knex.raw('1'))
+          .from('tow_proposals')
+          .whereRaw('tow_proposals.emergency_request_id = emergency_requests.id')
+          .where('tow_proposals.partner_id', options.excludePartnerId)
+          .where('tow_proposals.status', 'pending');
+      });
     }
 
     return await query;
@@ -686,7 +713,8 @@ class EmergencyRequest {
       ...requestData,
       request_type: 'tow',
       proposal_status: 'awaiting_proposals',
-      proposal_selection_deadline: proposalDeadline,
+      // SQLite (harness) guarda epoch ms; PostgreSQL guarda timestamp real.
+      proposal_selection_deadline: isPostgresClient(knex) ? proposalDeadline : proposalDeadline.getTime(),
       max_proposals: maxProposals,
       proposals_received: 0,
       search_radius_km: searchRadius,
@@ -849,9 +877,16 @@ class EmergencyRequest {
 
     if (!request) return false;
     if (normalizeRequestType(request.request_type) !== 'tow') return false;
+    // Pedido fechado (accepted/completed/cancelled) não recebe novas propostas.
+    if (request.status !== 'pending') return false;
     if (request.proposal_status !== 'awaiting_proposals') return false;
     if (request.proposals_received >= request.max_proposals) return false;
-    if (new Date() > request.proposal_selection_deadline) return false;
+
+    // Aceita Date (PostgreSQL), epoch ms (SQLite/harness) e ISO string.
+    const deadline = request.proposal_selection_deadline instanceof Date
+      ? request.proposal_selection_deadline
+      : new Date(request.proposal_selection_deadline);
+    if (!Number.isFinite(deadline.getTime()) || Date.now() > deadline.getTime()) return false;
 
     return true;
   }

@@ -1,10 +1,11 @@
 const EmergencyRequest = require('../models/EmergencyRequest');
 const Subscription = require('../models/Subscription');
-const Partner = require('../models/Partner');
 const knex = require('../config/database');
 const paymentService = require('../services/paymentService');
 const NotificationService = require('../services/NotificationServiceNew');
+const EmergencyRequestService = require('../services/EmergencyRequestService');
 const { emergencyRequestSchemas } = require('../middleware/validation');
+const { sendServiceError } = require('../services/ServiceError');
 
 function invalidPayload(res, error) {
   return res.status(400).json({
@@ -14,35 +15,8 @@ function invalidPayload(res, error) {
   });
 }
 
-const REQUEST_TYPE_ALIASES = {
-  mechanic: 'mechanic',
-  mecanico: 'mechanic',
-  tow: 'tow',
-  guincho: 'tow',
-};
-
-const PARTNER_TYPE_ALIASES = {
-  mechanic: 'mechanic',
-  mecanico: 'mechanic',
-  tow: 'tow',
-  guincho: 'tow',
-};
-
-function normalizeRequestType(requestType) {
-  return REQUEST_TYPE_ALIASES[requestType] || requestType || 'mechanic';
-}
-
 function normalizePartnerType(partnerType) {
-  return PARTNER_TYPE_ALIASES[partnerType] || partnerType;
-}
-
-function resolveRequestType(type, requestType) {
-  const normalizedRequestType = normalizeRequestType(requestType);
-  if (normalizedRequestType === 'tow') {
-    return 'tow';
-  }
-
-  return 'mechanic';
+  return EmergencyRequestService.normalizePartnerType(partnerType);
 }
 
 class EmergencyRequestController {
@@ -85,27 +59,8 @@ class EmergencyRequestController {
 
   static async create(req, res) {
     try {
-      const resolvedRequestType = resolveRequestType(req.body.type, req.body.request_type);
-      const requestData = {
-        ...req.body,
-        user_id: req.user.id,
-        vehicle_info: req.body.vehicle_info ? JSON.stringify(req.body.vehicle_info) : null,
-        photos: Array.isArray(req.body.photos) ? JSON.stringify(req.body.photos) : null,
-      };
-
-      let request;
-      if (resolvedRequestType === 'tow') {
-        request = await EmergencyRequest.createTowRequest(requestData);
-      } else {
-        request = await EmergencyRequest.createMechanicRequest(requestData);
-      }
-
-      let nearbyPartners = [];
-      if (request.request_type === 'tow') {
-        nearbyPartners = await EmergencyRequest.findForGuinchos(request.latitude, request.longitude);
-      } else if (request.request_type === 'mechanic') {
-        nearbyPartners = await EmergencyRequest.findForMechanics(request.latitude, request.longitude);
-      }
+      // G3: coordenadas inválidas/(0,0) são rejeitadas antes de qualquer INSERT.
+      const { request, nearbyPartners } = await EmergencyRequestService.createRequest(req.user, req.body);
 
       res.status(201).json({
         success: true,
@@ -126,11 +81,7 @@ class EmergencyRequestController {
         });
       }
 
-      console.error('Erro ao criar solicitação:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Erro interno do servidor',
-      });
+      return sendServiceError(res, error, 'Erro interno do servidor');
     }
   }
 
@@ -231,39 +182,21 @@ class EmergencyRequestController {
 
   static async getNearby(req, res) {
     try {
-      let latitude = req.query.latitude ? parseFloat(req.query.latitude) : null;
-      let longitude = req.query.longitude ? parseFloat(req.query.longitude) : null;
-      const radius = req.query.radius ? parseFloat(req.query.radius) : 15;
-      const type = req.query.type;
-
-      if ((latitude === null || longitude === null) && req.user.partner_id) {
-        const partner = await Partner.findById(req.user.partner_id);
-        if (partner) {
-          latitude = latitude ?? parseFloat(partner.latitude);
-          longitude = longitude ?? parseFloat(partner.longitude);
-        }
-      }
-
-      if (latitude === null || longitude === null || Number.isNaN(latitude) || Number.isNaN(longitude)) {
-        return res.status(400).json({
-          success: false,
-          message: 'Latitude e longitude são obrigatórios',
-        });
-      }
-
-      const requests = await EmergencyRequest.findNearby(latitude, longitude, radius, type);
+      const result = await EmergencyRequestService.findNearby(req.user, req.query);
 
       res.json({
         success: true,
-        data: requests,
-        count: requests.length,
+        data: result.requests,
+        count: result.count,
+        search: {
+          latitude: result.latitude,
+          longitude: result.longitude,
+          radius: result.radius,
+          coordinate_source: result.coordinate_source,
+        },
       });
     } catch (error) {
-      console.error('Erro ao buscar solicitações próximas:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Erro interno do servidor',
-      });
+      return sendServiceError(res, error, 'Erro interno do servidor');
     }
   }
 
