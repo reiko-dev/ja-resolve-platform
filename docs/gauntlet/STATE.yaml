@@ -8,7 +8,7 @@ worktree: clean
 remote: https://github.com/reiko-dev/socorre-ja-platform.git
 max_execution_cycles: 3
 cycle: 0
-current_task: G2-business-rule-ambiguity
+current_task: G2-implementation
 workstreams:
   G1:
     status: COMPLETE
@@ -18,11 +18,11 @@ workstreams:
     muse_verdict: APPROVE_WITH_FINDINGS
     luna_adjudication: ACCEPT_WITH_DEFERRED_FINDINGS
   G2:
-    status: BLOCKED_FOR_BUSINESS_RULE
+    status: READY
     branch: null
     commit: null
   G3:
-    status: BLOCKED_BY_G2
+    status: NEXT
     branch: null
     commit: null
 blockers:
@@ -41,15 +41,15 @@ blockers:
   - id: g2-photo-contract
     task_id: G2
     type: business_rule_ambiguity
-    reason: "Contrato não define transporte e persistência de pickup_photo_url/delivery_photo_url."
+    reason: "Resolvido pelo contrato decidido para G2."
     dependency: "Decisão do produto/contrato Mobile sobre URLs externas versus multipart/backend, MIME, tamanho, quantidade e retenção."
     verification_predicate: "docs/MOBILE-AUTH-TOW-CONTRACT-V1.md define payload, validação e persistência das duas fotos."
-    evidence: "Contrato atual documenta apenas photos no create como array de URLs; complete não define fotos pickup/delivery."
+    evidence: "Decisão registrada: VPS Hostinger, armazenamento privado, campos pickup_photo_url/delivery_photo_url, endpoint autenticado, JPEG/WebP, 5 MB por foto, resize até 1920 px."
     owner: product-contract
-    attempts: 1
-    last_checked_at: "2026-09-15T11:10:00-05:00"
-    next_check_at: "2026-09-15T11:20:00-05:00"
-    status: OPEN
+    attempts: 3
+    last_checked_at: "2026-09-15T11:37:34-05:00"
+    next_check_at: null
+    status: RESOLVED
 quotas:
   LUNA_POOL:
     short_window_remaining_percent: 91
@@ -65,6 +65,10 @@ quotas:
 cronjobs:
   - name: "gauntlet-blocker-watch:socorre-ja-platform:orchestration-capability-check:provider-interfaces-dsh-opencode"
     id: "gauntlet-blocker-watch-socorre-ja-platform-orchestration-capability-check-provider-interfaces-dsh-opencode"
+    status: CANCELLED
+    interval: 10m
+  - name: "gauntlet-blocker-watch:socorre-ja-platform:G2-photo-contract"
+    id: "gauntlet-blocker-watch-socorre-ja-platform-g2-photo-contract"
     status: CANCELLED
     interval: 10m
 branches:
@@ -88,4 +92,4 @@ findings:
     decision: BUSINESS_RULE_AMBIGUITY
     owner: contract-formalization
     description: "Contrato ainda não fixa 200 versus 409 para retry idempotente; implementação mantém 200."
-next_action: "Aguardar decisão do contrato de fotos; então DSH implementa G2, Muse revisa e Luna adjudica."
+next_action: "Receber TaskSpec final Luna e delegar G2 ao DSH."
