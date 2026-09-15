@@ -2,122 +2,29 @@ const TowProposal = require('../models/TowProposal');
 const EmergencyRequest = require('../models/EmergencyRequest');
 const Partner = require('../models/Partner');
 const NotificationService = require('../services/NotificationServiceNew');
-
-function normalizePartnerType(partnerType) {
-  if (partnerType === 'guincho') {
-    return 'tow';
-  }
-  return partnerType;
-}
+const TowProposalService = require('../services/TowProposalService');
+const { sendServiceError } = require('../services/ServiceError');
 
 class TowProposalController {
-  // Criar nova proposta
+  // Criar nova proposta — regras no TowProposalService.
   static async create(req, res) {
     try {
       const { emergency_request_id, proposed_price, estimated_time_minutes, message } = req.body;
-      const partner_id = req.user.partner_id; // Assumindo que vem do token JWT
+      const partner_id = req.user.partner_id; // vínculo vem do token JWT, nunca do body
 
-      // Validar dados
-      if (!emergency_request_id || !proposed_price || !estimated_time_minutes) {
-        return res.status(400).json({ 
-          error: 'Dados obrigatórios: emergency_request_id, proposed_price, estimated_time_minutes' 
-        });
-      }
-
-      // Verificar se emergência existe e pode receber propostas
-      const canReceive = await EmergencyRequest.canReceiveProposals(emergency_request_id);
-      if (!canReceive) {
-        return res.status(400).json({ 
-          error: 'Esta emergência não está mais aceitando propostas' 
-        });
-      }
-
-      // Verificar se parceiro já enviou proposta
-      const alreadyProposed = await TowProposal.hasPartnerProposed(emergency_request_id, partner_id);
-      if (alreadyProposed) {
-        return res.status(409).json({
-          error: 'Você já enviou uma proposta para esta emergência' 
-        });
-      }
-
-      // Buscar dados do parceiro
-      const partner = await Partner.findById(partner_id);
-      if (!partner || normalizePartnerType(partner.type) !== 'tow') {
-        return res.status(403).json({ 
-          error: 'Apenas guinchos podem enviar propostas' 
-        });
-      }
-
-      const priceValidation = await EmergencyRequest.validateTowProposalPrice(
-        emergency_request_id,
-        proposed_price
-      );
-
-      if (!priceValidation.valid) {
-        return res.status(400).json({
-          error: `Proposta abaixo do mínimo permitido pelo backend. Valor mínimo atual: R$ ${priceValidation.minimumAcceptedPrice}`
-        });
-      }
-
-      // Calcular tempo de expiração
-      const proposalExpiryMinutes = await EmergencyRequest.getProposalExpiryMinutes();
-      const expiresAt = new Date();
-      expiresAt.setMinutes(expiresAt.getMinutes() + proposalExpiryMinutes);
-
-      // Criar proposta
-      const proposalData = {
-        emergency_request_id,
-        partner_id,
-        proposed_price: parseFloat(proposed_price),
-        estimated_time_minutes: parseInt(estimated_time_minutes),
+      const proposal = await TowProposalService.createProposal(emergency_request_id, partner_id, {
+        proposed_price,
+        estimated_time_minutes,
         message,
-        tow_truck_type: partner.tow_truck_type,
-        tow_capacity_kg: partner.tow_capacity_kg,
-        has_winch: partner.has_winch,
-        expires_at: expiresAt,
-        partner_distance_km: await TowProposalController.calculatePartnerDistance(partner_id, emergency_request_id)
-      };
-
-      const proposal = await TowProposal.create(proposalData);
-
-      // Incrementar contador de propostas da emergência
-      await EmergencyRequest.incrementProposalCount(emergency_request_id);
-
-      // Notificar cliente sobre nova proposta
-      const emergency = await EmergencyRequest.findById(emergency_request_id);
-      await NotificationService.sendNotification(
-        emergency.user_id,
-        'Nova proposta de guincho',
-        `Você recebeu uma proposta de R$ ${proposed_price} de ${partner.business_name}`,
-        {
-          type: 'tow_proposal',
-          emergency_request_id,
-          proposal_id: proposal.id
-        }
-      );
+      });
 
       res.status(201).json({
         success: true,
         data: proposal,
-        pricing_validation: {
-          minimum_accepted_price: priceValidation.minimumAcceptedPrice
-        },
-        message: 'Proposta enviada com sucesso'
+        message: 'Proposta enviada com sucesso',
       });
-
     } catch (error) {
-      console.error('Erro ao criar proposta:', error);
-      if (
-        error?.code === '23505' ||
-        error?.code === 'SQLITE_CONSTRAINT' ||
-        error?.code === 'SQLITE_CONSTRAINT_UNIQUE' ||
-        /UNIQUE constraint failed/i.test(error?.message || '')
-      ) {
-        return res.status(409).json({ error: 'Você já possui uma proposta pendente para esta emergência' });
-      }
-      res.status(500).json({ 
-        error: 'Erro interno do servidor' 
-      });
+      return sendServiceError(res, error, 'Erro interno do servidor');
     }
   }
 
@@ -302,34 +209,20 @@ class TowProposalController {
     }
   }
 
-  // Retirar proposta (parceiro)
+  // Retirar proposta (parceiro) — regras no TowProposalService.
   static async withdraw(req, res) {
     try {
       const { id } = req.params;
 
-      const proposal = await TowProposal.findById(id);
-      if (!proposal) {
-        return res.status(404).json({ error: 'Proposta não encontrada' });
-      }
-
-      // Verificar se parceiro é o dono
-      if (proposal.partner_id !== req.user.partner_id) {
-        return res.status(403).json({ error: 'Acesso negado' });
-      }
-
-      const withdrawnProposal = await TowProposal.withdraw(id);
+      const withdrawnProposal = await TowProposalService.withdrawProposal(id, req.user.partner_id);
 
       res.json({
         success: true,
         data: withdrawnProposal,
         message: 'Proposta retirada'
       });
-
     } catch (error) {
-      console.error('Erro ao retirar proposta:', error);
-      res.status(500).json({ 
-        error: 'Erro interno do servidor' 
-      });
+      return sendServiceError(res, error, 'Erro interno do servidor');
     }
   }
 

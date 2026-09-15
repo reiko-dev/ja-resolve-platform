@@ -1,9 +1,10 @@
   const knex = require('../config/database');
 
 class TowProposal {
-  // Criar nova proposta
-  static async create(proposalData) {
-    const [proposal] = await knex('tow_proposals').insert(proposalData).returning('*');
+  // Criar nova proposta. Aceita a transação do chamador para que INSERT e
+  // incremento de `proposals_received` sejam atômicos (G3).
+  static async create(proposalData, trx = knex) {
+    const [proposal] = await trx('tow_proposals').insert(proposalData).returning('*');
     return proposal;
   }
 
@@ -329,9 +330,10 @@ class TowProposal {
       .orderBy('tow_proposals.expires_at');
   }
 
-  // Verificar se parceiro já enviou proposta para uma emergência
-  static async hasPartnerProposed(emergencyRequestId, partnerId) {
-    const proposal = await knex('tow_proposals')
+  // Verificar se parceiro já enviou proposta para uma emergência.
+  // Aceita a transação do chamador para revalidar dentro da seção crítica (G3).
+  static async hasPartnerProposed(emergencyRequestId, partnerId, trx = knex) {
+    const proposal = await trx('tow_proposals')
       .where('emergency_request_id', emergencyRequestId)
       .where('partner_id', partnerId)
       .where('status', 'pending')

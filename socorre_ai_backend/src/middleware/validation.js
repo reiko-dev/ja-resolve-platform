@@ -329,7 +329,32 @@ const emergencyRequestSchemas = {
     urgency: Joi.string().valid('low', 'medium', 'high', 'critical').default('medium'),
     is_urgent: Joi.boolean().default(false),
     notes: Joi.string().max(1000).optional()
-  }),
+  })
+    // G3 — pares opcionais de origem/destino precisam vir completos já no schema:
+    // não existe rota que aceite só uma das metades.
+    .and('vehicle_origin_latitude', 'vehicle_origin_longitude')
+    .and('vehicle_destination_latitude', 'vehicle_destination_longitude')
+    // G3 — (0,0) nunca é coordenada operacional; o par principal já é obrigatório
+    // pelo schema, então a checagem de par incompleto é do `.and` acima.
+    .custom((value, helpers) => {
+      const coordinatePairs = [
+        ['latitude', 'longitude'],
+        ['vehicle_origin_latitude', 'vehicle_origin_longitude'],
+        ['vehicle_destination_latitude', 'vehicle_destination_longitude'],
+      ];
+
+      for (const [latitudeKey, longitudeKey] of coordinatePairs) {
+        if (value[latitudeKey] === 0 && value[longitudeKey] === 0) {
+          return helpers.error('any.invalid');
+        }
+      }
+
+      return value;
+    })
+    .messages({
+      'any.invalid': 'latitude e longitude não podem ser 0,0',
+      'object.and': '{{#label}} exige o par completo de latitude/longitude',
+    }),
 
   accept: Joi.object({
     estimated_price: Joi.number().min(0).precision(2).required(),
@@ -454,22 +479,72 @@ const purchaseOrderSchemas = {
 };
 
 // Middleware de validação
-const validate = (schema) => {
+const validate = (schema, options = {}) => {
   return (req, res, next) => {
     const { error } = schema.validate(req.body);
     if (error) {
-      return res.status(400).json({
+      const body = {
         success: false,
         message: 'Dados inválidos',
         errors: error.details.map(detail => detail.message)
-      });
+      };
+
+      // G3 — falhas de coordenadas no POST de emergência viram `code` estável
+      // (`invalid_coordinates`) em vez de um 400 anônimo, sem alterar o formato
+      // das demais rotas (o resolver é opt-in por schema).
+      if (typeof options.codeResolver === 'function') {
+        const code = options.codeResolver(error);
+        if (code) {
+          body.code = code;
+        }
+      }
+
+      return res.status(400).json(body);
     }
     next();
   };
 };
 
+/**
+ * G3 — deriva o código estável de uma falha do schema `emergencyRequestSchemas.create`.
+ *
+ * Coordenadas (principal ou pares opcionais de origem/destino) => `invalid_coordinates`;
+ * qualquer outra violação de payload => `invalid_payload`.
+ */
+const emergencyRequestSchemaErrorCode = (error) => {
+  const coordinateFields = new Set([
+    'latitude',
+    'longitude',
+    'vehicle_origin_latitude',
+    'vehicle_origin_longitude',
+    'vehicle_destination_latitude',
+    'vehicle_destination_longitude',
+  ]);
+
+  const isCoordinateFailure = (error?.details || []).some((detail) => {
+    if (detail.type === 'object.and') {
+      // Joi expõe `present`/`missing` (não `peers`) no contexto de object.and.
+      const involvedFields = [
+        ...(detail.context?.present || []),
+        ...(detail.context?.missing || []),
+      ];
+      return involvedFields.some((field) => coordinateFields.has(field));
+    }
+
+    // Custom de (0,0) no objeto raiz: `any.invalid` sem path de campo.
+    if (detail.type === 'any.invalid' && (detail.path || []).length === 0) {
+      return true;
+    }
+
+    return coordinateFields.has(detail.path?.[0]);
+  });
+
+  return isCoordinateFailure ? 'invalid_coordinates' : 'invalid_payload';
+};
+
 module.exports = {
   validate,
+  emergencyRequestSchemaErrorCode,
   authSchemas,
   userSchemas,
   mechanicSchemas,

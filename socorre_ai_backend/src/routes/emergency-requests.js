@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const EmergencyRequestController = require('../controllers/emergencyRequestController');
 const { auth, requireRole } = require('../middleware/auth');
-const { emergencyRequestSchemas, validate } = require('../middleware/validation');
+const { emergencyRequestSchemas, validate, emergencyRequestSchemaErrorCode } = require('../middleware/validation');
 
 // Guarda de boot do contrato mobile (docs/MOBILE-AUTH-TOW-CONTRACT-V1.md §4.4):
 // start/complete são endpoints oficiais do ciclo tow. Um merge/deploy que perca
@@ -52,7 +52,7 @@ router.get('/stats',
 router.post('/', 
   auth, 
   requireRole(['user']), 
-  validate(emergencyRequestSchemas.create),
+  validate(emergencyRequestSchemas.create, { codeResolver: emergencyRequestSchemaErrorCode }),
   EmergencyRequestController.create
 );
 

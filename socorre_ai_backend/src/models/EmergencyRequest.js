@@ -54,6 +54,27 @@ function isPostgresClient(instance) {
   return client === 'pg' || client === 'postgresql';
 }
 
+/**
+ * G3 — referência única de "agora" para comparar prazos (`proposal_selection_deadline`)
+ * e expiração de proposta (`expires_at`).
+ *
+ * PostgreSQL usa colunas `timestamp` e recebe `Date`; o SQLite do harness guarda
+ * epoch ms (inteiro), então recebe `Date.now()`. Centralizar aqui evita que cada
+ * consulta invente seu próprio dialeto e mantém PG/SQLite com a mesma semântica.
+ */
+function resolveProposalDeadlineReference(instance) {
+  return isPostgresClient(instance) ? new Date() : Date.now();
+}
+
+/**
+ * G3 — aceita Date (PostgreSQL), epoch ms (SQLite/harness) e ISO string.
+ * Valor ausente/ilegível nunca é considerado prazo futuro.
+ */
+function isFutureProposalDeadline(rawDeadline) {
+  const deadline = rawDeadline instanceof Date ? rawDeadline : new Date(rawDeadline);
+  return Number.isFinite(deadline.getTime()) && deadline.getTime() > Date.now();
+}
+
 class EmergencyRequest {
   static parseJsonField(value, fallback = null) {
     if (!value) return fallback;
@@ -420,13 +441,34 @@ class EmergencyRequest {
   }
 
   // Buscar solicitações próximas (para parceiros)
-  static async findNearby(latitude, longitude, radius = 15, type = null) {
-    const distanceExpression = `
+  //
+  // G3: quando o filtro é `type=tow`, a listagem é de oportunidades reais de
+  // guincho — somente `status=pending`, `proposal_status=awaiting_proposals` e
+  // prazo (`proposal_selection_deadline`) ainda no futuro. `excludePartnerId`
+  // remove apenas a proposta `pending` do próprio parceiro solicitante;
+  // withdrawn/rejected/expired continuam listados (histórico não exclui).
+  static async findNearby(latitude, longitude, radius = 15, type = null, options = {}) {
+    // G3 — linhas legadas podem ter latitude/longitude nulas, fora dos limites ou
+    // o par (0,0). Em PostgreSQL `acos` fora de [-1,1] levanta "input is out of
+    // range"; o CASE garante que a expressão só é avaliada para coordenadas
+    // operacionais (a ordem de ANDs no planner não é garantida). Linhas inválidas
+    // viram distância NULL e ficam fora da listagem — os dados históricos não são
+    // corrigidos por migration.
+    const rawDistanceExpression = `
       6371 * acos(
         cos(radians(?)) * cos(radians(latitude)) * 
         cos(radians(longitude) - radians(?)) + 
         sin(radians(?)) * sin(radians(latitude))
       )
+    `;
+    const distanceExpression = `
+      CASE
+        WHEN latitude IS NULL OR longitude IS NULL THEN NULL
+        WHEN latitude < -90 OR latitude > 90 THEN NULL
+        WHEN longitude < -180 OR longitude > 180 THEN NULL
+        WHEN latitude = 0 AND longitude = 0 THEN NULL
+        ELSE ${rawDistanceExpression}
+      END
     `;
 
     let query = knex('emergency_requests')
@@ -448,6 +490,36 @@ class EmergencyRequest {
       } else {
         query = query.where('emergency_requests.type', type);
       }
+    }
+
+    const towOnly = options.towOnly ?? (Boolean(type) && normalizedType === 'tow');
+    if (towOnly) {
+      // Intenção explícita (o CASE acima já garante a avaliação segura): tow nunca
+      // lista pedido sem par operacional.
+      query = query
+        .whereNotNull('emergency_requests.latitude')
+        .whereNotNull('emergency_requests.longitude')
+        .whereBetween('emergency_requests.latitude', [-90, 90])
+        .whereBetween('emergency_requests.longitude', [-180, 180])
+        .whereNot(function excludeZeroZeroCoordinates() {
+          this.where('emergency_requests.latitude', 0).where('emergency_requests.longitude', 0);
+        })
+        .where('emergency_requests.proposal_status', 'awaiting_proposals')
+        .where(
+          'emergency_requests.proposal_selection_deadline',
+          '>',
+          resolveProposalDeadlineReference(knex)
+        );
+    }
+
+    if (options.excludePartnerId) {
+      query = query.whereNotExists(function excludeOwnPendingProposals() {
+        this.select(knex.raw('1'))
+          .from('tow_proposals')
+          .whereRaw('tow_proposals.emergency_request_id = emergency_requests.id')
+          .where('tow_proposals.partner_id', options.excludePartnerId)
+          .where('tow_proposals.status', 'pending');
+      });
     }
 
     return await query;
@@ -686,7 +758,8 @@ class EmergencyRequest {
       ...requestData,
       request_type: 'tow',
       proposal_status: 'awaiting_proposals',
-      proposal_selection_deadline: proposalDeadline,
+      // SQLite (harness) guarda epoch ms; PostgreSQL guarda timestamp real.
+      proposal_selection_deadline: isPostgresClient(knex) ? proposalDeadline : proposalDeadline.getTime(),
       max_proposals: maxProposals,
       proposals_received: 0,
       search_radius_km: searchRadius,
@@ -763,6 +836,7 @@ class EmergencyRequest {
   static async acceptProposal(emergencyRequestId, proposalId) {
     // Iniciar transação
     const trx = await knex.transaction();
+    const nowReference = resolveProposalDeadlineReference(trx);
     
     try {
       // Lock the request row so concurrent accepts serialize on PostgreSQL.
@@ -771,7 +845,7 @@ class EmergencyRequest {
         .where('request_type', 'tow')
         .where('status', 'pending')
         .where('proposal_status', 'awaiting_proposals')
-        .where('proposal_selection_deadline', '>', knex.fn.now())
+        .where('proposal_selection_deadline', '>', nowReference)
         .forUpdate()
         .first();
       if (!currentRequest) {
@@ -784,7 +858,7 @@ class EmergencyRequest {
         .where('id', proposalId)
         .where('emergency_request_id', emergencyRequestId)
         .where('status', 'pending')
-        .where('expires_at', '>', knex.fn.now())
+        .where('expires_at', '>', nowReference)
         .update({
           status: 'accepted',
           accepted_at: knex.fn.now(),
@@ -841,29 +915,75 @@ class EmergencyRequest {
     }
   }
 
+  /**
+   * G3 — referência pública de "agora" para prazos (ver
+   * `resolveProposalDeadlineReference`): Date no PostgreSQL, epoch ms no SQLite
+   * do harness.
+   */
+  static proposalDeadlineReference(instance = knex) {
+    return resolveProposalDeadlineReference(instance);
+  }
+
+  /**
+   * G3 — prazo futuro aceitando Date (PostgreSQL), epoch ms (SQLite) e ISO
+   * string; ausente/ilegível => false.
+   */
+  static hasFutureProposalDeadline(rawDeadline) {
+    return isFutureProposalDeadline(rawDeadline);
+  }
+
+  /**
+   * G3 — avaliação pura da janela de propostas para uma linha de
+   * `emergency_requests` já carregada. É a MESMA regra usada pelo pré-check HTTP
+   * e pela revalidação dentro da transação de reserva (lock), para não existirem
+   * duas semânticas de "aceita propostas".
+   */
+  static isAcceptingProposals(request) {
+    if (!request) return false;
+    if (normalizeRequestType(request.request_type) !== 'tow') return false;
+    // Pedido fechado (accepted/completed/cancelled) não recebe novas propostas.
+    if (request.status !== 'pending') return false;
+    if (request.proposal_status !== 'awaiting_proposals') return false;
+    if (request.proposals_received >= request.max_proposals) return false;
+
+    return isFutureProposalDeadline(request.proposal_selection_deadline);
+  }
+
   // Verificar se ainda pode receber propostas
   static async canReceiveProposals(emergencyRequestId) {
     const request = await knex('emergency_requests')
       .where('id', emergencyRequestId)
       .first();
 
-    if (!request) return false;
-    if (normalizeRequestType(request.request_type) !== 'tow') return false;
-    if (request.proposal_status !== 'awaiting_proposals') return false;
-    if (request.proposals_received >= request.max_proposals) return false;
-    if (new Date() > request.proposal_selection_deadline) return false;
-
-    return true;
+    return this.isAcceptingProposals(request);
   }
 
-  // Incrementar contador de propostas recebidas
-  static async incrementProposalCount(emergencyRequestId) {
-    return await knex('emergency_requests')
+  /**
+   * G3 — lock da linha da emergência para a seção crítica
+   * validação → INSERT da proposta → incremento de `proposals_received`.
+   *
+   * PostgreSQL usa `SELECT ... FOR UPDATE` (a transação concorrente espera o
+   * commit e relê a linha, enxergando o contador já atualizado). O SQLite do
+   * harness tem uma única conexão/pool de 1, então as transações serializam
+   * naturalmente e `FOR UPDATE` (sintaxe inválida) não é emitido.
+   */
+  static async lockForProposalReservation(emergencyRequestId, trx) {
+    const query = trx('emergency_requests').where('id', emergencyRequestId);
+    if (isPostgresClient(trx)) {
+      query.forUpdate();
+    }
+    return await query.first();
+  }
+
+  // Incrementar contador de propostas recebidas (aceita transação do chamador
+  // para ser atômico com o INSERT da proposta).
+  static async incrementProposalCount(emergencyRequestId, trx = knex) {
+    return await trx('emergency_requests')
       .where('id', emergencyRequestId)
       .increment('proposals_received', 1)
       .update({
-        last_proposal_at: knex.fn.now(),
-        updated_at: knex.fn.now()
+        last_proposal_at: trx.fn.now(),
+        updated_at: trx.fn.now()
       });
   }
 
@@ -872,7 +992,7 @@ class EmergencyRequest {
     const result = await knex('tow_proposals')
       .where('emergency_request_id', emergencyRequestId)
       .where('status', 'pending')
-      .where('expires_at', '<=', new Date())
+      .where('expires_at', '<=', resolveProposalDeadlineReference(knex))
       .update({
         status: 'expired',
         responded_at: knex.fn.now()

@@ -1,75 +1,201 @@
 const TowProposal = require('../models/TowProposal');
 const EmergencyRequest = require('../models/EmergencyRequest');
 const Partner = require('../models/Partner');
+const knex = require('../config/database');
 const NotificationService = require('./NotificationServiceNew');
+const EmergencyRequestService = require('./EmergencyRequestService');
+const { ServiceError } = require('./ServiceError');
+
+const TOW_PARTNER_TYPE = 'tow';
+
+/**
+ * Constraint de unicidade da migration 044 (índice parcial
+ * `tow_proposals_one_pending_per_partner`): PostgreSQL 23505 e
+ * SQLite SQLITE_CONSTRAINT(_UNIQUE) representam a mesma corrida.
+ */
+function isDuplicatePendingProposalError(error) {
+  if (!error) {
+    return false;
+  }
+
+  if (error.code === '23505' || error.code === 'SQLITE_CONSTRAINT' || error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+    return true;
+  }
+
+  return /UNIQUE constraint failed|duplicate key value violates unique constraint/i.test(error.message || '');
+}
 
 class TowProposalService {
   // Criar nova proposta
-  static async createProposal(emergencyRequestId, partnerId, proposalData) {
+  static async createProposal(emergencyRequestId, partnerId, proposalData = {}) {
+    const requestId = Number(emergencyRequestId);
+    if (!Number.isInteger(requestId) || requestId <= 0) {
+      throw new ServiceError(400, 'invalid_payload', 'emergency_request_id inválido');
+    }
+
+    if (!partnerId) {
+      throw new ServiceError(403, 'partner_not_tow', 'Apenas guinchos podem enviar propostas');
+    }
+
+    const proposedPrice = Number(proposalData.proposed_price);
+    if (!Number.isFinite(proposedPrice) || proposedPrice <= 0) {
+      throw new ServiceError(
+        400,
+        'invalid_payload',
+        'proposed_price deve ser um número finito maior que zero'
+      );
+    }
+
+    const estimatedTimeMinutes = Number.parseInt(proposalData.estimated_time_minutes, 10);
+    if (!Number.isFinite(estimatedTimeMinutes) || estimatedTimeMinutes <= 0) {
+      throw new ServiceError(
+        400,
+        'invalid_payload',
+        'estimated_time_minutes deve ser um número maior que zero'
+      );
+    }
+
+    // Somente parceiro tow pode propor; o vínculo vem do token, nunca do body.
+    const partner = await Partner.findById(partnerId);
+    if (!partner || EmergencyRequestService.normalizePartnerType(partner.type) !== TOW_PARTNER_TYPE) {
+      throw new ServiceError(403, 'partner_not_tow', 'Apenas guinchos podem enviar propostas');
+    }
+
+    // Parceiro e emergência precisam de localização operacional válida (nunca 0,0).
+    const partnerCoordinates = EmergencyRequestService.resolvePartnerCoordinates(partner);
+
+    const emergency = await EmergencyRequest.findById(requestId);
+    if (!emergency) {
+      throw new ServiceError(404, 'emergency_not_found', 'Emergência não encontrada');
+    }
+
+    const canReceive = await EmergencyRequest.canReceiveProposals(requestId);
+    if (!canReceive) {
+      throw new ServiceError(
+        400,
+        'emergency_not_accepting_proposals',
+        'Esta emergência não está mais aceitando propostas'
+      );
+    }
+
+    const emergencyCoordinates = EmergencyRequestService.resolveEmergencyCoordinates(emergency);
+
+    // Duplicidade sequencial: 409 sem incrementar contador nem notificar.
+    const alreadyProposed = await TowProposal.hasPartnerProposed(requestId, partnerId);
+    if (alreadyProposed) {
+      throw new ServiceError(409, 'proposal_duplicate', 'Você já enviou uma proposta para esta emergência');
+    }
+
+    const priceValidation = await EmergencyRequest.validateTowProposalPrice(requestId, proposedPrice);
+    if (!priceValidation.valid) {
+      throw new ServiceError(
+        400,
+        'proposal_price_below_minimum',
+        `Proposta abaixo do mínimo permitido pelo backend. Valor mínimo atual: R$ ${priceValidation.minimumAcceptedPrice}`,
+        { minimum_accepted_price: priceValidation.minimumAcceptedPrice }
+      );
+    }
+
+    const proposalExpiryMinutes = await EmergencyRequest.getProposalExpiryMinutes();
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + proposalExpiryMinutes);
+
+    const partnerDistance = Partner.calculateDistance(
+      partnerCoordinates.latitude,
+      partnerCoordinates.longitude,
+      emergencyCoordinates.latitude,
+      emergencyCoordinates.longitude
+    );
+
+    const proposalDataComplete = {
+      emergency_request_id: requestId,
+      partner_id: partnerId,
+      proposed_price: proposedPrice,
+      estimated_time_minutes: estimatedTimeMinutes,
+      message: proposalData.message,
+      tow_truck_type: partner.tow_truck_type,
+      tow_capacity_kg: partner.tow_capacity_kg,
+      has_winch: partner.has_winch,
+      expires_at: expiresAt,
+      partner_distance_km: partnerDistance,
+    };
+
+    // G3 — seção crítica: revalidação + INSERT da proposta + incremento de
+    // `proposals_received` na MESMA transação. O lock na linha da emergência
+    // serializa parceiros distintos disputando a última vaga de `max_proposals`
+    // (PostgreSQL usa SELECT ... FOR UPDATE; o SQLite do harness tem pool de 1
+    // conexão e serializa naturalmente).
+    const trx = await knex.transaction();
+    let proposal;
+
     try {
-      // Verificar se emergência existe e pode receber propostas
-      const canReceive = await EmergencyRequest.canReceiveProposals(emergencyRequestId);
-      if (!canReceive) {
-        throw new Error('Esta emergência não está mais aceitando propostas');
+      const lockedEmergency = await EmergencyRequest.lockForProposalReservation(requestId, trx);
+
+      if (!lockedEmergency) {
+        throw new ServiceError(404, 'emergency_not_found', 'Emergência não encontrada');
       }
 
-      // Verificar se parceiro já enviou proposta
-      const alreadyProposed = await TowProposal.hasPartnerProposed(emergencyRequestId, partnerId);
-      if (alreadyProposed) {
-        throw new Error('Você já enviou uma proposta para esta emergência');
+      // Revalida com a linha travada: entre o pré-check e o lock outro parceiro
+      // pode ter consumido a última vaga (mesma regra JS do pré-check).
+      if (!EmergencyRequest.isAcceptingProposals(lockedEmergency)) {
+        throw new ServiceError(
+          400,
+          'emergency_not_accepting_proposals',
+          'Esta emergência não está mais aceitando propostas'
+        );
       }
 
-      // Buscar dados do parceiro
-      const partner = await Partner.findById(partnerId);
-      if (!partner || partner.type !== 'guincho') {
-        throw new Error('Apenas guinchos podem enviar propostas');
+      // Rede de segurança da migration 044 dentro da transação: mesma duplicata
+      // sequencial/concorrente continua 409.
+      const alreadyProposedInTransaction = await TowProposal.hasPartnerProposed(requestId, partnerId, trx);
+      if (alreadyProposedInTransaction) {
+        throw new ServiceError(409, 'proposal_duplicate', 'Você já enviou uma proposta para esta emergência');
       }
 
-      // Calcular tempo de expiração
-      const proposalExpiryMinutes = await EmergencyRequest.getProposalExpiryMinutes();
-      const expiresAt = new Date();
-      expiresAt.setMinutes(expiresAt.getMinutes() + proposalExpiryMinutes);
+      proposal = await TowProposal.create(proposalDataComplete, trx);
+      await EmergencyRequest.incrementProposalCount(requestId, trx);
 
-      // Calcular distância
-      const partnerDistance = await this.calculatePartnerDistance(partnerId, emergencyRequestId);
+      await trx.commit();
+    } catch (error) {
+      // Rollback cobre falha do INSERT e falha do incremento: o contador nunca
+      // fica dessincronizado da proposta persistida.
+      try {
+        if (!trx.isCompleted()) {
+          await trx.rollback();
+        }
+      } catch (rollbackError) {
+        console.error('Falha ao reverter transação de proposta:', rollbackError);
+      }
 
-      // Criar proposta
-      const proposalDataComplete = {
-        emergency_request_id: emergencyRequestId,
-        partner_id: partnerId,
-        proposed_price: parseFloat(proposalData.proposed_price),
-        estimated_time_minutes: parseInt(proposalData.estimated_time_minutes),
-        message: proposalData.message,
-        tow_truck_type: partner.tow_truck_type,
-        tow_capacity_kg: partner.tow_capacity_kg,
-        has_winch: partner.has_winch,
-        expires_at: expiresAt,
-        partner_distance_km: partnerDistance
-      };
+      if (error instanceof ServiceError) {
+        throw error;
+      }
 
-      const proposal = await TowProposal.create(proposalDataComplete);
+      // Duplicidade concorrente: a constraint da migration 044 vence a corrida
+      // e a resposta continua 409 — sem contador/notificação duplicados.
+      if (isDuplicatePendingProposalError(error)) {
+        throw new ServiceError(409, 'proposal_duplicate', 'Você já enviou uma proposta para esta emergência');
+      }
 
-      // Incrementar contador de propostas da emergência
-      await EmergencyRequest.incrementProposalCount(emergencyRequestId);
+      throw error;
+    }
 
-      // Notificar cliente sobre nova proposta
-      const emergency = await EmergencyRequest.findById(emergencyRequestId);
+    try {
       await NotificationService.sendNotification(
         emergency.user_id,
         'Nova proposta de guincho',
-        `Você recebeu uma proposta de R$ ${proposalData.proposed_price} de ${partner.business_name}`,
+        `Você recebeu uma proposta de R$ ${proposedPrice} de ${partner.business_name}`,
         {
           type: 'tow_proposal',
-          emergency_request_id: emergencyRequestId,
-          proposal_id: proposal.id
+          emergency_request_id: requestId,
+          proposal_id: proposal.id,
         }
       );
-
-      return proposal;
-    } catch (error) {
-      console.error('Erro ao criar proposta:', error);
-      throw error;
+    } catch (notificationError) {
+      console.error('Falha ao notificar nova proposta:', notificationError);
     }
+
+    return proposal;
   }
 
   // Aceitar proposta
@@ -130,19 +256,30 @@ class TowProposalService {
     }
   }
 
-  // Retirar proposta
-  static async withdrawProposal(proposalId) {
-    try {
-      const proposal = await TowProposal.findById(proposalId);
-      if (!proposal) {
-        throw new Error('Proposta não encontrada');
-      }
-
-      return await TowProposal.withdraw(proposalId);
-    } catch (error) {
-      console.error('Erro ao retirar proposta:', error);
-      throw error;
+  // Retirar proposta — somente o parceiro dono e somente pending -> withdrawn.
+  // Repetição/status inválido => 400; outro parceiro => 403; inexistente => 404.
+  // O histórico é preservado (UPDATE de status, nunca DELETE).
+  static async withdrawProposal(proposalId, partnerId) {
+    const id = Number(proposalId);
+    if (!Number.isInteger(id) || id <= 0) {
+      throw new ServiceError(400, 'invalid_payload', 'Proposta inválida');
     }
+
+    const proposal = await TowProposal.findById(id);
+    if (!proposal) {
+      throw new ServiceError(404, 'proposal_not_found', 'Proposta não encontrada');
+    }
+
+    if (!partnerId || Number(proposal.partner_id) !== Number(partnerId)) {
+      throw new ServiceError(403, 'forbidden', 'Acesso negado');
+    }
+
+    const withdrawnProposal = await TowProposal.withdraw(id);
+    if (!withdrawnProposal) {
+      throw new ServiceError(400, 'proposal_not_pending', 'Somente proposta pendente pode ser retirada');
+    }
+
+    return withdrawnProposal;
   }
 
   // Expirar proposta
