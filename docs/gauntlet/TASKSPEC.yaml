@@ -1,0 +1,110 @@
+spec_version: "1"
+planner: Luna
+objective: "Corrigir e validar o Serviço de Guincho"
+repository: reiko-dev/socorre-ja-platform
+base_branch: main
+max_cycles: 3
+current_state:
+  implemented:
+    - "Rotas locais de emergência e propostas"
+    - "Autorização por papel/parceiro atribuído"
+    - "Start/complete idempotentes no controller"
+    - "Propostas únicas via índice parcial"
+    - "Aceite concorrente com transação/lock"
+    - "Busca por raio e preço via system_settings"
+    - "Fotos como JSON em emergency_requests.photos"
+  known_gaps:
+    - "Produção retornou 404 em start/complete, apesar das rotas locais"
+    - "Contrato de fotos não define upload, MIME, tamanho ou URLs"
+    - "complete não aplica efetivamente o schema Joi da rota"
+    - "Controller e Service de propostas têm regras divergentes"
+    - "Testes antigos referenciam endpoints PATCH/DELETE ausentes"
+    - "Deploy externo ainda não validado"
+hypotheses:
+  H1: "404 de produção é versão/roteamento/deploy atrasado; confirmar por smoke após deploy."
+  H2: "TowProposalController é caminho HTTP ativo; confirmar antes de alterar Service."
+  H3: "Fotos JSON só são compatíveis se Mobile fizer upload externo; não inventar upload."
+  H4: "Preço mínimo deve vir de system_settings, sem constantes fixas."
+workstreams:
+  G1:
+    goal: "Rotas, permissões e idempotência"
+    branch: codex/g1-routes-permissions-idempotency
+    owned_files:
+      - socorre_ai_backend/src/routes/emergency-requests.js
+      - socorre_ai_backend/src/controllers/emergencyRequestController.js
+      - socorre_ai_backend/src/models/EmergencyRequest.js
+      - socorre_ai_backend/tests/tow/towLifecycleController.test.js
+      - socorre_ai_backend/tests/tow/towHttp.transport.test.js
+    tests:
+      - "401 sem Bearer; 403 para parceiro não atribuído; cliente sem papel de parceiro"
+      - "admin pode operar; start somente accepted; complete somente in_progress"
+      - "repetições não duplicam mutação, cobrança, evento, notificação ou registro"
+      - "concorrência não permite transição incompatível"
+    acceptance:
+      - "start/complete montados no processo correto e sem 404 após publicação"
+      - "Matriz de autorização coincide com docs/MOBILE-AUTH-TOW-CONTRACT-V1.md"
+  G2:
+    goal: "Fotos, schema e preço"
+    owned_files:
+      - socorre_ai_backend/src/middleware/validation.js
+      - socorre_ai_backend/src/controllers/emergencyRequestController.js
+      - socorre_ai_backend/src/models/EmergencyRequest.js
+      - socorre_ai_backend/database/migrations/*
+      - socorre_ai_backend/tests/tow/*
+    tests:
+      - "fotos ausentes, inválidas, excedentes e retries"
+      - "final_price inválido/negativo/abaixo do mínimo"
+      - "schema aplicado antes de INSERT/UPDATE"
+      - "system_settings alterado reflete no cálculo"
+    acceptance:
+      - "contrato de fotos explícito e persistente"
+      - "schema/controller consistentes"
+      - "pricing backend; sem regra inventada"
+  G3:
+    goal: "Nearby, propostas e coordenadas"
+    owned_files:
+      - socorre_ai_backend/src/controllers/emergencyRequestController.js
+      - socorre_ai_backend/src/models/EmergencyRequest.js
+      - socorre_ai_backend/src/controllers/TowProposalController.js
+      - socorre_ai_backend/src/models/TowProposal.js
+      - socorre_ai_backend/src/services/TowProposalService.js
+      - socorre_ai_backend/tests/tow/*
+    tests:
+      - "nearby valida coordenadas, raio, tipo, pending e exclude_proposed"
+      - "proposta duplicada sequencial/concurrent retorna 409"
+      - "aceite concorrente deixa exatamente um vencedor"
+      - "coordenadas ausentes/0,0 não são aceitas silenciosamente"
+      - "withdraw/cancel respeitam papel e vínculo"
+    acceptance:
+      - "índice parcial protege duplicidade em PostgreSQL"
+      - "sem divergência ativa Controller/Model/Service"
+ambiguities:
+  - "Fotos: URLs externas ou multipart/backend; MIME, tamanho e retenção"
+  - "Repetição idempotente: 200 com recurso atual ou 409"
+  - "final_price acima da proposta aceita e limite"
+  - "limite máximo de radius e obrigatoriedade de origem/destino"
+  - "camada oficial de regras de proposta"
+  rule: "Não inventar regra; registrar BUSINESS_RULE_AMBIGUITY."
+cycles:
+  - cycle: 1
+    focus: G1+G2
+    gates: ["npm test -- tests/tow", "npm run test:unit", "npm run test:integration"]
+  - cycle: 2
+    focus: G3
+    gates: ["TOW_POSTGRES_E2E=1 npm test -- tests/tow/towPostgres.e2e.test.js", "npx knex migrate:latest"]
+  - cycle: 3
+    focus: "integração/deploy/revalidação"
+    gates: ["npm test", "docker compose config", "smoke autenticado", "scan de secrets"]
+deterministic_gates:
+  - "nenhum teste tow regride"
+  - "migrations sobem e fazem rollback"
+  - "Bearer obrigatório e mutações inválidas não alcançam banco"
+  - "concorrência deixa exatamente um vencedor"
+  - "produção não retorna 404 para start/complete"
+  - "500 não expõe SQL, constraint ou stack"
+final_acceptance:
+  - "G1/G2/G3 passam gates isolados e integrados"
+  - "cliente cria, recebe propostas, aceita e acompanha accepted/in_progress/completed"
+  - "parceiro consulta nearby, propõe, inicia e conclui pedido atribuído"
+  - "fotos, coordenadas e payloads inválidos são rejeitados deterministicamente"
+  - "contrato Mobile atualizado; produção revalidada após deploy"

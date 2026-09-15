@@ -1,0 +1,59 @@
+objective: "Corrigir e validar o Serviço de Guincho no backend"
+status: IN_PROGRESS
+terminal_state: null
+repository: reiko-dev/socorre-ja-platform
+base_branch: main
+head: 4859f57e0b61cefcc0dd75157c131591caf997f0
+worktree: clean
+remote: https://github.com/reiko-dev/socorre-ja-platform.git
+max_execution_cycles: 3
+cycle: 0
+current_task: orchestration-capability-check
+workstreams:
+  G1:
+    status: NOT_STARTED
+    branch: null
+    commit: null
+  G2:
+    status: NOT_STARTED
+    branch: null
+    commit: null
+  G3:
+    status: NOT_STARTED
+    branch: null
+    commit: null
+blockers:
+  - id: provider-interfaces-dsh-opencode
+    task_id: orchestration-capability-check
+    type: capability
+    reason: "Cadeia obrigatória exige DeepSeek V4.1 Flash via DSH e Muse 1.3 Free via OpenCode; nenhuma interface/tool desses providers está disponível nesta sessão."
+    dependency: "DSH DeepSeek V4.1 Flash; OpenCode Muse 1.3 Free"
+    verification_predicate: "Interfaces DSH e OpenCode aparecem como providers executáveis com telemetria real"
+    evidence: "Ferramentas disponíveis expõem apenas modelos Codex (incluindo gpt-5.6-luna); não há DSH/DeepSeek/OpenCode/Muse."
+    owner: user/session-capability
+    attempts: 1
+    last_checked_at: "2026-09-15T10:26:08-05:00"
+    next_check_at: "2026-09-15T10:36:08-05:00"
+    status: RESOLVED
+quotas:
+  LUNA_POOL:
+    short_window_remaining_percent: 91
+    weekly_remaining_percent: 81
+    effective_remaining_percent: 81
+    source: "Codex get_usage_limits"
+  DSH_DEEPSEEK_POOL:
+    status: HARNESS_REACHABLE
+    evidence: "dsh --profile deepseekflash \"responda apenas com: pong\" => pong, exit 0"
+  OPENCODE_MUSE_POOL:
+    status: CLI_REACHABLE
+    evidence: "opencode run -m opencode/muse-spark-1.3-contributor-free \"responda apenas com: pong\" => pong, exit 0"
+cronjobs:
+  - name: "gauntlet-blocker-watch:socorre-ja-platform:orchestration-capability-check:provider-interfaces-dsh-opencode"
+    id: "gauntlet-blocker-watch-socorre-ja-platform-orchestration-capability-check-provider-interfaces-dsh-opencode"
+    status: ACTIVE
+    interval: 10m
+branches: []
+commits: []
+validations: []
+findings: []
+next_action: "Receber TaskSpec Luna; então delegar implementação ao DSH e executar gates determinísticos antes do Muse."
