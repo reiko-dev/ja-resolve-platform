@@ -1,6 +1,6 @@
 objective: "Corrigir e validar o Serviço de Guincho no backend"
 status: BLOCKED
-terminal_state: BLOCKED_PENDING_MUSE_REVIEW_AND_DOCKER_VALIDATION
+terminal_state: BLOCKED_PENDING_MUSE_REVIEW_AFTER_FINDINGS_RESOLUTION
 repository: reiko-dev/socorre-ja-platform
 base_branch: main
 head: 99215384
@@ -18,9 +18,12 @@ workstreams:
     muse_verdict: APPROVE_WITH_FINDINGS
     luna_adjudication: ACCEPT_WITH_DEFERRED_FINDINGS
   G2:
-    status: IMPLEMENTED_BLOCKED
+    status: FINDINGS_ADDRESSED_PENDING_REVIEW
     branch: codex/g2-photo-schema-pricing
     commit: 99215384
+    fix_commit_message: "fix(g2): address Muse pricing schema and orphan findings"
+    fix_commit_hash: "registrado no work_result (não é possível embutir o próprio hash no commit)"
+    findings_resolution_doc: docs/gauntlet/G2-MUSE-FINDINGS-RESOLUTION.md
     muse_verdict: UNAVAILABLE_AFTER_FOUR_ATTEMPTS
     luna_adjudication: ACCEPT_WITH_BLOCKER
   G3:
@@ -113,7 +116,7 @@ branches:
   - name: codex/g1-routes-permissions-idempotency
     status: merged
   - name: codex/g2-photo-schema-pricing
-    status: implemented_blocked_pending_review
+    status: findings_addressed_pending_review
 commits:
   - 48c531d0
   - 42b2d7ab
@@ -124,13 +127,16 @@ validations:
     result: "2 suites, 43/43 PASS"
   - task: G2
     command: "npx jest tests/tow/g2PhotoContract.test.js tests/unit/servicePhotoStorage.test.js --runInBand --forceExit"
-    result: "59/59 PASS"
+    result: "78/78 PASS (50 G2 + 28 unit)"
   - task: G2-tow-suite
     command: "npx jest tests/tow --runInBand --forceExit"
-    result: "84 passed, 2 skipped"
+    result: "97 passed, 2 skipped"
   - task: G2-migrations
     command: "knex migrate:latest; migrate:down 045; migrate:up 045; migrate:rollback --all; migrate:latest"
     result: "PostgreSQL latest/down/up and full rollback/reapply PASS"
+  - task: G2-migrations-list
+    command: "knex migrate:list (PostgreSQL do stack, porta 5434)"
+    result: "43 migrations aplicadas, 0 pending"
   - task: G2-backup
     command: "scripts/backup-service-photos-and-db.sh"
     result: "Backup, checksum, pg_restore listing, fresh restore and failure mode PASS"
@@ -140,6 +146,12 @@ validations:
   - task: G2-runtime
     command: "docker compose -f docker-compose-simple.yml config; docker compose ps; curl /health; knex migrate:list"
     result: "PASS: config exit 0; 4 containers Up; /health HTTP 200 with postgres ok; 43 migrations complete, 0 pending"
+  - task: G2-runtime-live
+    command: "node (Express app real + PostgreSQL do stack): POST tow sem pricing / com pricing / upload / leitura / reconcile"
+    result: "PASS: 503 tow_pricing_not_configured sem inserir linha; 201 com breakdown pricing_source=system_settings; upload 201; leitura 200 private,no-store sem storage_key nem raiz; dry-run manteve órfão, apply removeu 1 e preservou referenciado"
+  - task: G2-reconcile-cli
+    command: "node scripts/reconcile-service-photos.js [--apply] (dry-run default)"
+    result: "PASS: órfão de chave válida listado/removido; arquivo fora do contrato preservado; exit 0"
 findings:
   - id: muse-1
     task_id: G1
@@ -151,6 +163,36 @@ findings:
     decision: BUSINESS_RULE_AMBIGUITY
     owner: contract-formalization
     description: "Contrato ainda não fixa 200 versus 409 para retry idempotente; implementação mantém 200."
+  - id: muse-g2-pricing-defaults
+    task_id: G2
+    decision: FIXED
+    owner: G2
+    description: "HIGH — getTowPricingSettings devolvia 6/25/90/40 e o piso 90 era inventado. Agora só system_settings; ausência vira null/503 controlado (missing_settings) sem inserir linha; leitura admin também não fabrica defaults."
+  - id: muse-g2-mechanic-contract
+    task_id: G2
+    decision: FIXED
+    owner: G2
+    description: "HIGH — schema estrito pré-G2 nunca aplicado não foi restaurado; comportamento G1 documentado preservado ({} aceito, final_price opcional no mecânico) e final_price obrigatório somente no completeTow; teste garante que a única diferença entre os schemas é a obrigatoriedade."
+  - id: muse-g2-storage-key-pattern
+    task_id: G2
+    decision: FIXED
+    owner: G2
+    description: "MEDIUM — STORAGE_KEY_PATTERN restrito a /^[1-9][0-9]*\\/(pickup|delivery)-[0-9a-f-]{36}\\.(jpg|webp)$/ com testes de prefixos arbitrários."
+  - id: muse-g2-orphan-reconciliation
+    task_id: G2
+    decision: FIXED
+    owner: G2
+    description: "MEDIUM — reconcileOrphanServicePhotos (dry-run default, CLI --apply) varre só chaves válidas sob SERVICE_PHOTO_STORAGE_DIR e remove apenas sem referência nas quatro colunas, com revalidação imediatamente antes do unlink; nunca sai da raiz nem segue symlink."
+  - id: g2-mechanic-complete-pre-g2-schema-vs-g1
+    task_id: G2
+    decision: BUSINESS_RULE_AMBIGUITY
+    owner: contract-formalization
+    description: "Schema pré-G2 declarava final_price/solution_description obrigatórios, mas nenhum fluxo aplicava e o G1 documentou {} como válido. Preservado o comportamento documentado; formalizar exige mudança de contrato e de teste G1."
+  - id: g2-tow-minimum-without-config
+    task_id: G2
+    decision: BUSINESS_RULE_AMBIGUITY
+    owner: product-contract
+    description: "Conclusão de guincho sem snapshot de breakdown e sem configuração aceita sem piso (minimumAcceptedPrice null, comportamento legado preservado). Risco residual de aceitar valor abaixo do desejado se a configuração sumir."
   - id: muse-adversarial-review-missing
     task_id: G2
     decision: REQUIRES_HUMAN
@@ -163,4 +205,8 @@ findings:
     task_id: G2
     decision: OUT_OF_SCOPE
     description: "TASKSPEC-G2.yaml foi removido do commit de implementação e permanece apenas no worktree como plano operacional."
-next_action: "Retomar revisão Muse quando OpenCode emitir review YAML válido; manter stack Colima/Compose ativa para reprodução."
+  - id: legacy-unit-suites-pre-existing-failures
+    task_id: G2
+    decision: OUT_OF_SCOPE
+    description: "tests/unit completo tem 5 suítes legadas quebradas (DeliveryOrder, DeliveryOrder.basic, Subscription, Subscription.basic, TowProposal): sem banco falham por AggregateError e com o PostgreSQL do stack falham porque consultam colunas inexistentes no schema real. Não têm relação com G2; servicePhotoStorage.test.js passa 28/28."
+next_action: "Retomar revisão Muse quando OpenCode emitir review YAML válido; ver docs/gauntlet/G2-MUSE-FINDINGS-RESOLUTION.md para a resolução dos achados e os dois BUSINESS_RULE_AMBIGUITY registrados."

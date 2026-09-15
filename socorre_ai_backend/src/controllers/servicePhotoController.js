@@ -226,6 +226,11 @@ class ServicePhotoController {
       }
 
       if (wantsJsonRepresentation(req)) {
+        // G2 — mesma política de cache da resposta binária: foto privada não
+        // pode ser guardada por proxy/navegador só porque veio em base64.
+        res.set('Cache-Control', 'private, no-store');
+        res.set('Pragma', 'no-cache');
+
         return res.json({
           success: true,
           data: {

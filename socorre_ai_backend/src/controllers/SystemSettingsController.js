@@ -418,12 +418,15 @@ class SystemSettingsController {
 
       const settings = await SystemSettings.findByKeys(keys);
 
+      // G2 — pricing não fabrica default em lugar nenhum do backend: chave
+      // ausente vira null (antes este endpoint devolvia 6/25/90/40 e mascarava
+      // a ausência de configuração que bloqueia a criação de guincho).
       const guinchoSettings = {
         ...settings,
-        tow_price_per_km: settings.tow_price_per_km ?? 6,
-        tow_platform_fixed_fee: settings.tow_platform_fixed_fee ?? 25,
-        tow_minimum_charge: settings.tow_minimum_charge ?? 90,
-        tow_cancellation_fee: settings.tow_cancellation_fee ?? 40,
+        tow_price_per_km: settings.tow_price_per_km ?? null,
+        tow_platform_fixed_fee: settings.tow_platform_fixed_fee ?? null,
+        tow_minimum_charge: settings.tow_minimum_charge ?? null,
+        tow_cancellation_fee: settings.tow_cancellation_fee ?? null,
       };
 
       res.json({

@@ -27,7 +27,9 @@ const MAX_FILENAME_LENGTH = 255;
 const BASE64_PATTERN = /^[A-Za-z0-9+/]*={0,2}$/;
 const FORMAT_BY_MIME = Object.freeze({ 'image/jpeg': 'jpeg', 'image/webp': 'webp' });
 const EXTENSIONS_BY_FORMAT = Object.freeze({ jpeg: ['.jpg', '.jpeg'], webp: ['.webp'] });
-const STORAGE_KEY_PATTERN = /^[1-9][0-9]*\/[a-z]+-[0-9a-f-]{36}\.(jpg|webp)$/;
+// G2 — chave persistida aceita apenas "<id>/<pickup|delivery>-<uuid>.<jpg|webp>".
+// Prefixos arbitrários (ex.: "<id>/engine-...") não são chaves do contrato.
+const STORAGE_KEY_PATTERN = /^[1-9][0-9]*\/(pickup|delivery)-[0-9a-f-]{36}\.(jpg|webp)$/;
 
 class ServicePhotoError extends Error {
   constructor(code, message, { status = 400, cause = null } = {}) {
@@ -384,6 +386,170 @@ async function removeStoredPhoto(storageKey) {
   }
 }
 
+/**
+ * G2 — lista somente os arquivos que são chaves válidas do contrato sob a raiz
+ * privada (`SERVICE_PHOTO_STORAGE_DIR` por padrão).
+ *
+ * Varredura estrita de dois níveis (<id>/<arquivo>): ignora symlinks (nunca
+ * segue nem aponta para fora), ignora entradas que não casam com
+ * STORAGE_KEY_PATTERN (temporários, lixo, diretórios desconhecidos) e nunca
+ * retorna nada fora da raiz. Não expõe caminho absoluto ao chamador HTTP; o
+ * caminho é usado apenas internamente para remoção segura.
+ */
+async function listStoredPhotoFiles({ root } = {}) {
+  const storageRoot = path.resolve(root || getStorageRoot());
+
+  let rootStat;
+  try {
+    rootStat = await fsp.lstat(storageRoot);
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      return [];
+    }
+    throw new ServicePhotoError('photo_read_failed', 'Não foi possível ler o armazenamento privado', {
+      status: 500,
+      cause: error,
+    });
+  }
+
+  if (rootStat.isSymbolicLink() || !rootStat.isDirectory()) {
+    throw new ServicePhotoError('unsafe_storage_path', 'Caminho de armazenamento inválido', {
+      status: 500,
+    });
+  }
+
+  const files = [];
+  const entries = await fsp.readdir(storageRoot, { withFileTypes: true });
+
+  for (const entry of entries) {
+    if (!entry.isDirectory() || entry.isSymbolicLink()) {
+      continue;
+    }
+
+    const directoryPath = path.join(storageRoot, entry.name);
+    const directoryStat = await fsp.lstat(directoryPath).catch(() => null);
+    if (!directoryStat || directoryStat.isSymbolicLink() || !directoryStat.isDirectory()) {
+      continue;
+    }
+
+    const children = await fsp.readdir(directoryPath, { withFileTypes: true });
+    for (const child of children) {
+      if (!child.isFile() || child.isSymbolicLink()) {
+        continue;
+      }
+
+      const storageKey = `${entry.name}/${child.name}`;
+      if (!STORAGE_KEY_PATTERN.test(storageKey)) {
+        continue;
+      }
+
+      files.push({ storageKey, absolutePath: path.join(directoryPath, child.name) });
+    }
+  }
+
+  return files;
+}
+
+function normalizePhotoReferences(references) {
+  const keys = new Set();
+  const prefixes = new Set();
+
+  if (!references) {
+    return { keys, prefixes };
+  }
+
+  if (Array.isArray(references) || references instanceof Set) {
+    for (const key of references) {
+      if (typeof key === 'string' && key.trim()) {
+        keys.add(key.trim());
+      }
+    }
+    return { keys, prefixes };
+  }
+
+  if (typeof references === 'object') {
+    for (const key of references.keys || []) {
+      if (typeof key === 'string' && key.trim()) {
+        keys.add(key.trim());
+      }
+    }
+    for (const prefix of references.prefixes || []) {
+      if (typeof prefix === 'string' && prefix.trim()) {
+        prefixes.add(prefix.trim());
+      }
+    }
+  }
+
+  return { keys, prefixes };
+}
+
+function isReferencedStorageKey(storageKey, { keys, prefixes }) {
+  if (keys.has(storageKey)) {
+    return true;
+  }
+
+  for (const prefix of prefixes) {
+    if (storageKey.startsWith(prefix)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * G2 — reconciliação de órfãos do armazenamento privado.
+ *
+ * Lista apenas arquivos com chave válida sob a raiz e remove somente os que não
+ * têm referência correspondente nas quatro colunas de foto do contrato
+ * (`pickup_photo_url`/`pickup_photo_metadata`/`delivery_photo_url`/
+ * `delivery_photo_metadata`), recebidas via `references` (chaves exatas e/ou
+ * prefixos `<id>/<tipo>-`).
+ *
+ * `dryRun` é o padrão: nada é apagado sem opt-in explícito. Nunca apaga fora da
+ * raiz, nunca segue symlink e nunca toca em arquivos sem chave válida.
+ */
+async function reconcileOrphanServicePhotos({ references = {}, dryRun = true, root } = {}) {
+  const storageRoot = path.resolve(root || getStorageRoot());
+  const normalized = normalizePhotoReferences(references);
+  const files = await listStoredPhotoFiles({ root: storageRoot });
+  const orphans = files.filter(file => !isReferencedStorageKey(file.storageKey, normalized));
+
+  const report = {
+    dry_run: Boolean(dryRun),
+    scanned: files.length,
+    referenced: files.length - orphans.length,
+    orphaned: orphans.length,
+    removed: 0,
+    failed: 0,
+    orphan_keys: orphans.map(orphan => orphan.storageKey),
+  };
+
+  if (dryRun || orphans.length === 0) {
+    return report;
+  }
+
+  for (const orphan of orphans) {
+    try {
+      // Revalidação imediatamente antes do unlink: precisa continuar dentro da
+      // raiz e ser arquivo regular (nunca symlink).
+      const resolved = assertWithinRoot(storageRoot, orphan.absolutePath);
+      const stat = await fsp.lstat(resolved);
+      if (stat.isSymbolicLink() || !stat.isFile()) {
+        report.failed += 1;
+        continue;
+      }
+
+      await fsp.unlink(resolved);
+      report.removed += 1;
+    } catch (error) {
+      report.failed += 1;
+    }
+  }
+
+  return report;
+}
+
 /** URL autenticada e estável da foto; nunca um caminho de filesystem. */
 function buildPhotoUrl(requestId, photoType) {
   if (!isPhotoType(photoType)) {
@@ -406,6 +572,7 @@ module.exports = {
   ALLOWED_PHOTO_MIME_TYPES,
   MAX_PHOTO_BYTES,
   MAX_PHOTO_DIMENSION,
+  STORAGE_KEY_PATTERN,
   getStorageRoot,
   isPhotoType,
   sanitizeFilename,
@@ -415,6 +582,8 @@ module.exports = {
   resolveStoredPhotoPath,
   readStoredPhoto,
   removeStoredPhoto,
+  listStoredPhotoFiles,
+  reconcileOrphanServicePhotos,
   buildPhotoUrl,
   fileExtensionForFormat,
   fileExistsSync,

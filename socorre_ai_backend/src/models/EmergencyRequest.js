@@ -18,6 +18,37 @@ const PHOTO_COLUMNS = Object.freeze({
   delivery: Object.freeze({ url: 'delivery_photo_url', metadata: 'delivery_photo_metadata' }),
 });
 
+// G2 — pricing do guincho vem exclusivamente de system_settings/price_breakdown.
+// Nenhum valor default é fabricado em código (6/25/90/40 eram hardcoded).
+const TOW_PRICING_KEYS = Object.freeze([
+  'tow_price_per_km',
+  'tow_platform_fixed_fee',
+  'tow_minimum_charge',
+  'tow_cancellation_fee',
+]);
+
+// Chaves usadas no cálculo do estimate; `tow_cancellation_fee` compõe o
+// breakdown mas não o total, então pode faltar sem inventar valor.
+const TOW_ESTIMATE_REQUIRED_KEYS = Object.freeze([
+  'tow_price_per_km',
+  'tow_platform_fixed_fee',
+  'tow_minimum_charge',
+]);
+
+/**
+ * G2 — ausência/incompletude de configuração de pricing. Erro controlado (503)
+ * para o caller virar resposta explícita, nunca preço inventado.
+ */
+class TowPricingNotConfiguredError extends Error {
+  constructor(missingKeys = []) {
+    super('Configuração de preço de guincho ausente em system_settings');
+    this.name = 'TowPricingNotConfiguredError';
+    this.code = 'tow_pricing_not_configured';
+    this.status = 503;
+    this.missingKeys = [...missingKeys];
+  }
+}
+
 function isPostgresClient(instance) {
   const client = instance?.client?.config?.client;
   return client === 'pg' || client === 'postgresql';
@@ -48,6 +79,47 @@ class EmergencyRequest {
 
     const parsed = this.parseJsonField(row?.[columns.metadata], null);
     return parsed && typeof parsed === 'object' ? parsed : null;
+  }
+
+  /**
+   * G2 — referências de arquivos de foto persistidas nas quatro colunas do
+   * contrato (URL + metadata de pickup/delivery), usadas pela reconciliação de
+   * órfãos.
+   *
+   * Devolve chaves exatas (`<id>/<tipo>-<uuid>.<ext>`) e prefixos
+   * (`<id>/<tipo>-`) para linhas cuja URL existe mas cuja metadata é ilegível:
+   * na dúvida o arquivo é tratado como referenciado e nunca é removido.
+   */
+  static async listPhotoStorageReferences() {
+    const rows = await knex('emergency_requests').select(
+      'id',
+      'pickup_photo_url',
+      'delivery_photo_url',
+      'pickup_photo_metadata',
+      'delivery_photo_metadata'
+    );
+
+    const keys = new Set();
+    const prefixes = new Set();
+
+    for (const row of rows) {
+      for (const photoType of Object.keys(PHOTO_COLUMNS)) {
+        const columns = PHOTO_COLUMNS[photoType];
+        const metadata = this.parseJsonField(row[columns.metadata], null);
+        const storageKey = metadata && typeof metadata === 'object' ? metadata.storage_key : null;
+
+        if (typeof storageKey === 'string' && storageKey.trim()) {
+          keys.add(storageKey.trim());
+          prefixes.add(`${row.id}/${photoType}-`);
+        }
+
+        if (row[columns.url]) {
+          prefixes.add(`${row.id}/${photoType}-`);
+        }
+      }
+    }
+
+    return { keys: [...keys], prefixes: [...prefixes] };
   }
 
   /**
@@ -152,27 +224,38 @@ class EmergencyRequest {
     return earthRadiusKm * distance;
   }
 
+  /**
+   * G2 — pricing do guincho lido exclusivamente de system_settings.
+   *
+   * Nunca fabrica default: chave ausente, vazia, não numérica, infinita ou
+   * negativa vira `null`. Quando nenhuma das chaves tem valor utilizável,
+   * devolve `null` (ausência explícita de configuração) — os chamadores
+   * decidem entre erro controlado (estimate) e ausência de piso (complete).
+   */
   static async getTowPricingSettings() {
-    const settings = await knex('system_settings')
-      .whereIn('setting_key', [
-        'tow_price_per_km',
-        'tow_platform_fixed_fee',
-        'tow_minimum_charge',
-        'tow_cancellation_fee'
-      ]);
+    const settings = await knex('system_settings').whereIn('setting_key', TOW_PRICING_KEYS);
+    const values = new Map(
+      settings.map(setting => [setting.setting_key, parseFloat(setting.setting_value)])
+    );
 
-    const asMap = Object.fromEntries(settings.map(setting => [setting.setting_key, parseFloat(setting.setting_value)]));
+    const resolved = {};
+    for (const key of TOW_PRICING_KEYS) {
+      const value = values.get(key);
+      resolved[key] = Number.isFinite(value) && value >= 0 ? value : null;
+    }
 
-    return {
-      tow_price_per_km: asMap.tow_price_per_km ?? 6,
-      tow_platform_fixed_fee: asMap.tow_platform_fixed_fee ?? 25,
-      tow_minimum_charge: asMap.tow_minimum_charge ?? 90,
-      tow_cancellation_fee: asMap.tow_cancellation_fee ?? 40,
-    };
+    return TOW_PRICING_KEYS.every(key => resolved[key] === null) ? null : resolved;
   }
 
   static async calculateTowEstimate(requestData) {
     const pricing = await this.getTowPricingSettings();
+    const missingKeys = TOW_ESTIMATE_REQUIRED_KEYS.filter(
+      key => !Number.isFinite(pricing?.[key])
+    );
+
+    if (missingKeys.length > 0) {
+      throw new TowPricingNotConfiguredError(missingKeys);
+    }
 
     const originLatitude = requestData.vehicle_origin_latitude ?? requestData.latitude;
     const originLongitude = requestData.vehicle_origin_longitude ?? requestData.longitude;
@@ -209,7 +292,8 @@ class EmergencyRequest {
    * Piso de preço do guincho. Preferência pelo snapshot gravado em
    * price_breakdown no momento da criação; quando o pedido não tem snapshot
    * (linhas legadas), usa exclusivamente o valor vigente em system_settings —
-   * nunca um teto ou piso inventado.
+   * nunca um teto, piso ou default (90) inventado. Sem configuração utilizável,
+   * devolve `null`: não há piso a aplicar.
    */
   static async resolveTowMinimumPrice(emergencyRequestId) {
     const request = await knex('emergency_requests')
@@ -408,6 +492,11 @@ class EmergencyRequest {
 
   // Completar serviço
   static async complete(id, finalPrice, solutionDescription, partsUsed, partnerId = null) {
+    // G1/G2 — mechanic conclui sem preço: `undefined` é persistido como NULL.
+    // Sem esta normalização o knex recusaria o binding indefinido (erro 500),
+    // quebrando o contrato documentado de conclusão sem `final_price`.
+    const normalizedFinalPrice = finalPrice === undefined ? null : finalPrice;
+
     const [request] = await knex('emergency_requests')
       .where('id', id)
       .where('status', 'in_progress')
@@ -416,7 +505,7 @@ class EmergencyRequest {
       })
       .update({
         status: 'completed',
-        final_price: finalPrice,
+        final_price: normalizedFinalPrice,
         solution_description: solutionDescription,
         parts_used: partsUsed ? JSON.stringify(partsUsed) : null,
         completed_at: knex.fn.now(),
@@ -950,5 +1039,9 @@ class EmergencyRequest {
     }
   }
 }
+
+EmergencyRequest.TOW_PRICING_KEYS = TOW_PRICING_KEYS;
+EmergencyRequest.TOW_ESTIMATE_REQUIRED_KEYS = TOW_ESTIMATE_REQUIRED_KEYS;
+EmergencyRequest.TowPricingNotConfiguredError = TowPricingNotConfiguredError;
 
 module.exports = EmergencyRequest;

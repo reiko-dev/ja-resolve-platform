@@ -115,6 +115,17 @@ class EmergencyRequestController {
         request_type: request.request_type,
       });
     } catch (error) {
+      // G2 — ausência de pricing em system_settings vira resposta controlada
+      // (nunca preço default silencioso nem 500 genérico).
+      if (error?.code === 'tow_pricing_not_configured') {
+        return res.status(error.status || 503).json({
+          success: false,
+          code: error.code,
+          message: 'Preço de guincho não configurado. Contate o administrador.',
+          missing_settings: error.missingKeys || [],
+        });
+      }
+
       console.error('Erro ao criar solicitação:', error);
       res.status(500).json({
         success: false,
@@ -459,9 +470,11 @@ class EmergencyRequestController {
       const payload = req.body || {};
       const { final_price, solution_description, parts_used } = payload;
 
-      // Schema efetivo do payload de conclusão (G2): rejeita null/NaN/Infinity/
+      // Schema do contrato mechanic/legado (G2): preserva o comportamento
+      // vigente desde G1 (final_price opcional), mas rejeita null/NaN/Infinity/
       // negativo/string não numérica ANTES de qualquer leitura ou UPDATE.
-      const payloadValidation = emergencyRequestSchemas.complete.validate(payload);
+      // Tow usa `completeTow` (final_price obrigatório) após conhecido o tipo.
+      const payloadValidation = emergencyRequestSchemas.completeMechanic.validate(payload);
       if (payloadValidation.error) {
         return invalidPayload(res, payloadValidation.error);
       }

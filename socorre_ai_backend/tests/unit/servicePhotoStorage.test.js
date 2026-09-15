@@ -8,6 +8,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const crypto = require('crypto');
 const sharp = require('sharp');
 
 const storage = require('../../src/services/servicePhotoStorage');
@@ -456,5 +457,196 @@ describe('G2 storage — escrita privada, atômica e sem traversal', () => {
     expect(await listFiles(path.join(root, '106'))).toEqual([]);
     expect(await storage.removeStoredPhoto(stored.storageKey)).toBe(false);
     expect(await storage.removeStoredPhoto('../fora.jpg')).toBe(false);
+  });
+});
+
+describe('G2 storage — chave persistida restrita a pickup/delivery', () => {
+  const uuid = '11111111-2222-3333-4444-555555555555';
+
+  test('aceita apenas <id>/<pickup|delivery>-<uuid>.<jpg|webp>', async () => {
+    const requestId = 140;
+    const requestDirectory = path.join(root, String(requestId));
+    await fs.promises.mkdir(requestDirectory, { recursive: true, mode: 0o700 });
+
+    try {
+      const validKeys = [
+        `${requestId}/pickup-${uuid}.jpg`,
+        `${requestId}/delivery-${uuid}.webp`,
+      ];
+
+      for (const storageKey of validKeys) {
+        const absolutePath = path.join(root, ...storageKey.split('/'));
+        await fs.promises.writeFile(absolutePath, fixtures.jpegSmall, { mode: 0o600 });
+
+        const resolved = await storage.resolveStoredPhotoPath(storageKey);
+        expect(resolved.absolutePath).toBe(absolutePath);
+      }
+
+      const invalidKeys = [
+        `${requestId}/engine-${uuid}.jpg`,
+        `${requestId}/pickupx-${uuid}.jpg`,
+        `${requestId}/xpickup-${uuid}.jpg`,
+        `${requestId}/PICKUP-${uuid}.jpg`,
+        `${requestId}/pickup-${uuid}.png`,
+        `${requestId}/pickup-${uuid}`,
+        `${requestId}/pickup-${uuid.slice(0, 35)}.jpg`,
+        `0/pickup-${uuid}.jpg`,
+        `-1/pickup-${uuid}.jpg`,
+      ];
+
+      for (const storageKey of invalidKeys) {
+        await expect(storage.resolveStoredPhotoPath(storageKey)).rejects.toMatchObject({
+          code: 'invalid_storage_key',
+          status: 500,
+        });
+      }
+    } finally {
+      await fs.promises.rm(requestDirectory, { recursive: true, force: true });
+    }
+  });
+
+  test('prefixo arbitrário não é chave do contrato nem vira referência', () => {
+    expect(storage.STORAGE_KEY_PATTERN.test(`104/engine-${uuid}.jpg`)).toBe(false);
+    expect(storage.STORAGE_KEY_PATTERN.test(`104/pickup-${uuid}.jpg`)).toBe(true);
+    expect(storage.STORAGE_KEY_PATTERN.test(`104/delivery-${uuid}.webp`)).toBe(true);
+    expect(storage.STORAGE_KEY_PATTERN.test(`104/pickup-${uuid}.jpeg`)).toBe(false);
+  });
+});
+
+describe('G2 storage — reconciliação de órfãos', () => {
+  let reconcileRoot;
+
+  async function writeKey(storageKey, { base = reconcileRoot, content = 'photo' } = {}) {
+    const absolutePath = path.join(base, ...storageKey.split('/'));
+    await fs.promises.mkdir(path.dirname(absolutePath), { recursive: true, mode: 0o700 });
+    await fs.promises.writeFile(absolutePath, content, { mode: 0o600 });
+    return absolutePath;
+  }
+
+  beforeEach(async () => {
+    reconcileRoot = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'g2-photos-reconcile-'));
+  });
+
+  afterEach(async () => {
+    await fs.promises.rm(reconcileRoot, { recursive: true, force: true });
+  });
+
+  test('dry-run lista órfãos sem remover; apply remove só os sem referência', async () => {
+    const referencedKey = `150/pickup-${crypto.randomUUID()}.jpg`;
+    const orphanKey = `150/delivery-${crypto.randomUUID()}.webp`;
+    const otherOrphanKey = `151/pickup-${crypto.randomUUID()}.jpg`;
+    const nonContractKey = `150/engine-${crypto.randomUUID()}.jpg`;
+
+    const referencedPath = await writeKey(referencedKey);
+    const orphanPath = await writeKey(orphanKey);
+    const otherOrphanPath = await writeKey(otherOrphanKey);
+    const nonContractPath = await writeKey(nonContractKey);
+    await fs.promises.writeFile(path.join(reconcileRoot, '150', '.tmp-foto'), 'tmp', { mode: 0o600 });
+
+    const listed = await storage.listStoredPhotoFiles({ root: reconcileRoot });
+    expect(listed.map(file => file.storageKey).sort()).toEqual(
+      [referencedKey, orphanKey, otherOrphanKey].sort()
+    );
+    expect(listed.every(file => path.isAbsolute(file.absolutePath))).toBe(true);
+
+    const dryRun = await storage.reconcileOrphanServicePhotos({
+      references: { keys: [referencedKey] },
+      root: reconcileRoot,
+      dryRun: true,
+    });
+    expect(dryRun).toMatchObject({
+      dry_run: true,
+      scanned: 3,
+      referenced: 1,
+      orphaned: 2,
+      removed: 0,
+      failed: 0,
+    });
+    expect(dryRun.orphan_keys.sort()).toEqual([orphanKey, otherOrphanKey].sort());
+    expect(fs.existsSync(orphanPath)).toBe(true);
+    expect(fs.existsSync(otherOrphanPath)).toBe(true);
+
+    const applied = await storage.reconcileOrphanServicePhotos({
+      references: { keys: [referencedKey] },
+      root: reconcileRoot,
+      dryRun: false,
+    });
+    expect(applied).toMatchObject({ dry_run: false, removed: 2, failed: 0 });
+    expect(fs.existsSync(orphanPath)).toBe(false);
+    expect(fs.existsSync(otherOrphanPath)).toBe(false);
+    expect(fs.existsSync(referencedPath)).toBe(true);
+    expect(fs.existsSync(nonContractPath)).toBe(true);
+    expect(fs.existsSync(path.join(reconcileRoot, '150', '.tmp-foto'))).toBe(true);
+  });
+
+  test('prefixo <id>/<tipo>- protege arquivos sem metadata legível', async () => {
+    const protectedKey = `160/pickup-${crypto.randomUUID()}.jpg`;
+    const orphanKey = `161/pickup-${crypto.randomUUID()}.jpg`;
+    const protectedPath = await writeKey(protectedKey);
+    const orphanPath = await writeKey(orphanKey);
+
+    const applied = await storage.reconcileOrphanServicePhotos({
+      references: { prefixes: ['160/pickup-'] },
+      root: reconcileRoot,
+      dryRun: false,
+    });
+
+    expect(applied).toMatchObject({ scanned: 2, referenced: 1, orphaned: 1, removed: 1, failed: 0 });
+    expect(fs.existsSync(protectedPath)).toBe(true);
+    expect(fs.existsSync(orphanPath)).toBe(false);
+  });
+
+  test('nunca segue symlink nem apaga arquivo fora da raiz', async () => {
+    const outsideRoot = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'g2-photos-outside-'));
+    const outsideKey = `170/pickup-${crypto.randomUUID()}.jpg`;
+    const outsidePath = await writeKey(outsideKey, { base: outsideRoot, content: 'segredo' });
+    const symlinkTarget = path.join(outsideRoot, 'alvo.jpg');
+    await fs.promises.writeFile(symlinkTarget, 'segredo', { mode: 0o600 });
+
+    try {
+      await fs.promises.symlink(outsideRoot, path.join(reconcileRoot, '170'));
+      await fs.promises.mkdir(path.join(reconcileRoot, '171'), { recursive: true, mode: 0o700 });
+      await fs.promises.symlink(
+        symlinkTarget,
+        path.join(reconcileRoot, '171', `pickup-${crypto.randomUUID()}.jpg`)
+      );
+
+      const listed = await storage.listStoredPhotoFiles({ root: reconcileRoot });
+      expect(listed).toEqual([]);
+
+      const applied = await storage.reconcileOrphanServicePhotos({
+        references: {},
+        root: reconcileRoot,
+        dryRun: false,
+      });
+      expect(applied).toMatchObject({ scanned: 0, orphaned: 0, removed: 0, failed: 0 });
+      expect(fs.existsSync(outsidePath)).toBe(true);
+      expect(fs.existsSync(symlinkTarget)).toBe(true);
+    } finally {
+      await fs.promises.rm(outsideRoot, { recursive: true, force: true });
+    }
+  });
+
+  test('raiz symlink é recusada e raiz ausente devolve varredura vazia', async () => {
+    const linkRoot = path.join(os.tmpdir(), `g2-photos-rootlink-${crypto.randomUUID()}`);
+
+    try {
+      await fs.promises.symlink(reconcileRoot, linkRoot);
+
+      await expect(storage.listStoredPhotoFiles({ root: linkRoot })).rejects.toMatchObject({
+        code: 'unsafe_storage_path',
+        status: 500,
+      });
+    } finally {
+      await fs.promises.rm(linkRoot, { force: true });
+    }
+
+    const report = await storage.reconcileOrphanServicePhotos({
+      references: {},
+      root: path.join(reconcileRoot, 'inexistente'),
+      dryRun: false,
+    });
+    expect(report).toMatchObject({ scanned: 0, orphaned: 0, removed: 0, failed: 0 });
+    expect(report.orphan_keys).toEqual([]);
   });
 });

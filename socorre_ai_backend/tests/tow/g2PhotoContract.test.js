@@ -120,6 +120,7 @@ jest.mock('../../src/services/paymentService', () => ({
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const crypto = require('crypto');
 const sharp = require('sharp');
 const request = require('supertest');
 const jwt = require('jsonwebtoken');
@@ -130,6 +131,8 @@ const db = require('../../src/config/database');
 const { createApp } = require('../../src/app');
 const { getJwtSecret } = require('../../src/config/jwt');
 const EmergencyRequest = require('../../src/models/EmergencyRequest');
+const servicePhotoStorage = require('../../src/services/servicePhotoStorage');
+const { emergencyRequestSchemas } = require('../../src/middleware/validation');
 const NotificationService = require('../../src/services/NotificationServiceNew');
 const paymentService = require('../../src/services/paymentService');
 
@@ -696,6 +699,7 @@ describe('G2 fotos privadas — formato real, limite e normalização por HTTP',
     }).query({ format: 'json' });
 
     expect(read.status).toBe(200);
+    expect(read.headers['cache-control']).toBe('private, no-store');
     expect(read.body.data.encoding).toBe('base64');
     expect(read.body.data.mime_type).toBe('image/webp');
     expect(read.body.data.photo_url).toBe(uploaded.body.data.photo_url);
@@ -1075,6 +1079,251 @@ describe('G2 complete — schema efetivo de final_price e piso por system_settin
 
     expect(response.status).toBe(400);
     expect((await persistedRow(emergency.id)).status).toBe('in_progress');
+  });
+
+  test('mechanic aceita corpo vazio e persiste sem preço (contrato G1 preservado)', async () => {
+    const emergency = await createEmergency({
+      request_type: 'mechanic',
+      status: 'in_progress',
+      started_at: new Date(),
+    });
+
+    const response = await completeRequest(emergency.id, assignedPartnerUser, {});
+
+    expect(response.status).toBe(200);
+    const row = await persistedRow(emergency.id);
+    expect(row.status).toBe('completed');
+    expect(row.final_price).toBeNull();
+  });
+
+  test('mechanic com final_price válido persiste o preço informado', async () => {
+    const emergency = await createEmergency({
+      request_type: 'mechanic',
+      status: 'in_progress',
+      started_at: new Date(),
+    });
+
+    const response = await completeRequest(emergency.id, assignedPartnerUser, { final_price: 180 });
+
+    expect(response.status).toBe(200);
+    expect(Number((await persistedRow(emergency.id)).final_price)).toBe(180);
+  });
+});
+
+describe('G2 schema de complete — mechanic preservado, tow exige preço', () => {
+  test('completeMechanic aceita corpo vazio e rejeita final_price inválido', () => {
+    expect(emergencyRequestSchemas.completeMechanic.validate({}).error).toBeUndefined();
+    expect(emergencyRequestSchemas.completeMechanic.validate({ final_price: 120 }).error).toBeUndefined();
+
+    for (const finalPrice of [null, -1, 'abc', Infinity, NaN]) {
+      expect(
+        emergencyRequestSchemas.completeMechanic.validate({ final_price: finalPrice }).error
+      ).toBeDefined();
+    }
+  });
+
+  test('completeTow difere do mechanic apenas em final_price obrigatório', () => {
+    expect(emergencyRequestSchemas.completeTow.validate({}).error).toBeDefined();
+    expect(emergencyRequestSchemas.completeTow.validate({ final_price: 0 }).error).toBeUndefined();
+
+    const mechanicFields = Object.keys(emergencyRequestSchemas.completeMechanic.describe().keys).sort();
+    const towFields = Object.keys(emergencyRequestSchemas.completeTow.describe().keys).sort();
+    expect(towFields).toEqual(mechanicFields);
+  });
+});
+
+describe('G2 pricing — ausência de configuração nunca vira default', () => {
+  function completeRequest(emergencyId, user, body) {
+    return request(app)
+      .post(`/api/emergency-requests/${emergencyId}/complete`)
+      .set(authorize(user))
+      .send(body);
+  }
+
+  test('getTowPricingSettings devolve null quando nada está configurado', async () => {
+    await db('system_settings').whereIn('setting_key', EmergencyRequest.TOW_PRICING_KEYS).del();
+
+    expect(await EmergencyRequest.getTowPricingSettings()).toBeNull();
+  });
+
+  test('valor ausente/inválido vira null sem cair no default hardcoded antigo', async () => {
+    await db('system_settings').whereIn('setting_key', EmergencyRequest.TOW_PRICING_KEYS).del();
+    await seedPricing({ tow_price_per_km: 'abc', tow_platform_fixed_fee: '-1', tow_cancellation_fee: '' });
+
+    const pricing = await EmergencyRequest.getTowPricingSettings();
+
+    expect(pricing).toMatchObject({
+      tow_price_per_km: null,
+      tow_platform_fixed_fee: null,
+      tow_cancellation_fee: null,
+      tow_minimum_charge: 90,
+    });
+    expect(pricing.tow_price_per_km).not.toBe(6);
+    expect(pricing.tow_platform_fixed_fee).not.toBe(25);
+    expect(pricing.tow_cancellation_fee).not.toBe(40);
+  });
+
+  test('calculateTowEstimate lança erro controlado listando as chaves ausentes', async () => {
+    await db('system_settings')
+      .whereIn('setting_key', ['tow_price_per_km', 'tow_platform_fixed_fee', 'tow_minimum_charge'])
+      .del();
+
+    await expect(
+      EmergencyRequest.calculateTowEstimate({ latitude: -9.97, longitude: -67.81 })
+    ).rejects.toMatchObject({
+      name: 'TowPricingNotConfiguredError',
+      code: 'tow_pricing_not_configured',
+      status: 503,
+      missingKeys: ['tow_price_per_km', 'tow_platform_fixed_fee', 'tow_minimum_charge'],
+    });
+  });
+
+  test('createTowRequest não cria pedido quando o pricing está ausente', async () => {
+    await db('system_settings').whereIn('setting_key', EmergencyRequest.TOW_PRICING_KEYS).del();
+    const before = await db('emergency_requests').count({ total: '*' }).first();
+
+    await expect(
+      EmergencyRequest.createTowRequest({
+        user_id: owner.id,
+        type: 'other',
+        description: 'Veículo precisa de guincho',
+        location_type: 'roadside',
+        latitude: -9.97,
+        longitude: -67.81,
+        address: 'Acre',
+      })
+    ).rejects.toMatchObject({ code: 'tow_pricing_not_configured', status: 503 });
+
+    const after = await db('emergency_requests').count({ total: '*' }).first();
+    expect(Number(after.total)).toBe(Number(before.total));
+  });
+
+  test('calculateTowEstimate usa apenas o pricing configurado (sem default silencioso)', async () => {
+    await db('system_settings').whereIn('setting_key', EmergencyRequest.TOW_PRICING_KEYS).del();
+    await seedPricing({ tow_price_per_km: '10', tow_platform_fixed_fee: '30', tow_minimum_charge: '0' });
+    await db('system_settings').where('setting_key', 'tow_cancellation_fee').del();
+
+    const breakdown = await EmergencyRequest.calculateTowEstimate({
+      latitude: -9.97,
+      longitude: -67.81,
+    });
+
+    expect(breakdown).toMatchObject({
+      tow_price_per_km: 10,
+      platform_fixed_fee: 30,
+      minimum_charge: 0,
+      pricing_source: 'system_settings',
+    });
+    // Sem `tow_cancellation_fee` configurado o breakdown traz null — nunca 40.
+    expect(breakdown.cancellation_fee).toBeNull();
+  });
+
+  test('POST tow sem pricing responde 503 controlado e não persiste pedido', async () => {
+    await db('system_settings').whereIn('setting_key', EmergencyRequest.TOW_PRICING_KEYS).del();
+    const before = await db('emergency_requests').count({ total: '*' }).first();
+
+    const response = await request(app)
+      .post('/api/emergency-requests')
+      .set(authorize(ownerUser))
+      .send({
+        type: 'other',
+        request_type: 'tow',
+        description: 'Veículo precisa de guincho na rodovia',
+        vehicle_info: { brand: 'Fiat', model: 'Uno', year: 2015 },
+        location_type: 'roadside',
+        latitude: -9.97,
+        longitude: -67.81,
+        address: 'Acre',
+      });
+
+    expect(response.status).toBe(503);
+    expect(response.body).toMatchObject({ success: false, code: 'tow_pricing_not_configured' });
+    expect(response.body.missing_settings).toEqual(
+      expect.arrayContaining(['tow_price_per_km', 'tow_platform_fixed_fee', 'tow_minimum_charge'])
+    );
+
+    const after = await db('emergency_requests').count({ total: '*' }).first();
+    expect(Number(after.total)).toBe(Number(before.total));
+  });
+
+  test('legado sem breakdown e sem minimum configurado não inventa piso 90', async () => {
+    await db('system_settings').where('setting_key', 'tow_minimum_charge').del();
+    const emergency = await createEmergency({
+      status: 'in_progress',
+      started_at: new Date(),
+      price_breakdown: null,
+    });
+
+    expect(await EmergencyRequest.resolveTowMinimumPrice(emergency.id)).toBeNull();
+
+    const validation = await EmergencyRequest.validateTowProposalPrice(emergency.id, 10);
+    expect(validation).toMatchObject({ valid: true, minimumAcceptedPrice: null });
+
+    const response = await completeRequest(emergency.id, assignedPartnerUser, { final_price: 10 });
+    expect(response.status).toBe(200);
+    expect(Number((await persistedRow(emergency.id)).final_price)).toBe(10);
+  });
+});
+
+describe('G2 fotos privadas — reconciliação de órfãos com referências do banco', () => {
+  test('remove só arquivo válido sem referência e preserva referenciado e fora do padrão', async () => {
+    const emergency = await createEmergency({ status: 'in_progress', started_at: new Date() });
+
+    const uploaded = await uploadPhoto(emergency.id, assignedPartnerUser);
+    expect(uploaded.status).toBe(201);
+
+    const row = await persistedRow(emergency.id);
+    const { storage_key: storageKey } = JSON.parse(row.pickup_photo_metadata);
+
+    const orphanName = `delivery-${crypto.randomUUID()}.jpg`;
+    const orphanPath = path.join(root, String(emergency.id), orphanName);
+    await fs.promises.writeFile(orphanPath, fixtures.jpegSmall, { mode: 0o600 });
+
+    // Prefixo arbitrário não é chave do contrato: nunca é listado nem removido.
+    const prefixedName = `engine-${crypto.randomUUID()}.jpg`;
+    const prefixedPath = path.join(root, String(emergency.id), prefixedName);
+    await fs.promises.writeFile(prefixedPath, fixtures.jpegSmall, { mode: 0o600 });
+
+    const references = await EmergencyRequest.listPhotoStorageReferences();
+    expect(references.keys).toContain(storageKey);
+    expect(references.prefixes).toContain(`${emergency.id}/pickup-`);
+
+    const dryRun = await servicePhotoStorage.reconcileOrphanServicePhotos({ references, dryRun: true });
+    expect(dryRun.orphan_keys).toContain(`${emergency.id}/${orphanName}`);
+    expect(dryRun.orphan_keys).not.toContain(`${emergency.id}/${prefixedName}`);
+    expect(dryRun.removed).toBe(0);
+    expect(fs.existsSync(orphanPath)).toBe(true);
+
+    const applied = await servicePhotoStorage.reconcileOrphanServicePhotos({ references, dryRun: false });
+    expect(applied).toMatchObject({ scanned: 2, referenced: 1, orphaned: 1, removed: 1, failed: 0 });
+    expect(fs.existsSync(orphanPath)).toBe(false);
+    expect(fs.existsSync(prefixedPath)).toBe(true);
+
+    const read = await getPhoto(emergency.id, 'pickup', ownerUser);
+    expect(read.status).toBe(200);
+    expect(read.headers['content-type']).toMatch(/^image\//);
+  });
+
+  test('prefixo por pedido/tipo protege foto com metadata ilegível', async () => {
+    const emergency = await createEmergency({ status: 'in_progress', started_at: new Date() });
+
+    const uploaded = await uploadPhoto(emergency.id, assignedPartnerUser);
+    expect(uploaded.status).toBe(201);
+
+    const row = await persistedRow(emergency.id);
+    const { storage_key: storageKey } = JSON.parse(row.pickup_photo_metadata);
+
+    // Linha com URL preenchida e metadata corrompida: a chave exata some, mas o
+    // prefixo <id>/<tipo>- continua protegendo o arquivo.
+    await db('emergency_requests').where('id', emergency.id).update({ pickup_photo_metadata: '{invalido' });
+
+    const references = await EmergencyRequest.listPhotoStorageReferences();
+    expect(references.keys).toEqual([]);
+    expect(references.prefixes).toContain(`${emergency.id}/pickup-`);
+
+    const applied = await servicePhotoStorage.reconcileOrphanServicePhotos({ references, dryRun: false });
+    expect(applied).toMatchObject({ scanned: 1, referenced: 1, orphaned: 0, removed: 0, failed: 0 });
+    expect(fs.existsSync(path.join(root, String(emergency.id), storageKey.split('/')[1]))).toBe(true);
   });
 });
 
