@@ -1,10 +1,10 @@
 objective: "Corrigir e validar o Serviço de Guincho no backend"
-status: IN_PROGRESS
-terminal_state: null
+status: BLOCKED
+terminal_state: BLOCKED_PENDING_MUSE_REVIEW_AND_DOCKER_VALIDATION
 repository: reiko-dev/socorre-ja-platform
 base_branch: main
-head: 42b2d7ab
-worktree: clean
+head: 99215384
+worktree: codex/g2-photo-schema-pricing
 remote: https://github.com/reiko-dev/socorre-ja-platform.git
 max_execution_cycles: 3
 cycle: 0
@@ -18,9 +18,11 @@ workstreams:
     muse_verdict: APPROVE_WITH_FINDINGS
     luna_adjudication: ACCEPT_WITH_DEFERRED_FINDINGS
   G2:
-    status: READY
-    branch: null
-    commit: null
+    status: IMPLEMENTED_BLOCKED
+    branch: codex/g2-photo-schema-pricing
+    commit: 99215384
+    muse_verdict: UNAVAILABLE_AFTER_THREE_ATTEMPTS
+    luna_adjudication: ACCEPT_WITH_BLOCKER
   G3:
     status: NEXT
     branch: null
@@ -50,6 +52,42 @@ blockers:
     last_checked_at: "2026-09-15T11:37:34-05:00"
     next_check_at: null
     status: RESOLVED
+  - id: g2-muse-review
+    task_id: G2
+    type: provider_runtime
+    reason: "Muse CLI iniciou inspeções, mas não emitiu review YAML; duas tentativas terminaram com erro interno e a terceira com disk I/O error."
+    dependency: "OpenCode Muse 1.3 Free e espaço temporário operacional"
+    verification_predicate: "opencode run -m opencode/muse-spark-1.3-contributor-free retorna review YAML válido"
+    evidence: "Três tentativas sem veredicto; G2 não pode ser aprovada sem revisão adversarial."
+    owner: provider-runtime
+    attempts: 3
+    last_checked_at: "2026-09-15T12:15:12-05:00"
+    next_check_at: "2026-09-15T12:25:12-05:00"
+    status: BLOCKED
+  - id: g2-docker-compose-config
+    task_id: G2
+    type: environment
+    reason: "Docker não está disponível; docker compose config não pôde ser executado."
+    dependency: "Docker Compose no host de validação"
+    verification_predicate: "docker compose config conclui com exit 0"
+    evidence: "Compose YAML parse passou; binário Docker indisponível."
+    owner: environment
+    attempts: 1
+    last_checked_at: "2026-09-15T12:15:12-05:00"
+    next_check_at: "2026-09-15T12:25:12-05:00"
+    status: BLOCKED
+  - id: g2-blocker-watch-scheduler
+    task_id: G2
+    type: scheduler_capability
+    reason: "Tentativa de criar os dois monitores CronJob de 10 minutos falhou no scheduler."
+    dependency: "Codex automation scheduler"
+    verification_predicate: "automation_update cria monitores Muse e Docker ativos"
+    evidence: "Duas chamadas automation_update retornaram Failed to create automation."
+    owner: scheduler
+    attempts: 1
+    last_checked_at: "2026-09-15T12:15:12-05:00"
+    next_check_at: null
+    status: BLOCKED_BY_SCHEDULER_CAPABILITY
 quotas:
   LUNA_POOL:
     short_window_remaining_percent: 91
@@ -74,13 +112,31 @@ cronjobs:
 branches:
   - name: codex/g1-routes-permissions-idempotency
     status: merged
+  - name: codex/g2-photo-schema-pricing
+    status: implemented_blocked_pending_review
 commits:
   - 48c531d0
   - 42b2d7ab
+  - 99215384
 validations:
   - task: G1
     command: "npx jest tests/tow/towLifecycleController.test.js tests/tow/towHttp.transport.test.js --runInBand --forceExit --detectOpenHandles"
     result: "2 suites, 43/43 PASS"
+  - task: G2
+    command: "npx jest tests/tow/g2PhotoContract.test.js tests/unit/servicePhotoStorage.test.js --runInBand --forceExit"
+    result: "59/59 PASS"
+  - task: G2-tow-suite
+    command: "npx jest tests/tow --runInBand --forceExit"
+    result: "84 passed, 2 skipped"
+  - task: G2-migrations
+    command: "knex migrate:latest; migrate:down 045; migrate:up 045; migrate:rollback --all; migrate:latest"
+    result: "PostgreSQL latest/down/up and full rollback/reapply PASS"
+  - task: G2-backup
+    command: "scripts/backup-service-photos-and-db.sh"
+    result: "Backup, checksum, pg_restore listing, fresh restore and failure mode PASS"
+  - task: G2-static
+    command: "git diff --check; node --check; bash -n scripts/backup-service-photos-and-db.sh"
+    result: "PASS"
 findings:
   - id: muse-1
     task_id: G1
@@ -92,4 +148,16 @@ findings:
     decision: BUSINESS_RULE_AMBIGUITY
     owner: contract-formalization
     description: "Contrato ainda não fixa 200 versus 409 para retry idempotente; implementação mantém 200."
-next_action: "Receber TaskSpec final Luna e delegar G2 ao DSH."
+  - id: muse-adversarial-review-missing
+    task_id: G2
+    decision: REQUIRES_HUMAN
+    description: "Muse não emitiu review YAML após três tentativas; não há aprovação adversarial válida."
+  - id: docker-compose-config-unverified
+    task_id: G2
+    decision: REQUIRES_HUMAN
+    description: "Docker indisponível; parse YAML passou, mas docker compose config não foi executado."
+  - id: task-spec-scope
+    task_id: G2
+    decision: OUT_OF_SCOPE
+    description: "TASKSPEC-G2.yaml foi removido do commit de implementação e permanece apenas no worktree como plano operacional."
+next_action: "Retomar revisão Muse e docker compose config quando os blockers forem resolvidos; não iniciar nova implementação enquanto persistirem."
