@@ -12,10 +12,25 @@
  *
  * Requer o backend test harness (PR #5): helpers em `tests/helpers` e
  * PostgreSQL de teste via `npm run test:db:up`.
+ *
+ * Harness atual: o app é exercitado contra o SQLite em memória de
+ * `tests/helpers/testDb.js` (schema real das migrations), sem servidor externo.
  */
+jest.mock('../../src/config/database', () => require('../helpers/testDb').db);
+
 const { api } = require('../helpers/api');
-const { db } = require('../helpers/db');
+const { db, reset } = require('../helpers/db');
 const { createAuthedUser, createPartner } = require('../helpers/auth');
+
+beforeEach(async () => {
+  await reset();
+});
+
+function futureDate(daysFromNow) {
+  const date = new Date();
+  date.setDate(date.getDate() + daysFromNow);
+  return date.toISOString().split('T')[0];
+}
 
 async function createStore({ type = 'gas_station' } = {}) {
   const { user, partner } = await createPartner({
@@ -25,8 +40,8 @@ async function createStore({ type = 'gas_station' } = {}) {
     partner_id: partner.id,
     type: type === 'gas_station' ? 'posto_combustivel' : 'auto_pecas',
     monthly_fee: 199.9,
-    due_date: new Date('2026-08-01'),
-    next_billing_date: new Date('2026-09-01'),
+    due_date: futureDate(30),
+    next_billing_date: futureDate(60),
     status: 'active',
   });
   return { user, partner };
