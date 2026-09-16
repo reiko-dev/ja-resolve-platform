@@ -259,7 +259,10 @@ describe('Delivery Orders API', () => {
         .send(newPayload({ items: [{ product_id: otherStoreProduct.id, quantity: 1 }] }))
         .expect(400);
 
-      expect(response.body.message).toBe('Produto de Outra Loja não pertence a esta loja');
+      // O service monta `Produto ${nome} não pertence a esta loja`; a
+      // expectativa literal anterior omitia o prefixo porque o fixture já se
+      // chama "Produto de Outra Loja".
+      expect(response.body.message).toBe(`Produto ${otherStoreProduct.name} não pertence a esta loja`);
     });
 
     it('rejeita quantidade acima do estoque (400)', async () => {
