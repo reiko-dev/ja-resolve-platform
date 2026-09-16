@@ -160,6 +160,13 @@ async function initSchema() {
   });
 }
 
+// O knex mockado nasce em nível de módulo (dentro de jest.mock) e mantém o pool
+// SQLite aberto: sem `destroy()` o event loop fica vivo e o worker do Jest não
+// encerra sozinho depois dos testes.
+afterAll(async () => {
+  await db.destroy();
+});
+
 async function resetDatabase() {
   db.__clearFailures();
   await db('tow_proposals').del();
