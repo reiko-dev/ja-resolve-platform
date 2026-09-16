@@ -171,6 +171,71 @@ class Partner {
 
   // ===== MÉTODOS ORIGINAIS =====
 
+  // Inserção direta em partners (sem upsert por user_id).
+  // Usado pela rota admin; user_id pode ser null.
+  static _serializeJsonField(value) {
+    if (value === undefined) {
+      return undefined;
+    }
+    if (value === null) {
+      return null;
+    }
+    if (Array.isArray(value) || typeof value === 'object') {
+      return JSON.stringify(value);
+    }
+    return value;
+  }
+
+  static _serializePartnerPayload(data) {
+    const serialized = { ...data };
+    const jsonFields = [
+      'specialties',
+      'working_hours',
+      'payment_methods',
+      'service_areas',
+      'certifications',
+      'store_categories',
+    ];
+    for (const field of jsonFields) {
+      if (field in serialized) {
+        const next = this._serializeJsonField(serialized[field]);
+        if (next === undefined) {
+          delete serialized[field];
+        } else {
+          serialized[field] = next;
+        }
+      }
+    }
+    return serialized;
+  }
+
+  static async createRaw(partnerData) {
+    const payload = this._serializePartnerPayload({
+      ...partnerData,
+      created_at: partnerData.created_at || knex.fn.now(),
+      updated_at: partnerData.updated_at || knex.fn.now(),
+    });
+    const [partner] = await knex('partners').insert(payload).returning('*');
+    if (partner && typeof partner === 'object' && 'id' in partner) {
+      return partner;
+    }
+    // Fallback para drivers sem RETURNING completo (ex.: sqlite antigo)
+    const id = typeof partner === 'object' ? partner?.id : partner;
+    if (id != null) {
+      return await knex('partners').where('id', id).first();
+    }
+    return partner;
+  }
+
+  static async create(partnerData) {
+    return await this.createRaw(partnerData);
+  }
+
+  static async delete(id) {
+    const count = await knex('partners').where('id', id).del();
+    return count > 0;
+  }
+
   // Buscar parceiro por ID
   static async findById(id) {
     const partner = await knex('partners').where('id', id).first();
@@ -188,7 +253,7 @@ class Partner {
     const [partner] = await knex('partners')
       .where('id', id)
       .update({
-        ...data,
+        ...this._serializePartnerPayload(data),
         updated_at: knex.fn.now()
       })
       .returning('*');
@@ -291,17 +356,57 @@ class Partner {
       });
   }
 
-  // Buscar todos os parceiros
-  static async findAll() {
-    return await knex('partners')
+  // Buscar todos os parceiros (paginado; inclui user_id null via leftJoin)
+  static async findAll(page = 1, limit = 10, filters = {}) {
+    const safePage = Number.isFinite(Number(page)) && Number(page) > 0 ? parseInt(page, 10) : 1;
+    const safeLimit = Number.isFinite(Number(limit)) && Number(limit) > 0 ? parseInt(limit, 10) : 10;
+    const offset = (safePage - 1) * safeLimit;
+
+    const applyFilters = (query) => {
+      if (filters.type) {
+        query.where('partners.type', filters.type);
+      }
+      if (filters.is_verified !== undefined) {
+        query.where('partners.is_verified', filters.is_verified);
+      }
+      if (filters.is_available !== undefined) {
+        query.where('partners.is_available', filters.is_available);
+      }
+      if (filters.search) {
+        query.where(function () {
+          this.where('partners.business_name', 'like', `%${filters.search}%`)
+            .orWhere('partners.description', 'like', `%${filters.search}%`);
+        });
+      }
+    };
+
+    const dataQuery = knex('partners')
       .select(
         'partners.*',
         'users.name as user_name',
         'users.email as user_email',
         'users.phone as user_phone'
       )
-      .join('users', 'partners.user_id', 'users.id')
-      .orderBy('partners.created_at', 'desc');
+      .leftJoin('users', 'partners.user_id', 'users.id');
+    applyFilters(dataQuery);
+
+    const countQuery = knex('partners').leftJoin('users', 'partners.user_id', 'users.id');
+    applyFilters(countQuery);
+
+    const [partners, totalRow] = await Promise.all([
+      dataQuery.limit(safeLimit).offset(offset).orderBy('partners.created_at', 'desc'),
+      countQuery.count('partners.id as count').first(),
+    ]);
+
+    const total = Number(totalRow?.count ?? 0);
+
+    return {
+      partners,
+      total,
+      page: safePage,
+      limit: safeLimit,
+      totalPages: total === 0 ? 0 : Math.ceil(total / safeLimit),
+    };
   }
 
   // Buscar parceiros disponíveis

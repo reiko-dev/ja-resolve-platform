@@ -687,6 +687,65 @@ class PartnerController {
     }
   }
 
+  // Criar mecânico via admin (POST /partners/admin/mechanic).
+  // Insere em partners (não na tabela legada mechanics); user_id null,
+  // sem upsert por user_id.
+  static async createAdminMechanic(req, res) {
+    try {
+      const {
+        business_name,
+        description = null,
+        specialties = [],
+        address = null,
+        phone,
+        latitude = null,
+        longitude = null,
+        hourly_rate = null,
+        experience_years = null,
+        emergency_service = false,
+        home_service = false,
+        workshop_service = true,
+      } = req.body;
+
+      const digits = String(phone || '').replace(/\D/g, '');
+
+      const partnerData = {
+        user_id: null,
+        type: 'mechanic',
+        business_name: String(business_name).trim(),
+        description: description != null && String(description).trim() !== '' ? description : null,
+        specialties: Array.isArray(specialties) ? specialties : [],
+      address: address != null && String(address).trim() !== '' ? String(address).trim() : null,
+        latitude: latitude === '' || latitude == null ? null : Number(latitude),
+        longitude: longitude === '' || longitude == null ? null : Number(longitude),
+        phone: digits,
+        hourly_rate: hourly_rate === '' || hourly_rate == null ? null : Number(hourly_rate),
+        experience_years: experience_years === '' || experience_years == null ? null : parseInt(experience_years, 10),
+        emergency_service: !!emergency_service,
+        home_service: !!home_service,
+        workshop_service: workshop_service == null ? true : !!workshop_service,
+        is_verified: false,
+        is_available: true,
+        is_online: false,
+        approval_status: 'pending',
+      };
+
+      const partner = await Partner.createRaw(partnerData);
+
+      return res.status(201).json({
+        success: true,
+        data: partner,
+        message: 'Mecânico cadastrado com sucesso.',
+      });
+    } catch (error) {
+      console.error('Erro ao criar mecânico (admin):', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Erro interno do servidor',
+      });
+    }
+  }
+
   // Criar mecânico específico
   static async createMechanic(req, res) {
     try {

@@ -7,7 +7,7 @@ const PartnerController = require('../controllers/partnerController');
 const DocumentController = require('../controllers/DocumentController');
 const { auth, requireRole } = require('../middleware/auth');
 const { partnerSchemas, validate } = require('../middleware/validation');
-const { validateMechanic, validateStore, validateMotoboy, handleValidationErrors } = require('../middleware/partnerValidation');
+const { validateMechanic, validateAdminMechanic, validateStore, validateMotoboy, handleValidationErrors } = require('../middleware/partnerValidation');
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -220,6 +220,22 @@ router.post('/motoboy',
   validateMotoboy,
   handleValidationErrors,
   PartnerController.createMotoboy
+);
+
+// Criação de mecânico pelo admin (tabela partners, user_id null)
+router.post('/admin/mechanic',
+  auth,
+  requireRole(['admin']),
+  validateAdminMechanic,
+  handleValidationErrors,
+  PartnerController.createAdminMechanic
+);
+
+router.put('/admin/:id',
+  auth,
+  requireRole(['admin']),
+  validate(partnerSchemas.update),
+  PartnerController.update
 );
 
 router.put('/:id', 
