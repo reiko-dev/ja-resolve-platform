@@ -62,6 +62,41 @@ interface Mechanic {
   updated_at: string;
 }
 
+export function normalizeNumber(value: unknown, fallback = 0): number {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value.trim().replace(',', '.'));
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+  return fallback;
+}
+
+export function normalizeSpecialties(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map((s) => String(s)).filter(Boolean);
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) return parsed.map((s) => String(s)).filter(Boolean);
+    } catch {
+      // não é JSON, continua para split por vírgula
+    }
+    if (trimmed.startsWith('[')) return [];
+    return trimmed.split(',').map((s) => s.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+export function normalizeMechanic(raw: any): Mechanic {
+  return {
+    ...raw,
+    rating: normalizeNumber(raw?.rating, 0),
+    hourly_rate: normalizeNumber(raw?.hourly_rate, 0),
+    specialties: normalizeSpecialties(raw?.specialties),
+  };
+}
+
 const Mechanics: React.FC = () => {
   const [mechanics, setMechanics] = useState<Mechanic[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,10 +105,12 @@ const Mechanics: React.FC = () => {
   const [openViewDialog, setOpenViewDialog] = useState(false);
   const [selectedMechanic, setSelectedMechanic] = useState<Mechanic | null>(null);
   const [dialogMode, setDialogMode] = useState<'create' | 'edit'>('create');
+  const [saving, setSaving] = useState(false);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [formSubmitError, setFormSubmitError] = useState('');
   const [formData, setFormData] = useState({
     business_name: '',
     description: '',
-    specialties: [] as string[],
     address: '',
     latitude: '',
     longitude: '',
@@ -83,7 +120,9 @@ const Mechanics: React.FC = () => {
     experience_years: '',
     emergency_service: false,
     home_service: false,
+    workshop_service: true,
   });
+  const [specialtiesInput, setSpecialtiesInput] = useState('');
 
   useEffect(() => {
     loadMechanics();
@@ -93,11 +132,17 @@ const Mechanics: React.FC = () => {
     try {
       setLoading(true);
       setError('');
-      const response = await apiService.getMechanics();
-      if (response.success && response.data) {
-        setMechanics(response.data.items || []);
+      const response = await apiService.getPartners({ type: 'mechanic', page: 1, limit: 10 });
+      if (response?.success && response.data) {
+        // GET /partners retorna { success, data: [...], pagination }
+        const rawList: any[] = Array.isArray(response.data)
+          ? response.data
+          : Array.isArray((response.data as any)?.items)
+            ? (response.data as any).items
+            : [];
+        setMechanics(rawList.map(normalizeMechanic));
       } else {
-        setError(response.message || 'Erro ao carregar mecânicos');
+        setError(response?.message || 'Erro ao carregar mecânicos');
       }
     } catch (err: any) {
       console.error('Erro ao carregar mecânicos:', err);
@@ -109,28 +154,32 @@ const Mechanics: React.FC = () => {
 
   const handleOpenDialog = (mode: 'create' | 'edit', mechanic?: Mechanic) => {
     setDialogMode(mode);
+    setFormErrors({});
+    setFormSubmitError('');
     if (mode === 'edit' && mechanic) {
       setSelectedMechanic(mechanic);
+      const specialties = normalizeSpecialties(mechanic.specialties);
+      setSpecialtiesInput(specialties.join(', '));
       setFormData({
-        business_name: mechanic.business_name,
-        description: mechanic.description,
-        specialties: mechanic.specialties,
-        address: mechanic.address,
+      business_name: mechanic.business_name || '',
+      description: mechanic.description || '',
+      address: mechanic.address || '',
         latitude: mechanic.latitude?.toString() || '',
         longitude: mechanic.longitude?.toString() || '',
-        phone: mechanic.phone,
+      phone: mechanic.phone || '',
         email: mechanic.email,
         hourly_rate: mechanic.hourly_rate?.toString() || '',
         experience_years: mechanic.experience_years?.toString() || '',
         emergency_service: mechanic.emergency_service,
         home_service: mechanic.home_service,
+        workshop_service: (mechanic as any).workshop_service ?? true,
       });
     } else {
       setSelectedMechanic(null);
+      setSpecialtiesInput('');
       setFormData({
         business_name: '',
         description: '',
-        specialties: [],
         address: '',
         latitude: '',
         longitude: '',
@@ -140,18 +189,22 @@ const Mechanics: React.FC = () => {
         experience_years: '',
         emergency_service: false,
         home_service: false,
+        workshop_service: true,
       });
     }
     setOpenDialog(true);
   };
 
   const handleCloseDialog = () => {
+    if (saving) return;
     setOpenDialog(false);
     setSelectedMechanic(null);
+    setFormErrors({});
+    setFormSubmitError('');
+    setSpecialtiesInput('');
     setFormData({
       business_name: '',
       description: '',
-      specialties: [],
       address: '',
       latitude: '',
       longitude: '',
@@ -161,23 +214,84 @@ const Mechanics: React.FC = () => {
       experience_years: '',
       emergency_service: false,
       home_service: false,
+      workshop_service: true,
     });
   };
 
-  const handleSubmit = async () => {
-    try {
-      if (dialogMode === 'create') {
-        // Implementar criação
-        console.log('Criar mecânico:', formData);
-      } else {
-        // Implementar edição
-        console.log('Editar mecânico:', selectedMechanic?.id, formData);
+  const validateForm = (): Record<string, string> => {
+    const errors: Record<string, string> = {};
+    if (!(formData.business_name || '').trim() || (formData.business_name || '').trim().length < 2) {
+      errors.business_name = 'Informe o nome do negócio (mínimo 2 caracteres)';
+    }
+    const phone = (formData.phone || '').trim();
+    if (!phone) {
+      errors.phone = 'Telefone é obrigatório';
+    } else {
+      const digits = phone.replace(/\D/g, '');
+      if (digits.length < 8 || digits.length > 15) {
+        errors.phone = 'Telefone inválido';
       }
-      handleCloseDialog();
-      loadMechanics();
+    }
+    if (normalizeSpecialties(specialtiesInput).length === 0) {
+      errors.specialties = 'Informe ao menos uma especialidade';
+    }
+    if (!(formData.address || '').trim()) {
+      errors.address = 'Endereço é obrigatório';
+    }
+    return errors;
+  };
+
+  const handleSubmit = async () => {
+    if (saving) return;
+    const errors = validateForm();
+    setFormErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+    setSaving(true);
+    setFormSubmitError('');
+    try {
+      const payload = {
+        business_name: (formData.business_name || '').trim(),
+        description: (formData.description || '').trim() || null,
+        specialties: normalizeSpecialties(specialtiesInput),
+        address: (formData.address || '').trim(),
+        latitude: formData.latitude === '' ? undefined : Number(formData.latitude),
+        longitude: formData.longitude === '' ? undefined : Number(formData.longitude),
+        phone: (formData.phone || '').replace(/\D/g, ''),
+        hourly_rate: formData.hourly_rate === '' ? undefined : Number(formData.hourly_rate),
+        experience_years: formData.experience_years === '' ? undefined : Number(formData.experience_years),
+        emergency_service: formData.emergency_service,
+        home_service: formData.home_service,
+        workshop_service: formData.workshop_service,
+      };
+      if (dialogMode === 'create') {
+        await apiService.createAdminMechanic({ type: 'mechanic', ...payload });
+      } else if (selectedMechanic) {
+        await apiService.updateAdminMechanic(selectedMechanic.id, payload);
+      }
+      setOpenDialog(false);
+      setSelectedMechanic(null);
+      setFormErrors({});
+      setSpecialtiesInput('');
+      setFormData({
+        business_name: '',
+        description: '',
+        address: '',
+        latitude: '',
+        longitude: '',
+        phone: '',
+        email: '',
+        hourly_rate: '',
+        experience_years: '',
+        emergency_service: false,
+        home_service: false,
+        workshop_service: true,
+      });
+      await loadMechanics();
     } catch (err: any) {
       console.error('Erro ao salvar mecânico:', err);
-      setError(err.response?.data?.message || 'Erro ao salvar mecânico');
+      setFormSubmitError(err.response?.data?.message || 'Erro ao salvar mecânico');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -226,7 +340,7 @@ const Mechanics: React.FC = () => {
       width: 200,
       renderCell: (params) => (
         <Box>
-          {params.value?.map((specialty: string, index: number) => (
+          {normalizeSpecialties(params.value)?.map((specialty: string, index: number) => (
             <Chip 
               key={index} 
               label={specialty} 
@@ -241,24 +355,30 @@ const Mechanics: React.FC = () => {
       field: 'rating', 
       headerName: 'Rating', 
       width: 120,
-      renderCell: (params) => (
-        <Box display="flex" alignItems="center">
-          <Rating value={params.value || 0} readOnly size="small" />
-          <Typography variant="body2" sx={{ ml: 1 }}>
-            {params.value?.toFixed(1) || '0.0'}
-          </Typography>
-        </Box>
-      )
+      renderCell: (params) => {
+        const ratingValue = normalizeNumber(params.value, 0);
+        return (
+          <Box display="flex" alignItems="center">
+            <Rating value={ratingValue} readOnly size="small" />
+            <Typography variant="body2" sx={{ ml: 1 }}>
+              {ratingValue.toFixed(1)}
+            </Typography>
+          </Box>
+        );
+      }
     },
     { 
       field: 'hourly_rate', 
       headerName: 'Taxa/Hora', 
       width: 120,
-      renderCell: (params) => (
-        <Typography variant="body2">
-          R$ {params.value?.toFixed(2) || '0.00'}
-        </Typography>
-      )
+      renderCell: (params) => {
+        const rateValue = normalizeNumber(params.value, 0);
+        return (
+          <Typography variant="body2">
+            R$ {rateValue.toFixed(2)}
+          </Typography>
+        );
+      }
     },
     { 
       field: 'is_verified', 
@@ -295,8 +415,9 @@ const Mechanics: React.FC = () => {
           <Tooltip title="Visualizar">
             <IconButton 
               size="small" 
+              aria-label="Visualizar"
               onClick={() => {
-                setSelectedMechanic(params.row);
+                setSelectedMechanic(normalizeMechanic(params.row));
                 setOpenViewDialog(true);
               }}
             >
@@ -306,6 +427,7 @@ const Mechanics: React.FC = () => {
           <Tooltip title="Editar">
             <IconButton 
               size="small" 
+              aria-label="Editar"
               onClick={() => handleOpenDialog('edit', params.row)}
             >
               <EditIcon />
@@ -313,8 +435,9 @@ const Mechanics: React.FC = () => {
           </Tooltip>
           <Tooltip title="Excluir">
             <IconButton 
-              size="small" 
+              size="small"
               color="error"
+              aria-label="Excluir"
               onClick={() => handleDeleteMechanic(params.row.id)}
             >
               <DeleteIcon />
@@ -392,14 +515,21 @@ const Mechanics: React.FC = () => {
           {dialogMode === 'create' ? 'Novo Mecânico' : 'Editar Mecânico'}
         </DialogTitle>
         <DialogContent>
+          {formSubmitError && (
+            <Alert severity="error" sx={{ mt: 2 }}>
+              {formSubmitError}
+            </Alert>
+          )}
           <Grid container spacing={2} sx={{ mt: 1 }}>
             <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
-                label="Nome da Empresa"
+                label="Nome do Negócio"
                 value={formData.business_name}
                 onChange={(e) => setFormData({ ...formData, business_name: e.target.value })}
                 margin="normal"
+                error={!!formErrors.business_name}
+                helperText={formErrors.business_name}
               />
             </Grid>
             <Grid item xs={12} md={6}>
@@ -409,6 +539,19 @@ const Mechanics: React.FC = () => {
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 margin="normal"
+                error={!!formErrors.phone}
+                helperText={formErrors.phone}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Especialidades (separadas por vírgula)"
+                value={specialtiesInput}
+                onChange={(e) => setSpecialtiesInput(e.target.value)}
+                margin="normal"
+                error={!!formErrors.specialties}
+                helperText={formErrors.specialties || 'Ex: Motor, Freios, Suspensão'}
               />
             </Grid>
             <Grid item xs={12}>
@@ -429,6 +572,8 @@ const Mechanics: React.FC = () => {
                 value={formData.address}
                 onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                 margin="normal"
+                error={!!formErrors.address}
+                helperText={formErrors.address}
               />
             </Grid>
             <Grid item xs={12} md={6}>
@@ -495,12 +640,23 @@ const Mechanics: React.FC = () => {
                 label="Serviço em Casa"
               />
             </Grid>
+            <Grid item xs={12} md={6}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={formData.workshop_service}
+                    onChange={(e) => setFormData({ ...formData, workshop_service: e.target.checked })}
+                  />
+                }
+                label="Serviço na Oficina"
+              />
+            </Grid>
           </Grid>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCloseDialog}>Cancelar</Button>
-          <Button onClick={handleSubmit} variant="contained">
-            {dialogMode === 'create' ? 'Criar' : 'Salvar'}
+          <Button onClick={handleCloseDialog} disabled={saving}>Cancelar</Button>
+          <Button onClick={handleSubmit} variant="contained" disabled={saving}>
+            {saving ? 'Salvando...' : dialogMode === 'create' ? 'Criar' : 'Salvar'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -523,7 +679,7 @@ const Mechanics: React.FC = () => {
                     Especialidades:
                   </Typography>
                   <Box>
-                    {selectedMechanic.specialties?.map((specialty, index) => (
+                    {normalizeSpecialties(selectedMechanic.specialties)?.map((specialty, index) => (
                       <Chip 
                         key={index} 
                         label={specialty} 
@@ -539,9 +695,9 @@ const Mechanics: React.FC = () => {
                   <Typography variant="subtitle2" gutterBottom>
                     Rating:
                   </Typography>
-                  <Rating value={selectedMechanic.rating || 0} readOnly size="large" />
+                  <Rating value={normalizeNumber(selectedMechanic.rating, 0)} readOnly size="large" />
                   <Typography variant="body2" sx={{ ml: 1 }}>
-                    {selectedMechanic.rating?.toFixed(1) || '0.0'}
+                    {normalizeNumber(selectedMechanic.rating, 0).toFixed(1)}
                   </Typography>
                 </Box>
                 <Box sx={{ mb: 2 }}>
@@ -549,7 +705,7 @@ const Mechanics: React.FC = () => {
                     Taxa por Hora:
                   </Typography>
                   <Typography variant="h6" color="primary">
-                    R$ {selectedMechanic.hourly_rate?.toFixed(2) || '0.00'}
+                    R$ {normalizeNumber(selectedMechanic.hourly_rate, 0).toFixed(2)}
                   </Typography>
                 </Box>
                 <Box sx={{ mb: 2 }}>

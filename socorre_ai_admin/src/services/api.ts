@@ -130,8 +130,13 @@ class ApiService {
   }
 
   // Mecânicos
-  async getMechanics(page: number = 1, limit: number = 10): Promise<PaginatedResponse<any>> {
-    const response: AxiosResponse<PaginatedResponse<any>> = await this.api.get(`/mechanics?page=${page}&limit=${limit}`);
+  async getMechanics(page: number = 1, limit: number = 10): Promise<any> {
+    const response: AxiosResponse<any> = await this.api.get(`/mechanics?page=${page}&limit=${limit}`);
+    return response.data;
+  }
+
+  async createMechanic(mechanicData: any): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/mechanics', mechanicData);
     return response.data;
   }
 
@@ -530,6 +535,16 @@ class ApiService {
   // Criar novo parceiro
   async createPartner(partnerData: any): Promise<ApiResponse<any>> {
     const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/partners', partnerData);
+    return response.data;
+  }
+
+  async createAdminMechanic(mechanicData: any): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/partners/admin/mechanic', mechanicData);
+    return response.data;
+  }
+
+  async updateAdminMechanic(id: number, mechanicData: any): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.put(`/partners/admin/${id}`, mechanicData);
     return response.data;
   }
 

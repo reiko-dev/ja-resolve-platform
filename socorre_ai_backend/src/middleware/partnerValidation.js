@@ -26,6 +26,7 @@ const validateMechanic = [
     .withMessage('WhatsApp deve estar no formato (XX) XXXX-XXXX'),
   
   body('address')
+    .trim()
     .notEmpty()
     .withMessage('Endereço é obrigatório')
     .isLength({ min: 10, max: 200 })
@@ -98,6 +99,7 @@ const validateStore = [
     .withMessage('WhatsApp deve estar no formato (XX) XXXX-XXXX'),
   
   body('address')
+    .trim()
     .notEmpty()
     .withMessage('Endereço é obrigatório')
     .isLength({ min: 10, max: 200 })
@@ -227,6 +229,94 @@ const validateMotoboy = [
     .withMessage('Disponibilidade deve ser verdadeiro ou falso'),
 ];
 
+// Validação para criação de mecânico pelo admin (POST /partners/admin/mechanic).
+// Requisitos reais do endpoint: payload mínimo com type mechanic, nome,
+// specialties e phone somente dígitos; demais campos opcionais.
+const validateAdminMechanic = [
+  body('type')
+    .optional()
+    .isIn(['mechanic'])
+    .withMessage('Tipo deve ser mechanic'),
+
+  body('business_name')
+    .notEmpty()
+    .withMessage('Nome do negócio é obrigatório')
+    .isLength({ min: 2, max: 100 })
+    .withMessage('Nome deve ter entre 2 e 100 caracteres'),
+
+  body('description')
+    .optional({ nullable: true })
+    .isString()
+    .withMessage('Descrição deve ser um texto')
+    .isLength({ max: 1000 })
+    .withMessage('Descrição deve ter no máximo 1000 caracteres'),
+
+  body('specialties')
+    .isArray({ min: 1 })
+    .withMessage('Informe ao menos uma especialidade'),
+
+  body('specialties.*')
+    .isString()
+    .withMessage('Especialidade deve ser um texto')
+    .notEmpty()
+    .withMessage('Especialidade não pode ser vazia'),
+
+  body('address')
+    .trim()
+    .notEmpty()
+    .withMessage('Endereço é obrigatório')
+    .isString()
+    .withMessage('Endereço deve ser um texto')
+    .isLength({ min: 1, max: 255 })
+    .withMessage('Endereço deve ter entre 1 e 255 caracteres'),
+
+  body('phone')
+    .notEmpty()
+    .withMessage('Telefone é obrigatório')
+    .custom((value) => {
+      const digits = String(value || '').replace(/\D/g, '');
+      if (digits.length < 8 || digits.length > 15) {
+        throw new Error('Telefone inválido');
+      }
+      return true;
+    }),
+
+  body('latitude')
+    .optional({ nullable: true })
+    .isFloat({ min: -90, max: 90 })
+    .withMessage('Latitude deve ser um número válido'),
+
+  body('longitude')
+    .optional({ nullable: true })
+    .isFloat({ min: -180, max: 180 })
+    .withMessage('Longitude deve ser um número válido'),
+
+  body('hourly_rate')
+    .optional({ nullable: true })
+    .isFloat({ min: 0 })
+    .withMessage('Taxa por hora deve ser um número positivo'),
+
+  body('experience_years')
+    .optional({ nullable: true })
+    .isInt({ min: 0, max: 50 })
+    .withMessage('Anos de experiência deve ser entre 0 e 50'),
+
+  body('emergency_service')
+    .optional({ nullable: true })
+    .isBoolean()
+    .withMessage('Serviço de emergência deve ser verdadeiro ou falso'),
+
+  body('home_service')
+    .optional({ nullable: true })
+    .isBoolean()
+    .withMessage('Serviço domiciliar deve ser verdadeiro ou falso'),
+
+  body('workshop_service')
+    .optional({ nullable: true })
+    .isBoolean()
+    .withMessage('Serviço na oficina deve ser verdadeiro ou falso'),
+];
+
 // Middleware para verificar erros de validação
 const handleValidationErrors = (req, res, next) => {
   const errors = validationResult(req);
@@ -273,6 +363,7 @@ const validatePartner = [
 
 module.exports = {
   validateMechanic,
+  validateAdminMechanic,
   validateStore,
   validateMotoboy,
   validatePartner,
