@@ -1,5 +1,10 @@
 # Evidência G3: propostas tow e coordenadas no PostgreSQL
 
+> **Registro histórico da execução G3** (commit `bfc484bd`, 2026-09-15). Para o
+> estado atual no HEAD `1b2ccc3e`, ver a seção
+> [Atualização pós-T5/T6](#atualização-pós-t5t6-head-1b2ccc3e), adicionada na
+> reconciliação do packet T7.
+
 Ambiente: stack Docker local (`socorre_ai_postgres`, `postgres:14` — PostgreSQL
 14.24), banco de teste **descartável** `socorre_g3_e2e` no host `localhost:5434`,
 sem credenciais de produção. Os e2e PostgreSQL são opt-in
@@ -29,19 +34,37 @@ docker exec socorre_ai_postgres psql -U postgres -c "CREATE DATABASE socorre_g3_
 docker exec socorre_ai_postgres psql -U postgres -c "DROP DATABASE socorre_g3_e2e;"
 ```
 
-## Resultados reais
+## Resultados reais (execução G3, histórica)
 
 | Execução | Resultado |
 |---|---|
 | `g3TowPostgres.e2e.test.js` | **7/7 PASS** — nearby tow real (deadline futuro, raio, `exclude_proposed`, fallback do cadastro); duplicata concorrente com índice parcial da 044 (1 linha, contador 1, `[201, 409]`); guardas de coordenada (`0,0`, raio inválido, admin sem par, parceiro sem cadastro); **limite `max_proposals = 1` com parceiros distintos concorrentes (`[201, 400]`, 1 proposta, contador 1)**; string vazia explícita → `400 invalid_coordinates` sem fallback; linhas legadas (`91.5` e `0,0`) não quebram nem aparecem; schema do POST (`invalid_coordinates` vs `invalid_payload`) |
 | `towPostgres.e2e.test.js` (G1) | **2/2 PASS** — start/complete persistidos no PostgreSQL e aceite concorrente com exatamente um vencedor (regressão coberta pela unificação de deadline) |
-| `npx jest tests/tow --runInBand` com `TOW_POSTGRES_E2E=1` | **9 suítes passed, 190/190 testes passed** (inclui os dois e2e PostgreSQL). O processo termina com o aviso pré-existente de open handle do Jest ("Jest did not exit one second after the test run has completed") e o runner é encerrado por SIGTERM depois de imprimir o resultado; a suíte já havia concluído. |
-| `npx jest tests/tow --runInBand` (SQLite in-memory, sem opt-in) | 2 suítes skipped (e2e opt-in), **7 passed**; **181 passed**, 9 skipped, 190 total, mesmo aviso de open handle. |
+| `npx jest tests/tow --runInBand` com `TOW_POSTGRES_E2E=1` | **9 suítes passed, 190/190 testes passed** (inclui os dois e2e PostgreSQL). Na execução G3 (histórica), o processo terminava com o aviso de open handle do Jest ("Jest did not exit one second after the test run has completed") e o runner era encerrado por SIGTERM depois de imprimir o resultado; a suíte já havia concluído. Esse aviso foi eliminado no T6 (ver atualização abaixo). |
+| `npx jest tests/tow --runInBand` (SQLite in-memory, sem opt-in) | 2 suítes skipped (e2e opt-in), **7 passed**; **181 passed**, 9 skipped, 190 total; na execução G3 (histórica) com o mesmo aviso de open handle. |
 | `knex migrate:latest --env test` | `Already up to date` (43 migrations aplicadas, 0 pending — nenhuma migration nova neste fix) |
 | `knex migrate:list --env test` | 43 completas, `No Pending Migration files Found` |
 | `docker compose -f docker-compose-simple.yml config` | exit 0 |
 | `node --check` (6 fontes + 4 testes alterados) e `git diff --check` | PASS |
 | Scan de segredos nas linhas adicionadas (`git diff -U0`) | nenhum `password`/`secret`/`api_key`/`bearer` literal adicionado |
+
+## Atualização pós-T5/T6 (HEAD 1b2ccc3e)
+
+Os packets T5 (`3ff0d335`, merge `7d29de6a`) e T6 (`53a3f0ce`, merge `1b2ccc3e`)
+foram integrados depois do G3. A suíte completa do backend foi reexecutada sem
+`TOW_POSTGRES_E2E`:
+
+| Execução | Resultado |
+|---|---|
+| Suíte completa do backend (`jest`, sem `TOW_POSTGRES_E2E`) | **35 suites passed, 2 suites skipped** (os dois e2e PostgreSQL opt-in: `g3TowPostgres.e2e.test.js` e `towPostgres.e2e.test.js`); **550 testes passed, 9 skipped; exit 0** |
+| `npx jest tests/tow/g2PhotoContract.test.js tests/tow/towHttp.transport.test.js --runInBand` | Antes do T6: 50 testes do `g2PhotoContract` e 21 do `towHttp.transport` passavam, mas o Jest continuava vivo com "Jest did not exit one second after the test run has completed...". Depois do T6: as duas suítes encerram naturalmente, sem o aviso. |
+
+O T6 adicionou apenas `await db.destroy()` aos pools SQLite mockados dessas duas
+suítes; o aviso de open handle registrado nas linhas acima é, portanto,
+**histórico da execução G3** e não é mais observado no HEAD `1b2ccc3e`. A
+execução com `TOW_POSTGRES_E2E=1` desta evidência **não foi reexecutada** na
+reconciliação: os resultados PostgreSQL continuam sendo os do G3, e nada aqui é
+declarado como CI.
 
 ## Prova de vacuidade do lock (F1)
 
@@ -63,8 +86,12 @@ foi removido do worktree; a evidência fica registrada aqui.
 
 ## Limites desta evidência
 
-- Não representa deploy, staging, VPS ou produção.
+- Não representa deploy, staging, VPS ou produção. O deploy externo segue não
+  executado (HUMAN_REQUIRED): nada aqui valida produção.
 - O SQLite do harness Jest (pool de 1 conexão) serializa escritas: os cenários
   concorrentes só têm valor probatório no PostgreSQL.
 - A execução foi manual e opt-in; não há CI no repositório para repeti-la
   automaticamente.
+- A atualização pós-T5/T6 é documental: registra o resultado da suíte completa
+  no HEAD `1b2ccc3e`; os dois e2e PostgreSQL opt-in não foram reexecutados nesta
+  reconciliação e permanecem com a evidência do G3.

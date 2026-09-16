@@ -4,11 +4,11 @@
  * Reproduz EXATAMENTE o payload enviado pelo app cliente no device real
  * (PHASE 4) e define o COMPORTAMENTO ESPERADO do backend.
  *
- * Este arquivo NAO altera codigo de producao. Resultado esperado contra a
- * main atual:
- *   - grupo A: PASS (fluxos que ja funcionam);
- *   - grupo B: FAIL (blockers E2E-010 / E2E-011 pendentes de implementacao).
- * Apos o backend developer implementar os fixes, grupo A + grupo B = 100% PASS.
+ * Este arquivo NAO altera codigo de producao. Estado apos o fix de contrato
+ * (packet T3, commit 66d0d6fa / merge 4ee4ec2b, ja na main em 1b2ccc3e):
+ *   - grupo A: PASS (fluxos que ja funcionavam);
+ *   - grupo B: PASS no harness local (E2E-010 / E2E-011 implementados).
+ * A revalidacao em device/producao continua pendente do deploy externo.
  *
  * Requer o backend test harness (PR #5): helpers em `tests/helpers` e
  * PostgreSQL de teste via `npm run test:db:up`.
@@ -112,7 +112,7 @@ describe('POST /api/purchase-orders — contrato de integracao', () => {
     });
   });
 
-  describe('GRUPO B — blockers E2E-010/E2E-011 (falham contra o backend atual)', () => {
+  describe('GRUPO B — contrato E2E-010/E2E-011 (PASS local pos-fix; producao pendente)', () => {
     it('cria a PO com o payload real do device (HTTP 201) [E2E-010]', async () => {
       const { partner } = await createStore();
       const { headers, user } = await createAuthedUser();
