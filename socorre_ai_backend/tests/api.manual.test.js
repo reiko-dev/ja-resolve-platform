@@ -1,24 +1,15 @@
 // Teste manual dos novos endpoints da API
+//
+// O app é exercitado contra o SQLite em memória de tests/helpers/testDb.js
+// (mesmo harness das demais suítes) e os tokens seguem o contrato oficial de
+// src/middleware/auth.js: claim `userId` + usuário real e ativo no banco.
+jest.mock('../src/config/database', () => require('./helpers/testDb').db);
+
 const request = require('supertest');
 const app = require('../src/server');
+const { createAuthedUser } = require('./helpers/auth');
 
 describe('API Endpoints Manual Test', () => {
-  let authToken;
-  
-  beforeAll(() => {
-    // Criar token de teste
-    const jwt = require('jsonwebtoken');
-    authToken = jwt.sign(
-      { 
-        id: 1, 
-        email: 'admin@test.com',
-        role: 'admin' 
-      },
-      'test-jwt-secret-key',
-      { expiresIn: '1h' }
-    );
-  });
-  
   describe('POST /api/tow-proposals', () => {
     it('deve retornar 401 se não autenticado', async () => {
       const response = await request(app)
@@ -80,19 +71,16 @@ describe('API Endpoints Manual Test', () => {
     });
     
     it('deve retornar 403 se não for admin', async () => {
-      const userToken = require('jsonwebtoken').sign(
-        { 
-          id: 2, 
-          email: 'user@test.com',
-          role: 'user' 
-        },
-        'test-jwt-secret-key',
-        { expiresIn: '1h' }
-      );
-      
+      // Fixture determinística: usuário comum persistido no banco e token na
+      // claim `userId` — sem isso o middleware não encontra o usuário (401).
+      const { token } = await createAuthedUser({
+        role: 'user',
+        email: 'user@test.com',
+      });
+
       const response = await request(app)
         .get('/api/dashboard/stats')
-        .set('Authorization', `Bearer ${userToken}`);
+        .set('Authorization', `Bearer ${token}`);
       
       expect(response.status).toBe(403);
       expect(response.body.success).toBe(false);
