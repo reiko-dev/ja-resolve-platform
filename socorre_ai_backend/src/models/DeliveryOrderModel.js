@@ -201,11 +201,13 @@ class DeliveryOrder {
     `;
     const distanceBindings = [latitude, longitude, latitude];
 
+    // `select(array, raw)` descartaria o raw (knex normalizeArr usa só o
+    // primeiro argumento quando ele é array); um único array preserva ambos.
     let query = knex('delivery_orders')
-      .select(
-        this.baseSelect(),
+      .select([
+        ...this.baseSelect(),
         knex.raw(`${distanceExpression} AS pickup_distance_km`, distanceBindings)
-      )
+      ])
       .leftJoin('users', 'delivery_orders.user_id', 'users.id')
       .leftJoin('partners as motoboy', 'delivery_orders.motoboy_id', 'motoboy.id')
       .where('delivery_orders.status', 'pending')

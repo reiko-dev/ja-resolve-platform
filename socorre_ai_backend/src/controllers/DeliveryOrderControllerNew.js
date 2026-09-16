@@ -66,13 +66,19 @@ class DeliveryOrderController {
     return partner?.id || null;
   }
 
+  /**
+   * Traduz o erro de domínio para o status HTTP do contrato: inexistência →
+   * 404, autorização → 403 e validação/conflito conhecido → 400. Erros
+   * desconhecidos permanecem 500 com mensagem segura (sem SQL/stack).
+   */
   static errorResponse(res, error) {
     console.error('Erro no delivery novo:', error);
 
     const message = error.message || 'Erro interno do servidor';
     const lower = message.toLowerCase();
 
-    if (lower.includes('não encontrado')) {
+    // 'não encontrad' cobre "não encontrado" e "não encontrada" (ex.: loja).
+    if (lower.includes('não encontrad')) {
       return res.status(404).json({ success: false, message });
     }
 
@@ -82,11 +88,14 @@ class DeliveryOrderController {
 
     if (
       lower.includes('inválido') ||
-      lower.includes('obrigatório') ||
+      lower.includes('obrigatóri') || // obrigatório/obrigatória/obrigatórias
       lower.includes('disponível') ||
       lower.includes('compatível') ||
       lower.includes('assinatura ativa') ||
-      lower.includes('estoque')
+      lower.includes('estoque') ||
+      lower.includes('não pertence') || // produto de outra loja
+      lower.includes('rating deve ser') || // rating fora de 1..5
+      lower.includes('apenas pedidos entregues') // avaliação de pedido não entregue
     ) {
       return res.status(400).json({ success: false, message });
     }
