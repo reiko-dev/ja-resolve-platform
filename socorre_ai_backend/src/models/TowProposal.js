@@ -1,16 +1,45 @@
-  const knex = require('../config/database');
+const { createDatabaseAccessor } = require('./databaseAccessor');
+
+const {
+  accessor: knex,
+  setDatabase: injectDatabase,
+  resetDatabase: restoreDatabase,
+} = createDatabaseAccessor();
+const usesSqlite = () => knex.client.config.client === 'sqlite3';
+const legacyProposal = (proposal) => proposal && ({
+  ...proposal,
+  estimated_value: proposal.estimated_value == null ? proposal.estimated_value : Number(proposal.estimated_value).toFixed(2),
+});
 
 class TowProposal {
+  // Injeção de banco para testes (SQLite em memória). O singleton de produção
+  // permanece intacto e é restaurado por `resetDatabase`.
+  static setDatabase(testDatabase) {
+    injectDatabase(testDatabase);
+    return this;
+  }
+
+  static resetDatabase() {
+    restoreDatabase();
+    return this;
+  }
+
   // Criar nova proposta. Aceita a transação do chamador para que INSERT e
   // incremento de `proposals_received` sejam atômicos (G3).
   static async create(proposalData, trx = knex) {
     const [proposal] = await trx('tow_proposals').insert(proposalData).returning('*');
-    return proposal;
+    return usesSqlite() ? legacyProposal(proposal) : proposal;
   }
 
   // Buscar por ID
   static async findById(id) {
-    return await knex('tow_proposals')
+    if (usesSqlite()) return legacyProposal(await knex('tow_proposals')
+      .select('tow_proposals.*', 'partners.business_name', 'partners.phone', 'partners.rating', 'users.name as user_name', 'users.phone as user_phone')
+      .join('partners', 'tow_proposals.partner_id', 'partners.id')
+      .join('emergency_requests', 'tow_proposals.emergency_request_id', 'emergency_requests.id')
+      .join('users', 'partners.user_id', 'users.id')
+      .where('tow_proposals.id', id).first() || null);
+    const proposal = await knex('tow_proposals')
       .select(
         'tow_proposals.*',
         'partners.business_name',
@@ -27,6 +56,8 @@ class TowProposal {
       .join('users', 'partners.user_id', 'users.id')
       .where('tow_proposals.id', id)
       .first();
+
+    return proposal || null;
   }
 
   // Buscar propostas de uma emergência
@@ -62,8 +93,44 @@ class TowProposal {
     return await query.orderBy('tow_proposals.created_at', 'asc');
   }
 
+  // Alias de compatibilidade para o contrato legado: lista as propostas de uma
+  // emergência sem depender dos joins de parceiro/usuário.
+  static async findByEmergencyRequest(emergencyRequestId, status = null) {
+    if (usesSqlite()) {
+      let query = knex('tow_proposals').where('emergency_request_id', emergencyRequestId);
+      if (status) query = query.where('status', status);
+      return (await query.orderBy('created_at', 'asc')).map(legacyProposal);
+    }
+    let query = knex('tow_proposals')
+      .select('tow_proposals.*')
+      .where('tow_proposals.emergency_request_id', emergencyRequestId);
+
+    if (status) {
+      query = query.where('tow_proposals.status', status);
+    }
+
+    return await query.orderBy('tow_proposals.created_at', 'asc');
+  }
+
+  // Atualizar status da proposta (contrato legado). Diferente de accept/reject/
+  // withdraw, permite qualquer transição e registra `responded_at`.
+  static async updateStatus(id, status) {
+    const [proposal] = await knex('tow_proposals').where('id', id)
+      .update({ status, responded_at: knex.fn.now(), updated_at: knex.fn.now() })
+      .returning('*');
+    if (!proposal) throw new Error(`Proposta ${id} não encontrada`);
+    return proposal;
+  }
+
   // Buscar propostas de um parceiro
   static async findByPartner(partnerId, status = null) {
+    if (usesSqlite()) {
+      let query = knex('tow_proposals').select('tow_proposals.*', 'users.name as user_name', 'users.phone as user_phone')
+        .join('emergency_requests', 'tow_proposals.emergency_request_id', 'emergency_requests.id')
+        .join('users', 'emergency_requests.user_id', 'users.id').where('tow_proposals.partner_id', partnerId);
+      if (status) query = query.where('status', status);
+      return (await query.orderBy('created_at', 'desc')).map(legacyProposal);
+    }
     let query = knex('tow_proposals')
       .select(
         'tow_proposals.*',
@@ -291,6 +358,19 @@ class TowProposal {
 
   // Estatísticas
   static async getStats() {
+    if (usesSqlite()) {
+      const proposals = await knex('tow_proposals').select('*');
+      const count = (status) => proposals.filter((proposal) => proposal.status === status).length;
+      return {
+        total: proposals.length, pending: count('pending'), accepted: count('accepted'), rejected: count('rejected'),
+        total_proposals: proposals.length,
+        pending_proposals: count('pending'),
+        accepted_proposals: count('accepted'),
+        rejected_proposals: count('rejected'),
+        average_response_time: 0,
+        proposal_success_rate: proposals.length ? Number(((count('accepted') / proposals.length) * 100).toFixed(2)) : 0,
+      };
+    }
     const stats = await knex('tow_proposals')
       .select(
         knex.raw('COUNT(*) as total'),
@@ -307,7 +387,28 @@ class TowProposal {
       )
       .first();
 
-    return stats;
+    const total = Number(stats.total) || 0;
+    const pending = Number(stats.pending) || 0;
+    const accepted = Number(stats.accepted) || 0;
+    const rejected = Number(stats.rejected) || 0;
+    const averageResponseTime = stats.avg_time === null || stats.avg_time === undefined
+      ? null
+      : Number(stats.avg_time);
+
+    return {
+      ...stats,
+      total,
+      pending,
+      accepted,
+      rejected,
+      // Aliases de compatibilidade com o contrato legado do modelo.
+      total_proposals: total,
+      pending_proposals: pending,
+      accepted_proposals: accepted,
+      rejected_proposals: rejected,
+      average_response_time: averageResponseTime,
+      proposal_success_rate: total ? Number(((accepted / total) * 100).toFixed(2)) : 0,
+    };
   }
 
   // Buscar propostas expirando em X minutos
@@ -344,7 +445,8 @@ class TowProposal {
 
   // Deletar proposta
   static async delete(id) {
-    return await knex('tow_proposals').where('id', id).del();
+    const deleted = await knex('tow_proposals').where('id', id).del();
+    return usesSqlite() ? deleted > 0 : deleted;
   }
 }
 

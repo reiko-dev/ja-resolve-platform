@@ -1,16 +1,47 @@
-const knex = require('../config/database');
+const { createDatabaseAccessor } = require('./databaseAccessor');
+
+const {
+  accessor: knex,
+  setDatabase: injectDatabase,
+  resetDatabase: restoreDatabase,
+} = createDatabaseAccessor();
+const usesSqlite = () => knex.client.config.client === 'sqlite3';
+const legacyOrder = (order) => order && ({ ...order,
+  total_amount: order.total_amount == null ? order.total_amount : Number(order.total_amount).toFixed(2),
+});
+
 const Review = require('./Review');
 
 class DeliveryOrder {
+  // Injeção de banco para testes (SQLite em memória). O singleton de produção
+  // permanece intacto e é restaurado por `resetDatabase`.
+  static setDatabase(testDatabase) {
+    injectDatabase(testDatabase);
+    return this;
+  }
+
+  static resetDatabase() {
+    restoreDatabase();
+    return this;
+  }
+
   // Criar nova ordem de entrega
   static async create(orderData) {
     const [order] = await knex('delivery_orders').insert(orderData).returning('*');
-    return order;
+    return usesSqlite() ? legacyOrder(order) : order;
   }
 
   // Buscar por ID
   static async findById(id) {
-    return await knex('delivery_orders')
+    if (usesSqlite()) {
+      return legacyOrder(await knex('delivery_orders')
+        .select('delivery_orders.*', 'users.name as user_name', 'users.phone as user_phone',
+          'partners.business_name as motoboy_name', 'partners.phone as motoboy_phone')
+        .join('users', 'delivery_orders.user_id', 'users.id')
+        .leftJoin('partners', 'delivery_orders.motoboy_id', 'partners.id')
+        .where('delivery_orders.id', id).first() || null);
+    }
+    const order = await knex('delivery_orders')
       .select(
         'delivery_orders.*',
         'users.name as user_name',
@@ -22,6 +53,15 @@ class DeliveryOrder {
       .leftJoin('partners', 'delivery_orders.motoboy_id', 'partners.id')
       .where('delivery_orders.id', id)
       .first();
+
+    if (!order) return null;
+    if (order.tracking_info) {
+      const tracking = typeof order.tracking_info === 'string'
+        ? JSON.parse(order.tracking_info)
+        : order.tracking_info;
+      order.tracking_history = tracking.tracking_history || tracking;
+    }
+    return order;
   }
 
   // Buscar ordens por usuário
@@ -58,6 +98,15 @@ class DeliveryOrder {
 
   // Buscar ordens por motoboy
   static async findByMotoboy(motoboyId, page = 1, limit = 10) {
+    if (usesSqlite()) {
+      const [orders, totalRow] = await Promise.all([
+        knex('delivery_orders').where('motoboy_id', motoboyId)
+          .limit(limit).offset((page - 1) * limit).orderBy('created_at', 'desc'),
+        knex('delivery_orders').where('motoboy_id', motoboyId).count('* as count').first(),
+      ]);
+      const total = Number(totalRow.count) || 0;
+      return { orders: orders.map(legacyOrder), total, page, limit, totalPages: Math.ceil(total / limit) };
+    }
     const offset = (page - 1) * limit;
     
     const [orders, total] = await Promise.all([
@@ -86,6 +135,83 @@ class DeliveryOrder {
       limit,
       totalPages: Math.ceil(total.count / limit)
     };
+  }
+
+  // Listar ordens por status (contrato legado)
+  static async findByStatus(status, { limit, offset } = {}) {
+    let query = knex('delivery_orders')
+      .select('delivery_orders.*')
+      .where('delivery_orders.status', status)
+      .orderBy('delivery_orders.created_at', 'desc');
+
+    if (limit) query = query.limit(limit);
+    if (offset) query = query.offset(offset);
+
+    return await query;
+  }
+
+  // Atualizar status da ordem. Aceita `metadata` como string (observação, como
+  // usado pelo controller legado) ou objeto com campos atualizáveis.
+  static async updateStatus(id, status, metadata = {}) {
+    const now = knex.fn.now();
+    const patch = { status, updated_at: now };
+
+    if (status === 'accepted') patch.accepted_at = now;
+    if (status === 'picked_up') patch.picked_up_at = now;
+    if (status === 'delivered') patch.delivered_at = now;
+
+    if (typeof metadata === 'string') {
+      patch.notes = metadata;
+    } else if (metadata && typeof metadata === 'object') {
+      const updatableFields = [
+        'motoboy_id',
+        'notes',
+        'delivery_proof',
+        'estimated_delivery_minutes',
+        'actual_delivery_minutes',
+        'payment_method',
+        'payment_status',
+        'tracking_info',
+      ];
+
+      updatableFields.forEach((field) => {
+        if (metadata[field] !== undefined) patch[field] = metadata[field];
+      });
+
+      if (status === 'cancelled' && metadata.cancellation_reason) {
+        patch.notes = metadata.cancellation_reason;
+      }
+    }
+
+    const [order] = await knex('delivery_orders').where('id', id).update(patch).returning('*');
+    if (!order) throw new Error(`Ordem ${id} não encontrada`);
+    return order;
+  }
+
+  // Adicionar ponto de rastreamento. O histórico é persistido como JSON na
+  // coluna `tracking_info` e devolvido também em `tracking_history`.
+  static async addTrackingPoint(id, point) {
+    const order = await knex('delivery_orders').where('id', id).first();
+    if (!order) throw new Error(`Ordem ${id} não encontrada`);
+
+    let stored = {};
+    if (order.tracking_info) {
+      stored = typeof order.tracking_info === 'string'
+        ? JSON.parse(order.tracking_info)
+        : order.tracking_info;
+
+      if (Array.isArray(stored)) stored = { tracking_history: stored };
+    }
+
+    const history = Array.isArray(stored.tracking_history) ? stored.tracking_history : [];
+    history.push({ ...point, timestamp: (point && point.timestamp) || new Date().toISOString() });
+
+    const update = { tracking_info: JSON.stringify({ ...stored, tracking_history: history }), updated_at: knex.fn.now() };
+    const [updated] = await knex('delivery_orders').where('id', id)
+      .update(update)
+      .returning('*');
+
+    return { ...updated, tracking_history: history };
   }
 
   // Buscar ordens próximas (para motoboys)
@@ -312,21 +438,42 @@ class DeliveryOrder {
     const stats = await knex('delivery_orders')
       .select(
         knex.raw('COUNT(*) as total'),
-        knex.raw('COUNT(CASE WHEN status = "pending" THEN 1 END) as pending'),
-        knex.raw('COUNT(CASE WHEN status = "accepted" THEN 1 END) as accepted'),
-        knex.raw('COUNT(CASE WHEN status = "picked_up" THEN 1 END) as picked_up'),
-        knex.raw('COUNT(CASE WHEN status = "in_transit" THEN 1 END) as in_transit'),
-        knex.raw('COUNT(CASE WHEN status = "delivered" THEN 1 END) as delivered'),
-        knex.raw('COUNT(CASE WHEN status = "cancelled" THEN 1 END) as cancelled'),
-        knex.raw('COUNT(CASE WHEN type = "fuel" THEN 1 END) as fuel'),
-        knex.raw('COUNT(CASE WHEN type = "parts" THEN 1 END) as parts'),
-        knex.raw('COUNT(CASE WHEN type = "food" THEN 1 END) as food'),
-        knex.raw('AVG(CASE WHEN total_price IS NOT NULL THEN total_price END) as avg_price'),
-        knex.raw('AVG(CASE WHEN actual_delivery_minutes IS NOT NULL THEN actual_delivery_minutes END) as avg_delivery_time')
+        knex.raw("COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending"),
+        knex.raw("COUNT(CASE WHEN status = 'accepted' THEN 1 END) as accepted"),
+        knex.raw("COUNT(CASE WHEN status = 'picked_up' THEN 1 END) as picked_up"),
+        knex.raw("COUNT(CASE WHEN status = 'in_transit' THEN 1 END) as in_transit"),
+        knex.raw("COUNT(CASE WHEN status = 'delivered' THEN 1 END) as delivered"),
+        knex.raw("COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled"),
+        knex.raw("COUNT(CASE WHEN type = 'fuel' THEN 1 END) as fuel"),
+        knex.raw("COUNT(CASE WHEN type = 'parts' THEN 1 END) as parts"),
+        knex.raw("COUNT(CASE WHEN type = 'food' THEN 1 END) as food"),
+        knex.raw('AVG(total_price) as avg_price'),
+        knex.raw('AVG(actual_delivery_minutes) as avg_delivery_time'),
+        knex.raw('SUM(COALESCE(total_price, 0)) as total_revenue')
       )
       .first();
 
-    return stats;
+    const total = Number(stats.total) || 0;
+    const pending = Number(stats.pending) || 0;
+    const delivered = Number(stats.delivered) || 0;
+    const averageDeliveryTime = stats.avg_delivery_time === null || stats.avg_delivery_time === undefined
+      ? null
+      : Number(stats.avg_delivery_time);
+
+    return {
+      ...stats,
+      total,
+      pending,
+      delivered,
+      avg_delivery_time: averageDeliveryTime,
+      // Aliases de compatibilidade com o contrato legado do modelo.
+      total_orders: total,
+      pending_orders: pending,
+      delivered_orders: delivered,
+      average_delivery_time: averageDeliveryTime,
+      delivery_success_rate: total ? Number(((delivered / total) * 100).toFixed(2)) : 0,
+      total_revenue: Number(stats.total_revenue || 0).toFixed(2),
+    };
   }
 }
 
