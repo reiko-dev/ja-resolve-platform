@@ -427,7 +427,7 @@ class TowProposalService {
 
       // Verificar se é guincho
       const partner = await Partner.findById(partnerId);
-      if (!partner || partner.type !== 'guincho') {
+      if (!partner || EmergencyRequestService.normalizePartnerType(partner.type) !== TOW_PARTNER_TYPE) {
         return { canPropose: false, reason: 'Apenas guinchos podem enviar propostas' };
       }
 

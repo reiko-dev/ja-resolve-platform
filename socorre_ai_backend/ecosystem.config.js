@@ -12,7 +12,8 @@ module.exports = {
       },
       env_production: {
         NODE_ENV: 'production',
-        PORT: 3001
+        PORT: 3001,
+        SERVICE_PHOTO_STORAGE_DIR: '/var/lib/socorre-ai/private/service-photos'
       },
       // Configurações de restart
       max_memory_restart: '1G',

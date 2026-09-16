@@ -50,15 +50,18 @@ class Partner {
     return partner.approval_status === 'approved';
   }
 
-  // Criar ou atualizar parceiro com dados de aprovação
-  static async createOrUpdate(partnerData) {
-    const existingPartner = await knex('partners')
+  // Criar ou atualizar parceiro com dados de aprovação.
+  // Aceita uma transação opcional para que o onboarding grave parceiro e
+  // usuário no mesmo commit (sem cadastro parcial).
+  static async createOrUpdate(partnerData, { trx } = {}) {
+    const db = trx || knex;
+    const existingPartner = await db('partners')
       .where('user_id', partnerData.user_id)
       .first();
 
     if (existingPartner) {
       // Atualizar
-      const [partner] = await knex('partners')
+      const [partner] = await db('partners')
         .where('id', existingPartner.id)
         .update({ 
           ...partnerData, 
@@ -68,7 +71,7 @@ class Partner {
       return partner;
     } else {
       // Criar novo
-      const [partner] = await knex('partners')
+      const [partner] = await db('partners')
         .insert({
           ...partnerData,
           type: normalizePartnerType(partnerData.type),
@@ -93,8 +96,13 @@ class Partner {
     if (status === 'approved') {
       updateData.approved_at = knex.fn.now();
       updateData.approved_by = reviewedBy;
+      updateData.rejection_reason = null;
     } else if (status === 'rejected') {
       updateData.rejection_reason = rejectionReason;
+    } else {
+      // Reenvio/análise/documents_required: motivo antigo não pode continuar
+      // aparecendo para o app depois que o documento foi substituído.
+      updateData.rejection_reason = null;
     }
 
     const [partner] = await knex('partners')
@@ -346,14 +354,18 @@ class Partner {
   }
 
   // Atualizar localização
-  static async updateLocation(id, latitude, longitude) {
-    await knex('partners')
+  static async updateLocation(id, latitude, longitude, address = undefined) {
+    const patch = {
+      latitude,
+      longitude,
+      updated_at: knex.fn.now()
+    };
+    if (address !== undefined) patch.address = address;
+    const [partner] = await knex('partners')
       .where('id', id)
-      .update({
-        latitude,
-        longitude,
-        updated_at: knex.fn.now()
-      });
+      .update(patch)
+      .returning('*');
+    return partner;
   }
 
   // Buscar todos os parceiros (paginado; inclui user_id null via leftJoin)

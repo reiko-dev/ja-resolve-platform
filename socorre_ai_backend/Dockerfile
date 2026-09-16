@@ -32,7 +32,9 @@ COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Uploads em disco (monte um volume em /app/uploads em produção se quiser persistir)
-RUN mkdir -p uploads/documents && chown -R node:node /app
+RUN mkdir -p uploads/documents /var/lib/socorre-ai/private/service-photos \
+  && chmod 700 /var/lib/socorre-ai/private/service-photos \
+  && chown -R node:node /app /var/lib/socorre-ai/private/service-photos
 
 USER node
 

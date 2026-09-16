@@ -25,9 +25,10 @@ class User {
     return user;
   }
 
-  // Atualizar usuário
-  static async update(id, data) {
-    const [user] = await knex('users')
+  // Atualizar usuário (aceita transação opcional para gravações atômicas)
+  static async update(id, data, { trx } = {}) {
+    const db = trx || knex;
+    const [user] = await db('users')
       .where('id', id)
       .update({
         ...data,

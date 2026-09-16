@@ -1,12 +1,25 @@
 const Partner = require('../models/Partner');
 const PartnerDocument = require('../models/PartnerDocument');
 const User = require('../models/User');
+const db = require('../config/database');
 const DocumentService = require('../services/DocumentService');
 const { normalizePartnerType } = require('../config/partnerDocumentRules');
 const { ONBOARDING_STAGES, nextStepFromStage } = require('../config/onboardingStages');
 const { validate } = require('../middleware/validation');
 const { validateMechanic, validateStore, validateMotoboy, validatePartner, handleValidationErrors } = require('../middleware/partnerValidation');
 const { validationResult } = require('express-validator');
+
+function parseOperationalCoordinates(latitudeInput, longitudeInput) {
+  if (latitudeInput === undefined || latitudeInput === null || longitudeInput === undefined || longitudeInput === null || latitudeInput === '' || longitudeInput === '') {
+    return { error: 'invalid_coordinates', message: 'Latitude e longitude são obrigatórias' };
+  }
+  const latitude = Number(latitudeInput);
+  const longitude = Number(longitudeInput);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180 || (latitude === 0 && longitude === 0)) {
+    return { error: 'invalid_coordinates', message: 'Latitude e longitude inválidas' };
+  }
+  return { latitude, longitude };
+}
 
 class PartnerController {
   static _buildAddressFromPayload(payload) {
@@ -36,23 +49,27 @@ class PartnerController {
   }
 
   static _resolveOnboardingStage(user, partner, partnerType) {
+    // O estado do parceiro é a fonte de verdade do funil. `approved` só é
+    // liberado quando partners.approval_status é approved — nunca por um
+    // onboarding_stage antigo/divergente — e o estágio não fica preso em
+    // account_created quando o parceiro já existe.
+    if (partner) {
+      if (partner.approval_status === 'approved') {
+        return ONBOARDING_STAGES.APPROVED;
+      }
+
+      if (partner.approval_status === 'pending') {
+        return ONBOARDING_STAGES.UNDER_REVIEW;
+      }
+
+      return ONBOARDING_STAGES.DOCUMENTS_PENDING;
+    }
+
     if (user?.onboarding_stage) {
       return user.onboarding_stage;
     }
 
-    if (!partner) {
-      return partnerType ? ONBOARDING_STAGES.ACCOUNT_CREATED : null;
-    }
-
-    if (partner.approval_status === 'approved') {
-      return ONBOARDING_STAGES.APPROVED;
-    }
-
-    if (partner.approval_status === 'pending') {
-      return ONBOARDING_STAGES.UNDER_REVIEW;
-    }
-
-    return ONBOARDING_STAGES.DOCUMENTS_PENDING;
+    return partnerType ? ONBOARDING_STAGES.ACCOUNT_CREATED : null;
   }
 
   static async _buildOnboardingStatus(userId, fallbackPartnerType = null) {
@@ -450,6 +467,7 @@ class PartnerController {
       const businessName = (req.body.company_name || req.body.companyName || req.body.trade_name || req.body.tradeName || req.user.name || '').trim();
       const phone = (req.body.phone || req.user.phone || '').trim();
       const address = PartnerController._buildAddressFromPayload(req.body);
+      const coordinates = parseOperationalCoordinates(req.body.latitude, req.body.longitude);
 
       if (!normalizedPartnerType) {
         return res.status(400).json({
@@ -479,6 +497,10 @@ class PartnerController {
         });
       }
 
+      if (coordinates.error) {
+        return res.status(400).json({ success: false, code: coordinates.error, message: coordinates.message });
+      }
+
       const partnerPayload = {
         user_id: req.user.id,
         type: normalizedPartnerType,
@@ -486,6 +508,8 @@ class PartnerController {
         description: req.body.description || null,
         specialties: PartnerController._serializeIfPresent(req.body.specialties),
         address,
+        latitude: coordinates.latitude,
+        longitude: coordinates.longitude,
         phone,
         whatsapp: req.body.whatsapp || phone,
         website: req.body.website || null,
@@ -502,10 +526,19 @@ class PartnerController {
         cnh_category: req.body.cnh_category || req.body.cnhCategory || null,
       };
 
-      const partner = await Partner.createOrUpdate(partnerPayload);
-      await User.update(req.user.id, {
-        onboarding_partner_type: normalizedPartnerType,
-        onboarding_stage: ONBOARDING_STAGES.DOCUMENTS_PENDING,
+      // Parceiro + estágio do usuário no mesmo commit: nenhuma falha parcial
+      // deixa cadastro criado sem onboarding (ou vice-versa).
+      const partner = await db.transaction(async (trx) => {
+        const savedPartner = await Partner.createOrUpdate(partnerPayload, { trx });
+        await User.update(
+          req.user.id,
+          {
+            onboarding_partner_type: normalizedPartnerType,
+            onboarding_stage: ONBOARDING_STAGES.DOCUMENTS_PENDING,
+          },
+          { trx },
+        );
+        return savedPartner;
       });
       const status = await PartnerController._buildOnboardingStatus(req.user.id, normalizedPartnerType);
 
@@ -658,14 +691,10 @@ class PartnerController {
       const { id } = req.params;
       const { latitude, longitude, address } = req.body;
       
-      if (!latitude || !longitude) {
-        return res.status(400).json({
-          success: false,
-          message: 'Latitude e longitude são obrigatórios'
-        });
-      }
+      const coordinates = parseOperationalCoordinates(latitude, longitude);
+      if (coordinates.error) return res.status(400).json({ success: false, code: coordinates.error, message: coordinates.message });
 
-      const partner = await Partner.updateLocation(id, latitude, longitude, address);
+      const partner = await Partner.updateLocation(id, coordinates.latitude, coordinates.longitude, address);
       
       if (!partner) {
         return res.status(404).json({
@@ -676,6 +705,7 @@ class PartnerController {
 
       res.json({
         success: true,
+        data: partner,
         message: 'Localização atualizada com sucesso'
       });
     } catch (error) {
@@ -897,3 +927,4 @@ class PartnerController {
 }
 
 module.exports = PartnerController;
+module.exports.parseOperationalCoordinates = parseOperationalCoordinates;

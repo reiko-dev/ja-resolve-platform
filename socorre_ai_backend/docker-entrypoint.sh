@@ -2,6 +2,11 @@
 set -e
 export NODE_ENV="${NODE_ENV:-production}"
 
+if [ -n "${SERVICE_PHOTO_STORAGE_DIR:-}" ]; then
+  mkdir -p "$SERVICE_PHOTO_STORAGE_DIR"
+  chmod 700 "$SERVICE_PHOTO_STORAGE_DIR"
+fi
+
 if [ "${NODE_ENV}" = "production" ]; then
   case "${RUN_MIGRATIONS}" in
     ''|1|true)

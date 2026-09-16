@@ -12,6 +12,7 @@ const PARTNER_TYPE_ALIASES = {
   autoparts: CANONICAL_PARTNER_TYPES.auto_parts,
   towtruck: CANONICAL_PARTNER_TYPES.tow,
   tow_truck: CANONICAL_PARTNER_TYPES.tow,
+  guincho: CANONICAL_PARTNER_TYPES.tow,
   delivery: CANONICAL_PARTNER_TYPES.motoboy,
 };
 

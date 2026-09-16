@@ -51,6 +51,7 @@ services:
       - DB_PASSWORD=postgres
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=dev_jwt_secret_2025_change_in_production
+      - SERVICE_PHOTO_STORAGE_DIR=/var/lib/socorre-ai/private/service-photos
     depends_on:
       postgres:
         condition: service_healthy
@@ -59,6 +60,7 @@ services:
     volumes:
       - ./socorre_ai_backend:/app
       - /app/node_modules
+      - service_photo_data:/var/lib/socorre-ai/private/service-photos
     working_dir: /app
     command: npm run dev
 
@@ -84,3 +86,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  service_photo_data:

@@ -12,6 +12,7 @@ module.exports = {
       kill_timeout: 8000,
       env: {
         NODE_ENV: 'production',
+        SERVICE_PHOTO_STORAGE_DIR: '/var/lib/socorre-ai/private/service-photos',
       },
     },
   ],
