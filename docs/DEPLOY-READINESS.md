@@ -1,6 +1,6 @@
 # Deploy readiness — Socorre AI
 
-Status: código local validado no HEAD `1b2ccc3e`; deploy externo **não executado** — pendente de infraestrutura. É o único blocker operacional real, em HUMAN_REQUIRED; produção **não** validada.
+Status: código local validado na implementação `1b2ccc3e` (documentação reconciliada no merge `57326cd1`); deploy externo **não executado** — pendente de infraestrutura. É o único blocker operacional real, em HUMAN_REQUIRED; produção **não** validada.
 
 ## Validado localmente (estado atual, HEAD `1b2ccc3e`)
 
@@ -28,4 +28,3 @@ Antes de executar `scripts/deploy-production.sh`, o operador precisa fornecer:
 5. Procedimento de smoke test pós-deploy e janela de rollback.
 
 O deploy não foi executado nem publicado automaticamente: sem esses recursos, fazê-lo seria uma operação incompleta e potencialmente insegura. Não existe receipt, hash de release, aprovação ou smoke de produção neste documento. A validação da instância externa segue pendente até que `/health` responda no commit `1b2ccc3e` com as migrations aplicadas.
-

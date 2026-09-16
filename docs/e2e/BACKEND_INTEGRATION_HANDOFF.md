@@ -2,7 +2,7 @@
 
 > Fonte única de verdade do contrato de integração entre o aplicativo cliente (Flutter) e o backend.
 >
-> **Estado reconciliado em 2026-09-16 (HEAD `1b2ccc3e`):** as correções de E2E-010/E2E-011 foram
+> **Estado reconciliado em 2026-09-16 (implementação `1b2ccc3e`; documentação no merge `57326cd1`):** as correções de E2E-010/E2E-011 foram
 > implementadas no packet T3 (`66d0d6fa`, merge `4ee4ec2b`) e o contrato local passa
 > (grupos A+B; `tests/endpoints` + `tests/auth` + `tests/integration` = 241/241). A revalidação em
 > device físico e em produção continua **pendente**: o deploy externo não foi executado e é o único

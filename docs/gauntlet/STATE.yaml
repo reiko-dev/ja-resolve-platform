@@ -3,16 +3,15 @@ status: HUMAN_REQUIRED
 terminal_state: HUMAN_REQUIRED_EXTERNAL_DEPLOY_ACCESS
 repository: reiko-dev/socorre-ja-platform
 base_branch: main
-head: 1b2ccc3e
-# origin/main local ref observado em 1b2ccc3e; a verificação final é do supervisor.
-origin_main_local_ref: 1b2ccc3e
-worktree: codex/p0-state-reconciliation
+head: 57326cd1
+implementation_head: 1b2ccc3e
+worktree: main
 remote: https://github.com/reiko-dev/socorre-ja-platform.git
 max_execution_cycles: 3
 cycle: 0
-current_task: T7-P0-state-reconciliation
-current_task_status: DOCS_RECONCILED_UNCOMMITTED
-current_task_note: "Atualização de ledger/handoff/evidências e de comentários do contrato de purchase orders; o workhorse não faz commit — a integração fica com o supervisor."
+current_task: release-validation
+current_task_status: HUMAN_REQUIRED_EXTERNAL_DEPLOY
+current_task_note: "T7 de reconciliação documental integrado em 57326cd1; próxima ação depende do deploy externo e do smoke em produção."
 workstreams:
   G1:
     status: COMPLETE
@@ -73,10 +72,10 @@ workstreams:
     merge_commit: 1b2ccc3e
     scope: "destroy() dos pools SQLite mockados em g2PhotoContract e towHttp.transport; Jest encerra naturalmente, sem open handle."
   T7:
-    status: DOCS_RECONCILED_UNCOMMITTED
+    status: MERGED_ON_MAIN
     branch: codex/p0-state-reconciliation
-    commit: null
-    merge_commit: null
+    commit: c11ce8f8
+    merge_commit: 57326cd1
     scope: "Reconciliar STATE.yaml, handoff mobile, DEPLOY-READINESS, evidência G3 e comentários do contrato de purchase orders com o estado pós-T6."
 blockers:
   - id: production-deploy-access
@@ -180,7 +179,7 @@ branches:
   - name: codex/g3-nearby-proposals-coordinates
     status: merged
   - name: codex/p0-state-reconciliation
-    status: docs_only_uncommitted
+    status: merged
 commits:
   - 48c531d0
   - 42b2d7ab
@@ -261,7 +260,7 @@ validations:
     result: "Antes do T6: 50 (g2PhotoContract) e 21 (towHttp.transport) passavam, mas o Jest continuava vivo com 'Jest did not exit one second after the test run has completed...'. Depois do T6: as duas suítes encerram naturalmente, sem o aviso. O T6 adicionou apenas destroy() aos pools SQLite mockados."
   - task: T7-static-validation
     command: "git rev-parse HEAD; git diff --check; node --check socorre_ai_backend/tests/endpoints/purchase-orders.integration.test.js; parse YAML (Psych/Ruby) de docs/gauntlet/STATE.yaml; checagem estática de Markdown (fences, tabelas e âncora) nos docs alterados"
-    result: "PASS: HEAD = 1b2ccc3e3aec9a5e5e3f30f7afcf0ad06fa75b13; ref local origin/main = 1b2ccc3e (verificação final do supervisor); diff sem whitespace errors; JS com sintaxe válida; STATE.yaml parseia; Markdown com fences balanceadas, tabelas consistentes e âncora interna resolvida. Executado sem npm/jest."
+    result: "PASS no estado de implementação 1b2ccc3e3aec9a5e5e3f30f7afcf0ad06fa75b13: diff sem whitespace errors; JS com sintaxe válida; STATE.yaml parseia; Markdown com fences balanceadas, tabelas consistentes e âncora interna resolvida. A integração documental T7 gerou o merge 57326cd1; executado sem npm/jest."
 findings:
   - id: muse-1
     task_id: G1
@@ -380,4 +379,4 @@ findings:
     decision: ACCEPT_WITH_DEFERRED_EVIDENCE_HARDENING
     owner: backend-maintenance
     description: "LOW — evidência PG local e comando estão documentados, mas a prova de vacuidade usou script temporário; não é gate CI."
-next_action: "Estado reconciliado pós-T6 no HEAD 1b2ccc3e: packets T1 (bd873f4d), T2 (6d86a20e), T3 (4ee4ec2b), T5 (7d29de6a) e T6 (1b2ccc3e) integrados em main; suíte completa 35 suites passed + 2 PostgreSQL opt-in skipped, 550 passed / 9 skipped, exit 0; contrato E2E-010/E2E-011 passando localmente (241/241). Único blocker operacional real: deploy externo em HUMAN_REQUIRED — faltam VPS/permissão, domínios/certificados, secrets e serviços externos; produção NÃO validada. Follow-ups de produto/manutenção: F3 (semântica de proposals_received), F9 (snapshot/revalidação de pricing), F10 (script/seed PG reproduzível) e F8 (helper legado fora de escopo)."
+next_action: "Estado reconciliado no merge documental T7 57326cd1 sobre a implementação 1b2ccc3e: packets T1 (bd873f4d), T2 (6d86a20e), T3 (4ee4ec2b), T5 (7d29de6a) e T6 (1b2ccc3e) integrados em main; suíte completa 35 suites passed + 2 PostgreSQL opt-in skipped, 550 passed / 9 skipped, exit 0; contrato E2E-010/E2E-011 passando localmente (241/241). Único blocker operacional real: deploy externo em HUMAN_REQUIRED — faltam VPS/permissão, domínios/certificados, secrets e serviços externos; produção NÃO validada. Follow-ups de produto/manutenção: F3 (semântica de proposals_received), F9 (snapshot/revalidação de pricing), F10 (script/seed PG reproduzível) e F8 (helper legado fora de escopo)."
