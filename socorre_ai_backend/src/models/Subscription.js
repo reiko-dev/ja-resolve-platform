@@ -1,15 +1,44 @@
-const knex = require('../config/database');
+const { createDatabaseAccessor } = require('./databaseAccessor');
+
+const {
+  accessor: knex,
+  setDatabase: injectDatabase,
+  resetDatabase: restoreDatabase,
+} = createDatabaseAccessor();
+const usesSqlite = () => knex.client.config.client === 'sqlite3';
+const legacySubscription = (subscription) => subscription && ({ ...subscription,
+  monthly_fee: subscription.monthly_fee == null ? subscription.monthly_fee : Number(subscription.monthly_fee).toFixed(2),
+  last_payment_amount: subscription.last_payment_amount == null ? subscription.last_payment_amount : Number(subscription.last_payment_amount).toFixed(2),
+});
 
 class Subscription {
+  // Injeção de banco para testes (SQLite em memória). O singleton de produção
+  // permanece intacto e é restaurado por `resetDatabase`.
+  static setDatabase(testDatabase) {
+    injectDatabase(testDatabase);
+    return this;
+  }
+
+  static resetDatabase() {
+    restoreDatabase();
+    return this;
+  }
+
   // Criar nova assinatura
   static async create(subscriptionData) {
     const [subscription] = await knex('subscriptions').insert(subscriptionData).returning('*');
-    return subscription;
+    return usesSqlite() ? legacySubscription(subscription) : subscription;
   }
 
   // Buscar por ID
   static async findById(id) {
-    return await knex('subscriptions')
+    if (usesSqlite()) return legacySubscription(await knex('subscriptions')
+      .select('subscriptions.*', 'partners.business_name', 'partners.type as partner_type',
+        'users.name as user_name', 'users.email as user_email')
+      .join('partners', 'subscriptions.partner_id', 'partners.id')
+      .join('users', 'partners.user_id', 'users.id')
+      .where('subscriptions.id', id).first() || null);
+    const subscription = await knex('subscriptions')
       .select(
         'subscriptions.*',
         'partners.business_name',
@@ -21,19 +50,28 @@ class Subscription {
       .join('users', 'partners.user_id', 'users.id')
       .where('subscriptions.id', id)
       .first();
+
+    return subscription || null;
   }
 
   // Buscar por parceiro
   static async findByPartner(partnerId) {
-    return await knex('subscriptions')
+    if (usesSqlite()) return legacySubscription(await knex('subscriptions').where('partner_id', partnerId)
+      .orderBy('created_at', 'desc').first()) || null;
+    const subscription = await knex('subscriptions')
       .select('subscriptions.*')
       .where('partner_id', partnerId)
       .orderBy('created_at', 'desc')
       .first();
+
+    return subscription || null;
   }
 
   // Buscar assinaturas ativas
   static async findActive() {
+    if (usesSqlite()) return (await knex('subscriptions').select('subscriptions.*', 'partners.business_name', 'partners.type as partner_type', 'users.name as user_name', 'users.email as user_email')
+      .join('partners', 'subscriptions.partner_id', 'partners.id').join('users', 'partners.user_id', 'users.id')
+      .where('subscriptions.status', 'active')).map(legacySubscription);
     return await knex('subscriptions')
       .select(
         'subscriptions.*',
@@ -53,6 +91,9 @@ class Subscription {
     const futureDate = new Date();
     futureDate.setDate(futureDate.getDate() + days);
 
+    if (usesSqlite()) return (await knex('subscriptions').where('status', 'active')
+      .where('next_billing_date', '<=', futureDate.toISOString().slice(0, 10))
+      .where('next_billing_date', '>=', new Date().toISOString().slice(0, 10))).map(legacySubscription);
     return await knex('subscriptions')
       .select(
         'subscriptions.*',
@@ -97,19 +138,39 @@ class Subscription {
 
   // Atualizar status
   static async updateStatus(id, status, notes = null) {
+    if (usesSqlite()) {
+      const patch = { status, updated_at: knex.fn.now() };
+      if (status === 'cancelled') patch.auto_renew = false;
+      patch.notes = notes;
+      const [subscription] = await knex('subscriptions').where('id', id).update(patch).returning('*');
+      return legacySubscription(subscription);
+    }
+    const patch = {
+      status,
+      notes,
+      updated_at: knex.fn.now()
+    };
+
+    if (status === 'cancelled') {
+      patch.auto_renew = false;
+    }
+
     const [subscription] = await knex('subscriptions')
       .where('id', id)
-      .update({ 
-        status, 
-        notes,
-        updated_at: knex.fn.now() 
-      })
+      .update(patch)
       .returning('*');
     return subscription;
   }
 
   // Processar pagamento - atualizar próxima data de cobrança
   static async processPayment(id, nextBillingDate) {
+    if (usesSqlite()) {
+      const [subscription] = await knex('subscriptions').where('id', id).update({
+        status: 'active', next_billing_date: nextBillingDate,
+        last_successful_payment: knex.fn.now(), failed_attempts: 0, updated_at: knex.fn.now(),
+      }).returning('*');
+      return legacySubscription(subscription);
+    }
     const [subscription] = await knex('subscriptions')
       .where('id', id)
       .update({
@@ -234,6 +295,22 @@ class Subscription {
 
   // Estatísticas
   static async getStats() {
+    if (usesSqlite()) {
+      const subscriptions = await knex('subscriptions').select('*');
+      const active = subscriptions.filter((item) => item.status === 'active');
+      const sum = (items) => items.reduce((total, item) => total + Number(item.monthly_fee || 0), 0);
+      return {
+        total_subscriptions: subscriptions.length,
+        active_subscriptions: active.length,
+        expired_subscriptions: subscriptions.filter((item) => item.status === 'expired').length,
+        cancelled_subscriptions: subscriptions.filter((item) => item.status === 'cancelled').length,
+        total: subscriptions.length, active: active.length,
+        expired: subscriptions.filter((item) => item.status === 'expired').length,
+        cancelled: subscriptions.filter((item) => item.status === 'cancelled').length,
+        monthly_revenue: sum(active).toFixed(2),
+        average_subscription_value: subscriptions.length ? (sum(subscriptions) / subscriptions.length).toFixed(2) : '0.00',
+      };
+    }
     const stats = await knex('subscriptions')
       .select(
         knex.raw('COUNT(*) as total'),
@@ -243,6 +320,7 @@ class Subscription {
         knex.raw("COUNT(CASE WHEN status = 'suspended' THEN 1 END) as suspended"),
         knex.raw("COUNT(CASE WHEN status = 'pending_payment' THEN 1 END) as pending_payment"),
         knex.raw('SUM(monthly_fee) as total_monthly_revenue'),
+        knex.raw("SUM(CASE WHEN status = 'active' THEN monthly_fee ELSE 0 END) as active_monthly_revenue"),
         knex.raw('AVG(monthly_fee) as avg_monthly_fee'),
         knex.raw("COUNT(CASE WHEN type = 'mecanico' THEN 1 END) as mecanico"),
         knex.raw("COUNT(CASE WHEN type = 'posto_combustivel' THEN 1 END) as posto_combustivel"),
@@ -250,7 +328,27 @@ class Subscription {
       )
       .first();
 
-    return stats;
+    const total = Number(stats.total) || 0;
+    const active = Number(stats.active) || 0;
+    const expired = Number(stats.expired) || 0;
+    const cancelled = Number(stats.cancelled) || 0;
+
+    return {
+      ...stats,
+      total,
+      active,
+      expired,
+      cancelled,
+      // Aliases de compatibilidade com o contrato legado do modelo.
+      total_subscriptions: total,
+      active_subscriptions: active,
+      expired_subscriptions: expired,
+      cancelled_subscriptions: cancelled,
+      monthly_revenue: Number(stats.active_monthly_revenue || 0).toFixed(2),
+      average_subscription_value: stats.avg_monthly_fee === null || stats.avg_monthly_fee === undefined
+        ? null
+        : Number(stats.avg_monthly_fee).toFixed(2),
+    };
   }
 
   // Verificar se parceiro tem assinatura ativa

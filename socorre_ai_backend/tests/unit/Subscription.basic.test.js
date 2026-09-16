@@ -55,7 +55,7 @@ describe('Subscription Model - Basic Tests', () => {
       const months = 12;
       const expectedTotal = monthlyFee * months;
       
-      expect(expectedTotal).toBe(1198.80);
+      expect(expectedTotal).toBeCloseTo(1198.80, 10);
     });
     
     it('deve identificar assinaturas expirando', () => {
