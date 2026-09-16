@@ -2,6 +2,17 @@ const PurchaseOrder = require('../models/PurchaseOrder');
 const Partner = require('../models/Partner');
 const DeliveryOrderService = require('../services/DeliveryOrderService');
 
+// Valores canônicos de `purchase_orders.payment_method` (migration 011).
+const CANONICAL_PAYMENT_METHODS = Object.freeze(['cash', 'card', 'pix', 'app']);
+
+// E2E-010: o app cliente envia `credit_card`; o backend aceita o alias e
+// persiste o valor canônico oficial (`card`).
+const PAYMENT_METHOD_ALIASES = Object.freeze({ credit_card: 'card' });
+
+// E2E-011: padrões de detalhe interno (SQL, constraint, driver, stack) que
+// nunca podem ser refletidos na resposta ao cliente.
+const INTERNAL_ERROR_DETAILS = /(insert\s+into|update\s+.+\s+set|delete\s+from|select\s+.+\s+from|check constraint|constraint\s+"|relation\s+"|violates|undefined binding|postgres|sqlite|knex|(^|\n)\s*at\s+\S)/i;
+
 class PurchaseOrderController {
   static parseJson(value, fallback = null) {
     if (!value) return fallback;
@@ -51,18 +62,38 @@ class PurchaseOrderController {
     return Partner.findByUserId(req.user.id);
   }
 
+  // E2E-010/E2E-011 — contrato de erro do endpoint.
+  // Somente mensagens de negócio conhecidas definem 400/403/404. Qualquer
+  // outra mensagem (incluindo SQL/constraint/stack do driver) vira 500
+  // genérico; o detalhe completo permanece apenas no log server-side.
   static errorResponse(res, error) {
     console.error('Erro em pedidos de compra:', error);
 
-    const message = error.message || 'Erro interno do servidor';
+    const message = error && typeof error.message === 'string' ? error.message : '';
+    const status = PurchaseOrderController.resolveBusinessErrorStatus(message);
+
+    if (status === null || INTERNAL_ERROR_DETAILS.test(message)) {
+      return res.status(500).json({
+        success: false,
+        message: 'Erro interno do servidor'
+      });
+    }
+
+    return res.status(status).json({
+      success: false,
+      message
+    });
+  }
+
+  static resolveBusinessErrorStatus(message) {
     const lower = message.toLowerCase();
 
-    if (lower.includes('não encontrado')) {
-      return res.status(404).json({ success: false, message });
+    if (lower.includes('não encontrad')) {
+      return 404;
     }
 
     if (lower.includes('acesso negado') || lower.includes('não autorizado')) {
-      return res.status(403).json({ success: false, message });
+      return 403;
     }
 
     if (
@@ -72,10 +103,41 @@ class PurchaseOrderController {
       lower.includes('compatível') ||
       lower.includes('só pode')
     ) {
-      return res.status(400).json({ success: false, message });
+      return 400;
     }
 
-    return res.status(500).json({ success: false, message });
+    return null;
+  }
+
+  // Aceita o alias documentado do Mobile (`credit_card`) e devolve sempre um
+  // valor canônico, validado antes de qualquer INSERT (E2E-010).
+  static normalizePaymentMethod(value) {
+    const candidate = typeof value === 'string' ? value.trim().toLowerCase() : value;
+    const canonical = PAYMENT_METHOD_ALIASES[candidate] || candidate;
+
+    if (!CANONICAL_PAYMENT_METHODS.includes(canonical)) {
+      throw new Error('payment_method inválido');
+    }
+
+    return canonical;
+  }
+
+  // Coordenadas não numéricas quebrariam o binding do INSERT em PostgreSQL e
+  // virariam 500 com detalhe do driver (E2E-011). Rejeitar antes do INSERT
+  // mantém a resposta determinística e segura.
+  static normalizeCoordinate(value, field) {
+    if (value === undefined || value === null) {
+      return null;
+    }
+
+    const candidate = typeof value === 'string' ? value.trim() : value;
+    const parsed = typeof candidate === 'string' ? Number(candidate) : candidate;
+
+    if (candidate === '' || typeof parsed !== 'number' || !Number.isFinite(parsed)) {
+      throw new Error(`${field} inválido`);
+    }
+
+    return parsed;
   }
 
   static async assertStoreAccess(req, order) {
@@ -198,9 +260,16 @@ class PurchaseOrderController {
         throw new Error('delivery_mode inválido');
       }
 
+      // E2E-010: valida/normaliza antes de qualquer acesso ao banco para que
+      // valores inválidos respondam 400 sem tentativa de INSERT.
+      const paymentMethod = PurchaseOrderController.normalizePaymentMethod(payment_method);
+
       if (delivery_mode === 'app_motoboy' && (!delivery_address || !delivery_latitude || !delivery_longitude)) {
         throw new Error('Pedidos com app_motoboy exigem endereço e coordenadas de entrega');
       }
+
+      const normalizedDeliveryLatitude = PurchaseOrderController.normalizeCoordinate(delivery_latitude, 'delivery_latitude');
+      const normalizedDeliveryLongitude = PurchaseOrderController.normalizeCoordinate(delivery_longitude, 'delivery_longitude');
 
       const store = await Partner.findById(store_id);
       if (!store) {
@@ -249,14 +318,14 @@ class PurchaseOrderController {
         }),
         status: 'pending',
         delivery_address,
-        delivery_latitude,
-        delivery_longitude,
+        delivery_latitude: normalizedDeliveryLatitude,
+        delivery_longitude: normalizedDeliveryLongitude,
         delivery_instructions: orderData.delivery_instructions || null,
         delivery_contact_name: orderData.delivery_contact_name || null,
         delivery_contact_phone: orderData.delivery_contact_phone || req.user.phone || null,
         has_delivery: true,
         scheduled_delivery_at: orderData.scheduled_delivery_at || null,
-        payment_method,
+        payment_method: paymentMethod,
         payment_status,
         payment_info: JSON.stringify({
           ...paymentInfo,
