@@ -3,12 +3,16 @@ status: HUMAN_REQUIRED
 terminal_state: HUMAN_REQUIRED_EXTERNAL_DEPLOY_ACCESS
 repository: reiko-dev/socorre-ja-platform
 base_branch: main
-head: dfc014f0
-worktree: main
+head: 1b2ccc3e
+# origin/main local ref observado em 1b2ccc3e; a verificação final é do supervisor.
+origin_main_local_ref: 1b2ccc3e
+worktree: codex/p0-state-reconciliation
 remote: https://github.com/reiko-dev/socorre-ja-platform.git
 max_execution_cycles: 3
 cycle: 0
-current_task: G3-findings-resolution
+current_task: T7-P0-state-reconciliation
+current_task_status: DOCS_RECONCILED_UNCOMMITTED
+current_task_note: "Atualização de ledger/handoff/evidências e de comentários do contrato de purchase orders; o workhorse não faz commit — a integração fica com o supervisor."
 workstreams:
   G1:
     status: COMPLETE
@@ -21,17 +25,19 @@ workstreams:
     status: COMPLETE
     branch: codex/g2-photo-schema-pricing
     commit: 99215384
+    merge_commit: 422c5c8d
     fix_commit_message: "fix(g2): address Muse pricing schema and orphan findings"
-    fix_commit_hash: "registrado no work_result (não é possível embutir o próprio hash no commit)"
+    fix_commit_hash: b42e32b3   # hash real verificado no histórico; antes ficava só no work_result
     findings_resolution_doc: docs/gauntlet/G2-MUSE-FINDINGS-RESOLUTION.md
     muse_verdict: APPROVE_WITH_FINDINGS
     luna_adjudication: ACCEPT_WITH_DEFERRED_FINDINGS
   G3:
     status: COMPLETE
     branch: codex/g3-nearby-proposals-coordinates
-    commit: bfc484bd
+    commit: 0ee3b010
+    merge_commit: bfc484bd
     fix_commit_message: "fix(g3): close concurrency and coordinate review findings"
-    fix_commit_hash: "registrado no work_result (não é possível embutir o próprio hash no commit)"
+    fix_commit_hash: ca86fda9   # hash real verificado no histórico; antes ficava só no work_result
     findings_resolution_doc: docs/gauntlet/G3-MUSE-FINDINGS-RESOLUTION.md
     evidence_doc: docs/evidence/g3-tow-postgres.md
     muse_verdict: APPROVE_WITH_FINDINGS
@@ -39,29 +45,62 @@ workstreams:
     findings_fixed: [F1, F4, F5, F6, F7, F2]
     findings_registered: [F3]
     findings_out_of_scope: [F8]
+  # Packets de integração posteriores ao G3, já integrados em main (HEAD 1b2ccc3e).
+  # T4 não consta da base factual deste packet.
+  T1:
+    status: MERGED_ON_MAIN
+    commit: 3dfd6533
+    merge_commit: bd873f4d
+    scope: "Harness de integração: testDb SQLite com schema real das migrations, helpers api/auth/db/sqlitePgCompat, setup.js e ajuste de server.js para testes."
+  T2:
+    status: MERGED_ON_MAIN
+    commit: 758c2362
+    merge_commit: 6d86a20e
+    scope: "Delivery: restaura 404/403/400 do contrato de erro e preserva pickup_distance_km no select do modelo."
+  T3:
+    status: MERGED_ON_MAIN
+    commit: 66d0d6fa
+    merge_commit: 4ee4ec2b
+    scope: "Purchase orders: aceita credit_card como alias de card, valida payment_method/coordenadas antes do INSERT e devolve 500 genérico sem SQL/constraint/stack (E2E-010/E2E-011)."
+  T5:
+    status: MERGED_ON_MAIN
+    commit: 3ff0d335
+    merge_commit: 7d29de6a
+    scope: "Fixture determinística de autorização em api.manual.test.js sobre o harness SQLite, com claim userId e usuário real no banco."
+  T6:
+    status: MERGED_ON_MAIN
+    commit: 53a3f0ce
+    merge_commit: 1b2ccc3e
+    scope: "destroy() dos pools SQLite mockados em g2PhotoContract e towHttp.transport; Jest encerra naturalmente, sem open handle."
+  T7:
+    status: DOCS_RECONCILED_UNCOMMITTED
+    branch: codex/p0-state-reconciliation
+    commit: null
+    merge_commit: null
+    scope: "Reconciliar STATE.yaml, handoff mobile, DEPLOY-READINESS, evidência G3 e comentários do contrato de purchase orders com o estado pós-T6."
 blockers:
   - id: production-deploy-access
     task_id: release-validation
     type: access
-    reason: "O código e o stack local estão validados, mas não há credenciais, domínio/IP ou acesso ao ambiente de homologação/produção para confirmar processo, imagem, variáveis, migrations e endpoint externo."
+    reason: "O código e o stack local estão validados, mas não há credenciais, domínio/IP ou acesso ao ambiente de homologação/produção para confirmar processo, imagem, variáveis, migrations e endpoint externo. É o único blocker operacional real: faltam VPS/permissão, domínios/certificados, secrets e serviços externos."
     dependency: "Acesso operacional ao ambiente Hostinger/homologação e secrets de deploy"
-    verification_predicate: "A instância externa responde /health e executa o commit dfc014f0 com migrations aplicadas"
-    evidence: "Validação local PASS; deploy externo não foi simulado."
+    verification_predicate: "A instância externa responde /health e executa o commit 1b2ccc3e com migrations aplicadas"
+    evidence: "Validação local PASS no HEAD 1b2ccc3e (suíte completa: 35 suites passed, 2 PostgreSQL opt-in skipped, 550 testes passed, 9 skipped, exit 0; contrato T3 endpoints/auth/integration 241/241). Deploy externo NÃO executado e produção NÃO validada; os recursos externos seguem ausentes."
     owner: user/operations
     attempts: 0
-    last_checked_at: "2026-09-15T18:05:00-05:00"
+    last_checked_at: "2026-09-16T04:01:32-05:00"
     next_check_at: null
     status: HUMAN_REQUIRED
   - id: provider-interfaces-dsh-opencode
     task_id: orchestration-capability-check
     type: capability
-    reason: "Cadeia obrigatória exige DeepSeek V4.1 Flash via DSH e Muse 1.3 Free via OpenCode; nenhuma interface/tool desses providers está disponível nesta sessão."
+    reason: "Histórico: no início da execução não havia interface DSH/OpenCode exposta na sessão. Estado atual: DSH e OpenCode estão acessíveis (binários /opt/homebrew/bin/dsh e /opt/homebrew/bin/opencode) e os pools estão registrados em quotas — não registrar como indisponíveis."
     dependency: "DSH DeepSeek V4.1 Flash; OpenCode Muse 1.3 Free"
     verification_predicate: "Interfaces DSH e OpenCode aparecem como providers executáveis com telemetria real"
-    evidence: "Ferramentas disponíveis expõem apenas modelos Codex (incluindo gpt-5.6-luna); não há DSH/DeepSeek/OpenCode/Muse."
+    evidence: "Histórico: ferramentas disponíveis expunham apenas modelos Codex. Atual: 'dsh --profile deepseekflash \"responda apenas com: pong\"' => pong, exit 0; 'opencode run -m opencode/muse-spark-1.3-contributor-free \"responda apenas com: pong\"' => pong, exit 0; binários presentes na sessão de reconciliação."
     owner: user/session-capability
     attempts: 1
-    last_checked_at: "2026-09-15T10:26:08-05:00"
+    last_checked_at: "2026-09-16T04:01:32-05:00"
     next_check_at: null
     status: RESOLVED
   - id: g2-photo-contract
@@ -79,10 +118,10 @@ blockers:
   - id: g2-muse-review
     task_id: G2
     type: provider_runtime
-    reason: "Muse CLI iniciou inspeções, mas não emitiu review YAML; quatro tentativas terminaram com erros internos ou disk I/O."
+    reason: "Histórico: Muse CLI iniciou inspeções, mas não emitiu review YAML; quatro tentativas terminaram com erros internos ou disk I/O. O review foi obtido depois e os findings foram adjudicados (ver findings abaixo)."
     dependency: "OpenCode Muse 1.3 Free e espaço temporário operacional"
     verification_predicate: "opencode run -m opencode/muse-spark-1.3-contributor-free retorna review YAML válido"
-    evidence: "Quatro tentativas sem veredicto; G2 não pode ser aprovada sem revisão adversarial."
+    evidence: "Histórico: quatro tentativas sem veredicto. Depois: review adversarial do Muse foi obtido, os findings G2 foram adjudicados/resolvidos e o blocker foi encerrado."
     owner: provider-runtime
     attempts: 4
     last_checked_at: "2026-09-15T13:07:00-05:00"
@@ -103,7 +142,7 @@ blockers:
   - id: g2-blocker-watch-scheduler
     task_id: G2
     type: scheduler_capability
-    reason: "Tentativa de criar os dois monitores CronJob de 10 minutos falhou no scheduler."
+    reason: "Histórico: a tentativa de criar os dois monitores CronJob de 10 minutos falhou no scheduler; os monitores constam como CANCELLED em cronjobs e não afetam o estado atual."
     dependency: "Codex automation scheduler"
     verification_predicate: "automation_update cria monitores Muse e Docker ativos"
     evidence: "Duas chamadas automation_update retornaram Failed to create automation."
@@ -140,13 +179,30 @@ branches:
     status: merged
   - name: codex/g3-nearby-proposals-coordinates
     status: merged
+  - name: codex/p0-state-reconciliation
+    status: docs_only_uncommitted
 commits:
   - 48c531d0
   - 42b2d7ab
   - 99215384
+  - b42e32b3   # fix G2
+  - 422c5c8d   # merge G2
   - 0ee3b010
-  - bfc484bd
-  - dfc014f0
+  - ca86fda9   # fix G3
+  - bfc484bd   # merge G3
+  - dfc014f0   # runtime Node 20 (histórico, ancestral do HEAD atual)
+  # packets de integração pós-G3, já mesclados em main
+  - 3dfd6533   # T1
+  - bd873f4d   # merge T1
+  - 758c2362   # T2
+  - 6d86a20e   # merge T2
+  - 66d0d6fa   # T3
+  - 4ee4ec2b   # merge T3
+  - 3ff0d335   # T5
+  - 7d29de6a   # merge T5
+  - 53a3f0ce   # T6
+  - 1b2ccc3e   # merge T6 — HEAD atual
+  # T4 não consta da base factual deste packet.
 validations:
   - task: G1
     command: "npx jest tests/tow/towLifecycleController.test.js tests/tow/towHttp.transport.test.js --runInBand --forceExit --detectOpenHandles"
@@ -193,6 +249,19 @@ validations:
   - task: current-main-runtime
     command: "docker compose -f docker-compose-simple.yml config; docker compose up -d --force-recreate backend admin; curl /health; knex migrate:list"
     result: "PASS: backend/admin em node:20-alpine; sharp carregado; backend HTTP 200 com postgres ok; admin HTTP 200; 43 migrations aplicadas, 0 pending; código montado de /Volumes/Reiko/projects/work/socorre-system"
+  # Validações dos packets de integração pós-G3 (HEAD 1b2ccc3e).
+  - task: T3-endpoints-auth-integration
+    command: "npx jest tests/endpoints tests/auth tests/integration --runInBand"
+    result: "241/241 PASS (resultado observado do packet T3, commit 66d0d6fa / merge 4ee4ec2b); cobre E2E-010/E2E-011 no harness local."
+  - task: T5-T6-full-backend-suite
+    command: "Suíte completa do backend (jest, sem TOW_POSTGRES_E2E)"
+    result: "PASS: 35 suites passed, 2 suites skipped (os dois e2e PostgreSQL opt-in); 550 testes passed, 9 skipped; exit 0 (HEAD 1b2ccc3e, pós-T6)."
+  - task: T6-jest-open-handle
+    command: "npx jest tests/tow/g2PhotoContract.test.js tests/tow/towHttp.transport.test.js --runInBand (antes e depois do T6)"
+    result: "Antes do T6: 50 (g2PhotoContract) e 21 (towHttp.transport) passavam, mas o Jest continuava vivo com 'Jest did not exit one second after the test run has completed...'. Depois do T6: as duas suítes encerram naturalmente, sem o aviso. O T6 adicionou apenas destroy() aos pools SQLite mockados."
+  - task: T7-static-validation
+    command: "git rev-parse HEAD; git diff --check; node --check socorre_ai_backend/tests/endpoints/purchase-orders.integration.test.js; parse YAML (Psych/Ruby) de docs/gauntlet/STATE.yaml; checagem estática de Markdown (fences, tabelas e âncora) nos docs alterados"
+    result: "PASS: HEAD = 1b2ccc3e3aec9a5e5e3f30f7afcf0ad06fa75b13; ref local origin/main = 1b2ccc3e (verificação final do supervisor); diff sem whitespace errors; JS com sintaxe válida; STATE.yaml parseia; Markdown com fences balanceadas, tabelas consistentes e âncora interna resolvida. Executado sem npm/jest."
 findings:
   - id: muse-1
     task_id: G1
@@ -248,8 +317,19 @@ findings:
     description: "TASKSPEC-G2.yaml foi removido do commit de implementação e permanece apenas no worktree como plano operacional."
   - id: legacy-unit-suites-pre-existing-failures
     task_id: G2
-    decision: OUT_OF_SCOPE
-    description: "tests/unit completo tem 5 suítes legadas quebradas (DeliveryOrder, DeliveryOrder.basic, Subscription, Subscription.basic, TowProposal): sem banco falham por AggregateError e com o PostgreSQL do stack falham porque consultam colunas inexistentes no schema real. Não têm relação com G2; servicePhotoStorage.test.js passa 28/28."
+    decision: FIXED
+    owner: backend-maintenance
+    description: "Histórico (G2): tests/unit tinha 5 suítes legadas quebradas (DeliveryOrder, DeliveryOrder.basic, Subscription, Subscription.basic, TowProposal). Corrigido depois: os commits 51aac0c3/2461fe91 repararam os contratos dos modelos e o harness do T1 estabilizou as suítes; no HEAD 1b2ccc3e a suíte completa passa (35 suites passed; só os 2 e2e PostgreSQL opt-in ficam skipped)."
+  - id: t3-purchase-orders-mobile-contract
+    task_id: T3
+    decision: FIXED
+    owner: T3
+    description: "E2E-010/E2E-011: credit_card é normalizado para card antes do INSERT; payment_method inválido e coordenadas não numéricas retornam 400 determinístico sem INSERT; erro interno vira 500 genérico sem SQL/constraint/stack. Contrato local 241/241 (endpoints/auth/integration). Revalidação em device/produção segue pendente do deploy externo."
+  - id: t6-jest-mocked-pool-open-handle
+    task_id: T6
+    decision: FIXED
+    owner: T6
+    description: "g2PhotoContract (50) e towHttp.transport (21) passavam mas mantinham o Jest vivo com 'Jest did not exit...'. O T6 adicionou apenas destroy() aos pools SQLite mockados; as duas suítes encerram naturalmente e a suíte completa sai com exit 0."
   - id: muse-g3-max-proposals-race
     task_id: G3
     decision: FIXED
@@ -300,4 +380,4 @@ findings:
     decision: ACCEPT_WITH_DEFERRED_EVIDENCE_HARDENING
     owner: backend-maintenance
     description: "LOW — evidência PG local e comando estão documentados, mas a prova de vacuidade usou script temporário; não é gate CI."
-next_action: "G3 adjudicada pela Luna como ACCEPT_WITH_DEFERRED_FINDINGS no commit ca86fda9. Mesclar/publicar após preservar docs/evidence; follow-ups: F3 semântica de proposals_received, F9 snapshot/revalidação de pricing, F10 script/seed PG reproduzível e F8 helper legado fora de escopo."
+next_action: "Estado reconciliado pós-T6 no HEAD 1b2ccc3e: packets T1 (bd873f4d), T2 (6d86a20e), T3 (4ee4ec2b), T5 (7d29de6a) e T6 (1b2ccc3e) integrados em main; suíte completa 35 suites passed + 2 PostgreSQL opt-in skipped, 550 passed / 9 skipped, exit 0; contrato E2E-010/E2E-011 passando localmente (241/241). Único blocker operacional real: deploy externo em HUMAN_REQUIRED — faltam VPS/permissão, domínios/certificados, secrets e serviços externos; produção NÃO validada. Follow-ups de produto/manutenção: F3 (semântica de proposals_received), F9 (snapshot/revalidação de pricing), F10 (script/seed PG reproduzível) e F8 (helper legado fora de escopo)."

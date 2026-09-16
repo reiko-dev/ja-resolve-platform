@@ -1,15 +1,21 @@
 # Backend Integration Handoff — Mobile ↔ Backend
 
 > Fonte única de verdade do contrato de integração entre o aplicativo cliente (Flutter) e o backend.
-> Este documento e os testes deste PR **não** implementam correções: definem, de forma executável e objetiva, o comportamento esperado que o backend developer deve entregar.
+>
+> **Estado reconciliado em 2026-09-16 (HEAD `1b2ccc3e`):** as correções de E2E-010/E2E-011 foram
+> implementadas no packet T3 (`66d0d6fa`, merge `4ee4ec2b`) e o contrato local passa
+> (grupos A+B; `tests/endpoints` + `tests/auth` + `tests/integration` = 241/241). A revalidação em
+> device físico e em produção continua **pendente**: o deploy externo não foi executado e é o único
+> blocker operacional real (HUMAN_REQUIRED). As observações de device citadas abaixo são
+> **históricas**, anteriores ao fix local; nada aqui declara produção validada.
 
 ## 1. Objetivo
 
-Depois que o backend developer corrigir os blockers descritos aqui, os contratos registrados neste PR (testes em `tests/endpoints/purchase-orders.integration.test.js`) precisam estar **100% PASS** para considerarmos a integração Mobile ↔ Backend 100% funcional.
+Os contratos registrados neste documento (testes em `tests/endpoints/purchase-orders.integration.test.js`) precisam estar **100% PASS** para considerarmos a integração Mobile ↔ Backend funcional. No estado atual (`1b2ccc3e`), os grupos A+B passam no harness local; falta a revalidação contra o backend publicado, bloqueada pelo deploy externo.
 
 ## 2. O que JÁ FUNCIONA (não precisa ser alterado pelo backend)
 
-Validado em dispositivo físico real (Samsung SM-S938B, `socorre_client` v1.0.0+1, contra `https://api.socorreja.com.br/api`):
+Observação **histórica** de device físico real (Samsung SM-S938B, `socorre_client` v1.0.0+1, contra `https://api.socorreja.com.br/api`), registrada antes dos fixes locais dos packets T1–T6:
 
 - `POST /auth/login` → 200, token em `data.token`;
 - autenticação Bearer nas chamadas autenticadas;
@@ -17,11 +23,11 @@ Validado em dispositivo físico real (Samsung SM-S938B, `socorre_client` v1.0.0+
 - catálogo real após autenticação;
 - `GET /emergency-requests/user` com Bearer;
 - fluxos Emergency/Tow chegam ao backend autenticados (sem o 401 anterior);
-- `POST /purchase-orders` **chega** ao backend — payload completo (`store_id`, `items[product_id|name|quantity|unit_price]`, `subtotal`, `total_price`, `delivery_mode`, `delivery_fee`, `delivery_address`, `payment_method`, `notes`), porém é rejeitado pelo problema de `payment_method` (E2E-010);
+- `POST /purchase-orders` **chega** ao backend — payload completo (`store_id`, `items[product_id|name|quantity|unit_price]`, `subtotal`, `total_price`, `delivery_mode`, `delivery_fee`, `delivery_address`, `payment_method`, `notes`), porém era rejeitado pelo problema de `payment_method` (E2E-010 — histórico; corrigido localmente no T3, ver §3.1);
 - cart é **local** no Mobile — NÃO requer backend;
 - logout/gate de autenticação já corrigidos no Mobile — NÃO atribuir ao backend.
 
-## 3. Blockers — o que o backend precisa corrigir
+## 3. Blockers originais (histórico) e status local
 
 ### 3.1 E2E-010 — Purchase Order rejeitado por `payment_method`
 
@@ -30,7 +36,8 @@ Validado em dispositivo físico real (Samsung SM-S938B, `socorre_client` v1.0.0+
 | **ID** | E2E-010 |
 | **Prioridade** | P1 |
 | **Endpoint** | `POST /api/purchase-orders` |
-| **Comportamento atual observado** | Mobile envia `payment_method = "credit_card"`; o valor chega ao INSERT e viola o CHECK constraint `purchase_orders_payment_method_check` (conjunto canônico: `cash / card / pix / app`); backend responde **500** com o SQL do constraint vazado |
+| **Comportamento observado no device (histórico, pré-fix)** | Mobile envia `payment_method = "credit_card"`; o valor chega ao INSERT e viola o CHECK constraint `purchase_orders_payment_method_check` (conjunto canônico: `cash / card / pix / app`); backend responde **500** com o SQL do constraint vazado |
+| **Status local (pós-T3, `1b2ccc3e`)** | **Corrigido e coberto por teste no harness local:** `credit_card` é normalizado para `card` antes do INSERT; valor inválido → 400 sem INSERT; `purchase-orders.integration.test.js` (grupo B) passa. Produção/device ainda **não revalidados** (deploy externo pendente). |
 | **Comportamento esperado** | `credit_card` é aceito como entrada do Mobile; backend normaliza para o valor canônico oficial (`card`); **201**; valores realmente inválidos → **400** com validação **antes do INSERT**; PO persistido corretamente |
 | **Payload relevante** | `{ "store_id": 3, "items": [...], "subtotal": 459.4, "total_price": 475.3, "delivery_mode": "store_delivery", "delivery_fee": 15.9, "delivery_address": "AV. PAULISTA, 1578 - Bela Vista, Sao Paulo - SP, 01310-200", "payment_method": "credit_card", "notes": "Pedido via app Ja Resolve" }` |
 | **HTTP esperado** | 201 (sucesso) / 400 (payment_method inválido) |
@@ -45,7 +52,8 @@ Validado em dispositivo físico real (Samsung SM-S938B, `socorre_client` v1.0.0+
 | **ID** | E2E-011 |
 | **Prioridade** | P3 |
 | **Endpoint** | `POST /api/purchase-orders` (tratamento de erro) |
-| **Comportamento atual observado** | O device recebeu na resposta de erro o texto do constraint SQL (tabela/INSERT/CHECK) |
+| **Comportamento observado no device (histórico, pré-fix)** | O device recebeu na resposta de erro o texto do constraint SQL (tabela/INSERT/CHECK) |
+| **Status local (pós-T3, `1b2ccc3e`)** | **Corrigido e coberto por teste no harness local:** erros internos viram **500** genérico sem SQL, constraint ou stack; os asserts anti-leak do grupo B passam. Produção/device ainda **não revalidados** (deploy externo pendente). |
 | **Comportamento esperado** | Erros internos → **HTTP 500**; a resposta NÃO pode expor SQL, nome de constraint, stack trace ou detalhes internos do PostgreSQL; mensagem genérica e segura para o cliente |
 | **Payload relevante** | (resposta de erro) |
 | **HTTP esperado** | 500 genérico |
@@ -60,25 +68,26 @@ Validado em dispositivo físico real (Samsung SM-S938B, `socorre_client` v1.0.0+
 | **ID** | E2E-008 |
 | **Prioridade** | P2 |
 | **Endpoint** | `POST /emergency-requests/:id/start` e `POST /emergency-requests/:id/complete` |
-| **Comportamento atual observado** | **404** em produção para ambos |
+| **Comportamento observado em produção (histórico)** | **404** em produção para ambos |
+| **Status local (G1 + T1, `1b2ccc3e`)** | Rotas de start/complete implementadas e cobertas pelas suítes de guincho no harness local (G1 `48c531d0`, merge `42b2d7ab`; suíte completa verde no pós-T6). A confirmação em produção continua **pendente do deploy externo** — não declarar resolvido em produção. |
 | **Comportamento esperado** | Endpoints existem em produção; `start` realiza a transição de estado prevista; `complete` realiza a transição de estado prevista |
 | **Payload relevante** | `:id` = id do emergency request autenticado |
 | **HTTP esperado** | 200/201 nos estados válidos; 404/400 para recurso ou estado inválido (a definir pela implementação oficial) |
 | **Impacto no fluxo Mobile** | Fluxo de socorro não avança para execução/conclusão; bloqueia a pós-serviço |
-| **Evidência/teste** | Device PHASE 4 (404 em produção); gap documentado — SEM teste especulativo, pois o contrato não está definido nas rotas atuais de `main` |
+| **Evidência/teste** | Device PHASE 4 (404 em produção, histórico); contrato local implementado no G1 e coberto pelas suítes de guincho — a confirmação em produção continua pendente do deploy externo |
 | **Critério objetivo de aceite** | Transições oficiais funcionando em produção (`accepted → start → in_progress → complete → completed → review`) via endpoints oficiais |
 
-> **NÃO usar/deployar `b0999489`** (evidência histórica, fora deste PR). **NÃO implementar a solução neste PR.**
+> **NÃO usar/deployar `b0999489`** (evidência histórica, fora deste escopo). O deploy externo **não** foi executado: não declarar E2E-008 resolvido em produção sem smoke no ambiente publicado.
 
 ## 4. Separação dos testes
 
-| Grupo | Significado | Estado atual |
+| Grupo | Significado | Estado atual (`1b2ccc3e`) |
 |---|---|---|
-| **A** | Testes que já passam contra o backend atual | 401 sem token; `card` → 201; `pix` → 201 |
-| **B** | Testes que falham porque o backend precisa implementar/corrigir (blockers E2E-010/E2E-011) | `credit_card` → 201 (hoje 500); inválido → 400 (hoje 500); sem vazamento de SQL (hoje vaza); loja inexistente → 404 sem leak (hoje 500) |
-| **C** | Fora de escopo (documentado, sem teste) | start/complete (E2E-008, contrato não definido); detalhe de produto (E2E-006); proposal no fluxo (E2E-009) |
+| **A** | Testes que já passam contra o backend atual | 401 sem token; `card` → 201; `pix` → 201 — **PASS** |
+| **B** | Contrato implementado no packet T3 (E2E-010/E2E-011) | `credit_card` → 201; inválido → 400; sem vazamento de SQL; loja inexistente → 404 sem leak — **PASS no harness local**; revalidação em produção/device pendente do deploy externo |
+| **C** | Fora de escopo (documentado, sem teste) | start/complete (E2E-008 — rotas locais ok, produção pendente de deploy); detalhe de produto (E2E-006); proposal no fluxo (E2E-009) |
 
-Após a implementação dos fixes pelo backend developer, o grupo B deve passar integralmente → **grupos A+B = 100% PASS**.
+Os fixes foram implementados no packet T3 (`66d0d6fa`, merge `4ee4ec2b`) e os grupos A+B passam integralmente no harness local (`tests/endpoints` + `tests/auth` + `tests/integration` = 241/241). A confirmação contra o backend publicado continua pendente do deploy externo (blocker `production-deploy-access`, HUMAN_REQUIRED).
 
 ## 5. Observações que NÃO são bugs de backend
 
@@ -87,26 +96,26 @@ Após a implementação dos fixes pelo backend developer, o grupo B deve passar 
 
 ## 6. Separação de responsabilidade
 
-**AUDITORIA / FRONTEND (este PR):**
+**AUDITORIA / FRONTEND:**
 
-- execução E2E em device físico;
+- execução E2E em device físico (observação histórica, pré-fix);
 - testes de contrato;
 - documentação e evidências;
-- revalidação após deploy do backend.
+- revalidação após deploy do backend (pendente do blocker externo).
 
-**BACKEND DEVELOPER:**
+**BACKEND DEVELOPER (packets já integrados em main, HEAD `1b2ccc3e`):**
 
-- implementar E2E-010 (contrato `payment_method`, 201, 400);
-- implementar E2E-011 (500 genérico sem vazamento);
-- implementar/publicar E2E-008 (start/complete em produção);
+- E2E-010: **implementado** no T3 (`66d0d6fa`, merge `4ee4ec2b`) — alias `credit_card` → `card` e validação antes do INSERT;
+- E2E-011: **implementado** no T3 — erro interno vira 500 genérico, sem SQL/constraint/stack;
+- E2E-008: rotas locais de start/complete implementadas no G1 (`48c531d0`, merge `42b2d7ab`); **publicação e confirmação em produção pendentes do deploy externo**;
 - corrigir qualquer falha backend revelada pelos testes.
 
-Este PR **não** implementa essas correções.
+A publicação em produção **não** foi executada: o deploy externo segue HUMAN_REQUIRED.
 
 ## 7. Critérios de revalidação
 
-Quando o backend developer informar que os fixes estão em produção:
+Quando o deploy externo estiver disponível (blocker `production-deploy-access`):
 
-1. executar `purchase-orders.integration.test.js` → grupos A+B **100% PASS**;
-2. reexecutar o E2E no dispositivo físico: login → catálogo → cart → checkout → `POST /purchase-orders` → **201** → PO criado → histórico do pedido → fluxo de pagamento;
-3. em fase separada, validar start/complete em produção.
+1. executar `purchase-orders.integration.test.js` → grupos A+B **100% PASS** — **já verificado no harness local** (`1b2ccc3e`; `tests/endpoints` + `tests/auth` + `tests/integration` = 241/241);
+2. reexecutar o E2E no dispositivo físico contra o backend publicado: login → catálogo → cart → checkout → `POST /purchase-orders` → **201** → PO criado → histórico do pedido → fluxo de pagamento (pendente);
+3. em fase separada, validar start/complete em produção (pendente).
