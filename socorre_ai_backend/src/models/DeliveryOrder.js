@@ -5,10 +5,6 @@ const {
   setDatabase: injectDatabase,
   resetDatabase: restoreDatabase,
 } = createDatabaseAccessor();
-const usesSqlite = () => knex.client.config.client === 'sqlite3';
-const legacyOrder = (order) => order && ({ ...order,
-  total_amount: order.total_amount == null ? order.total_amount : Number(order.total_amount).toFixed(2),
-});
 
 const Review = require('./Review');
 
@@ -28,19 +24,11 @@ class DeliveryOrder {
   // Criar nova ordem de entrega
   static async create(orderData) {
     const [order] = await knex('delivery_orders').insert(orderData).returning('*');
-    return usesSqlite() ? legacyOrder(order) : order;
+    return order;
   }
 
   // Buscar por ID
   static async findById(id) {
-    if (usesSqlite()) {
-      return legacyOrder(await knex('delivery_orders')
-        .select('delivery_orders.*', 'users.name as user_name', 'users.phone as user_phone',
-          'partners.business_name as motoboy_name', 'partners.phone as motoboy_phone')
-        .join('users', 'delivery_orders.user_id', 'users.id')
-        .leftJoin('partners', 'delivery_orders.motoboy_id', 'partners.id')
-        .where('delivery_orders.id', id).first() || null);
-    }
     const order = await knex('delivery_orders')
       .select(
         'delivery_orders.*',
@@ -98,15 +86,6 @@ class DeliveryOrder {
 
   // Buscar ordens por motoboy
   static async findByMotoboy(motoboyId, page = 1, limit = 10) {
-    if (usesSqlite()) {
-      const [orders, totalRow] = await Promise.all([
-        knex('delivery_orders').where('motoboy_id', motoboyId)
-          .limit(limit).offset((page - 1) * limit).orderBy('created_at', 'desc'),
-        knex('delivery_orders').where('motoboy_id', motoboyId).count('* as count').first(),
-      ]);
-      const total = Number(totalRow.count) || 0;
-      return { orders: orders.map(legacyOrder), total, page, limit, totalPages: Math.ceil(total / limit) };
-    }
     const offset = (page - 1) * limit;
     
     const [orders, total] = await Promise.all([

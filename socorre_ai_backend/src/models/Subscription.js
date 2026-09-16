@@ -5,11 +5,18 @@ const {
   setDatabase: injectDatabase,
   resetDatabase: restoreDatabase,
 } = createDatabaseAccessor();
-const usesSqlite = () => knex.client.config.client === 'sqlite3';
-const legacySubscription = (subscription) => subscription && ({ ...subscription,
-  monthly_fee: subscription.monthly_fee == null ? subscription.monthly_fee : Number(subscription.monthly_fee).toFixed(2),
-  last_payment_amount: subscription.last_payment_amount == null ? subscription.last_payment_amount : Number(subscription.last_payment_amount).toFixed(2),
-});
+
+// `next_billing_date` é uma coluna DATE (texto 'YYYY-MM-DD'). Normalizar o
+// valor comparado mantém a mesma janela de cobrança em PostgreSQL e SQLite,
+// já que o driver SQLite converte objetos Date em timestamp e a comparação
+// textual com a data gravada falharia.
+const toDateOnly = (value) => {
+  if (!(value instanceof Date)) return value;
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 class Subscription {
   // Injeção de banco para testes (SQLite em memória). O singleton de produção
@@ -27,17 +34,11 @@ class Subscription {
   // Criar nova assinatura
   static async create(subscriptionData) {
     const [subscription] = await knex('subscriptions').insert(subscriptionData).returning('*');
-    return usesSqlite() ? legacySubscription(subscription) : subscription;
+    return subscription;
   }
 
   // Buscar por ID
   static async findById(id) {
-    if (usesSqlite()) return legacySubscription(await knex('subscriptions')
-      .select('subscriptions.*', 'partners.business_name', 'partners.type as partner_type',
-        'users.name as user_name', 'users.email as user_email')
-      .join('partners', 'subscriptions.partner_id', 'partners.id')
-      .join('users', 'partners.user_id', 'users.id')
-      .where('subscriptions.id', id).first() || null);
     const subscription = await knex('subscriptions')
       .select(
         'subscriptions.*',
@@ -56,8 +57,6 @@ class Subscription {
 
   // Buscar por parceiro
   static async findByPartner(partnerId) {
-    if (usesSqlite()) return legacySubscription(await knex('subscriptions').where('partner_id', partnerId)
-      .orderBy('created_at', 'desc').first()) || null;
     const subscription = await knex('subscriptions')
       .select('subscriptions.*')
       .where('partner_id', partnerId)
@@ -69,9 +68,6 @@ class Subscription {
 
   // Buscar assinaturas ativas
   static async findActive() {
-    if (usesSqlite()) return (await knex('subscriptions').select('subscriptions.*', 'partners.business_name', 'partners.type as partner_type', 'users.name as user_name', 'users.email as user_email')
-      .join('partners', 'subscriptions.partner_id', 'partners.id').join('users', 'partners.user_id', 'users.id')
-      .where('subscriptions.status', 'active')).map(legacySubscription);
     return await knex('subscriptions')
       .select(
         'subscriptions.*',
@@ -91,9 +87,6 @@ class Subscription {
     const futureDate = new Date();
     futureDate.setDate(futureDate.getDate() + days);
 
-    if (usesSqlite()) return (await knex('subscriptions').where('status', 'active')
-      .where('next_billing_date', '<=', futureDate.toISOString().slice(0, 10))
-      .where('next_billing_date', '>=', new Date().toISOString().slice(0, 10))).map(legacySubscription);
     return await knex('subscriptions')
       .select(
         'subscriptions.*',
@@ -105,8 +98,8 @@ class Subscription {
       .join('partners', 'subscriptions.partner_id', 'partners.id')
       .join('users', 'partners.user_id', 'users.id')
       .where('subscriptions.status', 'active')
-      .where('subscriptions.next_billing_date', '<=', futureDate)
-      .where('subscriptions.next_billing_date', '>=', new Date())
+      .where('subscriptions.next_billing_date', '<=', toDateOnly(futureDate))
+      .where('subscriptions.next_billing_date', '>=', toDateOnly(new Date()))
       .orderBy('subscriptions.next_billing_date');
   }
 
@@ -123,7 +116,7 @@ class Subscription {
       .join('partners', 'subscriptions.partner_id', 'partners.id')
       .join('users', 'partners.user_id', 'users.id')
       .where('subscriptions.status', 'active')
-      .where('subscriptions.next_billing_date', '<', new Date())
+      .where('subscriptions.next_billing_date', '<', toDateOnly(new Date()))
       .orderBy('subscriptions.next_billing_date');
   }
 
@@ -138,13 +131,6 @@ class Subscription {
 
   // Atualizar status
   static async updateStatus(id, status, notes = null) {
-    if (usesSqlite()) {
-      const patch = { status, updated_at: knex.fn.now() };
-      if (status === 'cancelled') patch.auto_renew = false;
-      patch.notes = notes;
-      const [subscription] = await knex('subscriptions').where('id', id).update(patch).returning('*');
-      return legacySubscription(subscription);
-    }
     const patch = {
       status,
       notes,
@@ -164,13 +150,6 @@ class Subscription {
 
   // Processar pagamento - atualizar próxima data de cobrança
   static async processPayment(id, nextBillingDate) {
-    if (usesSqlite()) {
-      const [subscription] = await knex('subscriptions').where('id', id).update({
-        status: 'active', next_billing_date: nextBillingDate,
-        last_successful_payment: knex.fn.now(), failed_attempts: 0, updated_at: knex.fn.now(),
-      }).returning('*');
-      return legacySubscription(subscription);
-    }
     const [subscription] = await knex('subscriptions')
       .where('id', id)
       .update({
@@ -295,22 +274,6 @@ class Subscription {
 
   // Estatísticas
   static async getStats() {
-    if (usesSqlite()) {
-      const subscriptions = await knex('subscriptions').select('*');
-      const active = subscriptions.filter((item) => item.status === 'active');
-      const sum = (items) => items.reduce((total, item) => total + Number(item.monthly_fee || 0), 0);
-      return {
-        total_subscriptions: subscriptions.length,
-        active_subscriptions: active.length,
-        expired_subscriptions: subscriptions.filter((item) => item.status === 'expired').length,
-        cancelled_subscriptions: subscriptions.filter((item) => item.status === 'cancelled').length,
-        total: subscriptions.length, active: active.length,
-        expired: subscriptions.filter((item) => item.status === 'expired').length,
-        cancelled: subscriptions.filter((item) => item.status === 'cancelled').length,
-        monthly_revenue: sum(active).toFixed(2),
-        average_subscription_value: subscriptions.length ? (sum(subscriptions) / subscriptions.length).toFixed(2) : '0.00',
-      };
-    }
     const stats = await knex('subscriptions')
       .select(
         knex.raw('COUNT(*) as total'),
@@ -356,7 +319,7 @@ class Subscription {
     const subscription = await knex('subscriptions')
       .where('partner_id', partnerId)
       .where('status', 'active')
-      .where('next_billing_date', '>=', new Date())
+      .where('next_billing_date', '>=', toDateOnly(new Date()))
       .first();
 
     return !!subscription;
@@ -370,7 +333,7 @@ class Subscription {
       .join('users', 'partners.user_id', 'users.id')
       .where('subscriptions.status', 'active')
       .where('subscriptions.auto_renew', true)
-      .where('subscriptions.next_billing_date', '<=', new Date())
+      .where('subscriptions.next_billing_date', '<=', toDateOnly(new Date()))
       .where('subscriptions.failed_attempts', '<', 3);
   }
 }
