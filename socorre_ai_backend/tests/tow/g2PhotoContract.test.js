@@ -425,6 +425,11 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // O knex mockado é criado em nível de módulo (dentro de jest.mock) e mantém
+  // um pool SQLite aberto: sem `destroy()` o event loop fica vivo e o Jest não
+  // encerra sozinho. Fecha primeiro para garantir o cleanup mesmo se o rm falhar.
+  await db.destroy();
+
   if (previousStorageRoot === undefined) {
     delete process.env.SERVICE_PHOTO_STORAGE_DIR;
   } else {
