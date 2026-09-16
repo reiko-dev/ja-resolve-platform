@@ -3,8 +3,8 @@ status: HUMAN_REQUIRED
 terminal_state: HUMAN_REQUIRED_EXTERNAL_DEPLOY_ACCESS
 repository: reiko-dev/socorre-ja-platform
 base_branch: main
-head: 57326cd1
-implementation_head: 1b2ccc3e
+# Último commit com mudança de implementação; os commits posteriores são documentais.
+head: 1b2ccc3e
 worktree: main
 remote: https://github.com/reiko-dev/socorre-ja-platform.git
 max_execution_cycles: 3
