@@ -9,6 +9,12 @@ Status: código local validado; deploy externo pendente de infraestrutura.
 - Os dois apps Flutter passam `flutter analyze` (sem erros de compilação) e seus testes smoke.
 - O script de deploy passa inspeção sintática e usa `pm2 delete ... || true` para substituir a instância anterior.
 
+## Armazenamento privado de fotos
+
+Fotos de coleta/entrega do Serviço de Guincho são gravadas em SERVICE_PHOTO_STORAGE_DIR (padrão de produção `/var/lib/socorre-ai/private/service-photos`), fora de `uploads/`, com modo 0700 preparado pela imagem Docker, pelo entrypoint, pelo PM2 (`ecosystem.config.js` e `ecosystem.homolog.config.js`) e pelos scripts de deploy. A leitura é exclusivamente pela API autenticada; sem a variável o upload responde 503, sem gravar parcialmente.
+
+`nginx.production.conf` serve publicamente apenas `uploads/images/` (avatares legados). `uploads/documents` (RG/CNH/CRLV/comprovante) responde 404 e continua acessível somente pela API autenticada. Runbook: `docs/GUIA-DEPLOY-HOMOLOGACAO-HOSTINGER.md` seção 14.
+
 ## Pendências externas bloqueantes
 
 Antes de executar `scripts/deploy-production.sh`, o operador precisa fornecer:

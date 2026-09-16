@@ -141,6 +141,7 @@ jest.mock('redis', () => ({
 // Mock para Socket.IO
 jest.mock('socket.io', () => ({
   Server: jest.fn(() => ({
+    use: jest.fn(),
     on: jest.fn(),
     emit: jest.fn(),
     to: jest.fn(() => ({

@@ -261,6 +261,8 @@ Primeiro corrija o processo local na porta 3001; depois verifique Nginx, DNS, ce
 
 Confira UPLOAD_DIR, os diretórios de upload e as permissões do usuário deploy. Não exponha backend.env durante o diagnóstico.
 
+Fotos de serviço (coleta/entrega) não usam UPLOAD_DIR: elas dependem de SERVICE_PHOTO_STORAGE_DIR (ver seção 14). Se o upload responder 503, a variável não está definida no processo.
+
 ## 12. Checklist final
 
 - [ ] Branch e commit corretos confirmados.
@@ -275,6 +277,7 @@ Confira UPLOAD_DIR, os diretórios de upload e as permissões do usuário deploy
 - [ ] /health local e externo respondendo 200.
 - [ ] Admin e site respondendo HTTPS.
 - [ ] Fluxo completo de guincho testado.
+- [ ] SERVICE_PHOTO_STORAGE_DIR com modo 700 e /uploads/documents respondendo 404.
 - [ ] Logs revisados.
 - [ ] Nenhum segredo publicado.
 
@@ -287,3 +290,27 @@ Confira UPLOAD_DIR, os diretórios de upload e as permissões do usuário deploy
 - scripts/preflight-production.sh: validação de variáveis de produção;
 - docs/DEPLOY-READINESS.md: limites de infraestrutura;
 - docs/MOBILE-AUTH-TOW-CONTRACT-V1.md: contrato Mobile/backend.
+
+## 14. Armazenamento privado das fotos de serviço
+
+Fotos de coleta/entrega do Serviço de Guincho não ficam em uploads/ e não são servidas pelo Nginx. A raiz é definida por SERVICE_PHOTO_STORAGE_DIR, fora do document root:
+
+- produção/homolog: SERVICE_PHOTO_STORAGE_DIR=/var/lib/socorre-ai/private/service-photos (backend.env, ecosystem.config.js e scripts/homolog/ecosystem.homolog.config.js);
+- Docker/Compose: a imagem e o entrypoint criam o diretório com modo 0700; o compose monta o volume service_photo_data;
+- leitura somente pela API autenticada (GET /api/emergency-requests/:id/photos/:photoId), com metadata em ?format=json;
+- upload idempotente: repetir a mesma foto devolve o mesmo recurso, e rollback não deixa arquivo órfão;
+- scripts/reconcile-service-photos.js reconcilia banco e disco sem apagar arquivos referenciados.
+
+uploads/documents guarda RG/CNH/CRLV/comprovante de residência e também não é público: o Nginx responde 404 para qualquer caminho em uploads/ que não seja uploads/images/. A leitura de documento é feita apenas pela API autenticada.
+
+Validação:
+
+~~~
+ssh socorre-vps '
+  grep -c "^SERVICE_PHOTO_STORAGE_DIR=." /var/www/socorre-ai/backend/backend.env
+  sudo stat -c "%a %U:%G %n" /var/lib/socorre-ai/private/service-photos
+'
+curl -s -o /dev/null -w "uploads=%{http_code}\n" https://SEU_HOST_API/uploads/documents/exemplo.jpg
+~~~
+
+Esperado: variável presente, diretório em 700 pertencente ao usuário do processo PM2 e uploads/documents respondendo 404.

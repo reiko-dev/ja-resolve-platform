@@ -522,3 +522,79 @@ describe('tow — aprovação, rejeição e reenvio', () => {
     expect(ownerDocuments[0].partner_id).not.toBe(otherDocuments[0].partner_id);
   });
 });
+
+describe('tow — atualização de localização do parceiro', () => {
+  function updateLocation(user, partnerId, body) {
+    return request(app)
+      .put(`/api/partners/${partnerId}/location`)
+      .set(harness.authorize(user))
+      .send(body);
+  }
+
+  test('par válido responde 200 com o parceiro atualizado', async () => {
+    const user = await seedTowUser();
+    await completeOnboarding(user);
+    const before = await db('partners').where('user_id', user.id).first();
+
+    const response = await updateLocation(user, before.id, {
+      latitude: -22.9068,
+      longitude: -43.1729,
+      address: 'Rua Nova, 10',
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual(
+      expect.objectContaining({
+        success: true,
+        data: expect.objectContaining({
+          id: before.id,
+          latitude: expect.any(Number),
+          longitude: expect.any(Number),
+        }),
+      }),
+    );
+    expect(Number(response.body.data.latitude)).toBeCloseTo(-22.9068, 4);
+    expect(Number(response.body.data.longitude)).toBeCloseTo(-43.1729, 4);
+
+    const persisted = await db('partners').where('id', before.id).first();
+    expect(Number(persisted.latitude)).toBeCloseTo(-22.9068, 4);
+    expect(Number(persisted.longitude)).toBeCloseTo(-43.1729, 4);
+  });
+
+  test('coordenadas inválidas respondem 400 e não alteram o cadastro', async () => {
+    const user = await seedTowUser();
+    await completeOnboarding(user);
+    const before = await db('partners').where('user_id', user.id).first();
+
+    const invalids = [
+      { latitude: -22.9 },
+      { longitude: -43.1 },
+      { latitude: 0, longitude: 0 },
+      { latitude: 91, longitude: -43.1 },
+      { latitude: -22.9, longitude: -181 },
+      { latitude: 'abc', longitude: -43.1 },
+    ];
+
+    for (const body of invalids) {
+      const response = await updateLocation(user, before.id, body);
+      expect(response.status).toBe(400);
+      expect(response.body.code).toBe('invalid_coordinates');
+    }
+
+    const persisted = await db('partners').where('id', before.id).first();
+    expect(Number(persisted.latitude)).toBeCloseTo(Number(before.latitude), 6);
+    expect(Number(persisted.longitude)).toBeCloseTo(Number(before.longitude), 6);
+  });
+
+  test('parceiro inexistente responde 404 e usuário comum responde 403', async () => {
+    const user = await seedTowUser();
+    await completeOnboarding(user);
+
+    const missing = await updateLocation(user, 999999, { latitude: -22.9, longitude: -43.1 });
+    expect(missing.status).toBe(404);
+
+    const commonUser = await seedTowUser({ role: 'user' });
+    const forbidden = await updateLocation(commonUser, 1, { latitude: -22.9, longitude: -43.1 });
+    expect(forbidden.status).toBe(403);
+  });
+});
