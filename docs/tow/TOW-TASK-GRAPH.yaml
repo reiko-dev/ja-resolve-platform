@@ -1,0 +1,284 @@
+version: 1
+project: JaResolve
+domain: tow
+branch: feature/implements-tow-service
+source_documents:
+  - docs/tow/TOW-SERVICE-SPECIFICATION.md
+  - docs/tow/TOW-BUSINESS-RULE-MATRIX.md
+  - docs/tow/TOW-TDD-IMPLEMENTATION-PLAN.md
+execution_policy:
+  method: TDD
+  cycle: [RED, GREEN, REFACTOR, INTEGRATION_GATE, ACCEPTED]
+  require_red_evidence: true
+  require_green_evidence: true
+  require_dependency_receipts: true
+  allow_parallel_when_no_contract_or_file_conflict: true
+  forbid_skipped_p0_tests: true
+  backend_ready_gate: T18
+statuses:
+  allowed: [PENDING, READY, IN_PROGRESS, REVIEW, ACCEPTED, REJECTED, BLOCKED, RETRY]
+tasks:
+  - id: T00
+    title: Tow Test Harness & Current-State Audit
+    depends_on: []
+    outputs:
+      - deterministic test harness
+      - factories/builders
+      - fake clock
+      - maps adapter fake
+      - payment gateway fake
+      - current endpoint compatibility audit
+    required_tests: [UNIT, DB, API, CONTRACT]
+    gate: G0
+    status: PENDING
+
+  - id: T01
+    title: Clean Database Baseline, Reset & Admin Seed
+    depends_on: [T00]
+    outputs:
+      - clean schema baseline
+      - destructive reset path
+      - migrations from empty database
+      - admin-only seed
+    required_tests: [MIG, DB, SEC]
+    gate: G1
+    status: PENDING
+
+  - id: T02
+    title: Tow System Settings Contract
+    depends_on: [T01]
+    outputs:
+      - validated tow settings
+      - admin settings API
+    required_tests: [UNIT, DB, API, CONTRACT, AUTHZ]
+    status: PENDING
+
+  - id: T03
+    title: Tow Vehicles, Pricing Configuration & Vehicle Documents
+    depends_on: [T01]
+    outputs:
+      - tow vehicle CRUD
+      - single-active-vehicle invariant
+      - per-vehicle pricing configuration
+      - vehicle document upload/verification
+    required_tests: [UNIT, DB, API, CONTRACT, AUTHZ, SEC, CONC, E2E]
+    status: PENDING
+
+  - id: T04
+    title: Vehicle Compatibility & Capacity
+    depends_on: [T03]
+    outputs:
+      - vehicle class model
+      - capacity compatibility policy
+    required_tests: [UNIT, DB, API, CONTRACT]
+    status: PENDING
+
+  - id: T05
+    title: Google Routes Adapter & Tow Pricing
+    depends_on: [T02, T03, T04]
+    outputs:
+      - routes adapter
+      - deterministic distance quote
+      - pricing policy
+      - immutable pricing snapshot
+    required_tests: [UNIT, MAPS, API, CONTRACT]
+    status: PENDING
+
+  - id: T06
+    title: Geographic Matching & Progressive Radius Expansion
+    depends_on: [T02, T04, T05]
+    outputs:
+      - tow eligibility query
+      - progressive radius expansion
+      - request search timeout
+    required_tests: [UNIT, DB, API, TIME, PERF, AUTHZ, E2E]
+    gate: G3
+    status: PENDING
+
+  - id: T07
+    title: Tow Proposal Lifecycle
+    depends_on: [T05, T06]
+    outputs:
+      - proposal creation
+      - automatic proposal price
+      - proposal expiry
+      - withdraw
+    required_tests: [UNIT, DB, API, CONTRACT, AUTHZ, TIME]
+    status: PENDING
+
+  - id: T08
+    title: Single Counteroffer
+    depends_on: [T07]
+    outputs:
+      - one customer counteroffer
+      - accept/reject counteroffer
+      - counteroffer timeout
+    required_tests: [UNIT, DB, API, CONTRACT, AUTHZ, TIME]
+    status: PENDING
+
+  - id: T09
+    title: Atomic Assignment & Concurrency Control
+    depends_on: [T07, T08]
+    outputs:
+      - atomic proposal selection
+      - frozen final price/destination/vehicle
+      - remaining proposal closure
+      - busy partner/vehicle state
+    required_tests: [DB, API, CONTRACT, CONC, AUTHZ]
+    gate: G4
+    status: PENDING
+
+  - id: T10
+    title: Operational State Machine & Tracking
+    depends_on: [T09]
+    outputs:
+      - operational state machine
+      - tracking points
+      - completion pending/confirmation
+      - completion timeout
+    required_tests: [UNIT, DB, API, CONTRACT, AUTHZ, TIME, E2E]
+    status: PENDING
+
+  - id: T11
+    title: Cancellation, Customer No-show & Partner No-show
+    depends_on: [T02, T10]
+    outputs:
+      - customer cancellation rules
+      - partner cancellation rules
+      - customer no-show
+      - partner no-show
+      - cancellation fee split
+    required_tests: [UNIT, DB, API, CONTRACT, AUTHZ, TIME]
+    gate: G5
+    status: PENDING
+
+  - id: T12
+    title: Payment Orchestration Core
+    depends_on: [T02, T09]
+    outputs:
+      - payment strategy contract
+      - immutable final price handling
+      - fixed platform fee accounting contract
+    required_tests: [UNIT, DB, API, CONTRACT, GATEWAY]
+    status: PENDING
+
+  - id: T13
+    title: Card Authorization/Capture/Refund
+    depends_on: [T12]
+    outputs:
+      - card authorization
+      - capture on completion
+      - cancellation/release/refund
+      - idempotent webhook handling
+    required_tests: [UNIT, DB, API, GATEWAY, CONTRACT, E2E]
+    status: PENDING
+
+  - id: T14
+    title: PIX Payment & Refund
+    depends_on: [T12]
+    outputs:
+      - pix charge
+      - confirmed-before-en-route gate
+      - pix refund
+      - cancellation fee retention
+    required_tests: [UNIT, DB, API, GATEWAY, CONTRACT, E2E]
+    status: PENDING
+
+  - id: T15
+    title: Cash, Partner Platform Fee Debt & Customer Cancellation Debt
+    depends_on: [T12, T11]
+    outputs:
+      - cash received confirmation
+      - partner platform fee debt
+      - automatic future electronic offset
+      - customer cancellation debt
+      - debt-based request blocking
+    required_tests: [UNIT, DB, API, CONTRACT, AUTHZ, E2E]
+    status: PENDING
+
+  - id: T16
+    title: Wallet, Settlement Eligibility & Daily Payout Batch
+    depends_on: [T13, T14, T15]
+    outputs:
+      - settlement states
+      - partner wallet eligibility
+      - debt offset
+      - manual daily payout batch
+      - idempotent payout processing
+    required_tests: [UNIT, DB, API, CONTRACT, CONC, E2E]
+    gate: G6
+    status: PENDING
+
+  - id: T17
+    title: Disputes, Reviews, Admin Override & Immutable Audit
+    depends_on: [T10, T11, T16]
+    outputs:
+      - dispute blocking payout
+      - customer review
+      - admin cancel/complete override
+      - immutable audit trail
+    required_tests: [UNIT, DB, API, CONTRACT, AUTHZ, SEC, E2E]
+    gate: G7
+    status: PENDING
+
+  - id: T18
+    title: Contract Freeze, Full E2E, Regression & Ready Gate
+    depends_on: [T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17]
+    outputs:
+      - frozen official HTTP contract
+      - complete E2E evidence
+      - regression evidence
+      - clean reset/migrate/seed evidence
+      - TOW BACKEND READY FOR INTEGRATION receipt
+    required_tests: [UNIT, DB, MIG, API, CONTRACT, AUTHZ, CONC, TIME, MAPS, GATEWAY, SEC, E2E]
+    gate: G8
+    status: PENDING
+
+gates:
+  G0:
+    requires: [T00]
+  G1:
+    requires: [T01]
+  G2:
+    requires: [T02, T03, T04]
+  G3:
+    requires: [T05, T06]
+  G4:
+    requires: [T07, T08, T09]
+  G5:
+    requires: [T10, T11]
+  G6:
+    requires: [T12, T13, T14, T15, T16]
+  G7:
+    requires: [T17]
+  G8:
+    requires: [T18]
+    emits: TOW_BACKEND_READY_FOR_INTEGRATION
+
+post_backend_consumers:
+  dashboard:
+    blocked_until: T18
+    required_tests: [UI, API, A11Y, E2E]
+    scope:
+      - tow global settings
+      - tow vehicle document verification
+      - payout batch preview and confirmation
+      - operational/admin override screens
+  mobile_partner:
+    blocked_until: T18
+    required_tests: [UNIT, UI, UX, API, MAPS, E2E]
+    scope:
+      - tow vehicle management
+      - proposal/counteroffer response
+      - navigation/tracking
+      - finish service
+  mobile_client:
+    blocked_until: T18
+    required_tests: [UNIT, UI, UX, API, MAPS, E2E]
+    scope:
+      - create tow request
+      - proposal selection/counteroffer
+      - card/pix/cash payment UX
+      - live tracking
+      - completion/dispute/review
+      - debt repayment flow
