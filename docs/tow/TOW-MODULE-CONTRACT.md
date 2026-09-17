@@ -1,28 +1,27 @@
 # JaResolve — Tow Module Contract
 
+> Status: **normative / frozen for implementation**
+
 ## 1. Purpose
 
-O serviço **Guincho / Tow** deve existir como um **módulo funcional explícito** do JaResolve, e não como um conjunto de condicionais espalhadas pelo sistema.
+Guincho/Tow é um **módulo funcional explícito** do JaResolve, não um conjunto de condicionais espalhadas.
 
-O módulo agrupa e vincula, sob uma única fronteira arquitetural:
+O módulo vincula:
 
-- o serviço `tow` exposto ao cliente;
-- o tipo de parceiro `tow` autorizado a operá-lo;
-- seus use cases;
-- configurações globais;
-- feature flag global;
-- regras de eligibility/matching;
-- contratos HTTP/eventos;
-- integrações de Maps, Payment, Wallet, Documents e Audit;
-- capacidades consumidas por Dashboard, Mobile Cliente e Mobile Parceiro.
+- serviço `tow`;
+- `partner_type=tow`;
+- use cases/policies;
+- settings;
+- global feature flag;
+- matching/eligibility;
+- contracts HTTP/events;
+- consumo de Maps, Payment, Wallet, File Storage e Audit por ports.
 
-A existência do `PartnerType = tow` continua sendo um conceito de domínio, mas sua disponibilidade operacional é governada pelo **Tow Module**.
+Shared capabilities continuam componentes horizontais e não são duplicados dentro do Tow Module.
 
 ---
 
-## 2. Module identity
-
-Identidade canônica inicial:
+## 2. Identity
 
 ```text
 module_key   = tow
@@ -30,15 +29,14 @@ service_key  = tow
 partner_type = tow
 ```
 
-Esses identificadores devem ser estáveis e não depender de labels de UI.
+Identificadores são estáveis e independentes de labels de UI.
 
-Conceitualmente:
+Conceito:
 
 ```text
 ServiceModule
 └── TowModule
-    ├── service_key: tow
-    ├── partner_type: tow
+    ├── identity
     ├── enabled
     ├── settings
     ├── capabilities
@@ -46,23 +44,21 @@ ServiceModule
     └── adapters
 ```
 
-O objetivo não é criar um plugin dinâmico arbitrário no MVP. O objetivo é criar uma **fronteira modular explícita**, extensível para futuros serviços sem acoplamento transversal.
+O MVP não exige plugin runtime genérico; exige fronteira modular clara e extensível.
 
 ---
 
 ## 3. Global feature flag
 
-O Dashboard deve permitir a um administrador autorizado habilitar/desabilitar o módulo Tow globalmente.
-
-A flag não deve ser hardcoded em frontend. O backend é a fonte de verdade.
-
-Contrato conceitual:
+Admin autorizado controla:
 
 ```text
 TowModule.enabled: boolean
 ```
 
-Persistência recomendada:
+Backend é fonte de verdade.
+
+Persistência conceitual:
 
 ```text
 service_modules
@@ -70,221 +66,231 @@ service_modules
 - service_key
 - partner_type
 - enabled
-- disabled_reason nullable
+- disabled_reason
 - updated_by
 - updated_at
 ```
 
-`enabled` não deve ser implementado como `if` ad hoc em controllers. Todos os entry points relevantes devem passar por uma policy/guard central, por exemplo:
+Availability é consumida por port/policy central, por exemplo:
 
 ```text
 ServiceModuleAvailability
-TowModuleAvailabilityPolicy
+TowModuleAvailability
 ```
+
+Controllers não consultam tabela/setting e não espalham `if (towEnabled)`.
 
 ---
 
-## 4. Disable semantics — graceful drain
+## 4. Disable semantics
 
-Desabilitar Tow significa **impedir novas operações comerciais do serviço sem destruir atendimentos já contratados/em execução**.
-
-Este é o comportamento canônico do MVP.
-
-Quando `TowModule.enabled = false`:
-
-### 4.1 Novas operações bloqueadas
-
-Devem ser bloqueados:
-
-- criação de novo Tow request;
-- entrada de novo request em matching;
-- expansão de raio para requests ainda não atribuídos;
-- criação de novas propostas;
-- criação de nova contraproposta;
-- novo assignment ainda não consolidado;
-- disponibilidade do serviço Tow na lista pública de serviços habilitados;
-- entrada de novos parceiros Tow em fluxos operacionais de atendimento.
-
-Erro contratual sugerido:
-
-```text
-service_module_disabled
-```
-
-com `module_key = tow`.
-
-### 4.2 Requests ainda não atribuídos
-
-Requests em `SEARCHING` ou `NEGOTIATING` quando o módulo for desligado devem ser encerrados de forma determinística com reason code próprio, por exemplo:
-
-```text
-SERVICE_DISABLED
-```
-
-Não devem continuar esperando novos parceiros/propostas.
-
-Propostas/counteroffers ainda abertas deixam de ser acionáveis.
-
-### 4.3 Atendimentos já atribuídos continuam
-
-Requests que já alcançaram `ASSIGNED` antes da desativação **continuam até um estado terminal**.
-
-Devem continuar funcionando:
-
-- payment readiness já vinculado ao atendimento;
-- `EN_ROUTE`;
-- `ARRIVED`;
-- `IN_TRANSIT`;
-- `COMPLETION_PENDING`;
-- `COMPLETED`;
-- cancellation/no-show;
-- refunds/capture;
-- debt accounting;
-- disputes;
-- wallet/settlement/payout;
-- audit.
-
-O feature flag não pode abandonar cliente ou parceiro no meio de um serviço já contratado.
-
-Em outras palavras:
+Regra:
 
 ```text
 DISABLE = stop new business + drain in-flight work
 ```
 
-Não é um emergency kill-switch de transações já atribuídas.
+### 4.1 Bloqueado após disable
+
+- create new Tow request;
+- start/continue unassigned matching;
+- radius expansion de request não atribuído;
+- create proposal;
+- create counteroffer;
+- consolidate new assignment quando disable venceu a corrida;
+- anunciar Tow como serviço operacionalmente disponível.
+
+Erro HTTP estável:
+
+```text
+service_module_disabled
+```
+
+### 4.2 Requests não atribuídos
+
+`SEARCHING` e `NEGOTIATING` encerram deterministicamente com:
+
+```text
+state = EXPIRED
+terminal_reason = SERVICE_DISABLED
+```
+
+Proposals/counteroffers abertas tornam-se não acionáveis.
+
+### 4.3 Requests já atribuídos
+
+Se `ASSIGNED` foi consolidado antes do disable, continuam:
+
+```text
+payment readiness
+EN_ROUTE
+ARRIVED
+IN_TRANSIT
+COMPLETION_PENDING
+COMPLETED
+cancellation/no-show
+capture/refund
+customer/partner debt
+dispute
+settlement/payout
+audit
+```
+
+Feature flag não abandona serviço já contratado.
 
 ---
 
 ## 5. Re-enable semantics
 
-Quando `TowModule.enabled` voltar para `true`:
+Ao habilitar novamente:
 
-- novos Tow requests voltam a ser aceitos imediatamente;
-- matching/proposals voltam a operar;
-- parceiros Tow elegíveis voltam a aparecer;
-- configurações e cadastros existentes permanecem preservados;
-- requests encerrados por `SERVICE_DISABLED` não ressuscitam automaticamente;
-- não deve haver replay automático de propostas antigas.
-
-Reativação precisa ser idempotente.
+- novos Tow requests voltam a ser aceitos;
+- matching/proposals voltam a funcionar;
+- partners/vehicles/settings permanecem preservados;
+- request encerrado por `SERVICE_DISABLED` não é reaberto;
+- proposal/counteroffer antiga não sofre replay;
+- repeated enable/disable é idempotente.
 
 ---
 
-## 6. Partner type linkage
+## 6. Partner linkage
 
-`PartnerType = tow` pertence ao módulo Tow.
+`PartnerType=tow` pertence operacionalmente ao módulo Tow.
 
-Isso significa:
+Disable:
 
-- o tipo pode continuar persistido/cadastrado enquanto o módulo estiver desabilitado;
-- admin pode continuar validando cadastro, documentos e veículos;
-- o parceiro pode continuar acessando dados administrativos permitidos;
-- entretanto, não pode receber/aceitar novos atendimentos Tow enquanto o módulo estiver desabilitado.
+- não apaga partner;
+- não converte tipo;
+- não apaga TowVehicle/documents;
+- permite gestão cadastral/admin conforme authz;
+- impede novos fluxos comerciais Tow.
 
-Não apagar, converter ou desativar permanentemente parceiros quando o módulo for desligado.
-
-A flag controla **capacidade operacional do serviço**, não a existência cadastral do parceiro.
+Feature flag controla **capacidade operacional**, não existência cadastral.
 
 ---
 
-## 7. Dashboard responsibilities
+## 7. Dashboard module control
 
-O Dashboard deve futuramente expor uma tela/controle administrativo contendo, no mínimo:
+Contrato:
+
+```http
+GET   /api/admin/tow/module
+PATCH /api/admin/tow/module
+```
+
+Toggle exige:
+
+```text
+admin authorization
+reason
+updated_by
+updated_at
+audit event
+```
+
+Antes de disable, UI deve conseguir informar impacto:
+
+```text
+new work will stop
+SEARCHING/NEGOTIATING will terminate
+ASSIGNED+ will drain
+```
+
+A **implementação visual do Dashboard pode começar após o merge do contrato usando mocks/OpenAPI**. Somente a **integração real com backend** fica bloqueada até `TOW BACKEND READY FOR INTEGRATION`.
+
+---
+
+## 8. Clean Architecture boundary
 
 ```text
 Tow
-Status: Enabled | Disabled
-```
-
-Ao alterar o status:
-
-- exigir permissão administrativa;
-- opcionalmente exigir `reason` ao desabilitar;
-- registrar `updated_by` e `updated_at`;
-- gerar AuditEvent;
-- mostrar impacto da operação, principalmente quantidade de requests não atribuídos e atendimentos in-flight.
-
-A UI do Dashboard é posterior ao gate `TOW BACKEND READY FOR INTEGRATION`, mas o backend/API do toggle pertence ao domínio Tow e deve existir antes desse gate.
-
----
-
-## 8. Architectural boundary
-
-O módulo deve seguir Clean Architecture:
-
-```text
-Tow Module
 ├── Domain
-│   ├── TowRequest
-│   ├── TowVehicle
-│   ├── TowProposal
-│   ├── TowModuleAvailability
-│   ├── Pricing/Compatibility Policies
-│   └── domain invariants
-│
+│   ├── Entities/Aggregates
+│   ├── Value Objects
+│   ├── Policies
+│   └── Invariants
 ├── Application
-│   ├── use cases
-│   ├── ports
-│   └── module guard / availability policy
-│
+│   ├── Use Cases
+│   ├── Ports
+│   └── Orchestration
 ├── Adapters
 │   ├── HTTP
-│   ├── persistence
-│   ├── events
-│   └── presenters
-│
+│   ├── Persistence
+│   ├── Events
+│   └── Presenters
 └── Infrastructure
     ├── PostgreSQL
     ├── Google Routes
-    ├── Payment Gateway
+    ├── Payment adapters
     ├── File Storage
     └── Scheduler
 ```
 
-Dependências compartilhadas como Payment, Wallet, Audit, File Storage e Maps continuam componentes horizontais. Tow as consome através de ports; não deve duplicá-las internamente.
+Domain/Application não conhecem Express, Knex/PostgreSQL, Google SDK, PSP SDK, filesystem ou scheduler concreto.
+
+SOLID obrigatório:
+
+- SRP nos use cases/policies;
+- DIP via ports;
+- ISP para gateways específicos;
+- LSP entre fakes e adapters;
+- OCP para novas capabilities sem condicionais transversais.
 
 ---
 
-## 9. Required backend guard points
+## 9. Required guard points
 
-A disponibilidade do módulo deve ser verificada, no mínimo, antes de:
+Availability deve ser aplicada antes de:
 
-1. criar Tow request;
-2. iniciar/continuar matching de request não atribuído;
+1. criar request;
+2. iniciar/continuar matching não atribuído;
 3. criar proposal;
 4. criar counteroffer;
-5. consolidar assignment de request ainda não atribuído;
-6. anunciar Tow como serviço disponível para clientes/parceiros.
+5. consolidar assignment;
+6. anunciar Tow como disponível.
 
-Após `ASSIGNED`, o guard global não pode impedir as transições necessárias para completar/encerrar o serviço.
-
----
-
-## 10. Concurrency and idempotency
-
-O toggle pode ocorrer enquanto o sistema processa requests.
-
-Devem existir testes que provem pelo menos:
-
-- disable concorrente com criação de request → nenhum novo request operacional após commit do disable;
-- disable concorrente com proposal → nenhuma nova proposal válida após commit do disable;
-- disable concorrente com assignment → resultado determinístico e transacional;
-- request já `ASSIGNED` antes do disable continua;
-- repeated disable/enable é idempotente;
-- nenhum request encerrado por `SERVICE_DISABLED` é reaberto automaticamente na reativação.
-
-A estratégia transacional concreta fica para implementação, mas o invariant acima é obrigatório.
+Depois de `ASSIGNED`, o guard não bloqueia operações necessárias para concluir/encerrar o serviço.
 
 ---
 
-## 11. Audit requirements
+## 10. Concurrency
 
-Toda alteração do estado global do módulo deve registrar:
+Testes transacionais devem cobrir:
 
 ```text
-module_key
-action = ENABLE | DISABLE
+disable vs create request
+disable vs proposal
+disable vs radius expansion
+disable vs assignment
+repeated toggle
+re-enable after closures
+```
+
+Invariante crítico:
+
+```text
+assignment commits first
+→ ASSIGNED drains
+```
+
+ou:
+
+```text
+disable commits first
+→ assignment rejected / SERVICE_DISABLED
+```
+
+Nunca os dois resultados para o mesmo request.
+
+---
+
+## 11. Audit
+
+Cada toggle registra:
+
+```text
+module_key=tow
+action=ENABLE|DISABLE
 before
 after
 reason
@@ -292,50 +298,52 @@ admin_user_id
 timestamp
 ```
 
-Também devem ser auditáveis encerramentos de requests causados por `SERVICE_DISABLED`.
+Também são auditados requests encerrados por `SERVICE_DISABLED` e a preservação de in-flight work.
+
+Logs efêmeros não substituem AuditEvent persistido.
 
 ---
 
-## 12. Test requirements
+## 12. Test contract
 
-### UNIT
-- module enabled permite novas operações;
-- module disabled bloqueia operações pré-assignment;
-- assigned/in-flight continua quando disabled;
-- re-enable libera novas operações;
-- linkage `service_key=tow ↔ partner_type=tow` permanece consistente.
+UNIT:
 
-### DB
-- module row/registry é único por `module_key`;
-- enable/disable é persistido atomicamente;
-- audit metadata preservada.
+- enabled/disabled policies;
+- graceful drain;
+- re-enable;
+- linkage service/partner type.
 
-### API / AUTHZ
-- admin autorizado consulta/toggle;
-- customer/partner não podem toggle;
-- status público/consumer retorna disponibilidade correta;
-- erro `service_module_disabled` é estável.
+DB:
 
-### CONCURRENCY
-- disable vs create request;
-- disable vs proposal;
-- disable vs assignment;
-- repeated toggle idempotente.
+- unique module row/key;
+- atomic persistence;
+- audit metadata.
 
-### E2E
-- enabled → fluxo Tow pode começar;
-- disabled → novo Tow request é bloqueado;
-- disable durante SEARCHING/NEGOTIATING → request encerra com `SERVICE_DISABLED`;
-- disable após ASSIGNED → atendimento completa normalmente;
-- re-enable → novos requests voltam a funcionar;
-- partner `tow` continua cadastrado, mas não recebe chamados enquanto módulo está disabled.
+API/AUTHZ:
+
+- admin get/toggle;
+- non-admin toggle rejected;
+- stable module status/error contract.
+
+CONCURRENCY:
+
+- disable vs create/proposal/assignment;
+- idempotent repeated toggle.
+
+E2E:
+
+- enabled starts new business;
+- disabled blocks new business;
+- SEARCHING/NEGOTIATING close with `SERVICE_DISABLED`;
+- ASSIGNED drains to terminal;
+- re-enable allows new business without resurrection.
 
 ---
 
-## 13. Source-of-truth rule
+## 13. Consumer source-of-truth
 
-A disponibilidade do módulo deve ser consultada pelo backend e exposta aos consumidores.
+Mobile Cliente, Mobile Parceiro e Dashboard podem hide/disable UI com base no module status, mas segurança funcional nunca depende da UI.
 
-Mobile Cliente, Mobile Parceiro e Dashboard podem esconder/desabilitar UI com base nesse contrato, mas **a segurança funcional nunca depende da UI**.
+Mesmo chamada HTTP manual ou client desatualizado deve ser rejeitado para novas operações quando Tow estiver disabled.
 
-Mesmo com cliente desatualizado ou chamada HTTP manual, o backend deve rejeitar novas operações Tow quando o módulo estiver desabilitado.
+Mock/frontend implementation pode iniciar após contract merge. Backend integration final só inicia após T18.
