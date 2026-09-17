@@ -6,16 +6,22 @@ Este diretório é a fonte de verdade da reestruturação do módulo **Guincho /
 
 ### Domain and business
 
-1. `TOW-SERVICE-SPECIFICATION.md`
+1. `TOW-PRICING-CONTRACT.md`
+   - decisão final de pricing por distância viária real;
+   - cobrança proporcional do excedente em metros;
+   - arredondamento somente do resultado monetário para centavos;
+   - substitui qualquer referência pré-freeze a `ceil(excess_km)` / quilômetro iniciado.
+
+2. `TOW-SERVICE-SPECIFICATION.md`
    - comportamento funcional completo do serviço;
    - estados, pricing, matching, pagamentos, cancelamentos, dívidas, payout e governança.
 
-2. `TOW-BUSINESS-RULE-MATRIX.md`
+3. `TOW-BUSINESS-RULE-MATRIX.md`
    - regras identificáveis/testáveis;
    - invariants;
    - prioridade e cobertura esperada.
 
-3. `TOW-MODULE-CONTRACT.md`
+4. `TOW-MODULE-CONTRACT.md`
    - Tow como módulo/componente;
    - `module_key=tow`, `service_key=tow`, `partner_type=tow`;
    - global feature flag;
@@ -23,30 +29,30 @@ Este diretório é a fonte de verdade da reestruturação do módulo **Guincho /
 
 ### Backend execution
 
-4. `TOW-TDD-IMPLEMENTATION-PLAN.md`
+5. `TOW-TDD-IMPLEMENTATION-PLAN.md`
    - política RED → GREEN → REFACTOR → gate;
    - sequência T00–T18;
    - Clean Architecture/SOLID;
    - critérios de readiness.
 
-5. `TOW-TASK-GRAPH.yaml`
+6. `TOW-TASK-GRAPH.yaml`
    - dependências machine-readable;
    - outputs/test suites/gates.
 
-6. GitHub Epic #10 + Issues #11–#29
+7. GitHub Epic #10 + Issues #11–#29
    - especificação executável por task;
    - a Issue da task é a ordem operacional imediata do executor.
 
 ### Consumer-first contract
 
-7. `TOW-CONSUMER-FLOW-SPEC.md`
+8. `TOW-CONSUMER-FLOW-SPEC.md`
    - fluxo de Mobile Cliente;
    - fluxo de Mobile Parceiro;
    - fluxo de Dashboard;
    - UX/domain-state boundaries;
    - o que pode ser implementado antecipadamente com mocks.
 
-8. `TOW-API-CONTRACT.md`
+9. `TOW-API-CONTRACT.md`
    - paths canônicos originalmente congelados;
    - DTOs;
    - enums;
@@ -55,7 +61,7 @@ Este diretório é a fonte de verdade da reestruturação do módulo **Guincho /
    - idempotency;
    - REST/realtime semantics.
 
-9. `TOW-API-CONTRACT-DRAFT4-ADDENDUM.md`
+10. `TOW-API-CONTRACT-DRAFT4-ADDENDUM.md`
    - endpoints/DTOs adicionais necessários para cobertura integral dos três consumidores;
    - rota/geometry;
    - status/localização do parceiro;
@@ -65,21 +71,21 @@ Este diretório é a fonte de verdade da reestruturação do módulo **Guincho /
    - payout partner-level;
    - normalização de enums e nomes monetários.
 
-10. `tow-api-contract.openapi.yaml`
+11. `tow-api-contract.openapi.yaml`
    - **entrypoint canônico OpenAPI 3.1** para geração de client, mock server e contract tests;
    - versão atual: `1.0.0-draft.4`;
    - compõe partes estáveis de `tow-api-contract.base.openapi.yaml` por `$ref` local.
 
-11. `TOW-CONSUMER-FLOW-COVERAGE.md`
+12. `TOW-CONSUMER-FLOW-COVERAGE.md`
    - matriz fluxo × endpoint para Cliente, Parceiro e Dashboard;
    - prova documental de que cada capability planejada possui contrato explícito;
    - registra normalizações encontradas durante a revisão.
 
-12. `TOW-OPENAPI-CONTRACT-DECISIONS.md`
+13. `TOW-OPENAPI-CONTRACT-DECISIONS.md`
    - decisões congeladas sobre discovery/rehydration de Cliente e Parceiro;
    - semântica verdadeira de PATCH parcial dos Tow settings.
 
-13. `TOW-OPENAPI-CONSISTENCY-REVIEW.md`
+14. `TOW-OPENAPI-CONSISTENCY-REVIEW.md`
    - revisão estrutural do contrato;
    - checklist de lint/resolution/codegen antes de sair de Draft.
 
@@ -87,7 +93,16 @@ Este diretório é a fonte de verdade da reestruturação do módulo **Guincho /
 
 ## Precedence
 
-Para regra funcional:
+Para pricing, a decisão final é específica e tem precedência sobre qualquer wording anterior:
+
+```text
+TOW-PRICING-CONTRACT
+→ pricing sections in TOW-SERVICE-SPECIFICATION / TOW-BUSINESS-RULE-MATRIX
+```
+
+Em particular, `ceil(excess_km)` e cobrança por "quilômetro iniciado" estão revogados.
+
+Para demais regras funcionais:
 
 ```text
 TOW-SERVICE-SPECIFICATION
@@ -102,6 +117,8 @@ Issue da task
 → TOW-TASK-GRAPH.yaml
 → TOW-TDD-IMPLEMENTATION-PLAN.md
 ```
+
+Se uma Issue pré-freeze ainda reproduzir a antiga regra de `ceil`, `TOW-PRICING-CONTRACT.md` é a correção normativa explícita e deve ser aplicada antes da implementação.
 
 Para consumidores:
 
