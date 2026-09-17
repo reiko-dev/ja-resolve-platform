@@ -6,6 +6,7 @@ source_documents:
   - docs/tow/TOW-SERVICE-SPECIFICATION.md
   - docs/tow/TOW-BUSINESS-RULE-MATRIX.md
   - docs/tow/TOW-TDD-IMPLEMENTATION-PLAN.md
+  - docs/tow/TOW-MODULE-CONTRACT.md
 execution_policy:
   method: TDD
   cycle: [RED, GREEN, REFACTOR, INTEGRATION_GATE, ACCEPTED]
@@ -15,6 +16,22 @@ execution_policy:
   allow_parallel_when_no_contract_or_file_conflict: true
   forbid_skipped_p0_tests: true
   backend_ready_gate: T18
+module_contract:
+  module_key: tow
+  service_key: tow
+  partner_type: tow
+  global_feature_flag: enabled
+  disable_semantics: graceful_drain
+  when_disabled:
+    block_new_requests: true
+    stop_unassigned_matching: true
+    stop_new_proposals: true
+    stop_new_counteroffers: true
+    stop_new_assignment: true
+    close_searching_and_negotiating_with_reason: SERVICE_DISABLED
+    allow_assigned_inflight_to_complete: true
+    preserve_partner_registration: true
+    allow_admin_management: true
 statuses:
   allowed: [PENDING, READY, IN_PROGRESS, REVIEW, ACCEPTED, REJECTED, BLOCKED, RETRY]
 tasks:
@@ -45,22 +62,27 @@ tasks:
     status: PENDING
 
   - id: T02
-    title: Tow System Settings Contract
+    title: Tow Module Registry, Global Feature Flag & System Settings Contract
     depends_on: [T01]
     outputs:
+      - explicit tow module registration
+      - service_key tow linked to partner_type tow
+      - global enable-disable feature flag
+      - graceful-drain disable policy
       - validated tow settings
-      - admin settings API
-    required_tests: [UNIT, DB, API, CONTRACT, AUTHZ]
+      - admin module and settings API
+    required_tests: [UNIT, DB, API, CONTRACT, AUTHZ, CONC, E2E]
     status: PENDING
 
   - id: T03
     title: Tow Vehicles, Pricing Configuration & Vehicle Documents
-    depends_on: [T01]
+    depends_on: [T02]
     outputs:
       - tow vehicle CRUD
       - single-active-vehicle invariant
       - per-vehicle pricing configuration
       - vehicle document upload/verification
+      - tow partner operations bound to enabled tow module
     required_tests: [UNIT, DB, API, CONTRACT, AUTHZ, SEC, CONC, E2E]
     status: PENDING
 
@@ -88,10 +110,12 @@ tasks:
     title: Geographic Matching & Progressive Radius Expansion
     depends_on: [T02, T04, T05]
     outputs:
+      - tow module availability guard
       - tow eligibility query
       - progressive radius expansion
       - request search timeout
-    required_tests: [UNIT, DB, API, TIME, PERF, AUTHZ, E2E]
+      - SERVICE_DISABLED closure for unassigned requests
+    required_tests: [UNIT, DB, API, TIME, PERF, AUTHZ, CONC, E2E]
     gate: G3
     status: PENDING
 
@@ -103,7 +127,8 @@ tasks:
       - automatic proposal price
       - proposal expiry
       - withdraw
-    required_tests: [UNIT, DB, API, CONTRACT, AUTHZ, TIME]
+      - module-disabled proposal guard
+    required_tests: [UNIT, DB, API, CONTRACT, AUTHZ, TIME, CONC]
     status: PENDING
 
   - id: T08
@@ -113,6 +138,7 @@ tasks:
       - one customer counteroffer
       - accept/reject counteroffer
       - counteroffer timeout
+      - module-disabled counteroffer guard
     required_tests: [UNIT, DB, API, CONTRACT, AUTHZ, TIME]
     status: PENDING
 
@@ -124,6 +150,7 @@ tasks:
       - frozen final price/destination/vehicle
       - remaining proposal closure
       - busy partner/vehicle state
+      - deterministic disable-vs-assignment behavior
     required_tests: [DB, API, CONTRACT, CONC, AUTHZ]
     gate: G4
     status: PENDING
@@ -136,6 +163,7 @@ tasks:
       - tracking points
       - completion pending/confirmation
       - completion timeout
+      - in-flight continuation while module disabled
     required_tests: [UNIT, DB, API, CONTRACT, AUTHZ, TIME, E2E]
     status: PENDING
 
@@ -217,6 +245,7 @@ tasks:
       - customer review
       - admin cancel/complete override
       - immutable audit trail
+      - module enable-disable audit events
     required_tests: [UNIT, DB, API, CONTRACT, AUTHZ, SEC, E2E]
     gate: G7
     status: PENDING
@@ -226,6 +255,7 @@ tasks:
     depends_on: [T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17]
     outputs:
       - frozen official HTTP contract
+      - module boundary and feature flag contract freeze
       - complete E2E evidence
       - regression evidence
       - clean reset/migrate/seed evidence
@@ -260,6 +290,8 @@ post_backend_consumers:
     blocked_until: T18
     required_tests: [UI, API, A11Y, E2E]
     scope:
+      - tow module global enable-disable control
+      - tow module status and disable impact preview
       - tow global settings
       - tow vehicle document verification
       - payout batch preview and confirmation
@@ -268,6 +300,7 @@ post_backend_consumers:
     blocked_until: T18
     required_tests: [UNIT, UI, UX, API, MAPS, E2E]
     scope:
+      - respect tow module availability
       - tow vehicle management
       - proposal/counteroffer response
       - navigation/tracking
@@ -276,6 +309,7 @@ post_backend_consumers:
     blocked_until: T18
     required_tests: [UNIT, UI, UX, API, MAPS, E2E]
     scope:
+      - hide-disable tow entrypoint from backend module availability
       - create tow request
       - proposal selection/counteroffer
       - card/pix/cash payment UX
