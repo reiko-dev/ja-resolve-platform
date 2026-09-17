@@ -47,7 +47,7 @@ Este diretório é a fonte de verdade da reestruturação do módulo **Guincho /
    - o que pode ser implementado antecipadamente com mocks.
 
 8. `TOW-API-CONTRACT.md`
-   - paths canônicos;
+   - paths canônicos originalmente congelados;
    - DTOs;
    - enums;
    - error codes;
@@ -55,16 +55,31 @@ Este diretório é a fonte de verdade da reestruturação do módulo **Guincho /
    - idempotency;
    - REST/realtime semantics.
 
-9. `tow-api-contract.openapi.yaml`
+9. `TOW-API-CONTRACT-DRAFT4-ADDENDUM.md`
+   - endpoints/DTOs adicionais necessários para cobertura integral dos três consumidores;
+   - rota/geometry;
+   - status/localização do parceiro;
+   - oportunidade completa;
+   - resumo financeiro Tow do parceiro;
+   - detalhes operacionais/dispute/documentos do Dashboard;
+   - payout partner-level;
+   - normalização de enums e nomes monetários.
+
+10. `tow-api-contract.openapi.yaml`
    - **entrypoint canônico OpenAPI 3.1** para geração de client, mock server e contract tests;
-   - versão atual: `1.0.0-draft.3`;
+   - versão atual: `1.0.0-draft.4`;
    - compõe partes estáveis de `tow-api-contract.base.openapi.yaml` por `$ref` local.
 
-10. `TOW-OPENAPI-CONTRACT-DECISIONS.md`
+11. `TOW-CONSUMER-FLOW-COVERAGE.md`
+   - matriz fluxo × endpoint para Cliente, Parceiro e Dashboard;
+   - prova documental de que cada capability planejada possui contrato explícito;
+   - registra normalizações encontradas durante a revisão.
+
+12. `TOW-OPENAPI-CONTRACT-DECISIONS.md`
    - decisões congeladas sobre discovery/rehydration de Cliente e Parceiro;
    - semântica verdadeira de PATCH parcial dos Tow settings.
 
-11. `TOW-OPENAPI-CONSISTENCY-REVIEW.md`
+13. `TOW-OPENAPI-CONSISTENCY-REVIEW.md`
    - revisão estrutural do contrato;
    - checklist de lint/resolution/codegen antes de sair de Draft.
 
@@ -92,10 +107,14 @@ Para consumidores:
 
 ```text
 tow-api-contract.openapi.yaml
-+ TOW-API-CONTRACT.md
-+ TOW-CONSUMER-FLOW-SPEC.md
-+ TOW-OPENAPI-CONTRACT-DECISIONS.md
+→ TOW-API-CONTRACT-DRAFT4-ADDENDUM.md
+→ TOW-CONSUMER-FLOW-COVERAGE.md
+→ TOW-API-CONTRACT.md
+→ TOW-CONSUMER-FLOW-SPEC.md
+→ TOW-OPENAPI-CONTRACT-DECISIONS.md
 ```
+
+`TOW-CONSUMER-FLOW-SPEC.md` continua definindo intenção/UX do fluxo; o OpenAPI canônico define o shape de transporte. O Addendum/Coverage registra as correções necessárias quando exemplos antigos usam nomenclatura não canônica.
 
 Se surgir contradição entre contratos, **não escolher silenciosamente um comportamento**. Registrar o conflito e corrigir os documentos antes da implementação dependente.
 
@@ -117,4 +136,4 @@ Somente T18 pode emitir:
 TOW BACKEND READY FOR INTEGRATION
 ```
 
-Nenhum consumidor deve compensar backend incompleto com regra crítica local.
+Nenhum consumidor deve compensar backend incompleto com regra crítica local ou endpoint/DTO inventado.
