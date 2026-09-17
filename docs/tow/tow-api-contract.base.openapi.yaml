@@ -1,0 +1,1811 @@
+openapi: 3.1.0
+info:
+  title: JaResolve Tow Consumer API
+  version: 1.0.0-draft.2
+  description: >-
+    Normative consumer contract for Mobile Cliente, Mobile Parceiro and Dashboard.
+    Backend T00-T18 must converge to this contract or explicitly revise it with
+    contract tests and matching documentation updates.
+servers:
+  - url: /api
+security: []
+tags:
+  - name: Tow Module
+  - name: Tow Customer
+  - name: Tow Partner
+  - name: Tow Vehicles
+  - name: Tow Admin
+paths:
+  /tow/module-status:
+    get:
+      tags: [Tow Module]
+      operationId: getTowModuleStatus
+      responses:
+        '200':
+          description: Tow module availability
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ModuleStatusResponse' }
+
+  /tow/requests:
+    post:
+      tags: [Tow Customer]
+      operationId: createTowRequest
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateTowRequestInput' }
+      responses:
+        '201':
+          description: Tow request created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TowRequestResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/DomainConflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /tow/requests/{requestId}:
+    get:
+      tags: [Tow Customer, Tow Partner]
+      operationId: getTowRequest
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/RequestId' }]
+      responses:
+        '200':
+          description: Authoritative Tow request snapshot
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TowRequestResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /tow/requests/{requestId}/destination:
+    patch:
+      tags: [Tow Customer]
+      operationId: changeTowDestination
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [destination]
+              properties:
+                destination: { $ref: '#/components/schemas/GeoPoint' }
+      responses:
+        '200':
+          description: Destination changed and previous negotiation invalidated as applicable
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TowRequestResponse' }
+        '409': { $ref: '#/components/responses/DomainConflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /tow/requests/{requestId}/proposals:
+    get:
+      tags: [Tow Customer]
+      operationId: listTowRequestProposals
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/RequestId' }]
+      responses:
+        '200':
+          description: Proposals for customer request
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TowProposalListResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [Tow Partner]
+      operationId: createTowProposal
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+      responses:
+        '201':
+          description: Server-calculated proposal
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TowProposalResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/DomainConflict' }
+
+  /tow/proposals/{proposalId}/accept:
+    post:
+      tags: [Tow Customer]
+      operationId: acceptTowProposal
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ProposalId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Atomic assignment completed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TowRequestResponse' }
+        '409': { $ref: '#/components/responses/DomainConflict' }
+
+  /tow/proposals/{proposalId}/counteroffer:
+    post:
+      tags: [Tow Customer]
+      operationId: createTowCounteroffer
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ProposalId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateCounterofferInput' }
+      responses:
+        '201':
+          description: Counteroffer created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CounterofferResponse' }
+        '409': { $ref: '#/components/responses/DomainConflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /tow/proposals/{proposalId}/withdraw:
+    post:
+      tags: [Tow Partner]
+      operationId: withdrawTowProposal
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ProposalId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Proposal withdrawn
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TowProposalResponse' }
+        '409': { $ref: '#/components/responses/DomainConflict' }
+
+  /tow/counteroffers/{counterofferId}/accept:
+    post:
+      tags: [Tow Partner]
+      operationId: acceptTowCounteroffer
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CounterofferId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Counteroffer accepted and assignment completed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TowRequestResponse' }
+        '409': { $ref: '#/components/responses/DomainConflict' }
+
+  /tow/counteroffers/{counterofferId}/reject:
+    post:
+      tags: [Tow Partner]
+      operationId: rejectTowCounteroffer
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CounterofferId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Counteroffer rejected
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CounterofferResponse' }
+        '409': { $ref: '#/components/responses/DomainConflict' }
+
+  /tow/requests/{requestId}/payment-method:
+    put:
+      tags: [Tow Customer]
+      operationId: selectTowPaymentMethod
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SelectPaymentMethodInput' }
+      responses:
+        '200':
+          description: Payment method selected or initialized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentSummaryResponse' }
+        '409': { $ref: '#/components/responses/DomainConflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /tow/requests/{requestId}/payment:
+    get:
+      tags: [Tow Customer, Tow Partner]
+      operationId: getTowPaymentSummary
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/RequestId' }]
+      responses:
+        '200':
+          description: Current sanitized payment summary for the caller
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentSummaryResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /tow/requests/{requestId}/cancel:
+    post:
+      tags: [Tow Customer]
+      operationId: cancelTowRequestByCustomer
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                reason: { type: [string, 'null'], maxLength: 1000 }
+      responses:
+        '200':
+          description: Cancellation processed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CancellationResponse' }
+        '409': { $ref: '#/components/responses/DomainConflict' }
+
+  /tow/requests/{requestId}/completion/confirm:
+    post:
+      tags: [Tow Customer]
+      operationId: confirmTowCompletion
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Completion confirmed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TowRequestResponse' }
+        '409': { $ref: '#/components/responses/DomainConflict' }
+
+  /tow/requests/{requestId}/disputes:
+    post:
+      tags: [Tow Customer]
+      operationId: createTowDispute
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateDisputeInput' }
+      responses:
+        '201':
+          description: Dispute opened
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DisputeResponse' }
+        '409': { $ref: '#/components/responses/DomainConflict' }
+
+  /tow/requests/{requestId}/review:
+    post:
+      tags: [Tow Customer]
+      operationId: createTowReview
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateReviewInput' }
+      responses:
+        '201':
+          description: Review created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReviewResponse' }
+        '409': { $ref: '#/components/responses/DomainConflict' }
+
+  /tow/requests/{requestId}/tracking:
+    get:
+      tags: [Tow Customer, Tow Partner]
+      operationId: getTowTracking
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/RequestId' }]
+      responses:
+        '200':
+          description: Latest tracking snapshot
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TrackingResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [Tow Partner]
+      operationId: postTowTrackingPoint
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TrackingPoint' }
+      responses:
+        '202':
+          description: Tracking point accepted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TrackingPointResponse' }
+        '409': { $ref: '#/components/responses/DomainConflict' }
+
+  /tow/requests/{requestId}/en-route:
+    post:
+      tags: [Tow Partner]
+      operationId: startTowEnRoute
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { $ref: '#/components/responses/TowRequestUpdated' }
+        '409': { $ref: '#/components/responses/DomainConflict' }
+
+  /tow/requests/{requestId}/arrived:
+    post:
+      tags: [Tow Partner]
+      operationId: markTowArrived
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LocationInput' }
+      responses:
+        '200': { $ref: '#/components/responses/TowRequestUpdated' }
+        '409': { $ref: '#/components/responses/DomainConflict' }
+
+  /tow/requests/{requestId}/in-transit:
+    post:
+      tags: [Tow Partner]
+      operationId: startTowInTransit
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { $ref: '#/components/responses/TowRequestUpdated' }
+        '409': { $ref: '#/components/responses/DomainConflict' }
+
+  /tow/requests/{requestId}/finish:
+    post:
+      tags: [Tow Partner]
+      operationId: finishTowService
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LocationInput' }
+      responses:
+        '200': { $ref: '#/components/responses/TowRequestUpdated' }
+        '409': { $ref: '#/components/responses/DomainConflict' }
+
+  /tow/requests/{requestId}/cash-received:
+    post:
+      tags: [Tow Partner]
+      operationId: markTowCashReceived
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Cash receipt recorded
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentSummaryResponse' }
+        '409': { $ref: '#/components/responses/DomainConflict' }
+
+  /tow/requests/{requestId}/cancel-partner:
+    post:
+      tags: [Tow Partner]
+      operationId: cancelTowRequestByPartner
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RequiredReasonInput' }
+      responses:
+        '200':
+          description: Partner cancellation processed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CancellationResponse' }
+        '409': { $ref: '#/components/responses/DomainConflict' }
+
+  /tow/requests/{requestId}/customer-no-show:
+    post:
+      tags: [Tow Partner]
+      operationId: reportTowCustomerNoShow
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Customer no-show processed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CancellationResponse' }
+        '409': { $ref: '#/components/responses/DomainConflict' }
+
+  /tow/partner/opportunities:
+    get:
+      tags: [Tow Partner]
+      operationId: listTowOpportunities
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Backend-filtered eligible opportunities
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TowOpportunityListResponse' }
+        '409': { $ref: '#/components/responses/DomainConflict' }
+
+  /tow/partner/proposals:
+    get:
+      tags: [Tow Partner]
+      operationId: listPartnerTowProposals
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/TowProposalStatus' }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Partner proposals
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TowProposalListResponse' }
+
+  /tow/vehicles:
+    get:
+      tags: [Tow Vehicles]
+      operationId: listTowVehicles
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Own TowVehicles
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TowVehicleListResponse' }
+    post:
+      tags: [Tow Vehicles]
+      operationId: createTowVehicle
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TowVehicleInput' }
+      responses:
+        '201':
+          description: TowVehicle created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TowVehicleResponse' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /tow/vehicles/{vehicleId}:
+    get:
+      tags: [Tow Vehicles]
+      operationId: getTowVehicle
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/VehicleId' }]
+      responses:
+        '200':
+          description: TowVehicle
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TowVehicleResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Tow Vehicles]
+      operationId: updateTowVehicle
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/VehicleId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TowVehiclePatch' }
+      responses:
+        '200':
+          description: TowVehicle updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TowVehicleResponse' }
+        '409': { $ref: '#/components/responses/DomainConflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    delete:
+      tags: [Tow Vehicles]
+      operationId: deleteTowVehicle
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/VehicleId' }]
+      responses:
+        '200':
+          description: TowVehicle deleted or deactivated according to policy
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TowVehicleResponse' }
+        '409': { $ref: '#/components/responses/DomainConflict' }
+
+  /tow/vehicles/{vehicleId}/activate:
+    post:
+      tags: [Tow Vehicles]
+      operationId: activateTowVehicle
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/VehicleId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Vehicle activated atomically
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TowVehicleResponse' }
+        '409': { $ref: '#/components/responses/DomainConflict' }
+
+  /tow/vehicles/{vehicleId}/documents:
+    get:
+      tags: [Tow Vehicles]
+      operationId: listTowVehicleDocuments
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/VehicleId' }]
+      responses:
+        '200':
+          description: Vehicle documents
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TowVehicleDocumentListResponse' }
+    post:
+      tags: [Tow Vehicles]
+      operationId: uploadTowVehicleDocument
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/VehicleId' }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, document_type]
+              properties:
+                file: { type: string, format: binary }
+                document_type: { type: string, minLength: 1 }
+                expires_at: { type: [string, 'null'], format: date }
+      responses:
+        '201':
+          description: Document uploaded as pending
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TowVehicleDocumentResponse' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /tow/vehicles/{vehicleId}/documents/{documentId}:
+    delete:
+      tags: [Tow Vehicles]
+      operationId: deleteTowVehicleDocument
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/VehicleId'
+        - $ref: '#/components/parameters/DocumentId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Document removed according to lifecycle rules
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TowVehicleDocumentResponse' }
+        '409': { $ref: '#/components/responses/DomainConflict' }
+
+  /tow/customer/debts:
+    get:
+      tags: [Tow Customer]
+      operationId: listTowCustomerDebts
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Customer Tow debts
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomerDebtListResponse' }
+
+  /tow/customer/debts/{debtId}/pay:
+    post:
+      tags: [Tow Customer]
+      operationId: payTowCustomerDebt
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/DebtId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DebtPaymentInput' }
+      responses:
+        '200':
+          description: Debt payment initialized or confirmed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomerDebtPaymentResponse' }
+        '409': { $ref: '#/components/responses/DomainConflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /admin/tow/module:
+    get:
+      tags: [Tow Admin]
+      operationId: adminGetTowModule
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Full Tow module metadata
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminModuleStatusResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    patch:
+      tags: [Tow Admin]
+      operationId: adminToggleTowModule
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ToggleTowModuleInput' }
+      responses:
+        '200':
+          description: Module toggled
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminModuleStatusResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/DomainConflict' }
+
+  /admin/tow/settings:
+    get:
+      tags: [Tow Admin]
+      operationId: adminGetTowSettings
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Typed Tow settings
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TowSettingsResponse' }
+    patch:
+      tags: [Tow Admin]
+      operationId: adminPatchTowSettings
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TowSettingsPatch' }
+      responses:
+        '200':
+          description: Settings updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TowSettingsResponse' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /admin/tow/vehicle-documents:
+    get:
+      tags: [Tow Admin]
+      operationId: adminListTowVehicleDocuments
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/VehicleDocumentStatus' }
+        - name: partner_id
+          in: query
+          schema: { type: string }
+        - name: vehicle_id
+          in: query
+          schema: { type: string }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Tow vehicle document queue
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TowVehicleDocumentListResponse' }
+
+  /admin/tow/vehicle-documents/{documentId}:
+    get:
+      tags: [Tow Admin]
+      operationId: adminGetTowVehicleDocument
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/DocumentId' }]
+      responses:
+        '200':
+          description: Document metadata and secure access reference
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TowVehicleDocumentResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/tow/vehicle-documents/{documentId}/approve:
+    post:
+      tags: [Tow Admin]
+      operationId: adminApproveTowVehicleDocument
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Document approved
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TowVehicleDocumentResponse' }
+
+  /admin/tow/vehicle-documents/{documentId}/reject:
+    post:
+      tags: [Tow Admin]
+      operationId: adminRejectTowVehicleDocument
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RequiredReasonInput' }
+      responses:
+        '200':
+          description: Document rejected
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TowVehicleDocumentResponse' }
+
+  /admin/tow/requests:
+    get:
+      tags: [Tow Admin]
+      operationId: adminListTowRequests
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: state
+          in: query
+          schema: { $ref: '#/components/schemas/TowRequestState' }
+        - name: terminal_reason
+          in: query
+          schema: { $ref: '#/components/schemas/TerminalReason' }
+        - name: partner_id
+          in: query
+          schema: { type: string }
+        - name: customer_id
+          in: query
+          schema: { type: string }
+        - name: payment_method
+          in: query
+          schema: { $ref: '#/components/schemas/PaymentMethod' }
+        - name: payment_status
+          in: query
+          schema: { $ref: '#/components/schemas/PaymentStatus' }
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Filtered Tow requests
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TowRequestListResponse' }
+
+  /admin/tow/requests/{requestId}:
+    get:
+      tags: [Tow Admin]
+      operationId: adminGetTowRequest
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/RequestId' }]
+      responses:
+        '200':
+          description: Full admin Tow request detail
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TowRequestResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/tow/requests/{requestId}/override-cancel:
+    post:
+      tags: [Tow Admin]
+      operationId: adminOverrideCancelTowRequest
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RequiredReasonInput' }
+      responses:
+        '200': { $ref: '#/components/responses/TowRequestUpdated' }
+        '409': { $ref: '#/components/responses/DomainConflict' }
+
+  /admin/tow/requests/{requestId}/override-complete:
+    post:
+      tags: [Tow Admin]
+      operationId: adminOverrideCompleteTowRequest
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RequiredReasonInput' }
+      responses:
+        '200': { $ref: '#/components/responses/TowRequestUpdated' }
+        '409': { $ref: '#/components/responses/DomainConflict' }
+
+  /admin/tow/disputes:
+    get:
+      tags: [Tow Admin]
+      operationId: adminListTowDisputes
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/DisputeStatus' }
+        - name: request_id
+          in: query
+          schema: { type: string }
+        - name: partner_id
+          in: query
+          schema: { type: string }
+        - name: customer_id
+          in: query
+          schema: { type: string }
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Tow disputes
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DisputeListResponse' }
+
+  /admin/tow/disputes/{disputeId}:
+    get:
+      tags: [Tow Admin]
+      operationId: adminGetTowDispute
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/DisputeId' }]
+      responses:
+        '200':
+          description: Dispute evidence and timeline summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DisputeResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/tow/disputes/{disputeId}/resolve:
+    post:
+      tags: [Tow Admin]
+      operationId: adminResolveTowDispute
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/DisputeId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ResolveDisputeInput' }
+      responses:
+        '200':
+          description: Dispute resolved
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DisputeResponse' }
+        '409': { $ref: '#/components/responses/DomainConflict' }
+
+  /admin/tow/payout-batches/preview:
+    get:
+      tags: [Tow Admin]
+      operationId: adminPreviewTowPayoutBatch
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Side-effect-free payout preview
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PayoutPreviewResponse' }
+
+  /admin/tow/payout-batches:
+    post:
+      tags: [Tow Admin]
+      operationId: adminCreateTowPayoutBatch
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses:
+        '201':
+          description: Frozen payout batch created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PayoutBatchResponse' }
+
+  /admin/tow/payout-batches/{batchId}:
+    get:
+      tags: [Tow Admin]
+      operationId: adminGetTowPayoutBatch
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/BatchId' }]
+      responses:
+        '200':
+          description: Payout batch detail
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PayoutBatchResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/tow/payout-batches/{batchId}/process:
+    post:
+      tags: [Tow Admin]
+      operationId: adminProcessTowPayoutBatch
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/BatchId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Payout processing or reconciliation result
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PayoutBatchResponse' }
+        '409': { $ref: '#/components/responses/DomainConflict' }
+
+  /admin/tow/audit-events:
+    get:
+      tags: [Tow Admin]
+      operationId: adminListTowAuditEvents
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: request_id
+          in: query
+          schema: { type: string }
+        - name: partner_id
+          in: query
+          schema: { type: string }
+        - name: customer_id
+          in: query
+          schema: { type: string }
+        - name: module_action
+          in: query
+          schema: { type: string, enum: [ENABLE, DISABLE] }
+        - name: actor_id
+          in: query
+          schema: { type: string }
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Tow audit event timeline
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuditEventListResponse' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, minLength: 8, maxLength: 128 }
+    RequestId: { name: requestId, in: path, required: true, schema: { type: string } }
+    ProposalId: { name: proposalId, in: path, required: true, schema: { type: string } }
+    CounterofferId: { name: counterofferId, in: path, required: true, schema: { type: string } }
+    VehicleId: { name: vehicleId, in: path, required: true, schema: { type: string } }
+    DocumentId: { name: documentId, in: path, required: true, schema: { type: string } }
+    DebtId: { name: debtId, in: path, required: true, schema: { type: string } }
+    DisputeId: { name: disputeId, in: path, required: true, schema: { type: string } }
+    BatchId: { name: batchId, in: path, required: true, schema: { type: string } }
+    Page: { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+    Limit: { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+    From: { name: from, in: query, schema: { type: string, format: date-time } }
+    To: { name: to, in: query, schema: { type: string, format: date-time } }
+
+  responses:
+    TowRequestUpdated:
+      description: Updated Tow request
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/TowRequestResponse' }
+    DomainConflict:
+      description: Domain, state or idempotency conflict
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Unauthorized:
+      description: Unauthenticated
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Forbidden:
+      description: Authenticated but forbidden
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  schemas:
+    SuccessEnvelopeBase:
+      type: object
+      required: [success]
+      properties:
+        success: { const: true }
+        message: { type: [string, 'null'] }
+
+    GeoPoint:
+      type: object
+      additionalProperties: false
+      required: [latitude, longitude]
+      properties:
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
+        formatted_address: { type: [string, 'null'] }
+
+    Money:
+      type: object
+      additionalProperties: false
+      required: [amount_cents, currency]
+      properties:
+        amount_cents: { type: integer, minimum: 0 }
+        currency: { const: BRL }
+
+    CustomerVehicle:
+      type: object
+      additionalProperties: false
+      required: [class, make, model]
+      properties:
+        class: { $ref: '#/components/schemas/VehicleClass' }
+        make: { type: string, minLength: 1 }
+        model: { type: string, minLength: 1 }
+        year: { type: [integer, 'null'], minimum: 1900, maximum: 2200 }
+        weight_kg: { type: [integer, 'null'], minimum: 1 }
+        plate: { type: [string, 'null'] }
+
+    VehicleClass:
+      type: string
+      enum: [motorcycle, light_vehicle, medium_truck, heavy_truck]
+    EquipmentType:
+      type: string
+      enum: [flatbed, wheel_lift, heavy_wrecker]
+    TowRequestState:
+      type: string
+      enum: [SEARCHING, NEGOTIATING, ASSIGNED, EN_ROUTE, ARRIVED, IN_TRANSIT, COMPLETION_PENDING, COMPLETED, CANCELLED, EXPIRED, DISPUTED]
+    TerminalReason:
+      type: [string, 'null']
+      enum: [NO_PROVIDER_AVAILABLE, SERVICE_DISABLED, CUSTOMER_CANCELLED, PARTNER_CANCELLED, CUSTOMER_NO_SHOW, PARTNER_NO_SHOW, ADMIN_OVERRIDE, null]
+    TowProposalStatus:
+      type: string
+      enum: [ACTIVE, COUNTERED, ACCEPTED, REJECTED, WITHDRAWN, EXPIRED, CLOSED]
+    CounterofferStatus:
+      type: string
+      enum: [PENDING, ACCEPTED, REJECTED, EXPIRED, CLOSED]
+    PaymentMethod:
+      type: string
+      enum: [card, pix, cash]
+    PaymentStatus:
+      type: string
+      enum: [NOT_SELECTED, PENDING, REQUIRES_ACTION, AUTHORIZED, PAID, CASH_SELECTED, CASH_RECEIVED, CAPTURED, PARTIALLY_REFUNDED, REFUNDED, CANCELLED, EXPIRED, FAILED]
+    VehicleDocumentStatus:
+      type: string
+      enum: [pending, approved, rejected, expired]
+    DisputeStatus:
+      type: string
+      enum: [OPEN, RESOLVED]
+
+    RouteLeg:
+      type: object
+      required: [distance_meters, duration_seconds]
+      properties:
+        distance_meters: { type: integer, minimum: 0 }
+        duration_seconds: { type: integer, minimum: 0 }
+    RouteQuote:
+      type: object
+      required: [total_distance_meters, total_duration_seconds]
+      properties:
+        provider_to_pickup: { $ref: '#/components/schemas/RouteLeg' }
+        pickup_to_destination: { $ref: '#/components/schemas/RouteLeg' }
+        total_distance_meters: { type: integer, minimum: 0 }
+        total_duration_seconds: { type: integer, minimum: 0 }
+
+    MatchingSummary:
+      type: object
+      properties:
+        current_radius_km: { type: number, minimum: 0 }
+        max_radius_km: { type: number, minimum: 0, maximum: 100 }
+        search_expires_at: { type: [string, 'null'], format: date-time }
+
+    TowVehicleSummary:
+      type: object
+      required: [id, plate, make, model, year, equipment_type, supported_vehicle_classes, max_towed_weight_kg, document_status, active]
+      properties:
+        id: { type: string }
+        plate: { type: string }
+        make: { type: string }
+        model: { type: string }
+        year: { type: integer }
+        equipment_type: { $ref: '#/components/schemas/EquipmentType' }
+        supported_vehicle_classes:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/VehicleClass' }
+        max_towed_weight_kg: { type: integer, minimum: 1 }
+        document_status: { $ref: '#/components/schemas/VehicleDocumentStatus' }
+        active: { type: boolean }
+
+    TowVehicle:
+      allOf:
+        - $ref: '#/components/schemas/TowVehicleSummary'
+        - type: object
+          required: [pricing]
+          properties:
+            pricing: { $ref: '#/components/schemas/TowVehiclePricing' }
+
+    TowVehiclePricing:
+      type: object
+      additionalProperties: false
+      required: [minimum_charge_cents, included_km, price_per_additional_km_cents]
+      properties:
+        minimum_charge_cents: { type: integer, minimum: 0 }
+        included_km: { type: number, minimum: 0 }
+        price_per_additional_km_cents: { type: integer, minimum: 0 }
+
+    TowVehicleInput:
+      type: object
+      additionalProperties: false
+      required: [plate, make, model, year, equipment_type, supported_vehicle_classes, max_towed_weight_kg, pricing]
+      properties:
+        plate: { type: string, minLength: 1 }
+        make: { type: string, minLength: 1 }
+        model: { type: string, minLength: 1 }
+        year: { type: integer, minimum: 1900, maximum: 2200 }
+        equipment_type: { $ref: '#/components/schemas/EquipmentType' }
+        supported_vehicle_classes:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/VehicleClass' }
+        max_towed_weight_kg: { type: integer, minimum: 1 }
+        pricing: { $ref: '#/components/schemas/TowVehiclePricing' }
+    TowVehiclePatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        plate: { type: string, minLength: 1 }
+        make: { type: string, minLength: 1 }
+        model: { type: string, minLength: 1 }
+        year: { type: integer, minimum: 1900, maximum: 2200 }
+        equipment_type: { $ref: '#/components/schemas/EquipmentType' }
+        supported_vehicle_classes:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/VehicleClass' }
+        max_towed_weight_kg: { type: integer, minimum: 1 }
+        pricing: { $ref: '#/components/schemas/TowVehiclePricing' }
+
+    TowVehicleDocument:
+      type: object
+      required: [id, vehicle_id, document_type, status, file_url, created_at]
+      properties:
+        id: { type: string }
+        vehicle_id: { type: string }
+        document_type: { type: string }
+        status: { $ref: '#/components/schemas/VehicleDocumentStatus' }
+        file_url: { type: string }
+        expires_at: { type: [string, 'null'], format: date }
+        rejection_reason: { type: [string, 'null'] }
+        verified_by: { type: [string, 'null'] }
+        verified_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: string, format: date-time }
+
+    TowProposal:
+      type: object
+      required: [id, request_id, partner_id, tow_vehicle, route_quote, price, status, expires_at, created_at]
+      properties:
+        id: { type: string }
+        request_id: { type: string }
+        partner_id: { type: string }
+        partner:
+          type: object
+          properties:
+            display_name: { type: string }
+            rating: { type: number, minimum: 0, maximum: 5 }
+            review_count: { type: integer, minimum: 0 }
+        tow_vehicle: { $ref: '#/components/schemas/TowVehicleSummary' }
+        route_quote: { $ref: '#/components/schemas/RouteQuote' }
+        price: { $ref: '#/components/schemas/Money' }
+        status: { $ref: '#/components/schemas/TowProposalStatus' }
+        expires_at: { type: string, format: date-time }
+        counteroffer:
+          oneOf:
+            - $ref: '#/components/schemas/Counteroffer'
+            - type: 'null'
+        created_at: { type: string, format: date-time }
+
+    Counteroffer:
+      type: object
+      required: [id, proposal_id, amount_cents, currency, status, expires_at, created_at]
+      properties:
+        id: { type: string }
+        proposal_id: { type: string }
+        amount_cents: { type: integer, minimum: 1 }
+        currency: { const: BRL }
+        status: { $ref: '#/components/schemas/CounterofferStatus' }
+        expires_at: { type: string, format: date-time }
+        created_at: { type: string, format: date-time }
+
+    Assignment:
+      type: object
+      required: [partner_id, tow_vehicle_id, final_price, assigned_at]
+      properties:
+        partner_id: { type: string }
+        tow_vehicle_id: { type: string }
+        final_price: { $ref: '#/components/schemas/Money' }
+        assigned_at: { type: string, format: date-time }
+
+    PaymentSummary:
+      type: object
+      required: [status, can_start_service]
+      properties:
+        request_id: { type: [string, 'null'] }
+        method:
+          oneOf:
+            - $ref: '#/components/schemas/PaymentMethod'
+            - type: 'null'
+        status: { $ref: '#/components/schemas/PaymentStatus' }
+        amount_cents: { type: [integer, 'null'], minimum: 0 }
+        currency: { type: [string, 'null'], enum: [BRL, null] }
+        can_start_service: { type: boolean }
+        pix:
+          oneOf:
+            - $ref: '#/components/schemas/PixPaymentDetails'
+            - type: 'null'
+    PixPaymentDetails:
+      type: object
+      required: [copy_paste, expires_at]
+      properties:
+        copy_paste: { type: string }
+        qr_code_image_url: { type: [string, 'null'] }
+        expires_at: { type: string, format: date-time }
+
+    TowRequest:
+      type: object
+      required: [id, state, module_key, customer_id, pickup, destination, vehicle, payment, allowed_actions, created_at, updated_at]
+      properties:
+        id: { type: string }
+        state: { $ref: '#/components/schemas/TowRequestState' }
+        terminal_reason: { $ref: '#/components/schemas/TerminalReason' }
+        module_key: { const: tow }
+        customer_id: { type: string }
+        pickup: { $ref: '#/components/schemas/GeoPoint' }
+        destination: { $ref: '#/components/schemas/GeoPoint' }
+        vehicle: { $ref: '#/components/schemas/CustomerVehicle' }
+        problem_description: { type: string }
+        observations: { type: [string, 'null'] }
+        matching:
+          oneOf:
+            - $ref: '#/components/schemas/MatchingSummary'
+            - type: 'null'
+        assignment:
+          oneOf:
+            - $ref: '#/components/schemas/Assignment'
+            - type: 'null'
+        payment: { $ref: '#/components/schemas/PaymentSummary' }
+        allowed_actions:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            enum: [cancel, change_destination, accept_proposal, counteroffer, select_payment_method, confirm_completion, open_dispute, review, send_proposal, withdraw_proposal, accept_counteroffer, reject_counteroffer, start_en_route, mark_arrived, start_in_transit, finish_service, mark_cash_received, report_customer_no_show]
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    CreateTowRequestInput:
+      type: object
+      additionalProperties: false
+      required: [pickup, destination, vehicle, problem_description]
+      properties:
+        pickup: { $ref: '#/components/schemas/GeoPoint' }
+        destination: { $ref: '#/components/schemas/GeoPoint' }
+        vehicle: { $ref: '#/components/schemas/CustomerVehicle' }
+        problem_description: { type: string, minLength: 1, maxLength: 2000 }
+        observations: { type: [string, 'null'], maxLength: 4000 }
+    CreateCounterofferInput:
+      type: object
+      additionalProperties: false
+      required: [amount_cents, currency]
+      properties:
+        amount_cents: { type: integer, minimum: 1 }
+        currency: { const: BRL }
+    SelectPaymentMethodInput:
+      type: object
+      additionalProperties: false
+      required: [method]
+      properties:
+        method: { $ref: '#/components/schemas/PaymentMethod' }
+        payment_source_token: { type: [string, 'null'] }
+    LocationInput:
+      type: object
+      additionalProperties: false
+      required: [location]
+      properties:
+        location: { $ref: '#/components/schemas/GeoPoint' }
+    RequiredReasonInput:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1, maxLength: 2000 }
+    CreateDisputeInput:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1, maxLength: 256 }
+        description: { type: [string, 'null'], maxLength: 4000 }
+    CreateReviewInput:
+      type: object
+      additionalProperties: false
+      required: [rating]
+      properties:
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        comment: { type: [string, 'null'], maxLength: 2000 }
+    TrackingPoint:
+      type: object
+      additionalProperties: false
+      required: [latitude, longitude, recorded_at]
+      properties:
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
+        recorded_at: { type: string, format: date-time }
+    ToggleTowModuleInput:
+      type: object
+      additionalProperties: false
+      required: [enabled, reason]
+      properties:
+        enabled: { type: boolean }
+        reason: { type: string, minLength: 1, maxLength: 2000 }
+    ResolveDisputeInput:
+      type: object
+      additionalProperties: false
+      required: [resolution, reason]
+      properties:
+        resolution: { type: string, minLength: 1 }
+        reason: { type: string, minLength: 1, maxLength: 2000 }
+    DebtPaymentInput:
+      type: object
+      additionalProperties: false
+      required: [method]
+      properties:
+        method: { type: string, enum: [card, pix] }
+        payment_source_token: { type: [string, 'null'] }
+
+    TowSettings:
+      type: object
+      required: [tow_initial_radius_km, tow_radius_increment_km, tow_max_radius_km, tow_radius_expansion_interval_minutes, tow_request_search_timeout_minutes, tow_proposal_expiry_minutes, tow_counteroffer_expiry_minutes, tow_completion_confirmation_timeout_minutes, tow_customer_no_show_timeout_minutes, tow_platform_fixed_fee_cents, tow_cancellation_fee_cents, tow_cancellation_partner_percentage, tow_cancellation_platform_percentage, tow_max_platform_fee_debt_cents]
+      properties:
+        tow_initial_radius_km: { type: number, exclusiveMinimum: 0 }
+        tow_radius_increment_km: { type: number, exclusiveMinimum: 0 }
+        tow_max_radius_km: { type: number, exclusiveMinimum: 0, maximum: 100 }
+        tow_radius_expansion_interval_minutes: { type: integer, minimum: 1 }
+        tow_request_search_timeout_minutes: { type: integer, minimum: 1 }
+        tow_proposal_expiry_minutes: { type: integer, minimum: 1 }
+        tow_counteroffer_expiry_minutes: { type: integer, minimum: 1 }
+        tow_completion_confirmation_timeout_minutes: { type: integer, minimum: 1 }
+        tow_customer_no_show_timeout_minutes: { type: integer, minimum: 1 }
+        tow_platform_fixed_fee_cents: { type: integer, minimum: 0 }
+        tow_cancellation_fee_cents: { type: integer, minimum: 0 }
+        tow_cancellation_partner_percentage: { type: number, minimum: 0, maximum: 100 }
+        tow_cancellation_platform_percentage: { type: number, minimum: 0, maximum: 100 }
+        tow_max_platform_fee_debt_cents: { type: integer, minimum: 0 }
+    TowSettingsPatch:
+      allOf:
+        - $ref: '#/components/schemas/TowSettings'
+        - type: object
+      description: Partial update. Backend validates invariants on the resulting complete settings set.
+      minProperties: 1
+
+    ModuleStatus:
+      type: object
+      required: [module_key, service_key, enabled, updated_at]
+      properties:
+        module_key: { const: tow }
+        service_key: { const: tow }
+        enabled: { type: boolean }
+        disabled_reason: { type: [string, 'null'] }
+        updated_at: { type: string, format: date-time }
+    AdminModuleStatus:
+      allOf:
+        - $ref: '#/components/schemas/ModuleStatus'
+        - type: object
+          properties:
+            affected_unassigned_requests: { type: integer, minimum: 0 }
+            assigned_requests_draining: { type: integer, minimum: 0 }
+
+    Dispute:
+      type: object
+      required: [id, request_id, status, reason, created_at]
+      properties:
+        id: { type: string }
+        request_id: { type: string }
+        status: { $ref: '#/components/schemas/DisputeStatus' }
+        reason: { type: string }
+        description: { type: [string, 'null'] }
+        resolution: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
+        resolved_at: { type: [string, 'null'], format: date-time }
+    Review:
+      type: object
+      required: [id, request_id, rating, created_at]
+      properties:
+        id: { type: string }
+        request_id: { type: string }
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        comment: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
+    CustomerDebt:
+      type: object
+      required: [id, request_id, amount, status, created_at]
+      properties:
+        id: { type: string }
+        request_id: { type: string }
+        amount: { $ref: '#/components/schemas/Money' }
+        status: { type: string, enum: [PENDING, PAID, CANCELLED] }
+        created_at: { type: string, format: date-time }
+        paid_at: { type: [string, 'null'], format: date-time }
+    PayoutBatch:
+      type: object
+      required: [id, status, total_amount, created_at]
+      properties:
+        id: { type: string }
+        status: { type: string, enum: [CREATED, PROCESSING, PROCESSED, PARTIAL_FAILURE, FAILED] }
+        total_amount: { $ref: '#/components/schemas/Money' }
+        partner_count: { type: integer, minimum: 0 }
+        created_at: { type: string, format: date-time }
+        processed_at: { type: [string, 'null'], format: date-time }
+    AuditEvent:
+      type: object
+      required: [id, action, occurred_at]
+      properties:
+        id: { type: string }
+        action: { type: string }
+        request_id: { type: [string, 'null'] }
+        partner_id: { type: [string, 'null'] }
+        customer_id: { type: [string, 'null'] }
+        actor_id: { type: [string, 'null'] }
+        reason: { type: [string, 'null'] }
+        occurred_at: { type: string, format: date-time }
+
+    PaginationMeta:
+      type: object
+      required: [page, limit]
+      properties:
+        page: { type: integer, minimum: 1 }
+        limit: { type: integer, minimum: 1 }
+        total: { type: integer, minimum: 0 }
+
+    ModuleStatusResponse: { $ref: '#/components/schemas/EnvelopeModuleStatus' }
+    AdminModuleStatusResponse: { $ref: '#/components/schemas/EnvelopeAdminModuleStatus' }
+    TowRequestResponse: { $ref: '#/components/schemas/EnvelopeTowRequest' }
+    TowProposalResponse: { $ref: '#/components/schemas/EnvelopeTowProposal' }
+    CounterofferResponse: { $ref: '#/components/schemas/EnvelopeCounteroffer' }
+    PaymentSummaryResponse: { $ref: '#/components/schemas/EnvelopePaymentSummary' }
+    TowVehicleResponse: { $ref: '#/components/schemas/EnvelopeTowVehicle' }
+    TowVehicleDocumentResponse: { $ref: '#/components/schemas/EnvelopeTowVehicleDocument' }
+    DisputeResponse: { $ref: '#/components/schemas/EnvelopeDispute' }
+    ReviewResponse: { $ref: '#/components/schemas/EnvelopeReview' }
+    PayoutBatchResponse: { $ref: '#/components/schemas/EnvelopePayoutBatch' }
+
+    EnvelopeModuleStatus:
+      type: object
+      required: [success, data]
+      properties: { success: { const: true }, data: { $ref: '#/components/schemas/ModuleStatus' } }
+    EnvelopeAdminModuleStatus:
+      type: object
+      required: [success, data]
+      properties: { success: { const: true }, data: { $ref: '#/components/schemas/AdminModuleStatus' } }
+    EnvelopeTowRequest:
+      type: object
+      required: [success, data]
+      properties: { success: { const: true }, data: { $ref: '#/components/schemas/TowRequest' } }
+    EnvelopeTowProposal:
+      type: object
+      required: [success, data]
+      properties: { success: { const: true }, data: { $ref: '#/components/schemas/TowProposal' } }
+    EnvelopeCounteroffer:
+      type: object
+      required: [success, data]
+      properties: { success: { const: true }, data: { $ref: '#/components/schemas/Counteroffer' } }
+    EnvelopePaymentSummary:
+      type: object
+      required: [success, data]
+      properties: { success: { const: true }, data: { $ref: '#/components/schemas/PaymentSummary' } }
+    EnvelopeTowVehicle:
+      type: object
+      required: [success, data]
+      properties: { success: { const: true }, data: { $ref: '#/components/schemas/TowVehicle' } }
+    EnvelopeTowVehicleDocument:
+      type: object
+      required: [success, data]
+      properties: { success: { const: true }, data: { $ref: '#/components/schemas/TowVehicleDocument' } }
+    EnvelopeDispute:
+      type: object
+      required: [success, data]
+      properties: { success: { const: true }, data: { $ref: '#/components/schemas/Dispute' } }
+    EnvelopeReview:
+      type: object
+      required: [success, data]
+      properties: { success: { const: true }, data: { $ref: '#/components/schemas/Review' } }
+    EnvelopePayoutBatch:
+      type: object
+      required: [success, data]
+      properties: { success: { const: true }, data: { $ref: '#/components/schemas/PayoutBatch' } }
+
+    TowProposalListResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { const: true }
+        data:
+          type: object
+          required: [items]
+          properties:
+            items: { type: array, items: { $ref: '#/components/schemas/TowProposal' } }
+            request_state: { $ref: '#/components/schemas/TowRequestState' }
+            meta: { $ref: '#/components/schemas/PaginationMeta' }
+    TowRequestListResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { const: true }
+        data:
+          type: object
+          required: [items, meta]
+          properties:
+            items: { type: array, items: { $ref: '#/components/schemas/TowRequest' } }
+            meta: { $ref: '#/components/schemas/PaginationMeta' }
+    TowVehicleListResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { const: true }
+        data:
+          type: object
+          required: [items]
+          properties:
+            items: { type: array, items: { $ref: '#/components/schemas/TowVehicle' } }
+    TowVehicleDocumentListResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { const: true }
+        data:
+          type: object
+          required: [items]
+          properties:
+            items: { type: array, items: { $ref: '#/components/schemas/TowVehicleDocument' } }
+            meta: { $ref: '#/components/schemas/PaginationMeta' }
+    TowOpportunityListResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { const: true }
+        data:
+          type: object
+          required: [items, meta]
+          properties:
+            items:
+              type: array
+              items:
+                type: object
+                required: [request, proposed_price, route_quote]
+                properties:
+                  request: { $ref: '#/components/schemas/TowRequest' }
+                  proposed_price: { $ref: '#/components/schemas/Money' }
+                  route_quote: { $ref: '#/components/schemas/RouteQuote' }
+            meta: { $ref: '#/components/schemas/PaginationMeta' }
+    CustomerDebtListResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { const: true }
+        data:
+          type: object
+          required: [items]
+          properties:
+            items: { type: array, items: { $ref: '#/components/schemas/CustomerDebt' } }
+    CustomerDebtPaymentResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { const: true }
+        data:
+          type: object
+          required: [debt, payment]
+          properties:
+            debt: { $ref: '#/components/schemas/CustomerDebt' }
+            payment: { $ref: '#/components/schemas/PaymentSummary' }
+    TrackingPointResponse:
+      type: object
+      required: [success, data]
+      properties: { success: { const: true }, data: { $ref: '#/components/schemas/TrackingPoint' } }
+    TrackingResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { const: true }
+        data:
+          type: object
+          required: [latest, route]
+          properties:
+            latest:
+              oneOf:
+                - $ref: '#/components/schemas/TrackingPoint'
+                - type: 'null'
+            route:
+              type: object
+              required: [pickup, destination]
+              properties:
+                pickup: { $ref: '#/components/schemas/GeoPoint' }
+                destination: { $ref: '#/components/schemas/GeoPoint' }
+    CancellationResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { const: true }
+        data:
+          type: object
+          required: [request, financial_consequence]
+          properties:
+            request: { $ref: '#/components/schemas/TowRequest' }
+            financial_consequence:
+              type: object
+              required: [fee_due_cents, currency, customer_debt_created]
+              properties:
+                fee_due_cents: { type: integer, minimum: 0 }
+                currency: { const: BRL }
+                customer_debt_created: { type: boolean }
+                refund_status: { type: [string, 'null'] }
+    TowSettingsResponse:
+      type: object
+      required: [success, data]
+      properties: { success: { const: true }, data: { $ref: '#/components/schemas/TowSettings' } }
+    DisputeListResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { const: true }
+        data:
+          type: object
+          required: [items, meta]
+          properties:
+            items: { type: array, items: { $ref: '#/components/schemas/Dispute' } }
+            meta: { $ref: '#/components/schemas/PaginationMeta' }
+    PayoutPreviewResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { const: true }
+        data:
+          type: object
+          required: [partner_count, total_amount]
+          properties:
+            partner_count: { type: integer, minimum: 0 }
+            total_amount: { $ref: '#/components/schemas/Money' }
+    AuditEventListResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { const: true }
+        data:
+          type: object
+          required: [items, meta]
+          properties:
+            items: { type: array, items: { $ref: '#/components/schemas/AuditEvent' } }
+            meta: { $ref: '#/components/schemas/PaginationMeta' }
+
+    ErrorResponse:
+      type: object
+      required: [success, message, error]
+      properties:
+        success: { const: false }
+        message: { type: string }
+        error:
+          type: object
+          required: [code]
+          properties:
+            code:
+              type: string
+              enum: [service_module_disabled, outstanding_financial_debt, partner_platform_fee_debt_limit, invalid_tow_state, invalid_tow_transition, not_request_owner, not_assigned_partner, vehicle_not_compatible, vehicle_not_operational, tow_document_required, tow_document_not_approved, proposal_expired, proposal_not_actionable, counteroffer_already_used, counteroffer_expired, request_already_assigned, payment_not_ready, payment_failed, payment_method_not_changeable, customer_no_show_not_allowed_yet, idempotency_conflict, conflict, validation_error, unauthorized, forbidden, not_found, external_dependency_unavailable]
+            details:
+              type: object
+              additionalProperties: true

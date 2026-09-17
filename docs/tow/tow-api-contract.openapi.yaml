@@ -1,0 +1,702 @@
+openapi: 3.1.0
+info:
+  title: JaResolve Tow Consumer API
+  version: 1.0.0-draft.4
+  description: >-
+    Normative consumer contract for Mobile Cliente, Mobile Parceiro and Dashboard.
+    This entrypoint composes the reviewed draft.2 base contract with the frozen
+    discovery/rehydration endpoints, true-partial Tow settings PATCH, partner
+    operational availability/location, route geometry and richer Dashboard detail
+    contracts required to implement the complete consumer flows without inventing
+    undocumented endpoints or DTOs. Backend T00-T18 must converge to this contract
+    or explicitly revise it with contract tests and matching documentation updates.
+servers:
+  - url: /api
+security: []
+tags:
+  - name: Tow Module
+  - name: Tow Customer
+  - name: Tow Partner
+  - name: Tow Vehicles
+  - name: Tow Admin
+paths:
+  /tow/module-status:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1module-status'
+
+  /tow/requests:
+    get:
+      tags: [Tow Customer]
+      operationId: listTowRequests
+      security: [{ bearerAuth: [] }]
+      description: >-
+        Lists Tow requests owned by the authenticated customer, newest first.
+        Canonical REST recovery/discovery endpoint after process death,
+        logout/login, reinstall, device switch or loss of a cached request id.
+      parameters:
+        - name: state
+          in: query
+          schema:
+            $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TowRequestState'
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/From'
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/To'
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/Page'
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Customer Tow request history/current work
+          content:
+            application/json:
+              schema:
+                $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TowRequestListResponse'
+        '401': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Forbidden' }
+    post:
+      tags: [Tow Customer]
+      operationId: createTowRequest
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/CreateTowRequestInput'
+      responses:
+        '201':
+          description: Tow request created
+          content:
+            application/json:
+              schema:
+                $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TowRequestResponse'
+        '401': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Forbidden' }
+        '409': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/DomainConflict' }
+        '422': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/ValidationError' }
+
+  /tow/requests/{requestId}:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1requests~1{requestId}'
+  /tow/requests/{requestId}/destination:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1requests~1{requestId}~1destination'
+  /tow/requests/{requestId}/proposals:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1requests~1{requestId}~1proposals'
+  /tow/requests/{requestId}/route:
+    get:
+      tags: [Tow Customer, Tow Partner]
+      operationId: getTowRequestRoute
+      security: [{ bearerAuth: [] }]
+      description: >-
+        Returns the authoritative route snapshot/geometry used by the Tow flow.
+        Before assignment, provider_to_pickup may be absent; after assignment it
+        reflects the frozen provider/truck to pickup leg plus pickup to destination.
+      parameters:
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Authoritative route snapshot
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TowRouteResponse' }
+        '401': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Forbidden' }
+        '404': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/NotFound' }
+
+  /tow/proposals/{proposalId}/accept:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1proposals~1{proposalId}~1accept'
+  /tow/proposals/{proposalId}/counteroffer:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1proposals~1{proposalId}~1counteroffer'
+  /tow/proposals/{proposalId}/withdraw:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1proposals~1{proposalId}~1withdraw'
+  /tow/counteroffers/{counterofferId}/accept:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1counteroffers~1{counterofferId}~1accept'
+  /tow/counteroffers/{counterofferId}/reject:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1counteroffers~1{counterofferId}~1reject'
+  /tow/requests/{requestId}/payment-method:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1requests~1{requestId}~1payment-method'
+  /tow/requests/{requestId}/payment:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1requests~1{requestId}~1payment'
+  /tow/requests/{requestId}/cancel:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1requests~1{requestId}~1cancel'
+  /tow/requests/{requestId}/completion/confirm:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1requests~1{requestId}~1completion~1confirm'
+  /tow/requests/{requestId}/disputes:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1requests~1{requestId}~1disputes'
+  /tow/requests/{requestId}/review:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1requests~1{requestId}~1review'
+  /tow/requests/{requestId}/tracking:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1requests~1{requestId}~1tracking'
+  /tow/requests/{requestId}/en-route:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1requests~1{requestId}~1en-route'
+  /tow/requests/{requestId}/arrived:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1requests~1{requestId}~1arrived'
+  /tow/requests/{requestId}/in-transit:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1requests~1{requestId}~1in-transit'
+  /tow/requests/{requestId}/finish:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1requests~1{requestId}~1finish'
+  /tow/requests/{requestId}/cash-received:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1requests~1{requestId}~1cash-received'
+  /tow/requests/{requestId}/cancel-partner:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1requests~1{requestId}~1cancel-partner'
+  /tow/requests/{requestId}/customer-no-show:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1requests~1{requestId}~1customer-no-show'
+
+  /tow/partner/status:
+    get:
+      tags: [Tow Partner]
+      operationId: getTowPartnerStatus
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Tow partner operational status and blockers
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PartnerTowStatusResponse' }
+        '401': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Forbidden' }
+    patch:
+      tags: [Tow Partner]
+      operationId: patchTowPartnerStatus
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PatchPartnerTowStatusInput' }
+      responses:
+        '200':
+          description: Updated Tow partner online/availability status
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PartnerTowStatusResponse' }
+        '409': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/DomainConflict' }
+        '422': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/ValidationError' }
+
+  /tow/partner/location:
+    put:
+      tags: [Tow Partner]
+      operationId: updateTowPartnerLocation
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PartnerLocationInput' }
+      responses:
+        '200':
+          description: Latest pre-assignment Tow partner location stored
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PartnerTowStatusResponse' }
+        '409': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/DomainConflict' }
+        '422': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/ValidationError' }
+
+  /tow/partner/opportunities:
+    get:
+      tags: [Tow Partner]
+      operationId: listTowOpportunities
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/Page'
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Backend-filtered eligible Tow opportunities with server quote
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TowOpportunityListResponse' }
+        '409': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/DomainConflict' }
+  /tow/partner/proposals:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1partner~1proposals'
+  /tow/partner/jobs:
+    get:
+      tags: [Tow Partner]
+      operationId: listPartnerTowJobs
+      security: [{ bearerAuth: [] }]
+      description: >-
+        Lists Tow requests assigned to the authenticated Tow partner, including
+        current in-flight work and historical jobs. Canonical REST recovery endpoint.
+      parameters:
+        - name: state
+          in: query
+          schema:
+            $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TowRequestState'
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/From'
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/To'
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/Page'
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Assigned/in-flight/history Tow jobs for the partner
+          content:
+            application/json:
+              schema:
+                $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TowRequestListResponse'
+        '401': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Forbidden' }
+  /tow/partner/financial-summary:
+    get:
+      tags: [Tow Partner]
+      operationId: getTowPartnerFinancialSummary
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Tow-specific wallet/debt summary used by partner UI
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PartnerFinancialSummaryResponse' }
+        '401': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Forbidden' }
+
+  /tow/vehicles:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1vehicles'
+  /tow/vehicles/{vehicleId}:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1vehicles~1{vehicleId}'
+  /tow/vehicles/{vehicleId}/activate:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1vehicles~1{vehicleId}~1activate'
+  /tow/vehicles/{vehicleId}/documents:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1vehicles~1{vehicleId}~1documents'
+  /tow/vehicles/{vehicleId}/documents/{documentId}:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1vehicles~1{vehicleId}~1documents~1{documentId}'
+  /tow/customer/debts:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1customer~1debts'
+  /tow/customer/debts/{debtId}/pay:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1customer~1debts~1{debtId}~1pay'
+
+  /admin/tow/module:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1admin~1tow~1module'
+  /admin/tow/settings:
+    get:
+      tags: [Tow Admin]
+      operationId: adminGetTowSettings
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Typed Tow settings
+          content:
+            application/json:
+              schema:
+                $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TowSettingsResponse'
+        '401': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Forbidden' }
+    patch:
+      tags: [Tow Admin]
+      operationId: adminPatchTowSettings
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TowSettingsPatch' }
+      responses:
+        '200':
+          description: Settings updated after validating the merged complete configuration
+          content:
+            application/json:
+              schema:
+                $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TowSettingsResponse'
+        '401': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Forbidden' }
+        '422': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/ValidationError' }
+
+  /admin/tow/vehicle-documents:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1admin~1tow~1vehicle-documents'
+  /admin/tow/vehicle-documents/{documentId}:
+    get:
+      tags: [Tow Admin]
+      operationId: adminGetTowVehicleDocument
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/DocumentId'
+      responses:
+        '200':
+          description: Document, vehicle and partner data required for validation UI
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminVehicleDocumentDetailResponse' }
+        '404': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/NotFound' }
+  /admin/tow/vehicle-documents/{documentId}/approve:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1admin~1tow~1vehicle-documents~1{documentId}~1approve'
+  /admin/tow/vehicle-documents/{documentId}/reject:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1admin~1tow~1vehicle-documents~1{documentId}~1reject'
+  /admin/tow/requests:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1admin~1tow~1requests'
+  /admin/tow/requests/{requestId}:
+    get:
+      tags: [Tow Admin]
+      operationId: adminGetTowRequest
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Operational, negotiation, financial and audit aggregate for Dashboard
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminTowRequestDetailResponse' }
+        '404': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/NotFound' }
+  /admin/tow/requests/{requestId}/override-cancel:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1admin~1tow~1requests~1{requestId}~1override-cancel'
+  /admin/tow/requests/{requestId}/override-complete:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1admin~1tow~1requests~1{requestId}~1override-complete'
+  /admin/tow/disputes:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1admin~1tow~1disputes'
+  /admin/tow/disputes/{disputeId}:
+    get:
+      tags: [Tow Admin]
+      operationId: adminGetTowDispute
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/DisputeId'
+      responses:
+        '200':
+          description: Complete dispute evidence/timeline aggregate
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminDisputeDetailResponse' }
+        '404': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/NotFound' }
+  /admin/tow/disputes/{disputeId}/resolve:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1admin~1tow~1disputes~1{disputeId}~1resolve'
+
+  /admin/tow/payout-batches/preview:
+    get:
+      tags: [Tow Admin]
+      operationId: adminPreviewTowPayoutBatch
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Side-effect-free payout preview with partner totals
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PayoutPreviewDetailResponse' }
+  /admin/tow/payout-batches:
+    post:
+      tags: [Tow Admin]
+      operationId: adminCreateTowPayoutBatch
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Frozen payout batch created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PayoutBatchDetailResponse' }
+  /admin/tow/payout-batches/{batchId}:
+    get:
+      tags: [Tow Admin]
+      operationId: adminGetTowPayoutBatch
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/BatchId'
+      responses:
+        '200':
+          description: Payout batch with partner items and reconciliation status
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PayoutBatchDetailResponse' }
+        '404': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/NotFound' }
+  /admin/tow/payout-batches/{batchId}/process:
+    post:
+      tags: [Tow Admin]
+      operationId: adminProcessTowPayoutBatch
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/BatchId'
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Payout processing/reconciliation result
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PayoutBatchDetailResponse' }
+        '409': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/DomainConflict' }
+  /admin/tow/audit-events:
+    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1admin~1tow~1audit-events'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    TowSettingsPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      description: >-
+        True partial update. Every property is optional. Backend merges the subset
+        with persisted settings and validates invariants on the complete result.
+      properties:
+        tow_initial_radius_km: { type: number, exclusiveMinimum: 0 }
+        tow_radius_increment_km: { type: number, exclusiveMinimum: 0 }
+        tow_max_radius_km: { type: number, exclusiveMinimum: 0, maximum: 100 }
+        tow_radius_expansion_interval_minutes: { type: integer, minimum: 1 }
+        tow_request_search_timeout_minutes: { type: integer, minimum: 1 }
+        tow_proposal_expiry_minutes: { type: integer, minimum: 1 }
+        tow_counteroffer_expiry_minutes: { type: integer, minimum: 1 }
+        tow_completion_confirmation_timeout_minutes: { type: integer, minimum: 1 }
+        tow_customer_no_show_timeout_minutes: { type: integer, minimum: 1 }
+        tow_platform_fixed_fee_cents: { type: integer, minimum: 0 }
+        tow_cancellation_fee_cents: { type: integer, minimum: 0 }
+        tow_cancellation_partner_percentage: { type: number, minimum: 0, maximum: 100 }
+        tow_cancellation_platform_percentage: { type: number, minimum: 0, maximum: 100 }
+        tow_max_platform_fee_debt_cents: { type: integer, minimum: 0 }
+
+    TowRouteSnapshot:
+      type: object
+      required: [request_id, pickup, destination, route_quote]
+      properties:
+        request_id: { type: string }
+        pickup: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/GeoPoint' }
+        destination: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/GeoPoint' }
+        route_quote: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/RouteQuote' }
+        encoded_polyline:
+          type: [string, 'null']
+          description: Google-compatible encoded route geometry when available.
+        generated_at: { type: string, format: date-time }
+    TowRouteResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { const: true }
+        data: { $ref: '#/components/schemas/TowRouteSnapshot' }
+
+    PartnerTowStatus:
+      type: object
+      required: [module_enabled, online, available, operational, blocking_reasons]
+      properties:
+        module_enabled: { type: boolean }
+        online: { type: boolean }
+        available: { type: boolean }
+        operational: { type: boolean }
+        active_tow_vehicle:
+          oneOf:
+            - $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TowVehicleSummary'
+            - type: 'null'
+        current_location:
+          oneOf:
+            - $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TrackingPoint'
+            - type: 'null'
+        blocking_reasons:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            enum:
+              - MODULE_DISABLED
+              - PARTNER_NOT_APPROVED
+              - PARTNER_OFFLINE
+              - PARTNER_UNAVAILABLE
+              - NO_ACTIVE_TOW_VEHICLE
+              - TOW_VEHICLE_DOCUMENT_NOT_APPROVED
+              - TOW_VEHICLE_DOCUMENT_EXPIRED
+              - PLATFORM_FEE_DEBT_LIMIT
+              - ACTIVE_SERVICE
+    PartnerTowStatusResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { const: true }
+        data: { $ref: '#/components/schemas/PartnerTowStatus' }
+    PatchPartnerTowStatusInput:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        online: { type: boolean }
+        available: { type: boolean }
+    PartnerLocationInput:
+      type: object
+      additionalProperties: false
+      required: [latitude, longitude, recorded_at]
+      properties:
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
+        recorded_at: { type: string, format: date-time }
+
+    PartnerFinancialSummary:
+      type: object
+      required: [currency, wallet_available_cents, platform_fee_debt_cents, platform_fee_debt_limit_cents, blocked_by_debt]
+      properties:
+        currency: { const: BRL }
+        wallet_available_cents: { type: integer, minimum: 0 }
+        pending_settlement_cents: { type: integer, minimum: 0 }
+        platform_fee_debt_cents: { type: integer, minimum: 0 }
+        platform_fee_debt_limit_cents: { type: integer, minimum: 0 }
+        blocked_by_debt: { type: boolean }
+    PartnerFinancialSummaryResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { const: true }
+        data: { $ref: '#/components/schemas/PartnerFinancialSummary' }
+
+    OpportunityCompatibility:
+      type: object
+      required: [compatible, vehicle_class_supported, weight_within_capacity]
+      properties:
+        compatible: { const: true }
+        vehicle_class_supported: { const: true }
+        weight_within_capacity: { const: true }
+    TowOpportunity:
+      type: object
+      required: [request, active_tow_vehicle, route_quote, proposed_price, compatibility, opportunity_expires_at]
+      properties:
+        request: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TowRequest' }
+        active_tow_vehicle: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TowVehicleSummary' }
+        route_quote: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/RouteQuote' }
+        proposed_price: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/Money' }
+        compatibility: { $ref: '#/components/schemas/OpportunityCompatibility' }
+        opportunity_expires_at: { type: string, format: date-time }
+    TowOpportunityListResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { const: true }
+        data:
+          type: object
+          required: [items, meta]
+          properties:
+            items:
+              type: array
+              items: { $ref: '#/components/schemas/TowOpportunity' }
+            meta: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/PaginationMeta' }
+
+    PartnerSummary:
+      type: object
+      required: [id, display_name]
+      properties:
+        id: { type: string }
+        display_name: { type: string }
+    AdminVehicleDocumentDetail:
+      type: object
+      required: [document, tow_vehicle, partner]
+      properties:
+        document: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TowVehicleDocument' }
+        tow_vehicle: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TowVehicle' }
+        partner: { $ref: '#/components/schemas/PartnerSummary' }
+    AdminVehicleDocumentDetailResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { const: true }
+        data: { $ref: '#/components/schemas/AdminVehicleDocumentDetail' }
+
+    FinancialConsequenceSummary:
+      type: object
+      properties:
+        cancellation_fee_cents: { type: integer, minimum: 0 }
+        refund_status: { type: [string, 'null'] }
+        customer_debt_cents: { type: integer, minimum: 0 }
+        partner_entitlement_cents: { type: integer, minimum: 0 }
+        platform_fee_cents: { type: integer, minimum: 0 }
+        payout_status: { type: [string, 'null'] }
+        currency: { const: BRL }
+    AdminTowRequestDetail:
+      type: object
+      required: [request, proposals, route, tracking, payment, financial, audit_events]
+      properties:
+        request: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TowRequest' }
+        proposals:
+          type: array
+          items: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TowProposal' }
+        route: { $ref: '#/components/schemas/TowRouteSnapshot' }
+        tracking:
+          type: array
+          items: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TrackingPoint' }
+        payment: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/PaymentSummary' }
+        financial: { $ref: '#/components/schemas/FinancialConsequenceSummary' }
+        audit_events:
+          type: array
+          items: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/AuditEvent' }
+    AdminTowRequestDetailResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { const: true }
+        data: { $ref: '#/components/schemas/AdminTowRequestDetail' }
+
+    AdminDisputeDetail:
+      type: object
+      required: [dispute, request, proposals, route, tracking, payment, customer_debts, audit_events]
+      properties:
+        dispute: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/Dispute' }
+        request: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TowRequest' }
+        proposals:
+          type: array
+          items: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TowProposal' }
+        route: { $ref: '#/components/schemas/TowRouteSnapshot' }
+        tracking:
+          type: array
+          items: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TrackingPoint' }
+        payment: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/PaymentSummary' }
+        customer_debts:
+          type: array
+          items: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/CustomerDebt' }
+        financial: { $ref: '#/components/schemas/FinancialConsequenceSummary' }
+        audit_events:
+          type: array
+          items: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/AuditEvent' }
+    AdminDisputeDetailResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { const: true }
+        data: { $ref: '#/components/schemas/AdminDisputeDetail' }
+
+    PayoutPartnerItem:
+      type: object
+      required: [partner_id, eligible_amount_cents, platform_fee_debt_offset_cents, payout_amount_cents, currency, status]
+      properties:
+        partner_id: { type: string }
+        eligible_amount_cents: { type: integer, minimum: 0 }
+        platform_fee_debt_offset_cents: { type: integer, minimum: 0 }
+        payout_amount_cents: { type: integer, minimum: 0 }
+        currency: { const: BRL }
+        status:
+          type: string
+          enum: [ELIGIBLE, PROCESSING, PAID, FAILED, HELD]
+        failure_reason: { type: [string, 'null'] }
+    PayoutPreviewDetail:
+      type: object
+      required: [partner_count, total_amount_cents, currency, items]
+      properties:
+        partner_count: { type: integer, minimum: 0 }
+        total_amount_cents: { type: integer, minimum: 0 }
+        currency: { const: BRL }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/PayoutPartnerItem' }
+    PayoutPreviewDetailResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { const: true }
+        data: { $ref: '#/components/schemas/PayoutPreviewDetail' }
+    PayoutBatchDetail:
+      type: object
+      required: [id, status, partner_count, total_amount_cents, currency, items, created_at]
+      properties:
+        id: { type: string }
+        status:
+          type: string
+          enum: [CREATED, PROCESSING, PROCESSED, PARTIAL_FAILURE, FAILED]
+        partner_count: { type: integer, minimum: 0 }
+        total_amount_cents: { type: integer, minimum: 0 }
+        currency: { const: BRL }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/PayoutPartnerItem' }
+        created_at: { type: string, format: date-time }
+        processed_at: { type: [string, 'null'], format: date-time }
+    PayoutBatchDetailResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { const: true }
+        data: { $ref: '#/components/schemas/PayoutBatchDetail' }
