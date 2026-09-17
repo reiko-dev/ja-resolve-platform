@@ -1,16 +1,16 @@
 # JaResolve Tow — Consumer Contract Smoke Result
 
-> Status: **PASS — pre-merge contract smoke**  
+> Status: **PASS — freeze-complete, pending contract PR merge**  
 > Contract: `tow-api-contract.openapi.yaml` `1.0.0-draft.4`  
 > Scope: Mobile Cliente, Mobile Parceiro, Dashboard
 
 ## Purpose
 
-This smoke verifies that each consumer can traverse its planned Tow flow using only the canonical OpenAPI contract and shared documented horizontal dependencies, without inventing a Tow endpoint, DTO or local business rule.
+This smoke proves that each consumer can traverse its planned Tow flow using only the canonical OpenAPI contract plus documented shared horizontal dependencies, without inventing a Tow endpoint, DTO or local business rule.
 
-The validation generated an operation catalog from the composed OpenAPI paths, resolved all local `$ref`s, generated minimal request/response payloads from schemas and validated the generated payloads against JSON Schema Draft 2020-12.
+The validation generated an operation catalog from the composed OpenAPI paths, resolved local refs, generated minimal schema-valid request/response fixtures and validated them with JSON Schema Draft 2020-12.
 
-## Result summary
+## Result
 
 ```text
 Mobile Cliente:  PASS
@@ -24,28 +24,26 @@ Schema validation errors:        0
 Undocumented Tow DTO required:   0
 ```
 
-Executed counts:
+Executed:
 
 ```text
 Cliente
-  operations:             18
-  request bodies checked:  8
-  responses checked:      18
+  operations:              18
+  request bodies checked:   8
+  responses checked:       18
 
 Parceiro
-  operations:             29
-  request bodies checked: 10
-  responses checked:      29
+  operations:              29
+  request bodies checked:  10
+  responses checked:       29
 
 Dashboard
-  operations:             20
-  request bodies checked:  6
-  responses checked:      20
+  operations:              20
+  request bodies checked:   6
+  responses checked:       20
 ```
 
-## Mobile Cliente smoke
-
-Operation sequence exercised:
+## Mobile Cliente flow exercised
 
 ```text
 getTowModuleStatus
@@ -69,25 +67,20 @@ getTowModuleStatus
 
 Result: **PASS**.
 
-The contract is sufficient for module availability, session rehydration, request creation, search/negotiation, payment, route rendering, tracking, completion/dispute/review and cancellation-debt repayment.
-
-## Mobile Parceiro smoke
-
-Operation sequence exercised:
+## Mobile Parceiro flow exercised
 
 ```text
 getTowModuleStatus
 → getTowPartnerStatus
 → patchTowPartnerStatus
 → updateTowPartnerLocation
-→ listTowVehicles
-→ createTowVehicle / updateTowVehicle / activateTowVehicle
-→ listTowVehicleDocuments / uploadTowVehicleDocument
+→ list/create/update/activate TowVehicle
+→ list/upload TowVehicle documents
 → listTowOpportunities
 → createTowProposal
 → listPartnerTowProposals
 → withdrawTowProposal
-→ acceptTowCounteroffer / rejectTowCounteroffer
+→ accept/rejectTowCounteroffer
 → listPartnerTowJobs
 → getTowRequest
 → getTowRequestRoute
@@ -105,47 +98,51 @@ getTowModuleStatus
 
 Result: **PASS**.
 
-The contract is sufficient for operational availability/location, TowVehicle/document management, opportunities/proposals, negotiation, job rehydration, operational transitions, tracking, cash receipt and Tow-specific financial state.
-
-## Dashboard smoke
-
-Operation sequence exercised:
+## Dashboard flow exercised
 
 ```text
 adminGetTowModule
 → adminToggleTowModule
 → adminGetTowSettings
 → adminPatchTowSettings
-→ adminListTowVehicleDocuments
-→ adminGetTowVehicleDocument
-→ adminApproveTowVehicleDocument / adminRejectTowVehicleDocument
-→ adminListTowRequests
-→ adminGetTowRequest
-→ adminOverrideCancelTowRequest / adminOverrideCompleteTowRequest
-→ adminListTowDisputes
-→ adminGetTowDispute
-→ adminResolveTowDispute
-→ adminPreviewTowPayoutBatch
-→ adminCreateTowPayoutBatch
-→ adminGetTowPayoutBatch
-→ adminProcessTowPayoutBatch
+→ adminList/Get/Approve/RejectTowVehicleDocument
+→ adminList/GetTowRequest
+→ adminOverrideCancel/CompleteTowRequest
+→ adminList/Get/ResolveTowDispute
+→ adminPreview/Create/Get/ProcessTowPayoutBatch
 → adminListTowAuditEvents
 ```
 
 Result: **PASS**.
 
-The contract is sufficient for feature-flag control, true-partial settings update, document verification, operational support, disputes, payout and audit flows.
-
 ## Pricing boundary
 
-The smoke does not calculate Tow prices locally. This is intentional.
+The smoke intentionally does not calculate Tow price in consumers.
 
-`TOW-PRICING-CONTRACT.md` freezes pricing as a backend responsibility using authoritative route meters and proportional excess-distance pricing. Consumers only receive/display the backend-calculated integer-cent amounts.
+Frozen rule:
 
-## Handoff implication
+```text
+route meters from backend
+→ server proportional pricing
+→ integer-cent price returned
+```
 
-From a **consumer transport-contract perspective**, the functionality is now mock-implementable without hidden Tow API dependencies.
+Consumers display the returned value and never use `ceil`, local Google distance or local tariff arithmetic to derive authoritative price.
 
-This does **not** mean the backend implementation is complete. It means Mobile/Dashboard work may be handed off against OpenAPI/mocks while backend T00–T18 runs in parallel.
+## Handoff result
 
-The remaining prerequisite before formal Mobile implementation handoff is the final cross-document review/freeze and merge of PR #9.
+Final cross-document freeze review is complete and PASS (`TOW-CONTRACT-FREEZE-REVIEW.md`).
+
+The only remaining prerequisite for the formal mock-first consumer implementation handoff is:
+
+```text
+merge PR #9
+```
+
+After merge, the contract may emit:
+
+```text
+TOW MOBILE CONTRACT READY FOR IMPLEMENTATION
+```
+
+This does not imply backend implementation completion; real backend integration remains gated by T18 and `TOW BACKEND READY FOR INTEGRATION`.
