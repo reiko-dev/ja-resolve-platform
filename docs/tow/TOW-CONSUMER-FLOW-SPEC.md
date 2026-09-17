@@ -1,56 +1,69 @@
 # JaResolve Tow — Consumer Flow Specification
 
-> Status: **Normative pre-implementation contract**  
+> Status: **normative / frozen for mock implementation**  
 > Scope: Mobile Cliente, Mobile Parceiro e Dashboard  
-> Domain: `tow`  
-> Module: `module_key=tow`, `service_key=tow`, `partner_type=tow`
+> Module: `module_key=tow`, `service_key=tow`, `partner_type=tow`  
+> Transport: `tow-api-contract.openapi.yaml` `1.0.0-draft.4`
 
 ## 1. Purpose
 
-Este documento define **como os consumidores devem implementar o fluxo de Guincho/Tow antes da conclusão do backend**, usando mocks/fakes baseados no contrato oficial.
+Este documento define como Cliente, Parceiro e Dashboard implementam Tow antes da conclusão do backend, usando o OpenAPI canônico e mocks/fakes derivados do contrato.
 
-Ele não autoriza o app a reimplementar regras críticas. O backend continuará sendo a fonte de verdade para disponibilidade do módulo, elegibilidade, preço, negociação, state machine, pagamentos, cancelamentos, dívidas, payout e auditoria.
+Consumers podem implementar antecipadamente:
 
-Os consumidores podem antecipar:
+- feature scaffolding;
+- navigation/UI;
+- state management;
+- DTO/client/repository;
+- Google Maps screens;
+- mocks/fakes;
+- widget/golden/component tests;
+- consumer E2E mocked;
+- machine-readable error handling.
 
-- navegação;
-- telas;
-- estados de apresentação;
-- repositories/clients;
-- DTOs;
-- mocks;
-- widget/component/UI tests;
-- fluxos UX;
-- tratamento dos erros contratuais.
+Consumers **não** reimplementam:
 
-A integração real somente é considerada fechada depois do gate `TOW BACKEND READY FOR INTEGRATION`.
+- module availability;
+- eligibility/matching;
+- pricing;
+- proposal actionability;
+- state transitions;
+- payment readiness;
+- cancellation fees;
+- debt arithmetic;
+- settlement/payout eligibility.
+
+Distinção:
+
+```text
+TOW MOBILE CONTRACT READY FOR IMPLEMENTATION
+!=
+TOW BACKEND READY FOR INTEGRATION
+```
+
+A integração real contra backend só é considerada concluída depois de T18.
 
 ---
 
-## 2. Shared assumptions
+## 2. Shared transport conventions
 
-### 2.1 Base URL
+Base URL:
 
 ```text
 <environment>/api
 ```
 
-### 2.2 Authentication
-
-Rotas autenticadas usam:
+Auth:
 
 ```http
 Authorization: Bearer <jwt>
 ```
-
-### 2.3 Response envelope
 
 Success:
 
 ```json
 {
   "success": true,
-  "message": "optional",
   "data": {}
 }
 ```
@@ -60,7 +73,7 @@ Error:
 ```json
 {
   "success": false,
-  "message": "human readable",
+  "message": "localized/fallback human message",
   "error": {
     "code": "stable_machine_code",
     "details": {}
@@ -68,11 +81,15 @@ Error:
 }
 ```
 
-Consumidores devem tomar decisão por `error.code`, nunca por matching de `message`.
+Consumer logic usa `error.code`, nunca comparação textual de `message`.
+
+Money no transport usa integer cents. Distância autoritativa usa metros inteiros.
 
 ---
 
-## 3. Canonical Tow states
+## 3. Canonical Tow state
+
+Request states:
 
 ```text
 SEARCHING
@@ -88,7 +105,7 @@ EXPIRED
 DISPUTED
 ```
 
-Reason codes terminais relevantes:
+Terminal reasons relevantes:
 
 ```text
 NO_PROVIDER_AVAILABLE
@@ -100,481 +117,474 @@ PARTNER_NO_SHOW
 ADMIN_OVERRIDE
 ```
 
-O app não deve inferir transições localmente. Ele apenas apresenta ações permitidas pelo contrato/estado retornado pelo backend.
+Distinção importante:
+
+```text
+TowRequest.terminal_reason = SERVICE_DISABLED
+```
+
+é diferente de:
+
+```text
+error.code = service_module_disabled
+```
+
+O app usa `allowed_actions` e respostas do backend para habilitar CTAs; não deriva transition policy por conta própria.
 
 ---
 
 ## 4. Tow Module availability
 
-Todo consumidor deve carregar o status global do módulo antes de oferecer novas operações Tow.
+Todos os consumers consultam disponibilidade global.
 
-```text
-TowModule.enabled = true | false
+```http
+GET /api/tow/module-status
 ```
 
-Quando `false`:
+Quando disabled:
 
-- Mobile Cliente não oferece criação de novo Tow;
-- Mobile Parceiro não oferece novos jobs/proposals;
-- Dashboard mostra o módulo como desabilitado;
-- requests já `ASSIGNED` continuam visíveis e operáveis até terminal;
-- cadastros de parceiro, TowVehicle e documentos permanecem disponíveis conforme permissão.
+- Cliente não inicia novo Tow;
+- Parceiro não recebe novos jobs/opportunities nem cria proposals;
+- Dashboard mostra disabled;
+- request `ASSIGNED+` continua visível/operável até terminal;
+- gestão cadastral de TowVehicle/documentos continua conforme permissão.
 
-A UI esconder/desabilitar ações é conveniência. O backend continua rejeitando chamadas indevidas.
+A UI é conveniência; backend continua sendo enforcement real.
 
 ---
 
-# 5. Mobile Cliente — fluxo completo
+# 5. Mobile Cliente
 
-## 5.1 Entry point
+## 5.1 App/session recovery
+
+Ao abrir/retomar:
+
+```text
+GET module status
+→ GET /api/tow/requests
+→ identificar atendimento ativo/histórico
+→ GET /api/tow/requests/:requestId
+```
+
+`GET /api/tow/requests` é a recuperação canônica após process death, relogin, reinstall ou troca de device.
+
+## 5.2 Entry point
 
 ```text
 Home
- ↓
-GET Tow Module Status
- ├─ disabled → mostrar indisponível
- └─ enabled
-      ↓
-   Solicitar Guincho
+→ module status
+   ├─ disabled → indisponível
+   └─ enabled  → Solicitar Guincho
 ```
 
-Estados de UI mínimos:
+UI states mínimos:
 
-- loading module availability;
-- enabled;
-- disabled + motivo opcional;
-- network error com retry.
+```text
+loading
+enabled
+disabled
+network_error/retry
+```
 
-## 5.2 Create request
+## 5.3 Create request
 
-Usuário informa:
+```http
+POST /api/tow/requests
+```
+
+Input visual mínimo:
 
 ```text
 pickup
-current vehicle
+destination
 vehicle class
 make/model
-weight/PBT quando obrigatório
-destination
+weight/PBT quando exigido
 problem description
 observations
 ```
 
-Fluxo:
+Resultado inicial:
 
 ```text
-POST request
-  ↓
 SEARCHING
-  ↓
-mostrar mapa pickup/destination
-  ↓
-aguardar proposals
 ```
 
-A UI não calcula preço final nem raio de matching.
+UI não calcula preço nem raio de matching.
 
-## 5.3 Searching
+## 5.4 Searching
 
-Cliente vê:
+Renderizar:
 
 - pickup/destination;
-- status `SEARCHING`;
-- indicador de busca;
-- raio atual, quando exposto pelo backend;
-- opção de cancelar;
-- opção de alterar destination enquanto permitido.
+- `SEARCHING`;
+- matching summary quando disponível;
+- cancel;
+- change destination apenas se `allowed_actions` permitir.
 
-Mudança de destination pre-assignment:
+Alteração:
 
-```text
-PATCH destination
- ↓
-backend invalida negociação/preço anterior
- ↓
-novo ciclo de busca/propostas
+```http
+PATCH /api/tow/requests/:requestId/destination
 ```
 
-Se backend retornar `SERVICE_DISABLED`, a tela encerra o fluxo com estado informativo; não tenta reabrir automaticamente.
+Backend invalida quote/proposal dependente e reinicia o ciclo adequado.
 
-## 5.4 Proposals / Negotiation
+Se request terminar com `SERVICE_DISABLED`, mostrar estado terminal informativo e não tentar ressuscitar automaticamente.
 
-```text
-SEARCHING
- ↓
-NEGOTIATING
- ↓
-lista de proposals
+## 5.5 Proposals / negotiation
+
+```http
+GET /api/tow/requests/:requestId/proposals
 ```
 
-Cada card deve poder apresentar, quando disponível:
+Card pode exibir:
 
-- partner display name;
-- rating summary;
-- TowVehicle summary;
-- equipment type;
-- ETA estimado;
-- distância estimada;
-- calculated price;
-- proposal expiration;
-- status.
+- partner display name/rating;
+- TowVehicle/equipment;
+- route/ETA;
+- server price;
+- expiry;
+- proposal/counteroffer status.
 
-Ações do cliente:
+Ações:
 
-```text
-ACCEPT
-ou
-COUNTEROFFER (1x)
+```http
+POST /api/tow/proposals/:proposalId/accept
+POST /api/tow/proposals/:proposalId/counteroffer
 ```
 
-Após contraproposta:
+Existe no máximo uma counteroffer por proposal. UI não oferece segunda rodada.
 
-```text
-WAITING_PARTNER_RESPONSE
- ↓
-accepted | rejected | expired
-```
+## 5.6 Assignment
 
-A UI nunca oferece segunda contraproposta.
-
-## 5.5 Assignment
-
-Quando uma proposta/contraproposta é aceita:
+Após acordo:
 
 ```text
 ASSIGNED
 ```
 
-Cliente vê:
+Mostrar:
 
 - partner;
 - TowVehicle;
-- final price congelado;
-- pickup/destination congelados;
-- payment method selector;
-- status do pagamento.
+- frozen final price;
+- frozen pickup/destination;
+- payment selector/readiness.
 
-Outras proposals deixam de ser acionáveis.
+Outras proposals ficam não acionáveis.
 
-## 5.6 Payment selection
+## 5.7 Payment
 
-Métodos MVP:
+Métodos:
 
 ```text
-CARD
-PIX
-CASH
+card
+pix
+cash
 ```
 
-### CARD
+Selection/change:
 
-```text
-select CARD
- ↓
-provider/client payment source flow
- ↓
-backend authorization
- ↓
-AUTHORIZED
- ↓
-partner pode EN_ROUTE
+```http
+PUT /api/tow/requests/:requestId/payment-method
+GET /api/tow/requests/:requestId/payment
 ```
 
-Falha de autorização mantém assignment e permite trocar método antes de `EN_ROUTE`.
-
-### PIX
+CARD:
 
 ```text
-select PIX
- ↓
-backend gera charge
- ↓
-mostrar QR/copy-paste
- ↓
-PENDING
- ↓
-PAID
- ↓
-partner pode EN_ROUTE
+AUTHORIZED → partner pode EN_ROUTE
 ```
 
-### CASH
+PIX:
 
 ```text
-select CASH
- ↓
-PAYMENT_METHOD_SELECTED
- ↓
-partner pode EN_ROUTE
+PENDING → PAID → partner pode EN_ROUTE
 ```
 
-Nenhum consumidor deve fingir que CASH foi eletronicamente pago.
-
-## 5.7 Live service tracking
+CASH:
 
 ```text
-ASSIGNED
- ↓
-EN_ROUTE
- ↓
-ARRIVED
- ↓
-IN_TRANSIT
- ↓
-COMPLETION_PENDING
+CASH_SELECTED → partner pode EN_ROUTE
+```
+
+`PAYMENT_METHOD_SELECTED` não é enum canônico.
+
+Se método eletrônico falhar antes de `EN_ROUTE`, UI pode permitir troca sem perder assignment quando backend indicar ação válida.
+
+## 5.8 Route + live tracking
+
+Route snapshot:
+
+```http
+GET /api/tow/requests/:requestId/route
+```
+
+Tracking:
+
+```http
+GET /api/tow/requests/:requestId/tracking
 ```
 
 Google Maps é a visualização padrão.
 
-Tela deve suportar:
+Renderizar:
 
-- current partner position;
+- partner current position;
 - pickup;
 - destination;
-- polyline/route quando disponível;
+- route/polyline quando retornada;
 - state timeline;
-- stale/no-location state;
-- cancel action quando contratualmente permitida.
+- stale/no-location state.
 
-Tracking realtime pode usar socket/push, porém o app deve sempre conseguir reidratar o estado oficial por REST.
+Nunca recalcular Tow price a partir da rota no client.
 
-## 5.8 Completion
+## 5.9 Completion / dispute / review
 
-Partner finaliza:
-
-```text
-COMPLETION_PENDING
-```
-
-Cliente pode:
+Fluxo:
 
 ```text
-CONFIRM COMPLETION
-ou
-DISPUTE
+EN_ROUTE
+→ ARRIVED
+→ IN_TRANSIT
+→ COMPLETION_PENDING
 ```
 
-Se nada fizer, backend auto-confirma após timeout.
+Customer pode:
 
-Depois:
+```http
+POST /api/tow/requests/:requestId/completion/confirm
+POST /api/tow/requests/:requestId/disputes
+```
+
+Após `COMPLETED`:
+
+```http
+POST /api/tow/requests/:requestId/review
+```
+
+Auto-confirm ocorre no backend após timeout; app não agenda regra crítica local.
+
+## 5.10 Customer cancellation debt
+
+Cash + cancel pós-EN_ROUTE pode produzir debt.
+
+```http
+GET  /api/tow/customer/debts
+POST /api/tow/customer/debts/:debtId/pay
+```
+
+Pagamento de debt:
 
 ```text
-COMPLETED
- ↓
-Review
+card | pix
 ```
 
-## 5.9 Customer cancellation debt
-
-Se método for CASH, partner já tiver `EN_ROUTE` e customer cancelar:
-
-```text
-CustomerFinancialDebt = tow_cancellation_fee
-```
-
-Enquanto dívida impeditiva existir:
-
-```text
-novo Tow request → blocked
-```
-
-App deve mostrar debt screen e permitir quitação por:
-
-```text
-CARD
-PIX
-```
-
-Após confirmação do pagamento, o bloqueio desaparece.
+Enquanto existir debt impeditiva, novo request recebe `outstanding_financial_debt`.
 
 ---
 
-# 6. Mobile Parceiro — fluxo completo
+# 6. Mobile Parceiro
 
-## 6.1 Entry and availability
+## 6.1 Session/operational recovery
 
-Partner precisa ser:
+Ao abrir/retomar:
 
 ```text
-partner_type=tow
-approved
+GET module status
+→ GET partner status
+→ GET partner jobs
 ```
 
-Além disso:
+Endpoints:
 
-- Tow Module enabled para novos jobs;
-- partner online/available;
-- TowVehicle ativo;
-- documentação aprovada/válida;
-- compatibilidade/capacidade adequada;
-- dívida de platform fee abaixo do limite impeditivo.
+```http
+GET   /api/tow/partner/status
+PATCH /api/tow/partner/status
+PUT   /api/tow/partner/location
+GET   /api/tow/partner/jobs
+```
 
-O app não reproduz essa policy. Apenas apresenta o resultado retornado.
+`operational` e `blocking_reasons` são calculados pelo backend.
+
+Blockers típicos:
+
+```text
+MODULE_DISABLED
+PARTNER_NOT_APPROVED
+PARTNER_OFFLINE
+PARTNER_UNAVAILABLE
+NO_ACTIVE_TOW_VEHICLE
+TOW_VEHICLE_DOCUMENT_NOT_APPROVED
+TOW_VEHICLE_DOCUMENT_EXPIRED
+PLATFORM_FEE_DEBT_LIMIT
+ACTIVE_SERVICE
+```
+
+O app não reproduz essa policy.
 
 ## 6.2 TowVehicle management
 
-Fluxo antecipável:
-
-```text
-Tow Vehicles
- ├─ list
- ├─ create/edit
- ├─ pricing
- ├─ capabilities
- ├─ upload documents
- ├─ document status
- └─ activate exactly one vehicle
+```http
+GET/POST          /api/tow/vehicles
+GET/PATCH/DELETE  /api/tow/vehicles/:vehicleId
+POST              /api/tow/vehicles/:vehicleId/activate
+GET/POST          /api/tow/vehicles/:vehicleId/documents
+DELETE            /api/tow/vehicles/:vehicleId/documents/:documentId
 ```
 
-Documento obrigatório:
-
-```text
-JPEG | PNG | PDF
-```
-
-Status:
+Document states:
 
 ```text
 pending
 approved
 rejected
+expired
 ```
 
-Veículo não aprovado não deve ser apresentado como operacional.
+Upload aceita JPEG/PNG/PDF conforme contrato.
+
+Somente um TowVehicle ativo por partner. UI envia intenção; backend garante atomicidade.
 
 ## 6.3 Opportunities
 
-Com módulo enabled, parceiro recebe/lista oportunidades elegíveis.
+```http
+GET /api/tow/partner/opportunities
+```
 
-Opportunity apresenta:
+Cada item já deve trazer:
 
-- request id;
-- pickup;
-- destination;
-- customer vehicle summary;
-- route estimate;
+- request/customer vehicle summary;
+- active TowVehicle;
+- route quote;
 - server-calculated proposal price;
-- expiration;
-- compatibility result.
+- positive compatibility explanation;
+- expiry.
 
-Parceiro não edita preço inicial.
+Partner não digita preço inicial.
 
-Ação:
+Enviar proposal:
 
-```text
-SEND PROPOSAL
-ou
-IGNORE
+```http
+POST /api/tow/requests/:requestId/proposals
 ```
 
-## 6.4 Proposal lifecycle
+## 6.4 Proposal / counteroffer
 
-Depois de enviar:
-
-```text
-ACTIVE
+```http
+GET  /api/tow/partner/proposals
+POST /api/tow/proposals/:proposalId/withdraw
+POST /api/tow/counteroffers/:counterofferId/accept
+POST /api/tow/counteroffers/:counterofferId/reject
 ```
 
-Enquanto não houver counteroffer/accept:
-
-```text
-WITHDRAW permitido
-```
-
-Se customer enviar counteroffer:
-
-```text
-ACCEPT
-ou
-REJECT
-```
-
-Não existe nova rodada de preço.
+Withdraw somente quando backend permitir. Não existe contra-contra-proposta.
 
 ## 6.5 Assigned job
 
-Ao vencer negociação:
+Recovery/history:
 
-```text
-ASSIGNED
+```http
+GET /api/tow/partner/jobs
 ```
-
-Partner/TowVehicle ficam ocupados.
 
 Tela mostra:
 
-- pickup;
-- destination;
+- pickup/destination;
 - customer/vehicle summary;
-- frozen final price;
+- final price;
 - payment readiness;
-- navigation CTA.
+- route/navigation;
+- allowed operational actions.
+
+Disable global não interrompe request já `ASSIGNED`.
 
 ## 6.6 Operational transitions
 
-Ações do partner:
-
-```text
-START EN_ROUTE
-MARK ARRIVED
-START IN_TRANSIT
-FINISH SERVICE
+```http
+POST /api/tow/requests/:requestId/en-route
+POST /api/tow/requests/:requestId/arrived
+POST /api/tow/requests/:requestId/in-transit
+POST /api/tow/requests/:requestId/finish
 ```
 
-O app só habilita CTA se backend indicar ação válida.
+Tracking write:
 
-Para request já `ASSIGNED`, desabilitar globalmente Tow não interrompe esse fluxo.
-
-## 6.7 Tracking
-
-Enquanto ativo, app envia localização conforme estratégia operacional definida posteriormente.
-
-Erros de rede devem suportar retry sem duplicar state transitions.
-
-## 6.8 CASH completion
-
-Para CASH:
-
-```text
-partner marks cash_received
+```http
+POST /api/tow/requests/:requestId/tracking
 ```
 
-Depois da conclusão confirmada/auto-confirmada:
+Network retry deve preservar idempotência por contrato; UI não avança state localmente antes da confirmação autoritativa necessária.
 
-```text
-platform_fee_debt += tow_platform_fixed_fee
+## 6.7 Cash
+
+```http
+POST /api/tow/requests/:requestId/cash-received
 ```
 
-App pode exibir saldo/dívida do parceiro, mas não calcula a dívida localmente.
+Partner não calcula platform fee debt.
+
+Tow-specific financial state:
+
+```http
+GET /api/tow/partner/financial-summary
+```
+
+Pode exibir:
+
+```text
+wallet_available_cents
+pending_settlement_cents
+platform_fee_debt_cents
+platform_fee_debt_limit_cents
+blocked_by_debt
+```
+
+Generic transaction history pode continuar usando wallet horizontal existente.
+
+## 6.8 Cancellation / no-show
+
+```http
+POST /api/tow/requests/:requestId/cancel-partner
+POST /api/tow/requests/:requestId/customer-no-show
+```
+
+Backend decide eligibility/financial consequences.
 
 ---
 
-# 7. Dashboard — fluxo completo
+# 7. Dashboard
 
-## 7.1 Tow Module control
+## 7.1 Module control
 
-Dashboard terá controle global:
-
-```text
-Tow Module
-Enabled [ON/OFF]
-```
-
-Antes de desabilitar, UI deve apresentar aviso claro:
-
-```text
-Novos atendimentos serão bloqueados.
-SEARCHING/NEGOTIATING serão encerrados.
-ASSIGNED+ continuarão até conclusão/cancelamento.
+```http
+GET   /api/admin/tow/module
+PATCH /api/admin/tow/module
 ```
 
 Disable exige `reason`.
 
-Dashboard envia a intenção; backend decide atomicamente o resultado.
+Antes de confirmar, UI informa:
 
-## 7.2 Tow settings
+```text
+new Tow requests blocked
+SEARCHING/NEGOTIATING will close with SERVICE_DISABLED
+ASSIGNED+ will drain normally
+```
 
-Dashboard permite editar settings globais do módulo:
+Backend resolve atomicamente corrida com assignment.
+
+## 7.2 Settings
+
+```http
+GET   /api/admin/tow/settings
+PATCH /api/admin/tow/settings
+```
+
+PATCH é true partial.
+
+Settings canônicos:
 
 ```text
 tow_initial_radius_km
@@ -586,110 +596,90 @@ tow_proposal_expiry_minutes
 tow_counteroffer_expiry_minutes
 tow_completion_confirmation_timeout_minutes
 tow_customer_no_show_timeout_minutes
-tow_platform_fixed_fee
-tow_cancellation_fee
+tow_platform_fixed_fee_cents
+tow_cancellation_fee_cents
 tow_cancellation_partner_percentage
 tow_cancellation_platform_percentage
-tow_max_platform_fee_debt
+tow_max_platform_fee_debt_cents
 ```
-
-Validação final é do backend.
 
 ## 7.3 Vehicle document verification
 
-Dashboard precisa oferecer fila de documentos:
-
-```text
-pending
-approved
-rejected
-expired
+```http
+GET  /api/admin/tow/vehicle-documents
+GET  /api/admin/tow/vehicle-documents/:documentId
+POST /api/admin/tow/vehicle-documents/:documentId/approve
+POST /api/admin/tow/vehicle-documents/:documentId/reject
 ```
 
-Admin pode:
-
-```text
-APPROVE
-REJECT + reason
-```
-
-Deve visualizar arquivo JPEG/PNG/PDF e dados do TowVehicle/partner.
+Detail inclui document + TowVehicle + partner.
 
 ## 7.4 Operational monitoring
 
-Dashboard deve conseguir consultar/filter:
+```http
+GET /api/admin/tow/requests
+GET /api/admin/tow/requests/:requestId
+```
 
-- requests por status;
-- partner;
-- customer;
-- período;
-- payment method/status;
-- disputes;
-- cancellation/no-show reason.
+List filters incluem state, partner, customer, payment e período.
 
-Request detail deve apresentar timeline operacional e financeira.
+Detail contém request, proposals/counteroffers, route, tracking, payment, financial summary e audit events.
 
 ## 7.5 Admin override
 
-Ações excepcionais:
-
-```text
-CANCEL
-COMPLETE
+```http
+POST /api/admin/tow/requests/:requestId/override-cancel
+POST /api/admin/tow/requests/:requestId/override-complete
 ```
 
-Sempre exigem `reason`.
-
-UI deve deixar claro que a ação será auditada.
+`reason` obrigatório; backend registra actor/timestamp/before/after.
 
 ## 7.6 Disputes
 
-Admin vê fila de disputes e detalhe completo:
+```http
+GET  /api/admin/tow/disputes
+GET  /api/admin/tow/disputes/:disputeId
+POST /api/admin/tow/disputes/:disputeId/resolve
+```
 
-- request;
-- proposal/counteroffer;
-- final price;
-- route snapshot;
-- tracking;
-- payment/refund;
-- cancellation/debt;
-- audit timeline.
-
-Resolution sempre gera audit entry e ajuste financeiro explícito quando aplicável.
+Detail fornece evidence aggregate sem acesso direto ao DB.
 
 ## 7.7 Payout batches
 
-Dashboard financeiro:
-
-```text
-Preview eligible balances
- ↓
-Create batch
- ↓
-Review partner totals
- ↓
-Process batch
- ↓
-Track result/reconciliation
+```http
+GET  /api/admin/tow/payout-batches/preview
+POST /api/admin/tow/payout-batches
+GET  /api/admin/tow/payout-batches/:batchId
+POST /api/admin/tow/payout-batches/:batchId/process
 ```
 
-Somente `available_for_payout` participa.
+Preview/batch possuem line items por partner e debt offset.
+
+## 7.8 Audit
+
+```http
+GET /api/admin/tow/audit-events
+```
+
+UI não depende de logs efêmeros do servidor.
 
 ---
 
-# 8. Consumer-side state modelling
+# 8. Consumer UI state modelling
 
-Recomendação para os três consumidores: separar estado da tela de estado do domínio.
-
-Exemplo:
+Separar:
 
 ```text
-UI state
+Presentation/UI state
 - loading
 - refreshing
-- error
 - submitting
+- error
+```
 
+from:
+
+```text
 Domain state
 - SEARCHING
 - NEGOTIATING
@@ -697,22 +687,16 @@ Domain state
 ...
 ```
 
-Não criar estados locais como `accepted_by_me` ou `almost_completed` que não existam no contrato.
+Não criar pseudo-domain states que não existam no contrato.
 
 ---
 
-# 9. Realtime strategy
-
-O contrato de verdade é REST.
-
-Realtime é aceleração de UX:
+# 9. Realtime
 
 ```text
-REST = rehydration/source of truth
-Socket/Push = notification of change
+REST = source of truth / rehydration
+Socket/Push = notification / UX acceleration
 ```
-
-Ao receber evento realtime, consumidor deve atualizar/recarregar o aggregate oficial quando necessário.
 
 Eventos sugeridos:
 
@@ -728,11 +712,11 @@ tow.dispute.updated
 tow.module.updated
 ```
 
-Nomes finais podem ser congelados junto ao contrato realtime, mas não devem carregar regra crítica exclusiva.
+Se realtime falhar, REST deve reconstruir o estado.
 
 ---
 
-# 10. Error codes consumers must support
+# 10. Error codes mínimos
 
 ```text
 service_module_disabled
@@ -755,6 +739,8 @@ payment_not_ready
 payment_failed
 payment_method_not_changeable
 customer_no_show_not_allowed_yet
+idempotency_conflict
+external_dependency_unavailable
 conflict
 validation_error
 unauthorized
@@ -762,55 +748,42 @@ forbidden
 not_found
 ```
 
-UI deve mapear estes códigos para mensagens localizadas.
+Consumers localizam mensagem por code.
 
 ---
 
-# 11. What can start before backend completion
+# 11. Mock implementation handoff gate
 
-Permitido imediatamente após merge do contrato:
+Após merge do contrato, consumer implementation pode começar se:
 
-### Mobile Cliente
-- feature scaffolding;
-- DTOs/repositories/interfaces;
-- mock server/fakes;
-- request creation UI;
-- proposal/counteroffer UI;
-- payment method states;
-- Maps/tracking screens;
-- completion/dispute/review;
-- debt repayment UI;
-- widget/golden/E2E mocked.
+```text
+OpenAPI parse/ref validation = PASS
+operationId uniqueness = PASS
+Cliente smoke = PASS
+Parceiro smoke = PASS
+Dashboard smoke = PASS
+undocumented endpoint/DTO required = 0
+```
 
-### Mobile Parceiro
-- TowVehicle/document UI;
-- opportunity/proposal UI;
-- counteroffer response;
-- assigned job timeline;
-- Maps/navigation/tracking UI;
-- cash received flow;
-- tests against mocks.
+Essas condições estão evidenciadas em:
 
-### Dashboard
-- module toggle UI;
-- settings forms;
-- document verification UI;
-- request/dispute detail;
-- payout batch UI;
-- component/browser tests against mocks.
-
-Não considerar integração backend concluída até T18.
+```text
+TOW-OPENAPI-CONSISTENCY-REVIEW.md
+TOW-CONSUMER-CONTRACT-SMOKE-RESULT.md
+TOW-CONSUMER-FLOW-COVERAGE.md
+```
 
 ---
 
 # 12. Contract change rule
 
-Depois que este documento for mergeado, qualquer breaking change que afete consumidor exige:
+Após merge, breaking change que afete consumer exige:
 
-1. atualização deste documento;
-2. atualização de `TOW-API-CONTRACT.md` e OpenAPI fragment;
-3. atualização das Issues consumidoras afetadas;
-4. teste de contrato/compatibilidade;
-5. comunicação explícita aos consumidores.
+1. atualização do OpenAPI;
+2. atualização dos docs funcionais afetados;
+3. contract/regression test;
+4. atualização das Issues consumidoras;
+5. comunicação explícita;
+6. nenhuma adaptação silenciosa para legado.
 
-Não alterar silenciosamente path, enum, state, error code ou significado de campo.
+Se uma capability necessária não estiver representável pelo contrato, consumer implementation deve parar e o contrato deve ser corrigido antes de criar fallback local.
