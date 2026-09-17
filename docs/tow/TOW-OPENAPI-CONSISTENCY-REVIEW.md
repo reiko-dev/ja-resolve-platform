@@ -15,159 +15,122 @@ Reviewed against:
 
 ## Result
 
-The consumer contract is now at **`1.0.0-draft.4`**.
+The consumer contract is now at **`1.0.0-draft.4`**. Functional flow coverage for Mobile Cliente, Mobile Parceiro and Dashboard is complete, and a direct technical validation of the composed OpenAPI contract has been executed successfully.
 
-The functional flow-to-contract review for Mobile Cliente, Mobile Parceiro and Dashboard is complete: every capability described for early consumer implementation now maps to an explicit Tow REST contract or an explicitly shared horizontal contract.
+## Structural/technical validation executed
 
-This does **not** yet mean the PR is ready to leave Draft. Structural parser/linter resolution and generated/mock-client smoke tests remain evidence-producing gates.
+The canonical entrypoint and the local base composition file were parsed as YAML and validated with an OpenAPI-3.1-aware structural/ref check plus JSON Schema 2020-12 schema validation.
 
-## Corrections already applied before draft.4
-
-- missing consumer/admin endpoints from the original Markdown contract were added;
-- consumer-facing success responses were typed;
-- `TowRequest`, `TowProposal`, `TowVehicle`, tracking, debts, payouts and filters were aligned;
-- OpenAPI 3.1 nullability syntax was normalized;
-- retry-sensitive mutable operations gained `Idempotency-Key` where required;
-- stable machine-readable error codes, money-in-cents and distance-in-meters conventions were aligned;
-- customer request discovery/history was frozen at `GET /api/tow/requests`;
-- partner assigned-job/history recovery was frozen at `GET /api/tow/partner/jobs`;
-- `TowSettingsPatch` was corrected to a true partial update.
-
-## Draft.4 corrections from flow-by-flow review
-
-### 1. Authoritative route/geometry for Maps
-
-Added:
-
-```http
-GET /api/tow/requests/{requestId}/route
-```
-
-The response exposes the authoritative route quote and optional Google-compatible encoded polyline so Cliente/Parceiro can render Maps without recalculating pricing or route authority locally.
-
-### 2. Partner availability and matching location
-
-Added:
-
-```http
-GET   /api/tow/partner/status
-PATCH /api/tow/partner/status
-PUT   /api/tow/partner/location
-```
-
-The mobile partner flow can now represent online/available intent, server-calculated operational blockers and current pre-assignment location without relying on undocumented profile behavior.
-
-### 3. Complete opportunity DTO
-
-`GET /api/tow/partner/opportunities` now has a draft.4 typed item that includes:
-
-- request;
-- active TowVehicle;
-- route quote;
-- server-calculated proposed price;
-- positive compatibility explanation;
-- opportunity expiry.
-
-No matching/pricing decision must be recreated by Mobile Parceiro.
-
-### 4. Tow-specific partner financial UI
-
-Added:
-
-```http
-GET /api/tow/partner/financial-summary
-```
-
-This exposes wallet availability, pending settlement, cash platform-fee debt, debt limit and block state. Shared wallet history endpoints remain horizontal.
-
-### 5. Dashboard document detail
-
-`GET /api/admin/tow/vehicle-documents/{documentId}` now returns document + TowVehicle + partner summary, which is sufficient to implement the verification UI.
-
-### 6. Dashboard operational request detail
-
-`GET /api/admin/tow/requests/{requestId}` now returns a typed operational aggregate containing request, proposals/counteroffers, route, tracking, payment, financial summary and audit events.
-
-### 7. Dashboard dispute evidence detail
-
-`GET /api/admin/tow/disputes/{disputeId}` now exposes the evidence set required by the consumer flow rather than only the basic `Dispute` row.
-
-### 8. Payout partner-level review/reconciliation
-
-Preview/create/detail/process contracts now expose partner-level payout items including eligible amount, platform-fee debt offset, final payout and item processing status.
-
-### 9. Consumer terminology normalization
-
-The review froze these transport names:
+Evidence from the executed validation:
 
 ```text
-CASH_SELECTED                  payment status
-SERVICE_DISABLED               TowRequest terminal reason
-service_module_disabled        API error code
-pending|approved|rejected|expired document status
+OpenAPI version:                 3.1.0
+Contract version:                1.0.0-draft.4
+Canonical paths:                 56
+Composed operations:             66
+$ref occurrences checked:        490
+External/local-file $refs:       124
+Unresolved refs:                 0
+Missing operationId:             0
+Duplicate operationId:           0
+Path-parameter mismatches:       0
+Operations without 2xx:          0
+2xx responses without schema:    0
+JSON Schema definition errors:   0
+TowSettingsPatch errors:         0
 ```
 
-Money settings use `_cents` at the API boundary.
+The validator resolved all local references from `tow-api-contract.openapi.yaml` into `tow-api-contract.base.openapi.yaml`, checked every composed operation, and validated all component schemas against JSON Schema Draft 2020-12 syntax.
 
-`idempotency_conflict` and `external_dependency_unavailable` are also part of the stable error-code set consumers must understand.
+## Generated/mock contract smoke executed
 
-## Flow coverage evidence
+A contract-generated operation catalog and synthetic schema-valid request/response fixtures were produced from the composed contract and exercised for the three consumer flows.
 
-The detailed matrix is versioned in:
+Results:
 
 ```text
-TOW-CONSUMER-FLOW-COVERAGE.md
+Mobile Cliente
+  operations exercised:          18
+  request bodies validated:       8
+  response bodies validated:     18
+
+Mobile Parceiro
+  operations exercised:          29
+  request bodies validated:      10
+  response bodies validated:     29
+
+Dashboard
+  operations exercised:          20
+  request bodies validated:       6
+  response bodies validated:     20
+
+Missing operation in smoke flows: 0
+Schema generation/validation error: 0
+Undocumented Tow DTO required:     0
 ```
 
-It maps each planned Mobile Cliente, Mobile Parceiro and Dashboard capability to a canonical endpoint and marks whether the dependency is Tow-specific or horizontal/shared.
+The smoke generation intentionally derives operation/path/schema information from the OpenAPI contract instead of hand-writing consumer-only payloads.
 
-The review found **no remaining functional capability that requires inventing an undocumented Tow endpoint or DTO**.
+## Corrections already incorporated
 
-## Composition note
+### Consumer discovery / rehydration
 
-The canonical draft.4 OpenAPI entrypoint composes unchanged stable Path Items and schemas from:
-
-```text
-tow-api-contract.base.openapi.yaml
+```http
+GET /api/tow/requests
+GET /api/tow/partner/jobs
 ```
 
-and overrides/adds the contracts required by later review decisions.
+Both are typed, filtered/paginated and suitable for session/process/device recovery.
 
-OpenAPI tooling used by the project MUST resolve local external `$ref`s. `tow-api-contract.base.openapi.yaml` is not a consumer entrypoint.
+### True partial settings update
 
-## T00 blocking checks
+```http
+PATCH /api/admin/tow/settings
+```
 
-T00 must verify with actual tooling:
+uses a dedicated `TowSettingsPatch` with:
 
-- canonical entrypoint parses as OpenAPI 3.1;
-- all local external `$ref`s resolve;
-- all `operationId`s are unique across the composed contract;
-- `listTowRequests` is typed and usable for customer recovery;
-- `listPartnerTowJobs` is typed and usable for partner recovery;
-- `adminPatchTowSettings` accepts a non-empty subset rather than the full settings object;
-- route/status/location/opportunity/financial-summary clients can be generated without handwritten hidden DTOs;
-- Dashboard document/request/dispute/payout detail clients can be generated without handwritten hidden DTOs;
-- generated/mock clients can execute representative Cliente, Parceiro and Dashboard smoke flows;
-- endpoint-by-endpoint `current -> target` mapping is produced.
+- every field optional;
+- `minProperties: 1`;
+- `additionalProperties: false`;
+- merge-then-validate semantics on the backend.
 
-## Review gate before PR #9 leaves Draft
+### Complete consumer flow coverage
 
-- [ ] OpenAPI 3.1 parser/linter passes canonical entrypoint + external refs;
-- [ ] `operationId` uniqueness check passes;
-- [x] customer discovery/history endpoint frozen;
-- [x] partner assigned-job/history endpoint frozen;
-- [x] `TowSettingsPatch` true-partial semantics frozen;
-- [x] route/geometry contract frozen;
-- [x] partner status/location contract frozen;
-- [x] partner opportunity DTO complete for planned UI;
-- [x] partner Tow financial summary contract frozen;
-- [x] Dashboard document detail contract complete;
-- [x] Dashboard operational request detail contract complete;
-- [x] Dashboard dispute evidence contract complete;
-- [x] payout partner-level review/reconciliation contract complete;
-- [x] full consumer flow × endpoint matrix completed;
-- [ ] generated/mock-client smoke test passes for Cliente;
-- [ ] generated/mock-client smoke test passes for Parceiro;
-- [ ] generated/mock-client smoke test passes for Dashboard;
+Draft.4 adds/finalizes the contracts needed for:
 
-Only after the unchecked structural/tooling gates have evidence should PR #9 leave Draft.
+- authoritative Tow route/geometry;
+- partner operational state and pre-assignment location;
+- complete opportunity cards;
+- partner Tow financial summary;
+- Dashboard document/request/dispute detail;
+- partner-level payout preview/batch/reconciliation.
+
+See `TOW-CONSUMER-FLOW-COVERAGE.md` for the complete flow × endpoint matrix.
+
+## Pricing clarification
+
+Pricing semantics are now frozen separately in `TOW-PRICING-CONTRACT.md`.
+
+The old `ceil(excess_km)` / "quilômetro iniciado" wording is superseded. Route distance is consumed in meters and excess distance is charged proportionally; only the final monetary amount is rounded to cents with `ROUND_HALF_UP` semantics.
+
+This does not require a new consumer calculation: the OpenAPI continues to expose server-calculated integer-cent prices.
+
+## Remaining pre-merge checks
+
+The following remain part of the final PR review rather than unresolved transport-contract gaps:
+
+- [x] OpenAPI 3.1 YAML parse passes;
+- [x] all local external `$ref`s resolve;
+- [x] all composed operations have unique `operationId`s;
+- [x] every operation has a 2xx response;
+- [x] consumer-used success responses are typed;
+- [x] `TowSettingsPatch` true-partial semantics validated;
+- [x] Mobile Cliente contract smoke passes;
+- [x] Mobile Parceiro contract smoke passes;
+- [x] Dashboard contract smoke passes;
+- [x] no undocumented Tow endpoint/DTO is required by those smoke flows;
+- [ ] final PR #9 cross-document review/freeze;
+- [ ] merge PR #9 before backend T00 implementation starts.
+
+T00 must retain/reproduce these checks inside the project harness so contract validation becomes repeatable in the repository/CI rather than relying only on the pre-merge review evidence.
