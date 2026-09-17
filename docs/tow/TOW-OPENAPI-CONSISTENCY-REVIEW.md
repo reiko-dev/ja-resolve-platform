@@ -80,6 +80,20 @@ The reviewed contract consistently treats:
 - duration as integer seconds;
 - timestamps as ISO-8601 `date-time`.
 
+## Remaining technical blocker found during review
+
+### `TowSettingsPatch` partial-update schema
+
+The current draft models `TowSettingsPatch` through `allOf` with the fully-required `TowSettings` schema. Under JSON Schema/OpenAPI 3.1 semantics, that means a client may be forced to send every required Tow setting, contradicting the documented **partial PATCH** contract.
+
+Before PR #9 leaves Draft this must be corrected so that:
+- `PATCH /api/admin/tow/settings` accepts one or more known Tow settings;
+- unknown properties remain forbidden;
+- validation of cross-field invariants occurs against the resulting complete settings set in the backend;
+- generated clients do not consider every field mandatory for PATCH.
+
+This is a **merge blocker for the consumer contract**, not a T00 implementation detail.
+
 ## Blocking consistency rule for T00
 
 T00 must validate this file with an OpenAPI 3.1-aware parser/linter and generate an endpoint-by-endpoint current→target map.
@@ -111,6 +125,7 @@ Both should support pagination and state/date filters while keeping backend stat
 
 Before PR #9 leaves Draft:
 - [ ] OpenAPI 3.1 parser/linter passes;
+- [ ] `TowSettingsPatch` is truly partial for generated clients;
 - [ ] every documented consumer endpoint is present in OpenAPI;
 - [ ] every operation has a stable `operationId`;
 - [ ] success responses used by consumers have typed schemas;
