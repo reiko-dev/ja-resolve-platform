@@ -1,135 +1,115 @@
 # Tow OpenAPI — Consistency Review
 
 Status: **pre-merge review**  
-Contract: `docs/tow/tow-api-contract.openapi.yaml`  
+Canonical entrypoint: `docs/tow/tow-api-contract.openapi.yaml`  
+Base composition file: `docs/tow/tow-api-contract.base.openapi.yaml`
+
 Reviewed against:
 - `TOW-API-CONTRACT.md`
 - `TOW-CONSUMER-FLOW-SPEC.md`
 - `TOW-SERVICE-SPECIFICATION.md`
 - `TOW-MODULE-CONTRACT.md`
+- `TOW-OPENAPI-CONTRACT-DECISIONS.md`
 
 ## Result
 
-The original draft was structurally useful but **not yet sufficient as a code-generation/mock contract**. The reviewed draft (`1.0.0-draft.2`) closes the main inconsistencies identified below.
+The consumer contract is now at **`1.0.0-draft.3`** and the previously open discovery/PATCH gaps are resolved in the canonical OpenAPI entrypoint.
 
-## Corrections applied
+## Corrections already applied before draft.3
 
-### 1. Missing endpoints documented in Markdown
-Added to OpenAPI:
-- `DELETE /api/tow/vehicles/{vehicleId}/documents/{documentId}`
-- `GET /api/admin/tow/vehicle-documents/{documentId}`
-- `GET /api/admin/tow/disputes/{disputeId}`
+- missing consumer/admin endpoints from the Markdown contract were added;
+- consumer-facing success responses were typed;
+- `TowRequest`, `TowProposal`, `TowVehicle`, tracking, debts, payouts and filters were aligned;
+- OpenAPI 3.1 nullability syntax was normalized;
+- retry-sensitive mutable operations gained `Idempotency-Key` where required;
+- stable machine-readable error codes, money-in-cents and distance-in-meters conventions were aligned.
 
-### 2. Response bodies were underspecified
-The first draft had many `description`-only responses, which prevented useful generated clients/mocks.
+## Draft.3 corrections
 
-Typed response schemas were added for:
-- operational state transitions;
-- cancellation and financial consequence;
-- tracking read/write;
-- TowVehicle CRUD;
-- vehicle documents;
-- customer debts/payment;
-- module status/toggle;
-- Tow settings;
-- admin request/dispute/document lists;
-- payout preview/batches;
-- audit event list.
+### 1. Customer discovery / rehydration
 
-### 3. DTO mismatch between Markdown and OpenAPI
-Aligned fields present in consumer examples but absent from schemas:
-- `TowRequest.matching`;
-- `TowProposal.route_quote`;
-- `TowProposal.created_at`;
-- richer `TowVehicleSummary`;
-- explicit terminal reasons and allowed actions.
+Canonical endpoint:
 
-### 4. Query/filter contract mismatch
-Added documented pagination/filter parameters to:
-- partner opportunities;
-- partner proposals;
-- admin vehicle document queue;
-- admin requests;
-- admin disputes;
-- admin audit events.
-
-### 5. Idempotency inconsistency
-Added `Idempotency-Key` to mutable operations that the consumer contract treats as retry-sensitive, including:
-- destination change;
-- tracking point submission;
-- vehicle document deletion;
-- Tow settings patch.
-
-### 6. OpenAPI 3.1 nullability
-Removed the OpenAPI 3.0-style `nullable: true` pattern from the reviewed contract. Nullable fields now use JSON Schema 2020-12/OpenAPI 3.1 forms such as:
-
-```yaml
-type: [string, 'null']
+```http
+GET /api/tow/requests
 ```
 
-or explicit `oneOf` with `type: 'null'`.
-
-### 7. Error contract
-The canonical stable machine-readable error codes are represented by `ErrorResponse.error.code`, including module-disabled, debt, state, proposal/counteroffer, payment and authorization conflicts.
-
-### 8. Units and primitive consistency
-The reviewed contract consistently treats:
-- money as integer cents;
-- currency as `BRL`;
-- route distance as integer meters;
-- duration as integer seconds;
-- timestamps as ISO-8601 `date-time`.
-
-## Remaining technical blocker found during review
-
-### `TowSettingsPatch` partial-update schema
-
-The current draft models `TowSettingsPatch` through `allOf` with the fully-required `TowSettings` schema. Under JSON Schema/OpenAPI 3.1 semantics, that means a client may be forced to send every required Tow setting, contradicting the documented **partial PATCH** contract.
-
-Before PR #9 leaves Draft this must be corrected so that:
-- `PATCH /api/admin/tow/settings` accepts one or more known Tow settings;
-- unknown properties remain forbidden;
-- validation of cross-field invariants occurs against the resulting complete settings set in the backend;
-- generated clients do not consider every field mandatory for PATCH.
-
-This is a **merge blocker for the consumer contract**, not a T00 implementation detail.
-
-## Blocking consistency rule for T00
-
-T00 must validate this file with an OpenAPI 3.1-aware parser/linter and generate an endpoint-by-endpoint current→target map.
-
-A backend implementation must not change a path, enum, field, error code or response shape merely to preserve a legacy endpoint. Any contract change requires:
-1. explicit update to the normative docs;
-2. OpenAPI update;
-3. contract test demonstrating the intended behavior.
-
-## Remaining product-level contract gap to decide before consumer implementation is considered complete
-
-The current contract supports `GET /api/tow/requests/{requestId}`, but does not yet define a canonical **customer request discovery/history endpoint** or a **partner assigned-job/history endpoint**.
-
-This does not block backend T00, but it matters for resilient consumers after logout/login, reinstall, another device, process death or lost local request ID.
-
-Recommended additions before freezing `tow-v1`:
+It returns only requests owned by the authenticated customer and supports:
 
 ```text
-GET /api/tow/requests
-  → authenticated customer's Tow requests/current active request
-
-GET /api/tow/partner/jobs
-  → assigned/in-flight/history for the authenticated Tow partner
+state
+from
+to
+page
+limit
 ```
 
-Both should support pagination and state/date filters while keeping backend state authoritative.
+The response is a typed paginated `TowRequestListResponse`.
 
-## Review gate
+This allows the app to recover authoritative state after logout/login, reinstall, device switch, process death or loss of a local request id.
 
-Before PR #9 leaves Draft:
-- [ ] OpenAPI 3.1 parser/linter passes;
-- [ ] `TowSettingsPatch` is truly partial for generated clients;
-- [ ] every documented consumer endpoint is present in OpenAPI;
-- [ ] every operation has a stable `operationId`;
-- [ ] success responses used by consumers have typed schemas;
-- [ ] mutable retry-sensitive operations declare idempotency behavior;
-- [ ] enum/path/error-code names match Markdown contracts;
-- [ ] the discovery/history endpoint decision above is resolved;
-- [ ] a generated/mock client can represent Cliente, Parceiro and Dashboard flows without hand-written undocumented DTOs.
+### 2. Partner job discovery / rehydration
+
+Canonical endpoint:
+
+```http
+GET /api/tow/partner/jobs
+```
+
+It returns assigned/in-flight/history work for the authenticated `partner_type=tow` and supports the same state/date/pagination filters.
+
+It is intentionally distinct from:
+
+```http
+GET /api/tow/partner/opportunities
+```
+
+`opportunities` = unassigned business; `jobs` = assigned/historical work.
+
+### 3. True partial Tow settings PATCH
+
+`PATCH /api/admin/tow/settings` now references a dedicated `TowSettingsPatch` schema where:
+
+- all supported properties are optional;
+- `additionalProperties: false`;
+- `minProperties: 1`;
+- omitted settings retain their persisted values;
+- the backend validates invariants after merging the patch with the complete current configuration.
+
+The incorrect inheritance from full `TowSettings.required` is no longer part of the canonical contract.
+
+## Composition note
+
+To preserve the already reviewed draft.2 without duplicating thousands of lines, the canonical draft.3 OpenAPI entrypoint composes unchanged Path Items and schemas from:
+
+```text
+tow-api-contract.base.openapi.yaml
+```
+
+The canonical file overrides only the newly frozen discovery endpoints and corrected settings PATCH contract.
+
+OpenAPI tooling used by the project MUST resolve local external `$ref`s. T00 must lint/parse the canonical entrypoint with an OpenAPI 3.1-aware resolver before backend implementation begins.
+
+## T00 blocking checks
+
+T00 must verify:
+
+- canonical entrypoint parses as OpenAPI 3.1;
+- all local external `$ref`s resolve;
+- `listTowRequests` is unique and typed;
+- `listPartnerTowJobs` is unique and typed;
+- `adminPatchTowSettings` accepts a non-empty subset rather than the full object;
+- generated/mock client can represent customer rehydration, partner rehydration and Dashboard settings patch without handwritten undocumented DTOs;
+- endpoint-by-endpoint `current -> target` mapping is produced.
+
+## Review gate before PR #9 leaves Draft
+
+- [ ] OpenAPI 3.1 parser/linter passes canonical entrypoint + external refs;
+- [x] customer discovery/history endpoint frozen;
+- [x] partner assigned-job/history endpoint frozen;
+- [x] `TowSettingsPatch` true-partial semantics frozen;
+- [x] stable operationIds defined for both discovery endpoints;
+- [x] typed paginated responses defined;
+- [x] state/date/pagination filters defined;
+- [ ] generated/mock client smoke test passes;
+- [ ] all consumer flows are rechecked against draft.3.

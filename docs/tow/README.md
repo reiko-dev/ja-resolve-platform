@@ -56,7 +56,19 @@ Este diretório é a fonte de verdade da reestruturação do módulo **Guincho /
    - REST/realtime semantics.
 
 9. `tow-api-contract.openapi.yaml`
-   - contrato OpenAPI 3.1 para geração de client, mock server e contract tests.
+   - **entrypoint canônico OpenAPI 3.1** para geração de client, mock server e contract tests;
+   - versão atual: `1.0.0-draft.3`;
+   - compõe partes estáveis de `tow-api-contract.base.openapi.yaml` por `$ref` local.
+
+10. `TOW-OPENAPI-CONTRACT-DECISIONS.md`
+   - decisões congeladas sobre discovery/rehydration de Cliente e Parceiro;
+   - semântica verdadeira de PATCH parcial dos Tow settings.
+
+11. `TOW-OPENAPI-CONSISTENCY-REVIEW.md`
+   - revisão estrutural do contrato;
+   - checklist de lint/resolution/codegen antes de sair de Draft.
+
+`tow-api-contract.base.openapi.yaml` é **artefato de composição**, não contrato a ser consumido diretamente pelos apps. Consumidores devem apontar para `tow-api-contract.openapi.yaml`.
 
 ## Precedence
 
@@ -82,13 +94,14 @@ Para consumidores:
 tow-api-contract.openapi.yaml
 + TOW-API-CONTRACT.md
 + TOW-CONSUMER-FLOW-SPEC.md
++ TOW-OPENAPI-CONTRACT-DECISIONS.md
 ```
 
 Se surgir contradição entre contratos, **não escolher silenciosamente um comportamento**. Registrar o conflito e corrigir os documentos antes da implementação dependente.
 
 ## Early frontend rule
 
-Mobile Cliente, Mobile Parceiro e Dashboard podem iniciar antecipadamente usando mocks gerados a partir do contrato OpenAPI.
+Mobile Cliente, Mobile Parceiro e Dashboard podem iniciar antecipadamente usando mocks gerados a partir do contrato OpenAPI canônico.
 
 Isso permite construir UI, state management, repositories e testes antes do backend completo.
 
