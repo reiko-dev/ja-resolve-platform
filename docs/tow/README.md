@@ -1,108 +1,103 @@
 # JaResolve Tow — Contract Index
 
+> Status: **cross-document freeze review PASS**  
+> Final review: `TOW-CONTRACT-FREEZE-REVIEW.md`
+
 Este diretório é a fonte de verdade da reestruturação do módulo **Guincho / Tow**.
 
 ## Normative documents
 
-### Domain and business
+### Domain / business
 
 1. `TOW-PRICING-CONTRACT.md`
-   - decisão final de pricing por distância viária real;
-   - cobrança proporcional do excedente em metros;
-   - arredondamento somente do resultado monetário para centavos;
-   - substitui qualquer referência pré-freeze a `ceil(excess_km)` / quilômetro iniciado.
+   - pricing autoritativo por rota real;
+   - excedente proporcional por metro;
+   - `ROUND_HALF_UP` somente no boundary monetário;
+   - `ceil(excess_km)` é proibido.
 
 2. `TOW-SERVICE-SPECIFICATION.md`
-   - comportamento funcional completo do serviço;
-   - estados, pricing, matching, pagamentos, cancelamentos, dívidas, payout e governança.
+   - comportamento funcional congelado;
+   - module, vehicle, matching, negotiation, payments, debts, payout, governance.
 
 3. `TOW-BUSINESS-RULE-MATRIX.md`
-   - regras identificáveis/testáveis;
-   - invariants;
-   - prioridade e cobertura esperada.
+   - invariants identificáveis/testáveis;
+   - prioridades/cobertura mínima.
 
 4. `TOW-MODULE-CONTRACT.md`
-   - Tow como módulo/componente;
    - `module_key=tow`, `service_key=tow`, `partner_type=tow`;
-   - global feature flag;
+   - feature flag;
    - graceful drain.
 
 ### Backend execution
 
 5. `TOW-TDD-IMPLEMENTATION-PLAN.md`
-   - política RED → GREEN → REFACTOR → gate;
-   - sequência T00–T18;
+   - RED → GREEN → REFACTOR → gate;
+   - T00–T18;
    - Clean Architecture/SOLID;
-   - critérios de readiness.
+   - 75 mandatory E2E in T18.
 
 6. `TOW-TASK-GRAPH.yaml`
-   - dependências machine-readable;
-   - outputs/test suites/gates.
+   - dependencies machine-readable;
+   - outputs/tests/gates;
+   - separate mock-implementation and real-integration consumer gates.
 
 7. GitHub Epic #10 + Issues #11–#29
-   - especificação executável por task;
-   - a Issue da task é a ordem operacional imediata do executor.
+   - task executable specification;
+   - Issue da task é a ordem operacional imediata.
 
 ### Consumer-first contract
 
-8. `TOW-CONSUMER-FLOW-SPEC.md`
-   - fluxo de Mobile Cliente;
-   - fluxo de Mobile Parceiro;
-   - fluxo de Dashboard;
-   - UX/domain-state boundaries;
-   - o que pode ser implementado antecipadamente com mocks.
+8. `tow-api-contract.openapi.yaml`
+   - canonical OpenAPI 3.1 entrypoint;
+   - generated client/mock/contract test source.
 
 9. `TOW-API-CONTRACT.md`
-   - paths canônicos originalmente congelados;
-   - DTOs;
-   - enums;
-   - error codes;
-   - authorization;
-   - idempotency;
-   - REST/realtime semantics.
+   - REST semantics, DTO/error/idempotency conventions.
 
 10. `TOW-API-CONTRACT-DRAFT4-ADDENDUM.md`
-   - endpoints/DTOs adicionais necessários para cobertura integral dos três consumidores;
-   - rota/geometry;
-   - status/localização do parceiro;
-   - oportunidade completa;
-   - resumo financeiro Tow do parceiro;
-   - detalhes operacionais/dispute/documentos do Dashboard;
-   - payout partner-level;
-   - normalização de enums e nomes monetários.
+    - route geometry;
+    - partner status/location;
+    - complete opportunities;
+    - partner financial summary;
+    - Dashboard detail/payout contracts.
 
-11. `tow-api-contract.openapi.yaml`
-   - **entrypoint canônico OpenAPI 3.1** para geração de client, mock server e contract tests;
-   - versão atual: `1.0.0-draft.4`;
-   - compõe partes estáveis de `tow-api-contract.base.openapi.yaml` por `$ref` local.
+11. `TOW-CONSUMER-FLOW-SPEC.md`
+    - Mobile Cliente flow;
+    - Mobile Parceiro flow;
+    - Dashboard flow;
+    - mock-first implementation boundary.
 
 12. `TOW-CONSUMER-FLOW-COVERAGE.md`
-   - matriz fluxo × endpoint para Cliente, Parceiro e Dashboard;
-   - prova documental de que cada capability planejada possui contrato explícito;
-   - registra normalizações encontradas durante a revisão.
+    - flow × endpoint coverage matrix.
 
 13. `TOW-OPENAPI-CONTRACT-DECISIONS.md`
-   - decisões congeladas sobre discovery/rehydration de Cliente e Parceiro;
-   - semântica verdadeira de PATCH parcial dos Tow settings.
+    - discovery/rehydration decisions;
+    - true-partial settings PATCH.
 
 14. `TOW-OPENAPI-CONSISTENCY-REVIEW.md`
-   - revisão estrutural do contrato;
-   - checklist de lint/resolution/codegen antes de sair de Draft.
+    - OpenAPI structural/ref/codegen smoke evidence.
 
-`tow-api-contract.base.openapi.yaml` é **artefato de composição**, não contrato a ser consumido diretamente pelos apps. Consumidores devem apontar para `tow-api-contract.openapi.yaml`.
+15. `TOW-CONSUMER-CONTRACT-SMOKE-RESULT.md`
+    - Cliente/Parceiro/Dashboard smoke PASS.
+
+16. `TOW-CONTRACT-FREEZE-REVIEW.md`
+    - final cross-document review;
+    - resolved contradictions;
+    - merge/handoff gates.
+
+`tow-api-contract.base.openapi.yaml` é artefato interno de composição. Apps usam `tow-api-contract.openapi.yaml`.
 
 ## Precedence
 
-Para pricing, a decisão final é específica e tem precedência sobre qualquer wording anterior:
+### Pricing
 
 ```text
 TOW-PRICING-CONTRACT
-→ pricing sections in TOW-SERVICE-SPECIFICATION / TOW-BUSINESS-RULE-MATRIX
+→ TOW-SERVICE-SPECIFICATION
+→ TOW-BUSINESS-RULE-MATRIX
 ```
 
-Em particular, `ceil(excess_km)` e cobrança por "quilômetro iniciado" estão revogados.
-
-Para demais regras funcionais:
+### Functional/domain
 
 ```text
 TOW-SERVICE-SPECIFICATION
@@ -110,7 +105,7 @@ TOW-SERVICE-SPECIFICATION
 → TOW-MODULE-CONTRACT
 ```
 
-Para execução de backend:
+### Backend execution
 
 ```text
 Issue da task
@@ -118,9 +113,7 @@ Issue da task
 → TOW-TDD-IMPLEMENTATION-PLAN.md
 ```
 
-Se uma Issue pré-freeze ainda reproduzir a antiga regra de `ceil`, `TOW-PRICING-CONTRACT.md` é a correção normativa explícita e deve ser aplicada antes da implementação.
-
-Para consumidores:
+### Consumer transport
 
 ```text
 tow-api-contract.openapi.yaml
@@ -128,29 +121,30 @@ tow-api-contract.openapi.yaml
 → TOW-CONSUMER-FLOW-COVERAGE.md
 → TOW-API-CONTRACT.md
 → TOW-CONSUMER-FLOW-SPEC.md
-→ TOW-OPENAPI-CONTRACT-DECISIONS.md
 ```
 
-`TOW-CONSUMER-FLOW-SPEC.md` continua definindo intenção/UX do fluxo; o OpenAPI canônico define o shape de transporte. O Addendum/Coverage registra as correções necessárias quando exemplos antigos usam nomenclatura não canônica.
+Se surgir conflito, não escolher silenciosamente. Corrigir contrato + tests antes da implementação dependente.
 
-Se surgir contradição entre contratos, **não escolher silenciosamente um comportamento**. Registrar o conflito e corrigir os documentos antes da implementação dependente.
+## Consumer handoff gates
 
-## Early frontend rule
-
-Mobile Cliente, Mobile Parceiro e Dashboard podem iniciar antecipadamente usando mocks gerados a partir do contrato OpenAPI canônico.
-
-Isso permite construir UI, state management, repositories e testes antes do backend completo.
-
-Entretanto:
+Após merge do PR de contrato e com smoke já verde:
 
 ```text
-mock-ready != backend-integration-ready
+TOW MOBILE CONTRACT READY FOR IMPLEMENTATION
 ```
 
-Somente T18 pode emitir:
+Permite implementação Mobile/Dashboard contra OpenAPI/mocks.
+
+Somente T18 emite:
 
 ```text
 TOW BACKEND READY FOR INTEGRATION
 ```
 
-Nenhum consumidor deve compensar backend incompleto com regra crítica local ou endpoint/DTO inventado.
+Isso libera substituição de mocks pelo backend real.
+
+```text
+mock-ready != backend-integration-ready
+```
+
+Nenhum consumer pode criar endpoint/DTO/regra crítica local para compensar backend incompleto.
