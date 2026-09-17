@@ -4,33 +4,45 @@
 > Domínio: **Guincho / Tow**  
 > PR de contrato: **#9 — Implements Tow Service**  
 > Epic: **#10**  
-> Execução: **Issues #11–#29 / T00–T18**
+> Execução backend: **Issues #11–#29 / T00–T18**
 
 ## 1. Fontes de verdade
 
-A implementação deve obedecer, em conjunto:
+### Regras funcionais
 
-1. `TOW-SERVICE-SPECIFICATION.md` — comportamento funcional do serviço;
-2. `TOW-BUSINESS-RULE-MATRIX.md` — regras e invariants;
-3. `TOW-MODULE-CONTRACT.md` — fronteira modular, partner linkage e feature flag;
-4. `TOW-TASK-GRAPH.yaml` — dependências machine-readable;
-5. Issues #11–#29 — **especificação executável detalhada de cada task**.
+1. `TOW-PRICING-CONTRACT.md` — pricing congelado;
+2. `TOW-SERVICE-SPECIFICATION.md` — comportamento funcional;
+3. `TOW-BUSINESS-RULE-MATRIX.md` — invariants testáveis;
+4. `TOW-MODULE-CONTRACT.md` — módulo/feature flag/graceful drain.
 
-Em caso de divergência de dependência/execução entre texto histórico e task graph, a ordem é:
+### Transport/consumer
+
+5. `tow-api-contract.openapi.yaml` — shape canônico;
+6. `TOW-API-CONTRACT-DRAFT4-ADDENDUM.md`;
+7. `TOW-CONSUMER-FLOW-SPEC.md`;
+8. `TOW-CONSUMER-FLOW-COVERAGE.md`;
+9. `TOW-CONSUMER-CONTRACT-SMOKE-RESULT.md`.
+
+### Execução backend
+
+10. `TOW-TASK-GRAPH.yaml`;
+11. Issues #11–#29 — especificação executável imediata da task.
+
+Precedência operacional:
 
 ```text
 Issue da task
 → TOW-TASK-GRAPH.yaml
-→ este documento
+→ este plano
 ```
 
-Mudança de regra de negócio exige atualização explícita do contrato e dos testes.
+Nenhuma task pode reintroduzir regra revogada, inclusive `ceil(excess_km)`.
 
 ---
 
-## 2. Princípio arquitetural
+## 2. Arquitetura obrigatória
 
-Tow deve ser um **módulo/componente explícito** do JaResolve:
+Tow é módulo explícito:
 
 ```text
 module_key   = tow
@@ -38,219 +50,187 @@ service_key  = tow
 partner_type = tow
 ```
 
-A fronteira esperada segue Clean Architecture:
+Boundary:
 
 ```text
-Tow Module
+Tow
 ├── Domain
-│   ├── Entities / Aggregates
+│   ├── Entities/Aggregates
 │   ├── Value Objects
-│   ├── Policies / Domain Services
+│   ├── Policies
 │   └── Invariants
-│
 ├── Application
 │   ├── Use Cases
 │   ├── Ports
 │   └── Orchestration
-│
 ├── Adapters
 │   ├── HTTP
 │   ├── Persistence
 │   ├── Events
 │   └── Presenters
-│
 └── Infrastructure
     ├── PostgreSQL
     ├── Google Routes
-    ├── Payment Gateway
+    ├── Payment providers
     ├── File Storage
     └── Scheduler
 ```
 
-Dependências horizontais como Payment, Wallet, Audit, Maps e File Storage **não pertencem internamente ao Tow Module**. Tow as consome através de ports.
+Payment, Wallet/Ledger, Maps, File Storage e Audit são horizontais e consumidos via ports.
 
-### Regras SOLID obrigatórias
+### SOLID
 
-- **SRP:** use cases e policies com responsabilidade única;
-- **OCP:** novas classes/capabilities devem ser adicionáveis sem espalhar condicionais;
-- **LSP:** fakes/adapters devem respeitar o mesmo contrato dos ports;
-- **ISP:** gateways expõem capacidades específicas, sem interfaces monolíticas artificiais;
-- **DIP:** Domain/Application dependem de abstrações, nunca de Express, Knex, Google ou PSP.
+- **SRP:** use case/policy com responsabilidade única;
+- **OCP:** novas capabilities sem cascata de condicionais;
+- **LSP:** fake e adapter obedecem ao mesmo contract;
+- **ISP:** gateways pequenos e específicos;
+- **DIP:** Domain/Application dependem de abstrações.
 
-Controllers não contêm regra de negócio. SQL/Knex não vaza para Domain/Application.
+Domain não importa Express, Knex/PostgreSQL, Google/PSP SDK, filesystem ou scheduler concreto.
 
 ---
 
-## 3. Tow Module feature flag
-
-O backend é a fonte de verdade de:
-
-```text
-TowModule.enabled
-```
-
-Semântica do MVP:
+## 3. Feature flag
 
 ```text
 DISABLE = stop new business + drain in-flight work
 ```
 
-Quando disabled:
+Disabled:
 
-- bloquear novo Tow request;
-- bloquear matching/expansão pre-assignment;
-- bloquear novas proposals;
-- bloquear novas counteroffers;
-- bloquear novo assignment ainda não consolidado;
-- encerrar `SEARCHING`/`NEGOTIATING` com `SERVICE_DISABLED`;
-- preservar partner `tow`, TowVehicles e documentos;
-- permitir que requests já `ASSIGNED` continuem até terminal;
-- preservar payment, tracking, completion, cancellation, debt, dispute, settlement, payout e audit de trabalho já atribuído.
+- bloqueia novo request;
+- bloqueia matching/radius pré-assignment;
+- bloqueia proposal/counteroffer/assignment novo;
+- encerra `SEARCHING`/`NEGOTIATING` com `SERVICE_DISABLED`;
+- preserva cadastro de partner/vehicle/doc;
+- preserva e deixa concluir `ASSIGNED+`.
 
-Re-enable permite novos negócios, mas não ressuscita requests/proposals encerrados.
+Re-enable não ressuscita trabalho encerrado.
 
-A availability flag deve ser consumida por **port/policy central**, não por `if (towEnabled)` espalhado em controllers.
+Availability é port/policy central.
 
 ---
 
-## 4. Política TDD obrigatória
+## 4. Ciclo TDD obrigatório
 
-Toda task segue exatamente:
+Cada task:
 
 ```text
 RED
- ↓
-GREEN
- ↓
-REFACTOR
- ↓
-INTEGRATION GATE
- ↓
-ACCEPTED
- ↓
-MERGE
+→ GREEN
+→ REFACTOR
+→ INTEGRATION GATE
+→ ACCEPTED
+→ MERGE
 ```
 
 ### RED
 
-Antes de alterar comportamento de produção:
+- escrever regra/teste antes do comportamento;
+- provar falha pela razão correta;
+- registrar evidência.
 
-- escrever os testes da regra;
-- provar que falham pela razão correta;
-- registrar evidência no WorkResult/receipt.
-
-Se o teste já nasce verde, registrar que o comportamento já existe e ajustar a task para compatibilização/auditoria, sem fabricar um RED falso.
+Se comportamento já existir, registrar baseline e criar teste de compatibilidade/regressão em vez de fabricar RED artificial.
 
 ### GREEN
 
-Implementar o mínimo necessário para satisfazer o contrato.
-
-Não antecipar task futura.
+Implementar somente escopo da task.
 
 ### REFACTOR
 
-Depois de GREEN:
-
 - remover duplicação;
-- melhorar nomes/separação de responsabilidades;
-- verificar SOLID/Clean Architecture;
-- rodar novamente a suíte da task + regressão das dependências.
+- revisar Clean Architecture/SOLID;
+- regressão da task + dependências.
 
 ### Regras não negociáveis
 
-- bug → primeiro teste de regressão;
-- não enfraquecer expectation para obter GREEN;
-- concorrência crítica deve ser testada contra PostgreSQL real;
-- tempo/jobs usam fake clock, sem `sleep` real;
-- gateways externos usam fakes/contracts na suíte padrão;
-- toda operação financeira crítica é idempotente;
-- toda transição crítica possui authz + invalid-state tests;
-- task só inicia com dependências `ACCEPTED`.
+- bug → regression test first;
+- não relaxar expectation para “passar”;
+- concorrência crítica → PostgreSQL real;
+- tempo → fake clock, sem sleep real;
+- network gateway → fake/contract na suíte padrão;
+- financeiro → idempotência obrigatória;
+- critical transition → authz + invalid-state test;
+- task só inicia com dependencies `ACCEPTED`.
 
 ---
 
-## 5. Taxonomia de testes
+## 5. Test taxonomy
 
-| Código | Tipo | Objetivo |
-|---|---|---|
-| `UNIT` | Unitário | regra pura, policy, cálculo, state transition |
-| `DB` | Persistência | constraints, FK, índices, transactions |
-| `MIG` | Migration | baseline/reset/migrate/seed |
-| `API` | Integração HTTP | route + auth + application + PostgreSQL |
-| `CONTRACT` | Contrato | payloads, statuses, errors, ports |
-| `AUTHZ` | Autorização | role/ownership/assignment/admin |
-| `CONC` | Concorrência | locks, CAS, idempotência concorrente |
-| `TIME` | Tempo/jobs | expiry, timeout, radius, auto-confirm |
-| `MAPS` | Maps/Routes | adapter, distance, provider failures |
-| `GATEWAY` | Pagamento | authorize/capture/PIX/refund/webhook |
-| `LEDGER` | Financeiro | debt/wallet/settlement/payout arithmetic |
-| `AUDIT` | Auditoria | append-only, actor/reason/history |
-| `SEC` | Segurança | upload, secrets, auth, webhook validation |
-| `PERF` | Performance focal | matching/query/batch/indexes |
-| `E2E` | Backend E2E | fluxo real via API + PostgreSQL |
-| `UI` | UI/component | consumidores pós-backend |
-| `UX` | User flow | consumidores pós-backend |
-| `A11Y` | Acessibilidade | consumidores pós-backend |
-
-A bateria exata é definida dentro de cada Issue.
+| Código | Tipo |
+|---|---|
+| UNIT | regra pura/policy/value object |
+| DB | constraints/FK/index/transaction |
+| MIG | reset/migrate/seed |
+| API | HTTP + auth + application + DB |
+| CONTRACT | payload/error/port contract |
+| AUTHZ | role/ownership/assignment/admin |
+| CONC | concorrência/lock/idempotency |
+| TIME | expiry/timeout/scheduler |
+| MAPS | RouteProvider/Google adapter |
+| GATEWAY | card/PIX/refund/webhook |
+| LEDGER | debt/wallet/settlement/payout |
+| AUDIT | append-only/history |
+| SEC | upload/secrets/signatures |
+| PERF | focal query/batch/index |
+| E2E | backend flow |
+| UI | consumer component/widget |
+| UX | consumer user flow |
+| A11Y | accessibility |
 
 ---
 
-## 6. Sequência estrita de execução
+## 6. Sequência backend
 
 ```text
-PR #9 — Contract
-   ↓
-T00 / #11 — Harness + Current-State Audit
-   ↓
-T01 / #12 — Clean DB Baseline + Reset + Admin Seed
-   ↓
-T02 / #13 — Tow Module Registry + Feature Flag + Settings
-   ↓
-T03 / #14 — Tow Vehicles + Pricing Config + Documents
-   ↓
-T04 / #15 — Vehicle Compatibility + Capacity
-   ↓
-T05 / #16 — Google Routes + Tow Pricing
-   ↓
-T06 / #17 — Matching + Progressive Radius
-   ↓
-T07 / #18 — Proposal Lifecycle
-   ↓
-T08 / #19 — Single Counteroffer
-   ↓
-T09 / #20 — Atomic Assignment + Concurrency
-   ├────────────────────────┐
-   ↓                        ↓
-T10 / #21                T12 / #23
-State + Tracking         Payment Core
-   ↓                        ├──────────────┐
-T11 / #22                  ↓      ↓       ↓
-Cancel + No-show        T13/#24 T14/#25 T15/#26
-                       Card    PIX     Cash/Debt
-                          └─────┬───────┘
-                                ↓
-                           T16 / #27
-                     Wallet + Settlement + Payout
-                                ↓
-                           T17 / #28
-                  Disputes + Reviews + Audit/Admin
-                                ↓
-                           T18 / #29
-                Contract Freeze + Full E2E + Ready Gate
-                                ↓
-                 TOW BACKEND READY FOR INTEGRATION
+PR #9 Contract
+ ↓
+T00 #11 Harness/Audit
+ ↓
+T01 #12 DB Baseline
+ ↓
+T02 #13 Module + Feature Flag + Settings
+ ↓
+T03 #14 TowVehicle + Documents
+ ↓
+T04 #15 Compatibility
+ ↓
+T05 #16 Google Routes + Pricing
+ ↓
+T06 #17 Matching/Radius
+ ↓
+T07 #18 Proposals
+ ↓
+T08 #19 Counteroffer
+ ↓
+T09 #20 Atomic Assignment
+ ├──────────────┐
+ ↓              ↓
+T10 #21       T12 #23
+State          Payment Core
+ ↓              ├────┬────┐
+T11 #22        ↓    ↓    ↓
+Cancel       T13  T14  T15
+             Card PIX Cash/Debt
+               └──┬───┘
+                  ↓
+               T16 #27
+           Wallet/Settlement/Payout
+                  ↓
+               T17 #28
+             Governance/Audit
+                  ↓
+               T18 #29
+        Contract Freeze + Full E2E
+                  ↓
+      TOW BACKEND READY FOR INTEGRATION
 ```
 
-### Mudança importante
+Safe parallelization:
 
-`T03` **depende de T02**. Eles não podem mais rodar em paralelo, porque TowVehicle/Partner Tow consomem a identidade e availability policy do Tow Module.
-
-### Paralelização segura
-
-Depois de `T09`, `T10` e `T12` podem avançar em paralelo quando seus contratos não conflitam.
-
-Depois de `T12`, `T13`, `T14` e `T15` podem avançar conforme as dependências específicas registradas nas Issues/task graph.
+- depois de T09: T10 e T12 quando sem file/contract conflict;
+- depois de T12: T13/T14/T15 conforme dependências específicas;
+- nunca duas tasks concorrentes alterando a mesma state machine/migration sem coordenação explícita.
 
 ---
 
@@ -258,136 +238,149 @@ Depois de `T12`, `T13`, `T14` e `T15` podem avançar conforme as dependências e
 
 | Gate | Requer | Significado |
 |---|---|---|
-| `G0` | T00 | harness confiável |
-| `G1` | T01 | schema/baseline confiável |
-| `G2` | T02–T04 | module + provider/vehicle prontos |
-| `G3` | T05–T06 | pricing/discovery prontos |
-| `G4` | T07–T09 | negotiation/assignment prontos |
-| `G5` | T10–T11 | operation pronta |
-| `G6` | T12–T16 | finance pronto |
-| `G7` | T17 | governance pronta |
-| `G8` | T18 | backend integration-ready |
+| G0 | T00 | harness confiável |
+| G1 | T01 | DB baseline confiável |
+| G2 | T02–T04 | module/provider/vehicle |
+| G3 | T05–T06 | routes/pricing/matching |
+| G4 | T07–T09 | negotiation/assignment |
+| G5 | T10–T11 | operation/cancellation |
+| G6 | T12–T16 | finance |
+| G7 | T17 | governance/audit |
+| G8 | T18 | backend integration-ready |
 
 ---
 
-## 8. Tasks e outputs principais
+## 8. Tasks e outputs
 
 | Task | Issue | Output principal |
 |---|---:|---|
-| T00 | #11 | harness determinístico + audit atual |
-| T01 | #12 | DB baseline/reset/admin-only seed |
-| T02 | #13 | **Tow Module + global feature flag + settings** |
-| T03 | #14 | TowVehicle + pricing config + documents |
-| T04 | #15 | compatibility/capacity policy |
-| T05 | #16 | RouteProvider + pricing policy |
-| T06 | #17 | matching/radius + `SERVICE_DISABLED` behavior |
+| T00 | #11 | deterministic harness + current→target audit + OpenAPI repeatable validation |
+| T01 | #12 | clean DB baseline/reset/admin seed |
+| T02 | #13 | Tow Module + feature flag + settings |
+| T03 | #14 | TowVehicle/pricing config/documents |
+| T04 | #15 | compatibility/capacity |
+| T05 | #16 | RouteProvider + proportional pricing policy |
+| T06 | #17 | matching/radius/timeout/module guard |
 | T07 | #18 | proposal lifecycle |
-| T08 | #19 | one-counteroffer invariant |
-| T09 | #20 | single-winner assignment + disable-vs-assignment concurrency |
-| T10 | #21 | state machine/tracking + graceful drain ASSIGNED+ |
+| T08 | #19 | single counteroffer |
+| T09 | #20 | one-winner assignment + disable race |
+| T10 | #21 | state machine/tracking/completion |
 | T11 | #22 | cancellation/no-show |
-| T12 | #23 | provider-agnostic payment core |
-| T13 | #24 | card authorization/capture/refund |
-| T14 | #25 | PIX/pay/refund |
-| T15 | #26 | CASH + partner/customer debts |
-| T16 | #27 | wallet/settlement/manual daily payout |
-| T17 | #28 | disputes/reviews/admin override/audit + module toggle audit |
-| T18 | #29 | freeze + regression + **66 E2E minimum** |
+| T12 | #23 | payment orchestration core |
+| T13 | #24 | card |
+| T14 | #25 | PIX |
+| T15 | #26 | cash + debts |
+| T16 | #27 | ledger/settlement/payout |
+| T17 | #28 | dispute/review/admin/audit |
+| T18 | #29 | freeze + **75 mandatory E2E** + ready receipt |
 
-A descrição completa de código, docs, testes, RED/GREEN e Definition of Done está na Issue correspondente.
-
----
-
-## 9. Feature flag test gates
-
-O conjunto mínimo específico do Tow Module deve provar:
-
-1. module enabled permite novo Tow request;
-2. module disabled bloqueia novo Tow request via backend;
-3. disable durante `SEARCHING`/`NEGOTIATING` encerra `SERVICE_DISABLED`;
-4. disable bloqueia novas proposals/counteroffers;
-5. disable concorrente com assignment tem resultado transacional determinístico;
-6. request `ASSIGNED` antes do disable continua até terminal;
-7. partner/TowVehicle/documentos permanecem cadastrados;
-8. re-enable libera novos requests sem ressuscitar antigos;
-9. somente admin altera flag;
-10. toggle e efeitos são auditáveis.
+A Issue da task define entregáveis completos de code/docs/tests/RED/GREEN/DoD.
 
 ---
 
-## 10. Contract between tasks
+## 9. Pricing gate
 
-Quando uma task produz contrato consumido por outra, o contrato deve estar estabilizado/mergeado antes da dependente iniciar.
-
-Principais contratos:
-
-- `T02`: `TowModuleAvailability`, module registry e `TowSettings`;
-- `T03`: TowVehicle/Document repositories e API;
-- `T04`: compatibility policy;
-- `T05`: RouteProvider/RouteQuote/Pricing;
-- `T07`: Proposal;
-- `T08`: CounterOffer;
-- `T09`: Assignment;
-- `T10`: State Machine;
-- `T12`: Payment strategy/gateway ports;
-- `T16`: Wallet/Settlement/Payout ledger.
-
-Mudança posterior em contrato exige:
-
-1. teste RED/regressão;
-2. revisão das tasks consumidoras;
-3. atualização da Issue/task graph/docs.
-
----
-
-## 11. Receipt obrigatório por task
-
-Toda task deve gerar evidence/receipt contendo:
+T05 e regressões devem provar:
 
 ```text
-Task ID
-Issue
-Dependency heads/receipts
+total_distance_meters = leg1 + leg2
+excess_meters = max(0, total - included)
+variable cents = proportional excess with ROUND_HALF_UP
+```
+
+Obrigatório:
+
+- 1 metro acima do included boundary;
+- fractional excess (ex.: 4.350 km);
+- half-cent boundary;
+- no `ceil(excess_km)`;
+- immutable route/tariff/price snapshot.
+
+---
+
+## 10. Module gate
+
+Focused suite deve provar:
+
+1. enabled permite novo request;
+2. disabled bloqueia request;
+3. disable encerra SEARCHING/NEGOTIATING;
+4. disable bloqueia proposal/counteroffer;
+5. disable×assignment é atomicamente determinístico;
+6. ASSIGNED pre-disable continua;
+7. partner/vehicle/doc persistem;
+8. re-enable libera novo business sem resurrection;
+9. admin-only toggle;
+10. audit completo.
+
+---
+
+## 11. Contract between tasks
+
+Producer contract deve estar mergeado/accepted antes do consumer task iniciar.
+
+Principais outputs:
+
+```text
+T02 → TowModuleAvailability + TowSettings
+T03 → TowVehicle/Document
+T04 → CompatibilityPolicy
+T05 → RouteProvider + RouteQuote + Pricing
+T07 → Proposal
+T08 → Counteroffer
+T09 → Assignment
+T10 → State Machine
+T12 → Payment ports/orchestrator
+T16 → Ledger/Settlement/Payout
+```
+
+Mudança posterior exige RED/regression + doc/Issue update.
+
+---
+
+## 12. Receipt por task
+
+```text
+Task ID / Issue
+Dependency receipts
 Execution base
 RED evidence
 GREEN evidence
-Tests added
-Tests executed
-Results
-Files changed
-Migrations changed
-Contracts changed
+Tests added/executed/results
+Files/migrations/contracts changed
 Known limitations
 Reviewer findings
-Accepted/rejected status
-Result commit SHA
+Accepted/rejected
+Result SHA
 ```
 
-Compilar não é Definition of Done.
+Compilar não é DoD.
 
 ---
 
-## 12. T18 — Ready Gate
+## 13. T18 Ready Gate
 
-T18 não adiciona feature nova. T18 prova o sistema.
+T18 não adiciona feature. T18 prova o sistema.
 
-Deve executar:
+Obrigatório:
 
-- full UNIT regression;
-- DB/MIG;
-- API/CONTRACT;
-- AUTHZ/SEC;
-- CONC;
-- TIME;
-- MAPS;
-- GATEWAY;
-- LEDGER;
-- AUDIT;
-- Module/Feature Flag focused suite;
-- full backend E2E;
-- suite ampla do backend.
+```text
+UNIT
+DB/MIG
+API/CONTRACT
+AUTHZ/SEC
+CONC
+TIME
+MAPS
+GATEWAY
+LEDGER
+AUDIT
+MODULE focused
+E2E
+full backend regression
+```
 
-O gate mínimo contém **66 cenários E2E** definidos em #29.
+A lista autoritativa possui **75 cenários E2E mínimos** na Issue #29.
 
 Somente emitir:
 
@@ -397,15 +390,17 @@ TOW BACKEND READY FOR INTEGRATION
 
 quando:
 
-- T00–T17 estiverem mergeadas/ACCEPTED;
-- 66 E2E mínimos verdes;
+- T00–T17 accepted/merged;
+- 75 E2E mandatory GREEN;
 - nenhum P0/P1 crítico skip/TODO;
 - schema sobe do zero;
-- seed contém somente admin padrão;
-- module feature flag/graceful drain provados;
-- assignment/payment/payout concurrency provada;
-- documentação reflete comportamento real;
-- contratos oficiais congelados.
+- seed contém somente admin;
+- Clean Architecture/SOLID sem violação crítica;
+- pricing proportional frozen behavior provado;
+- feature flag/graceful drain provados;
+- concurrency crítica provada;
+- contrato HTTP real corresponde ao OpenAPI;
+- docs refletem comportamento real.
 
 Caso contrário:
 
@@ -413,50 +408,50 @@ Caso contrário:
 NOT READY
 ```
 
-com issue(s) corretiva(s).
+com issue corretiva.
 
 ---
 
-## 13. Consumidores pós-backend
+## 14. Consumer implementation handoff
 
-Mobile Cliente, Mobile Parceiro e Dashboard só iniciam integração definitiva depois de T18.
+**Mock implementation NÃO é bloqueada por T18.**
 
-### Dashboard
+Após PR #9 mergeado e contract-smoke GREEN, Mobile Cliente, Mobile Parceiro e Dashboard podem iniciar implementação contra OpenAPI/mocks.
 
-Plano TDD próprio deverá cobrir:
+Marco 1:
 
-- toggle global Enabled/Disabled do Tow Module;
-- preview/aviso do impacto do disable;
-- settings Tow;
-- vehicle document verification;
-- payout batch;
-- admin override/dispute;
-- component/UI tests;
-- API integration;
-- A11Y;
-- browser E2E.
+```text
+TOW MOBILE CONTRACT READY FOR IMPLEMENTATION
+```
 
-### Mobile Cliente
+Permite:
 
-- esconder/desabilitar entrada Tow baseado no status retornado pelo backend;
-- backend continua sendo o enforcement real;
-- request/proposal/counteroffer/payment/tracking/completion/dispute/review;
-- widget/UI/UX/API/MAPS/E2E;
-- debt repayment.
+- DTO/client/repository;
+- feature architecture;
+- navigation/UI;
+- state management;
+- Maps/tracking UI;
+- mock server/fakes;
+- widget/golden/component/E2E mocked.
 
-### Mobile Parceiro
+Marco 2, somente T18:
 
-- respeitar module availability;
-- cadastro/gestão de TowVehicle pode permanecer acessível conforme contrato;
-- nenhum novo job/proposal quando disabled;
-- proposal/counteroffer/tracking/completion;
-- UNIT/UI/UX/API/MAPS/E2E.
+```text
+TOW BACKEND READY FOR INTEGRATION
+```
 
-Nenhuma regra crítica é reimplementada nesses consumidores.
+Permite substituir mocks pelo backend real e fechar API/integration E2E.
+
+Consumers não podem:
+
+- depender de legacy route nova;
+- inventar endpoint/DTO;
+- duplicar rule crítica;
+- considerar mock-ready como backend-ready.
 
 ---
 
-## 14. Regra para executor IA/workhorse
+## 15. Workhorse readiness
 
 ```text
 READY(task) =
@@ -464,32 +459,29 @@ READY(task) =
   AND task.status in [PENDING, RETRY]
 ```
 
-O executor não pode:
+Proibido:
 
-- pular dependency gate;
-- executar T03 antes de T02;
-- declarar task aceita sem testes/evidence;
-- iniciar integração final dos consumidores antes de T18;
-- alterar module semantics sem atualizar contrato/testes;
-- contornar module availability em controller;
-- manter legado incompatível somente para preservar teste antigo sem decisão explícita.
-
-`TOW-TASK-GRAPH.yaml` é o formato machine-readable para essa orquestração.
+- skip dependency;
+- accept sem tests/evidence;
+- alterar pricing/module semantics sem contract update;
+- preservar legado incompatível apenas para manter teste antigo;
+- iniciar **integração real** de consumer antes de T18.
 
 ---
 
-## 15. Definition of Done da iniciativa Tow backend
+## 16. Definition of Done da iniciativa backend
 
-A iniciativa está encerrada somente quando:
+A iniciativa backend termina somente quando:
 
-1. PR #9 de contrato estiver mergeado;
-2. Issues #11–#29 estiverem fechadas por PRs aceitos;
-3. Tow existir como módulo explícito;
-4. partner type `tow` estiver vinculado operacionalmente ao módulo;
-5. feature flag global/graceful drain estiverem comprovados;
-6. matriz de regras estiver mapeada para testes;
-7. 66 E2E mínimos estiverem verdes;
-8. banco for reconstruível do zero;
-9. seed inicial possuir somente admin padrão;
-10. contratos e runbooks estiverem congelados;
-11. `TOW BACKEND READY FOR INTEGRATION` tiver sido emitido com evidência.
+1. PR #9 mergeado;
+2. #11–#29 fechadas por PR accepted;
+3. Tow é módulo explícito;
+4. partner type `tow` está vinculado ao módulo;
+5. feature flag/graceful drain comprovados;
+6. pricing proporcional congelado comprovado;
+7. rule matrix mapeada a tests;
+8. 75 E2E obrigatórios verdes;
+9. banco reproduzível do zero;
+10. admin-only seed;
+11. contrato HTTP/OpenAPI alinhado;
+12. `TOW BACKEND READY FOR INTEGRATION` emitido com evidence.
