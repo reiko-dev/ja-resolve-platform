@@ -1,14 +1,14 @@
 # JaResolve Tow — Consumer Flow × API Coverage
 
-> Status: **pre-merge normative coverage review**  
+> Status: **pre-merge normative coverage review — functional/transport smoke PASS**  
 > Canonical API: `tow-api-contract.openapi.yaml` `1.0.0-draft.4`  
 > Scope: Mobile Cliente, Mobile Parceiro, Dashboard
 
 ## Result
 
-All consumer flows described by the Tow contract now have an explicit REST contract or an explicitly shared horizontal dependency. No Mobile/Dashboard implementation should need to invent a Tow endpoint, private DTO, direct database read or local business-rule fallback.
+All consumer flows described by the Tow contract have an explicit REST contract or an explicitly shared horizontal dependency. No Mobile/Dashboard implementation should need to invent a Tow endpoint, private DTO, direct database read or local business-rule fallback.
 
-The remaining pre-merge technical gates are parser/linter resolution of the composed OpenAPI and generated/mock-client smoke tests.
+The technical composed-contract validation and generated/mock smoke have also passed. See `TOW-OPENAPI-CONSISTENCY-REVIEW.md` and `TOW-CONSUMER-CONTRACT-SMOKE-RESULT.md` for execution evidence.
 
 ## Coverage matrix
 
@@ -74,8 +74,6 @@ The remaining pre-merge technical gates are parser/linter resolution of the comp
 
 ## Normalizations discovered during review
 
-The following wording in older examples must be interpreted using these canonical values:
-
 ### CASH
 
 Canonical API payment status after selecting cash:
@@ -125,6 +123,18 @@ tow_max_platform_fee_debt_cents
 
 Money is always integer cents at the API boundary.
 
+### Pricing
+
+Canonical pricing semantics are defined by `TOW-PRICING-CONTRACT.md`:
+
+```text
+route meters
+→ proportional excess distance charge
+→ ROUND_HALF_UP only at final monetary-cent boundary
+```
+
+Consumers never implement this calculation locally.
+
 ### Stable error codes
 
 Consumers must also handle:
@@ -155,14 +165,15 @@ The review found no justification for any consumer to implement these rules loca
 
 The API exposes state, `allowed_actions`, typed summaries and machine-readable errors. Consumers render/submit intent; the backend decides.
 
-## Remaining technical gates before PR #9 leaves Draft
+## Technical validation status
 
-The functional flow-to-contract coverage is complete. The following are still mandatory technical verification steps:
+- [x] parse `tow-api-contract.openapi.yaml` as OpenAPI 3.1/YAML;
+- [x] resolve every local external `$ref` to `tow-api-contract.base.openapi.yaml`;
+- [x] verify `operationId` uniqueness across the composed contract;
+- [x] validate component schemas as JSON Schema Draft 2020-12;
+- [x] generated/mock-client contract smoke for Cliente passes;
+- [x] generated/mock-client contract smoke for Parceiro passes;
+- [x] generated/mock-client contract smoke for Dashboard passes;
+- [x] no undocumented Tow DTO/endpoint is needed by the three smoke flows.
 
-- [ ] parse/lint `tow-api-contract.openapi.yaml` as OpenAPI 3.1;
-- [ ] resolve every local external `$ref` to `tow-api-contract.base.openapi.yaml`;
-- [ ] verify `operationId` uniqueness across the composed contract;
-- [ ] run generated/mock-client smoke test for Cliente, Parceiro and Dashboard;
-- [ ] verify no undocumented DTO is needed by the three smoke flows.
-
-These checks belong to the pre-merge review/T00 harness gate and must produce evidence rather than assumption.
+These checks must be reproduced by T00 in repository/CI tooling so they remain enforceable after merge.
