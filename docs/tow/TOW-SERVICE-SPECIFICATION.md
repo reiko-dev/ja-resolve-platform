@@ -1,110 +1,152 @@
-# JaResolve — Especificação Definitiva do Domínio Guincho (Tow)
+# JaResolve — Especificação Funcional Congelada do Módulo Guincho (Tow)
+
+> Status: **normative / frozen for implementation**  
+> Module: `tow`  
+> Service: `tow`  
+> Partner type: `tow`  
+> Consumer transport contract: `tow-api-contract.openapi.yaml` `1.0.0-draft.4`
 
 ## 1. Objetivo
 
-O serviço de **Guincho** conecta clientes que precisam transportar um veículo a parceiros do tipo `tow` elegíveis por localização, disponibilidade, documentação, capacidade operacional e compatibilidade do equipamento.
+O serviço **Guincho / Tow** conecta clientes que precisam transportar um veículo a parceiros `tow` elegíveis por disponibilidade, localização, documentação, capacidade e compatibilidade operacional.
 
-O backend é a fonte de verdade do domínio. Mobile Cliente, Mobile Parceiro e Dashboard devem consumir contratos estabilizados pelo backend e não reimplementar regras críticas localmente.
+O backend é a fonte de verdade do domínio. Mobile Cliente, Mobile Parceiro e Dashboard apresentam estado e enviam intenção; não reimplementam matching, pricing, transições, pagamentos, dívidas, payout ou feature flags.
 
 Fluxo macro:
 
 ```text
 Solicitação
-   ↓
-Matching geográfico
-   ↓
-Múltiplas propostas
-   ↓
-Aceite OU 1 contraproposta
-   ↓
-Acordo
-   ↓
-Preparação do pagamento
-   ↓
-Deslocamento
-   ↓
-Chegada
-   ↓
-Transporte
-   ↓
-Confirmação da conclusão
-   ↓
-Liquidação financeira
-   ↓
-Avaliação / possível disputa
+→ Matching geográfico
+→ Múltiplas propostas
+→ Aceite OU 1 contraproposta
+→ Assignment
+→ Payment readiness
+→ EN_ROUTE
+→ ARRIVED
+→ IN_TRANSIT
+→ COMPLETION_PENDING
+→ COMPLETED ou DISPUTED
+→ Settlement/Payout
+→ Review
 ```
+
+As regras de disponibilidade global do serviço são complementadas por `TOW-MODULE-CONTRACT.md`. A regra financeira de pricing é complementada por `TOW-PRICING-CONTRACT.md`.
 
 ---
 
-## 2. Elegibilidade do parceiro
+## 2. Identidade modular e feature flag
 
-O serviço somente pode ser realizado por:
+Identidade canônica:
+
+```text
+module_key   = tow
+service_key  = tow
+partner_type = tow
+```
+
+Tow é um módulo explícito. O Dashboard pode habilitar/desabilitar o serviço globalmente.
+
+Semântica de disable:
+
+```text
+DISABLE = stop new business + drain in-flight work
+```
+
+Quando desabilitado:
+
+- novo Tow request é bloqueado;
+- matching/expansão pré-assignment é interrompido;
+- novas proposals/counteroffers/assignments são bloqueadas;
+- requests `SEARCHING`/`NEGOTIATING` encerram com `terminal_reason = SERVICE_DISABLED`;
+- requests já `ASSIGNED` continuam até estado terminal;
+- cadastro de partner, TowVehicle e documentos é preservado;
+- re-enable permite novos negócios, mas não ressuscita requests/propostas encerrados.
+
+Erro de operação rejeitada pelo feature flag:
+
+```text
+service_module_disabled
+```
+
+`SERVICE_DISABLED` é terminal reason do request; `service_module_disabled` é `error.code` HTTP. Não são intercambiáveis.
+
+---
+
+## 3. Elegibilidade do parceiro
+
+Somente:
 
 ```text
 partner_type = tow
 ```
 
-Para receber chamados, o parceiro precisa estar:
+pode operar o módulo.
+
+Para entrar em matching, o parceiro precisa estar:
 
 ```text
+module enabled
 approved
 online
 available
+not busy
+within debt policy
 ```
 
-Ao receber um serviço:
+No MVP, cada parceiro executa **um Tow por vez**.
+
+Ao consolidar assignment:
 
 ```text
 available → busy
 ```
 
-Ao concluir ou cancelar:
+Ao concluir/cancelar e não existir outro bloqueio:
 
 ```text
 busy → available
 ```
 
-No MVP, cada parceiro executa **um atendimento de guincho por vez**.
+A disponibilidade operacional deve ser calculada pelo backend e exposta ao app por `GET /api/tow/partner/status`.
 
 ---
 
-## 3. Veículos do guincheiro
+## 4. TowVehicle
 
-Um parceiro `tow` pode cadastrar múltiplos veículos de guincho, mas somente **um pode estar ativo simultaneamente**.
+Um parceiro pode cadastrar N veículos, mas no máximo um pode estar `active=true` simultaneamente.
 
-Cada veículo possui sua própria configuração tarifária:
-
-```text
-minimum_charge
-included_km
-price_per_additional_km
-```
-
-Também deve possuir, no mínimo:
+Campos mínimos:
 
 ```text
 plate
 make
 model
 year
+equipment_type
 supported_vehicle_classes
 max_towed_weight_kg
-equipment_type
 active
-status
+document_status
+pricing
 ```
 
-Mudanças futuras na tarifa não alteram propostas já emitidas. Cada proposta mantém um **snapshot imutável da tarifa utilizada**.
+Pricing por TowVehicle:
 
-Enquanto existir um atendimento atribuído ao parceiro, o veículo ativo fica bloqueado e não pode ser trocado até `completed` ou `cancelled`.
+```text
+minimum_charge_cents
+included_km
+price_per_additional_km_cents
+```
+
+Enquanto existir atendimento atribuído ao parceiro, o veículo do assignment fica congelado e não pode ser trocado para aquele atendimento.
+
+Alterações posteriores no veículo ou tarifa não alteram propostas/assignments já existentes.
 
 ---
 
-## 4. Documentação obrigatória do veículo de guincho
+## 5. Documentação obrigatória do TowVehicle
 
-Cada veículo cadastrado deve possuir **ao menos um documento comprobatório**, em imagem ou PDF, para validação administrativa da licença/autorização necessária para operar como guincho.
-
-Formatos aceitos no MVP:
+Cada veículo deve possuir ao menos um documento comprobatório em:
 
 ```text
 image/jpeg
@@ -116,7 +158,6 @@ Entidade conceitual:
 
 ```text
 TowVehicleDocument
-
 id
 tow_vehicle_id
 document_type
@@ -130,53 +171,35 @@ verified_at
 created_at
 ```
 
-Status:
+Estados canônicos:
 
 ```text
 pending
 approved
 rejected
+expired
 ```
 
 Fluxo:
 
 ```text
-veículo cadastrado
-      ↓
-documento enviado
-      ↓
-PENDING VERIFICATION
-      ↓
-admin valida
-   ├── APPROVED → pode ser ativado
-   └── REJECTED → não pode operar
+vehicle created
+→ document uploaded
+→ pending
+→ admin review
+   ├─ approved
+   └─ rejected
 ```
 
-Mesmo com o parceiro aprovado, o veículo individual também precisa estar aprovado.
+Se `expires_at` vencer, o documento passa a ser tratado como `expired` para elegibilidade.
 
-O matching exige:
-
-```text
-partner.approved
-+
-partner.online
-+
-partner.available
-+
-tow_vehicle.active
-+
-tow_vehicle.approved
-+
-compatibilidade do veículo
-```
-
-Se um documento possuir validade e `expires_at` vencer, o veículo deve ser automaticamente impedido de operar até que um novo documento válido seja aprovado.
+Um TowVehicle somente é operacional quando existe documentação aprovada e válida. Aprovação do parceiro não substitui aprovação do veículo.
 
 ---
 
-## 5. Classes de veículos transportados
+## 6. Classes de veículo transportado
 
-O JaResolve adota uma classificação simplificada para o produto, sem perder a capacidade técnica necessária para matching seguro:
+Classes canônicas iniciais:
 
 ```text
 motorcycle
@@ -185,43 +208,28 @@ medium_truck
 heavy_truck
 ```
 
-Referência operacional:
+Referência:
 
 ```text
-motorcycle
-    → motocicletas
-
-light_vehicle
-    → carros, SUVs, picapes, vans e utilitários leves
-
-medium_truck
-    → caminhões médios
-
-heavy_truck
-    → caminhões pesados
+motorcycle    → motocicletas
+light_vehicle → carros, SUVs, picapes, vans/utilitários leves
+medium_truck  → caminhões médios
+heavy_truck   → caminhões pesados
 ```
 
-O matching não depende somente da categoria. Deve validar também:
+Matching exige:
 
 ```text
-classe suportada
-+
-peso/PBT informado
-<=
-capacidade do guincho ativo
+requested_vehicle_class ∈ active_tow_vehicle.supported_vehicle_classes
+AND
+requested_weight <= active_tow_vehicle.max_towed_weight_kg
 ```
 
 Para `medium_truck` e `heavy_truck`, peso/PBT é obrigatório.
 
 ---
 
-## 6. Tipo de equipamento do guincho
-
-Campo inicial:
-
-```text
-equipment_type
-```
+## 7. Tipo de equipamento do guincho
 
 Valores canônicos iniciais:
 
@@ -231,136 +239,180 @@ wheel_lift
 heavy_wrecker
 ```
 
-A modelagem deve permitir evolução futura sem quebra de contrato.
+A modelagem deve permitir evolução futura sem espalhar condicionais ou quebrar contratos existentes.
 
 ---
 
-## 7. Dados obrigatórios do chamado
+## 8. Dados do chamado
 
-O cliente informa:
+Entrada mínima do cliente:
 
 ```text
-pickup_location
-destination_location
-vehicle_class
-vehicle_make
-vehicle_model
+pickup
+destination
+vehicle.class
+vehicle.make
+vehicle.model
 problem_description
-observations
+observations (optional)
 ```
 
-Para caminhões médios e pesados:
+Para caminhões médios/pesados:
 
 ```text
-vehicle_weight / PBT
+vehicle.weight_kg / PBT
 ```
 
-Fotos do veículo do cliente são opcionais no MVP e não bloqueiam a abertura do chamado.
+Fotos do veículo do cliente são opcionais no MVP.
+
+Request novo entra em:
+
+```text
+SEARCHING
+```
+
+Cliente com dívida financeira impeditiva não pode criar novo atendimento.
 
 ---
 
-## 8. Google Maps / Routes
+## 9. Google Maps / Routes
 
-Google Maps é a **camada padrão de visualização geográfica do JaResolve**.
+Google Maps é a visualização geográfica padrão dos consumidores.
 
-A rota tarifável é:
+A distância tarifável é sempre viária e autoritativa pelo backend:
 
 ```text
-posição atual do guincheiro
-        ↓
-local do veículo
-        ↓
-destino
+provider_current_position → pickup
++
+pickup → destination
 ```
 
 Portanto:
 
 ```text
-total_distance =
-provider_to_pickup
-+
-pickup_to_destination
+total_distance_meters =
+  provider_to_pickup.distance_meters
+  + pickup_to_destination.distance_meters
 ```
 
-O cálculo utiliza distância viária estimada por rota, nunca distância em linha reta.
+Não usar Haversine/linha reta para pricing.
 
-O preço é baseado na rota estimada no momento da proposta. Depois que há acordo, o preço fica congelado.
+A rota usada na proposta é congelada em snapshot. A rota efetivamente percorrida depois do acordo não recalcula automaticamente o preço.
+
+O contrato de visualização é:
+
+```http
+GET /api/tow/requests/:requestId/route
+```
+
+Consumidores podem renderizar route/polyline, mas não recalculam preço.
 
 ---
 
-## 9. Precificação por veículo de guincho
+## 10. Precificação — regra congelada
 
-Cada veículo ativo possui:
+A regra normativa está em `TOW-PRICING-CONTRACT.md`.
+
+**Não existe mais `ceil(excess_km)` nem cobrança por quilômetro iniciado.**
+
+Tarifa:
 
 ```text
-minimum_charge
+minimum_charge_cents
 included_km
-price_per_additional_km
+price_per_additional_km_cents
 ```
 
-Fórmula:
+Fórmula conceitual:
 
 ```text
-extra_km = max(0, ceil(total_distance_km - included_km))
+included_meters = included_km * 1000
 
-calculated_price =
-minimum_charge
-+
-extra_km * price_per_additional_km
+excess_meters = max(
+  0,
+  total_distance_meters - included_meters
+)
+
+variable_charge_cents =
+  ROUND_HALF_UP(
+    excess_meters
+    * price_per_additional_km_cents
+    / 1000
+  )
+
+calculated_price_cents =
+  minimum_charge_cents
+  + variable_charge_cents
 ```
+
+Somente o resultado monetário é arredondado, uma vez, para centavos, com `ROUND_HALF_UP`.
 
 Exemplo:
 
 ```text
-minimum_charge = R$ 150
-included_km = 10
-price_per_additional_km = R$ 8
-route_distance = 14 km
-
-calculated_price = 150 + (4 * 8) = R$ 182
+minimum_charge       = R$ 150,00
+included_km          = 10
+additional_km price  = R$ 8,00
+route                = 14,350 km
+excess               = 4,350 km
+variable             = R$ 34,80
+final                = R$ 184,80
 ```
 
-Distâncias fracionadas adicionais são arredondadas para cima por quilômetro iniciado.
+A distância não é arredondada para 15 km e o excedente não vira 5 km.
+
+O backend deve usar aritmética integer/rational/decimal-safe; floating-point binário não pode ser fonte de verdade financeira.
 
 ---
 
-## 10. Proposta inicial
+## 11. Proposta inicial
 
-O guincheiro **não escolhe manualmente o preço** da proposta.
+O parceiro não informa preço arbitrário.
 
-O backend calcula o valor automaticamente a partir da rota e do snapshot da tarifa do veículo ativo.
-
-O parceiro decide apenas:
+O backend calcula a proposta a partir de:
 
 ```text
-ENVIAR PROPOSTA
+active TowVehicle
++
+route snapshot
++
+tariff snapshot
++
+pricing policy
+```
+
+Parceiro escolhe apenas:
+
+```text
+SEND PROPOSAL
 ou
-NÃO PARTICIPAR
+IGNORE
 ```
+
+Cada proposta preserva snapshot imutável de veículo, tarifa, rota, distância e preço.
 
 ---
 
-## 11. Descoberta de parceiros
+## 12. Matching geográfico
 
-O matching considera:
+Elegibilidade mínima:
 
 ```text
-approved
-+
-online
-+
-available
-+
-active approved tow vehicle
-+
+TowModule.enabled
+partner_type=tow
+partner.approved
+partner.online
+partner.available
+not busy
+debt within policy
+active TowVehicle
+approved/non-expired document
 vehicle compatibility
-+
-geographic radius
+valid current location
+within current radius
 ```
 
-A busca começa em um raio configurável e expande progressivamente até o limite máximo, também configurável.
-
-Configurações:
+Settings:
 
 ```text
 tow_initial_radius_km
@@ -370,284 +422,272 @@ tow_radius_expansion_interval_minutes
 tow_request_search_timeout_minutes
 ```
 
-Regra:
+Invariante:
 
 ```text
 tow_max_radius_km <= 100
 ```
 
-Ao atingir o raio máximo, a busca permanece ativa naquele raio até vencer `tow_request_search_timeout_minutes`.
-
-No timeout global:
+Busca:
 
 ```text
-request_status = expired
-reason = no_provider_available
+initial radius
+→ expand by increment at configured interval
+→ clamp at max radius
+→ remain at max radius until global timeout
+```
+
+Timeout sem acordo:
+
+```text
+state = EXPIRED
+terminal_reason = NO_PROVIDER_AVAILABLE
+```
+
+Disable durante `SEARCHING`/`NEGOTIATING`:
+
+```text
+state = EXPIRED
+terminal_reason = SERVICE_DISABLED
 ```
 
 ---
 
-## 12. Múltiplas propostas
+## 13. Múltiplas propostas
 
-Vários guincheiros podem responder ao mesmo chamado enquanto ele estiver aberto.
+Vários parceiros elegíveis podem ter propostas ativas para o mesmo request.
+
+O primeiro a responder não ganha automaticamente.
+
+Cliente pode:
 
 ```text
-Cliente abre chamado
-        ↓
-JaResolve encontra N guincheiros próximos
-        ↓
-Vários podem enviar proposta
-        ↓
-Cliente vê as propostas recebidas
-        ↓
-Escolhe uma
-OU
-faz 1 contraproposta para uma delas
-        ↓
-Acordo fechado
-        ↓
-Demais propostas encerradas
+accept one proposal
+OR
+counteroffer one proposal once
 ```
 
-O primeiro parceiro a responder não recebe automaticamente o serviço.
+Quando assignment é consolidado, todas as demais propostas/negociações tornam-se não acionáveis atomicamente.
 
 ---
 
-## 13. Expiração de propostas e contrapropostas
+## 14. Expiração e retirada de proposta
 
-Configurações de Dashboard:
+Settings:
 
 ```text
 tow_proposal_expiry_minutes
 tow_counteroffer_expiry_minutes
 ```
 
-Ambas são configuráveis.
+Proposta/contraproposta expirada não pode ser aceita.
 
-Uma proposta expirada não pode ser aceita.
-
----
-
-## 14. Retirada de proposta
-
-Enquanto a proposta estiver ativa e não houver contraproposta nem aceite, o parceiro pode retirar (`withdraw`) sua proposta.
-
-Depois que o cliente envia uma contraproposta, o parceiro deve apenas:
+Partner pode `withdraw` proposta somente antes de:
 
 ```text
 accept
-ou
-reject
+counteroffer
+expiry
 ```
+
+Após counteroffer, partner deve aceitar ou rejeitar.
 
 ---
 
 ## 15. Contraproposta
 
-O cliente pode fazer **exatamente uma contraproposta por negociação**.
-
-Exemplo:
+Existe no máximo uma contraproposta por proposal no MVP.
 
 ```text
-Parceiro → R$ 180
-Cliente → R$ 160
-Parceiro → ACEITAR ou RECUSAR
+proposal
+→ customer counteroffer
+→ partner ACCEPT ou REJECT
 ```
 
-Não existe nova rodada de negociação no MVP.
+Não existe segunda rodada de negociação.
 
 ---
 
-## 16. Atribuição do serviço
+## 16. Assignment e concorrência
 
-O acordo pode ocorrer por:
+Assignment ocorre por:
 
 ```text
-proposal → customer_accept
+proposal → customer accept
 ```
 
 ou:
 
 ```text
-proposal
-→ customer_counteroffer
-→ provider_accept
+proposal → customer counteroffer → partner accept
 ```
 
-Quando há acordo:
+Congelados no assignment:
 
 ```text
 assigned_partner_id
 assigned_tow_vehicle_id
 final_price
+pickup/destination contract
+route snapshot
+tariff snapshot
 ```
 
-ficam congelados.
+Aceite é transacional e idempotente.
 
-Todas as demais propostas são encerradas atomicamente.
+Duas negociações concorrentes nunca podem produzir dois assignments para o mesmo request.
 
-O aceite deve ser transacional para impedir dupla atribuição.
+Disable concorrente com assignment deve ter exatamente um resultado consistente:
+
+```text
+assignment commit primeiro → request ASSIGNED entra em graceful drain
+OU
+disable commit primeiro → assignment rejeitado / request SERVICE_DISABLED
+```
+
+Nunca ambos.
 
 ---
 
 ## 17. Alteração de destino
 
-Antes do acordo, o destino pode ser alterado. A alteração invalida preços e propostas anteriores e exige recálculo completo.
+Antes do assignment, cliente pode alterar destino quando `allowed_actions` permitir.
 
-Depois do acordo:
+A alteração invalida proposta/preço/route snapshot dependentes do destino e exige novo cálculo.
+
+Após assignment:
 
 ```text
 destination = locked
 ```
 
-Mudança de destino exige:
-
-```text
-cancelar atendimento
-+
-abrir novo chamado
-```
-
-Não haverá recálculo de rota negociada no meio do atendimento no MVP.
+No MVP, mudança posterior exige cancelamento conforme regras aplicáveis e novo request.
 
 ---
 
-## 18. State machine do atendimento
+## 18. State machine
 
-Estados principais:
+Estados canônicos:
 
 ```text
 SEARCHING
-    ↓
 NEGOTIATING
-    ↓
 ASSIGNED
-    ↓
 EN_ROUTE
-    ↓
 ARRIVED
-    ↓
 IN_TRANSIT
-    ↓
 COMPLETION_PENDING
-    ↓
 COMPLETED
-```
-
-Estados laterais:
-
-```text
 CANCELLED
 EXPIRED
 DISPUTED
 ```
 
-Não existe estado separado `vehicle_loaded` no MVP.
-
----
-
-## 19. Regras de início do atendimento
-
-`EN_ROUTE` significa que o parceiro iniciou o deslocamento até o cliente.
-
-`ARRIVED` significa chegada ao ponto de coleta.
-
-`IN_TRANSIT` significa que o veículo foi coletado e o transporte ao destino começou.
-
----
-
-## 20. Tracking
-
-Tracking ativo de:
+Semântica operacional:
 
 ```text
-EN_ROUTE
-→ ARRIVED
-→ IN_TRANSIT
-→ COMPLETION_PENDING
+EN_ROUTE           = parceiro iniciou deslocamento até pickup
+ARRIVED            = parceiro chegou ao pickup
+IN_TRANSIT         = veículo foi coletado e segue ao destino
+COMPLETION_PENDING = parceiro declarou conclusão; aguarda customer/timeout
+COMPLETED          = customer confirmou ou auto-confirm ocorreu
 ```
 
-Cada ponto registra, no mínimo:
+Não existe `vehicle_loaded` no MVP.
+
+Transições inválidas são rejeitadas pelo backend.
+
+---
+
+## 19. Tracking
+
+Tracking existe de `EN_ROUTE` até `COMPLETION_PENDING`.
+
+Ponto mínimo:
 
 ```text
 latitude
 longitude
-timestamp
+recorded_at
 ```
+
+Tracking fica associado ao request e é preservado para auditoria/disputa.
+
+REST é fonte de rehydration; realtime é aceleração de UX.
 
 ---
 
-## 21. Conclusão do atendimento
+## 20. Conclusão
 
-Ao chegar ao destino, o parceiro solicita conclusão.
-
-Backend registra:
+Partner finaliza no destino e fornece evidência mínima:
 
 ```text
 GPS
-timestamp
-final destination
-audit event
+Timestamp
 ```
 
-Estado passa para:
+Estado:
 
 ```text
-COMPLETION_PENDING
+IN_TRANSIT → COMPLETION_PENDING
 ```
 
-Cliente pode:
+Customer pode:
 
 ```text
-CONFIRMAR
+CONFIRM
 ou
-CONTESTAR
+DISPUTE
 ```
 
-Se não responder, ocorre auto-confirmação depois de:
+Sem resposta, backend auto-confirma após:
 
 ```text
 tow_completion_confirmation_timeout_minutes
 ```
 
-Confirmado:
+Confirmado/auto-confirmado:
 
 ```text
 COMPLETED
 ```
 
-Contestado:
+Contestação:
 
 ```text
 DISPUTED
 ```
 
+Não há OTP ou foto de conclusão obrigatória no MVP.
+
 ---
 
-## 22. Cancelamento pelo cliente
+## 21. Cancelamento pelo cliente
 
 Antes de `EN_ROUTE`:
 
 ```text
-cancelamento gratuito
+fee = 0
 ```
 
 A partir de `EN_ROUTE`:
 
 ```text
-tow_cancellation_fee
+fee = tow_cancellation_fee_cents
 ```
 
-No MVP existe uma única faixa de taxa após o início do deslocamento.
+Existe uma única faixa de cancellation fee no MVP.
+
+`tow_platform_fixed_fee_cents` não é somada à cancellation fee. São conceitos distintos.
 
 ---
 
-## 23. Taxa de cancelamento
+## 22. Divisão da cancellation fee
 
-Configurações globais:
+Settings:
 
 ```text
-tow_cancellation_fee
+tow_cancellation_fee_cents
 tow_cancellation_partner_percentage
 tow_cancellation_platform_percentage
 ```
@@ -655,297 +695,232 @@ tow_cancellation_platform_percentage
 Invariante:
 
 ```text
-tow_cancellation_partner_percentage
-+
-tow_cancellation_platform_percentage
-=
-100%
+partner_percentage + platform_percentage = 100
 ```
 
-Exemplo:
-
-```text
-Taxa: R$ 50
-Parceiro: 70%
-JaResolve: 30%
-
-Parceiro = R$ 35
-JaResolve = R$ 15
-```
-
-`tow_platform_fixed_fee` e `tow_cancellation_fee` são conceitos distintos.
+O split vigente no momento do cancelamento deve ser persistido/auditável.
 
 ---
 
-## 24. Cancelamento pelo parceiro
+## 23. Cancelamento pelo parceiro
 
-Se o parceiro cancelar:
+Após assignment, se partner cancelar:
 
-```text
-cliente não paga taxa
-```
-
-O chamado pode retornar ao matching se ainda for válido.
-
-O cancelamento é registrado para reputação operacional, analytics e auditoria.
-
-No MVP não existe multa financeira automática ao parceiro.
+- customer não paga fee;
+- autorização de cartão deve ser liberada/refundada conforme estágio;
+- PIX deve ser reembolsado conforme estágio;
+- request pode retornar ao matching se ainda válido e módulo habilitado;
+- evento entra em reputação/analytics/audit;
+- sem multa financeira automática ao partner no MVP.
 
 ---
 
-## 25. No-show do cliente
+## 24. No-show do cliente
 
-Após `ARRIVED`, inicia-se timeout configurável:
+Após `ARRIVED`, aplica-se:
 
 ```text
 tow_customer_no_show_timeout_minutes
 ```
 
-Vencido o timeout:
+Após timeout válido:
 
 ```text
-customer_no_show
+CUSTOMER_NO_SHOW
 ```
 
-Financeiramente, é tratado como cancelamento após deslocamento e aplica `tow_cancellation_fee`.
+Financeiramente usa a mesma cancellation fee pós-`EN_ROUTE`.
 
 ---
 
-## 26. No-show do parceiro
+## 25. No-show do parceiro
 
-Cliente não paga taxa.
+Customer não paga fee.
 
-O chamado pode retornar ao matching.
+Request pode retornar ao matching se permitido.
 
-O evento é registrado permanentemente na reputação operacional do parceiro.
+Evento é auditado e entra em reputação operacional.
 
-No MVP não existe multa financeira automática ao parceiro.
+Sem multa financeira automática no MVP.
 
 ---
 
-## 27. Métodos de pagamento
+## 26. Métodos de pagamento
 
-O MVP deve suportar:
+MVP:
 
 ```text
-CARD
-PIX
-CASH
+card
+pix
+cash
 ```
 
-Cada método possui fluxo próprio e não deve ser forçado a compartilhar exatamente o mesmo estado financeiro.
+Acordo/assignment não é perdido apenas porque um método eletrônico falhou antes de `EN_ROUTE`; customer pode trocar método enquanto permitido.
 
 ---
 
-## 28. Cartão
+## 27. Cartão
+
+Fluxo alvo:
+
+```text
+ASSIGNED
+→ authorize(final_price)
+→ AUTHORIZED
+→ EN_ROUTE permitido
+→ service
+→ COMPLETED
+→ capture
+```
+
+Falha de autorização bloqueia `EN_ROUTE`.
+
+Capture/refund/release devem ser idempotentes e compatíveis com o gateway adotado.
+
+---
+
+## 28. PIX
 
 Fluxo:
 
 ```text
-Acordo fechado
-     ↓
-Autorizar final_price
-     ↓
-AUTHORIZED
-     ↓
-Permite EN_ROUTE
-     ↓
-Serviço concluído
-     ↓
-Cliente confirma / auto-confirma
-     ↓
-CAPTURE
-```
-
-Se a autorização falhar, `EN_ROUTE` fica bloqueado.
-
-O cliente pode trocar o método de pagamento sem perder o acordo com o guincheiro.
-
----
-
-## 29. PIX
-
-PIX não utiliza o modelo de autorização/captura do cartão.
-
-Fluxo:
-
-```text
-Acordo
-   ↓
-Gerar PIX
-   ↓
-Pagamento confirmado
-   ↓
-Permite EN_ROUTE
-   ↓
-Serviço
-   ↓
-COMPLETED
-   ↓
-valor elegível financeiramente
+ASSIGNED
+→ create PIX charge
+→ PENDING
+→ PAID
+→ EN_ROUTE permitido
+→ service
+→ COMPLETED
+→ settlement eligibility
 ```
 
 Cancelamento gratuito:
 
 ```text
-refund integral
+full refund
 ```
 
 Cancelamento após `EN_ROUTE`:
 
 ```text
-refund = final_price - tow_cancellation_fee
+refund = final_price - tow_cancellation_fee_cents
 ```
 
-A taxa retida é dividida entre parceiro e JaResolve conforme as porcentagens configuradas.
+Fee retida é split conforme configuração.
 
 ---
 
-## 30. Dinheiro
+## 29. Cash
 
-Fluxo:
+Ao selecionar cash, status canônico do contrato é:
 
 ```text
-Acordo
-   ↓
-payment_method = cash
-   ↓
-Parceiro pode executar
-   ↓
-COMPLETION_PENDING
-   ↓
+CASH_SELECTED
+```
+
+Isso permite `EN_ROUTE` sem cobrança eletrônica prévia.
+
+Na conclusão:
+
+```text
 partner marks cash_received
-   ↓
-client confirms / auto-confirms
-   ↓
-COMPLETED
+→ customer confirms / auto-confirm
+→ COMPLETED
 ```
 
-Como o parceiro recebe diretamente o dinheiro, o JaResolve cria uma dívida referente à taxa fixa da plataforma:
-
-```text
-platform_fee_debt += tow_platform_fixed_fee
-```
+O serviço cash não cria earning eletrônico do `final_price` para a wallet do partner.
 
 ---
 
-## 31. Dívida do parceiro por serviços em dinheiro
+## 30. Dívida do parceiro por cash
 
-Exemplo:
-
-```text
-Serviço cash = R$ 180
-tow_platform_fixed_fee = R$ 10
-
-Parceiro recebe fisicamente: R$ 180
-Dívida com JaResolve: R$ 10
-```
-
-Essa dívida é descontada automaticamente de recebimentos eletrônicos futuros.
-
-Configuração:
+Após serviço cash concluído:
 
 ```text
-tow_max_platform_fee_debt
+PartnerPlatformFeeDebt += tow_platform_fixed_fee_cents
 ```
 
-Ao ultrapassar o limite, o parceiro fica impedido de aceitar novos atendimentos até regularizar a dívida.
+A dívida deve ser automaticamente abatida de recebimentos eletrônicos futuros antes de payout.
 
----
+Setting:
 
-## 32. Cancelamento de serviço em dinheiro após EN_ROUTE
-
-Se o método escolhido for dinheiro e o cliente cancelar depois de `EN_ROUTE`, não existe valor previamente autorizado ou pago para reter.
+```text
+tow_max_platform_fee_debt_cents
+```
 
 Regra:
 
 ```text
-Cliente escolheu dinheiro
-Parceiro entrou em EN_ROUTE
-Cliente cancela
-        ↓
-criar customer financial debt
-        ↓
-debt amount = tow_cancellation_fee
-        ↓
-cliente bloqueado para novos atendimentos
-        ↓
-quitação obrigatória via PIX ou cartão
-        ↓
-pagamento confirmado
-        ↓
-divisão da taxa entre parceiro e JaResolve
+platform_fee_debt_cents > tow_max_platform_fee_debt_cents
+→ bloquear novos atendimentos Tow
 ```
 
-Entidade conceitual:
+Não existe sentinel implícito: `0` significa limite zero, não “desabilitado”.
+
+---
+
+## 31. Cancelamento cash após EN_ROUTE
+
+Como não há valor eletrônico retido, o cancelamento cria dívida do customer:
 
 ```text
 CustomerFinancialDebt
-
-customer_id
-emergency_request_id
-type = tow_cancellation_fee
-amount
-status
-payment_id
-created_at
-paid_at
+amount_cents = tow_cancellation_fee_cents
+status = PENDING
 ```
 
-Status:
+Enquanto existir dívida impeditiva:
 
 ```text
-pending
-paid
-cancelled
+novo atendimento → outstanding_financial_debt
 ```
 
-Enquanto existir débito impeditivo, novas solicitações de atendimento devem ser bloqueadas com erro de domínio equivalente a:
+Quitação permitida:
 
 ```text
-outstanding_financial_debt
+card
+pix
 ```
+
+Após confirmação:
+
+- customer é desbloqueado;
+- cancellation fee é distribuída entre partner/JaResolve conforme snapshot do split.
 
 ---
 
-## 33. Taxa da plataforma
+## 32. Taxa fixa da plataforma
 
-Configuração existente e mantida:
-
-```text
-tow_platform_fixed_fee
-```
-
-Exemplo:
+Setting de transporte/configuração:
 
 ```text
-final_price = R$ 180
-tow_platform_fixed_fee = R$ 10
-
-cliente paga = R$ 180
-receita JaResolve = R$ 10
-receita parceiro = R$ 170
+tow_platform_fixed_fee_cents
 ```
 
-O cliente não paga a taxa por fora.
+Serviço eletrônico:
+
+```text
+customer pays final_price
+partner gross entitlement = final_price - fixed_fee
+platform revenue = fixed_fee
+```
+
+Serviço cash:
+
+```text
+customer pays partner directly
+platform fixed fee becomes PartnerPlatformFeeDebt
+```
+
+A taxa não é adicionada por fora ao total acordado com o customer.
 
 ---
 
-## 34. Carteira do parceiro
+## 33. Wallet e settlement
 
-Para pagamentos eletrônicos concluídos:
+Pagamento eletrônico concluído entra primeiro em settlement, não diretamente em payout.
 
-```text
-captured/paid
-   ↓
-tow_platform_fixed_fee
-   ↓
-cash fee debt offset
-   ↓
-partner wallet
-```
-
-Estados financeiros recomendados:
+Estados mínimos:
 
 ```text
 pending_settlement
@@ -954,110 +929,130 @@ payout_processing
 paid
 ```
 
-Valores disputados ou ainda não liquidados não podem entrar em payout.
+Dispute/hold é condição de elegibilidade, não saldo livre.
+
+Ordem financeira:
+
+```text
+gross electronic entitlement
+→ fixed platform fee
+→ existing PartnerPlatformFeeDebt offset
+→ settlement eligibility
+→ available_for_payout
+```
+
+Cada centavo deve ser reconstruível a partir de ledger entries auditáveis.
 
 ---
 
-## 35. Repasse ao parceiro
+## 34. Payout
 
-Não existe payout bancário por atendimento.
+Não existe payout bancário por serviço individual.
 
-O Dashboard terá um **lote diário de repasses**.
+Dashboard cria/processa lote diário manual.
 
-```text
-Financeiro
-   ↓
-Repasses
-   ↓
-Saldo elegível por parceiro
-   ↓
-Processar lote
-```
+Cada parceiro entra com no máximo um item agregado por batch.
 
-Cada parceiro recebe um único payout consolidado com seu saldo elegível.
+Somente saldo `available_for_payout` e não held/disputed participa.
 
-Somente entra no lote:
-
-```text
-available_for_payout
-```
-
-Nunca:
-
-```text
-pending_settlement
-disputed
-blocked
-```
-
-No MVP o processamento será manual pelo Dashboard. A mesma estrutura poderá ser automatizada futuramente.
+Retry/reconciliation não pode duplicar payout.
 
 ---
 
-## 36. Disputas
+## 35. Disputas
 
-Se o cliente contestar a conclusão:
+Customer pode abrir disputa durante o fluxo permitido, especialmente `COMPLETION_PENDING`.
+
+Request passa a:
 
 ```text
 DISPUTED
 ```
 
-O valor destinado ao parceiro fica bloqueado para payout até resolução.
+Funds associados ficam fora do payout até resolução.
 
-Devem ser preservados como evidência:
+Evidências preservadas:
 
 ```text
-propostas
-contraproposta
-GPS
-rota
-timestamps
-preço
-pagamento
+request
+proposal/counteroffer history
+route snapshot
 tracking
-mudanças de estado
+payment/refund
+customer/partner debt
+financial ledger
+audit timeline
 ```
+
+Resolução é comando administrativo explícito e auditável. O contrato v1 não permite mutação direta de saldo/DB pelo Dashboard.
 
 ---
 
-## 37. Avaliação
+## 36. Review
 
-Somente após `COMPLETED` o cliente pode avaliar o guincheiro.
+Customer pode avaliar partner somente após `COMPLETED`.
 
-No MVP:
+MVP:
 
 ```text
-cliente → avalia guincheiro
+customer → partner
 ```
 
-Não haverá avaliação do cliente pelo parceiro.
+Uma avaliação oficial por request/customer, salvo futura regra explícita de edição.
 
 ---
 
-## 38. Admin override
+## 37. Admin override
 
-Administrador pode excepcionalmente:
+Admin autorizado pode excepcionalmente:
 
 ```text
-cancelar atendimento
-concluir atendimento
+override cancel
+override complete
+resolve dispute
 ```
 
-Obrigatoriamente com:
+Override exige:
 
 ```text
 reason
 admin_user_id
 timestamp
+before/after
 ```
 
-Toda intervenção administrativa deve gerar evento de auditoria imutável.
+Toda ação gera audit event imutável.
 
 ---
 
-## 39. Configurações globais no Dashboard
+## 38. Audit
 
-### Matching
+Devem ser auditáveis, no mínimo:
+
+```text
+module enable/disable
+request creation
+matching/radius expansion
+route/pricing snapshot
+proposal/counteroffer lifecycle
+assignment
+state transitions
+tracking/completion evidence
+cancellation/no-show
+payment/refund
+customer/partner debt
+settlement/payout
+dispute/review
+admin override
+```
+
+Logs efêmeros não substituem trilha persistida.
+
+---
+
+## 39. Settings globais
+
+Matching:
 
 ```text
 tow_initial_radius_km
@@ -1067,51 +1062,49 @@ tow_radius_expansion_interval_minutes
 tow_request_search_timeout_minutes
 ```
 
-### Negotiation
+Negotiation:
 
 ```text
 tow_proposal_expiry_minutes
 tow_counteroffer_expiry_minutes
 ```
 
-### Completion
+Completion:
 
 ```text
 tow_completion_confirmation_timeout_minutes
 tow_customer_no_show_timeout_minutes
 ```
 
-### Finance
+Finance:
 
 ```text
-tow_platform_fixed_fee
-tow_cancellation_fee
+tow_platform_fixed_fee_cents
+tow_cancellation_fee_cents
 tow_cancellation_partner_percentage
 tow_cancellation_platform_percentage
-tow_max_platform_fee_debt
+tow_max_platform_fee_debt_cents
 ```
 
-O backend deve utilizar `system_settings` como fonte de verdade para essas configurações.
+API e persistência financeira devem usar integer cents; não criar aliases monetários em float.
 
 ---
 
-## 40. Entidades principais
-
-Entidades conceituais esperadas:
+## 40. Entidades conceituais
 
 ```text
+ServiceModule / TowModule
 Partner
 TowVehicle
 TowVehiclePricing
 TowVehicleDocument
-EmergencyRequest
+TowRequest
 TowProposal
 TowCounterOffer
 TowTrackingPoint
 Payment
-Wallet
-WalletTransaction
-PlatformFeeDebt
+Wallet / LedgerEntry
+PartnerPlatformFeeDebt
 CustomerFinancialDebt
 PayoutBatch
 PayoutBatchItem
@@ -1120,150 +1113,142 @@ Dispute
 AuditEvent
 ```
 
-A decomposição física em tabelas deve preservar as invariantes deste documento, mesmo que alguns conceitos sejam consolidados.
+A decomposição física pode variar, desde que invariantes e contratos permaneçam.
 
 ---
 
-## 41. API conceitual
+## 41. API canônica
 
-Os nomes definitivos devem ser reconciliados com as rotas existentes antes da implementação para evitar duplicação.
-
-Capacidades necessárias:
+Consumidores novos usam exclusivamente o namespace modular:
 
 ```text
-/api/partners/tow-vehicles
-/api/partners/tow-vehicles/:id
-/api/partners/tow-vehicles/:id/activate
-/api/partners/tow-vehicles/:id/pricing
-/api/partners/tow-vehicles/:id/documents
-
-/api/emergency-requests
-/api/emergency-requests/:id
-/api/emergency-requests/:id/cancel
-/api/emergency-requests/:id/start
-/api/emergency-requests/:id/arrive
-/api/emergency-requests/:id/in-transit
-/api/emergency-requests/:id/finish
-/api/emergency-requests/:id/confirm-completion
-
-/api/tow-proposals
-/api/tow-proposals/:id/accept
-/api/tow-proposals/:id/reject
-/api/tow-proposals/:id/withdraw
-/api/tow-proposals/:id/counteroffer
-/api/tow-proposals/:id/counteroffer/accept
-/api/tow-proposals/:id/counteroffer/reject
+/api/tow/...
+/api/admin/tow/...
 ```
+
+Contrato transport autoritativo:
+
+```text
+docs/tow/tow-api-contract.openapi.yaml
+```
+
+Capacidades centrais incluem:
+
+```text
+GET/POST  /api/tow/requests
+GET       /api/tow/requests/:requestId
+PATCH     /api/tow/requests/:requestId/destination
+GET       /api/tow/requests/:requestId/route
+GET/POST  /api/tow/requests/:requestId/proposals
+
+POST      /api/tow/proposals/:proposalId/accept
+POST      /api/tow/proposals/:proposalId/counteroffer
+POST      /api/tow/proposals/:proposalId/withdraw
+POST      /api/tow/counteroffers/:counterofferId/accept
+POST      /api/tow/counteroffers/:counterofferId/reject
+
+GET/PATCH /api/tow/partner/status
+PUT       /api/tow/partner/location
+GET       /api/tow/partner/opportunities
+GET       /api/tow/partner/proposals
+GET       /api/tow/partner/jobs
+GET       /api/tow/partner/financial-summary
+
+GET/POST  /api/tow/vehicles
+GET/PATCH/DELETE /api/tow/vehicles/:vehicleId
+POST      /api/tow/vehicles/:vehicleId/activate
+GET/POST  /api/tow/vehicles/:vehicleId/documents
+DELETE    /api/tow/vehicles/:vehicleId/documents/:documentId
+
+PUT       /api/tow/requests/:requestId/payment-method
+GET       /api/tow/requests/:requestId/payment
+POST      /api/tow/requests/:requestId/en-route
+POST      /api/tow/requests/:requestId/arrived
+POST      /api/tow/requests/:requestId/in-transit
+POST      /api/tow/requests/:requestId/finish
+GET/POST  /api/tow/requests/:requestId/tracking
+POST      /api/tow/requests/:requestId/completion/confirm
+POST      /api/tow/requests/:requestId/disputes
+POST      /api/tow/requests/:requestId/review
+
+GET/PATCH /api/admin/tow/module
+GET/PATCH /api/admin/tow/settings
+GET       /api/admin/tow/vehicle-documents...
+GET       /api/admin/tow/requests...
+GET/POST  /api/admin/tow/disputes...
+GET/POST  /api/admin/tow/payout-batches...
+GET       /api/admin/tow/audit-events
+```
+
+Rotas históricas `emergency-requests` / `tow-proposals` pertencem apenas à auditoria de compatibilidade T00. Nenhum novo Mobile/Dashboard deve depender delas.
 
 ---
 
-## 42. Estratégia de banco e migrations
+## 42. Banco e migrations
 
-Nesta rodada é permitido **resetar os dados existentes do banco** para facilitar a reestruturação do schema.
+Nesta reestruturação é autorizado reset destrutivo dos dados atuais.
 
 Objetivo:
 
 ```text
-reset de dados atuais
-        ↓
-novo schema consistente
-        ↓
-migrations limpas
-        ↓
-seed mínimo
+clean database
+→ migrations from zero
+→ coherent schema
+→ seed only default admin
 ```
 
-O seed deve conter apenas o **usuário administrador padrão** necessário para operação inicial.
+Credencial do admin vem de environment/secret, nunca hardcoded.
 
-Nenhuma credencial sensível deve ser hardcoded; valores de autenticação e senha devem vir de ambiente seguro.
-
-Não é necessário preservar dados legados inconsistentes nem criar migrations complexas de transformação de dados históricos, desde que a nova baseline seja coerente e reproduzível.
+Não é obrigatório preservar dados legados incompatíveis.
 
 ---
 
 ## 43. Estratégia de testes
 
-Antes de qualquer integração com Mobile Cliente, Mobile Parceiro ou Dashboard, o domínio deve possuir cobertura em três níveis.
+TDD é obrigatório: `RED → GREEN → REFACTOR → INTEGRATION GATE`.
 
-### Testes unitários
-
-Cobrir, no mínimo:
+Unitários devem cobrir, no mínimo:
 
 ```text
-pricing
-included km
-additional km rounding
-vehicle compatibility
-active tow uniqueness
-vehicle document approval
+module availability
+pricing proporcional por metro
+ROUND_HALF_UP em centavos
+route legs/snapshot
+compatibility/capacity
+active TowVehicle uniqueness
+document approval/expiry
 proposal lifecycle
-counteroffer limit
-radius expansion
-timeouts
+one-counteroffer invariant
+radius expansion/timeouts
 state transitions
-cancellation
-no-show
-platform fixed fee
-cancellation split
-cash fee debt
-debt offset
-customer financial debt
-payment method rules
+cancellation/no-show
+payment readiness
+platform fee/cancellation split
+partner/customer debt
+wallet/settlement/payout
 ```
 
-### Testes de integração
-
-Cobrir:
+Integração deve cobrir:
 
 ```text
-API + auth + DB
+API + authz + PostgreSQL
+migrations
+module toggle
 matching
-proposal concurrency
-counteroffer
-assignment locking
+proposal/counteroffer
+real DB concurrency for assignment
 tracking
-state transitions
-vehicle documentation
-card mocked gateway
-PIX mocked gateway
-cash
-wallet
-fee debt
-customer debt
-payout batches
-admin overrides
+vehicle documents
+Maps adapter contract
+Card/PIX fake gateway
+cash debts
+ledger/payout
+admin/dispute/audit
 ```
 
-### E2E de backend
+T18 mantém a suíte E2E final autoritativa definida na Issue #29.
 
-Cenários obrigatórios:
-
-```text
-Guincho + cartão
-Guincho + PIX
-Guincho + dinheiro
-aceite direto
-contraproposta
-múltiplas propostas
-expansão de raio
-cancelamento cliente
-cancelamento parceiro
-customer no-show
-partner no-show
-disputa
-payout diário
-dívida de cash
-bloqueio por dívida
-dívida do cliente por cancelamento cash
-moto
-veículo leve
-caminhão médio
-caminhão pesado
-veículo de guincho com documento aprovado
-veículo de guincho com documento rejeitado/expirado
-```
-
-Somente após todos os contratos e testes obrigatórios passarem, o domínio poderá receber o estado:
+Somente T18 pode emitir:
 
 ```text
 TOW BACKEND READY FOR INTEGRATION
@@ -1271,8 +1256,63 @@ TOW BACKEND READY FOR INTEGRATION
 
 ---
 
-## 44. Regra de congelamento do domínio
+## 44. Consumer-first development
 
-Este documento é a referência funcional para o domínio de Guincho/Tow do JaResolve nesta rodada.
+Após merge do PR de contrato, Mobile Cliente, Mobile Parceiro e Dashboard podem iniciar **implementação contra OpenAPI/mocks** em paralelo ao backend.
 
-Mudanças que alterem precificação, negociação, estados, pagamentos, cancelamentos, documentos, matching, carteira ou repasses devem atualizar esta especificação e a matriz de regras de negócio antes da implementação correspondente.
+Permitido antes de T18:
+
+```text
+feature scaffolding
+DTO/client/repository
+state management
+navigation/UI
+Maps screens
+mock server/fakes
+widget/golden/component tests
+consumer E2E mocked
+```
+
+Bloqueado até T18:
+
+```text
+declarar integração real concluída
+substituir contrato por endpoint legado
+inventar DTO/endpoint/regra local para compensar backend ausente
+```
+
+Distinção formal:
+
+```text
+TOW MOBILE CONTRACT READY FOR IMPLEMENTATION
+!=
+TOW BACKEND READY FOR INTEGRATION
+```
+
+---
+
+## 45. Governança do freeze
+
+Este documento, junto de:
+
+```text
+TOW-PRICING-CONTRACT.md
+TOW-BUSINESS-RULE-MATRIX.md
+TOW-MODULE-CONTRACT.md
+TOW-API-CONTRACT.md
+TOW-API-CONTRACT-DRAFT4-ADDENDUM.md
+TOW-CONSUMER-FLOW-SPEC.md
+tow-api-contract.openapi.yaml
+```
+
+forma o contrato congelado da iniciativa Tow.
+
+Mudança de regra, enum, path, error code, state, financial semantic ou pricing após merge exige:
+
+1. decisão explícita;
+2. atualização dos documentos afetados;
+3. teste RED/contract test correspondente;
+4. comunicação aos consumidores;
+5. revisão das Issues dependentes.
+
+Nenhum executor pode reinterpretar silenciosamente o contrato para acomodar legado.
