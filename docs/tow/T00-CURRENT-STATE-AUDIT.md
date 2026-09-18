@@ -428,12 +428,17 @@ Registered, not resolved. Each item names the authorities in tension and the own
 
 ## 9. Security review (T00 §5.10)
 
-Scope: the Tow-relevant backend surface (`socorre_ai_backend/`). No secret value is reproduced in
-this document or in any T00 artifact — only locations and types.
+Scope: the Tow-relevant backend surface (`socorre_ai_backend/`) **and its git history**. No secret
+value is reproduced in this document or in any T00 artifact — only locations, types and lengths.
+
+> **Pass-2 correction.** The pass-1 review scanned only the current working tree. That missed a real
+> committed secret that is still reachable from `origin/main` and `production/main` (S-11), and
+> over-classified dev placeholders as P0 (S-1). Both are corrected below; S-9 is narrowed to what it
+> actually proves.
 
 | # | Severity | Finding | Evidence |
 | --- | --- | --- | --- |
-| S-1 | **P0** | Committed infrastructure credentials: `docker-compose.yml` and `docker-compose-simple.yml` ship 8-character lowercase database passwords and 40-character JWT secrets as literal values in the repository. | `docker-compose.yml`, `docker-compose-simple.yml` (values not reproduced) |
+| S-1 | **P2 hygiene** (re-classified in pass 2; was P0) | Dev/test placeholder literals in `docker-compose.yml` and `docker-compose-simple.yml` (8-char DB passwords, 40-char JWT secrets). These are local quick-start/homologation defaults referenced only from `quick-start.sh:5`, `README.md:81`, `SETUP_GUIDE.md:166` and `docs/GUIA-DEPLOY-HOMOLOGACAO-HOSTINGER.md:136`. **This repository contains no evidence that they were ever used in a production or customer-facing environment** — there is no production compose file and no deploy script referencing them — so P0 cannot be asserted. That also cannot be *disproven* from the repository alone: if an operator ever deployed these files as-is, this escalates to P0 and both secrets must be rotated. | `docker-compose.yml`, `docker-compose-simple.yml` (locations only, values not reproduced); `docs/evidence/t00/security-review.txt` §S-1 |
 | S-2 | Medium | Legacy error path leaks raw `error.message` to the client on cancel/payment failures (potential SQL/constraint disclosure). | `emergencyRequestController.js:666-669,714-717` |
 | S-3 | Low | 404/500 global handlers return a fixed message without `error.code`; no stack is leaked. | `src/app.js:154-167` |
 | S-4 | Info | JWT production guard verified: `getJwtSecret()` throws in production when `JWT_SECRET` is missing/blank; dev fallback is explicit. | `src/config/jwt.js:19-28`; `docs/evidence/t00/security-review.txt` §S-4 |
@@ -441,8 +446,21 @@ this document or in any T00 artifact — only locations and types.
 | S-6 | Info | No raw GPS coordinates, `Authorization` headers or request bodies are logged; HTTP logging uses morgan `combined`. | `src/app.js`, logger config |
 | S-7 | Info | No `express.static` exposure of the repository or uploads directory. | `docs/evidence/t00/security-review.txt` §S-7 |
 | S-8 | Info | Uploads require authentication and store files locally under `uploads/images`, exposed through a public URL base resolved by `getPublicApiBaseUrl()`; the new tow document upload must not widen this. | `src/routes/upload.js`, `g2PhotoContract.test.js:463-529` |
-| S-9 | Info | Historical `BEGIN PRIVATE KEY` grep hits are documentation placeholders with no long base64 runs — not usable keys. | `docs/evidence/t00/security-review.txt` §S-9 (all hits are `your-private-key-here` placeholders) |
+| S-9 | Info | `BEGIN PRIVATE KEY` hits in the **current tracked tree** are documentation placeholders (`your-private-key-here`, `sua_private_key_aqui`) — not usable keys. **This says nothing about history: see S-11.** | `docs/evidence/t00/security-review.txt` §S-9 (4 source hits, 0 non-placeholder) |
 | S-10 | Info | `node_modules` is not tracked in HEAD, but appeared in the initial commit `2f9f19cf`. No action for T00; recorded for hygiene. | `docs/evidence/t00/security-review.txt` §S-10; `git ls-files node_modules` → 0 |
+| S-11 | **P0** | **Real committed secret in git history.** `socorre_ai_backend/.env` was committed in `2f9f19cf` and deleted from HEAD in `50e57ff6`, but its blob (`6e8fc90f…`, 40-hex id, not a secret) is still reachable from `origin/main`, `origin/feature/implements-tow-service` and `production/main`. It contains exactly one `FIREBASE_PRIVATE_KEY` PEM block (count = 1, **not** a placeholder) plus `FIREBASE_PRIVATE_KEY_ID`. The sibling `socorre_ai_backend/.env.production` blob (`a8867d8f…`) carried production-themed `DB_PASSWORD` (len 21) and `JWT_SECRET` (len 54) literals. The untracked local `socorre_ai_backend/.env.bak` (mode 0644, 2987 bytes) holds one PEM block of the same kind. | `docs/evidence/t00/security-review.txt` §S-11 (counts/lengths only, values never printed) |
+| S-12 | **P1** | **PCI-unsafe payment payload logging in the current tree.** All three gateways log the full `paymentData` before calling the provider (`console.log('Processando pagamento …', paymentData)` at line 5 of `stripeGateway.js`, `mercadopagoGateway.js`, `pagseguroGateway.js`). `paymentData` is `{ ...req.body, userId }` (`src/routes/payments.js:48-51`) with no whitelist, and `src/services/paymentService.js:223-232` forwards `cardData`/`pixData`/`bankSlipData` into it, so client-supplied card/PIX/bank-slip data can be written to logs. | `docs/evidence/t00/security-review.txt` §S-12 |
+
+**S-11 required external actions** (owner: operations, outside T00 scope — T00 performed no history
+rewrite, no file deletion and no secret rotation): (1) revoke + rotate the Firebase service-account
+key; (2) evaluate rotation of the historical production DB password and JWT secret if that
+environment was ever deployed (rotating the JWT secret invalidates every issued token); (3) delete
+`.env.bak` only **after** rotation (human decision); (4) consider a history purge only **after**
+rotation, coordinated across every branch that contains `2f9f19cf`; (5) add a secret scanner
+(gitleaks/trufflehog) to CI in a later task.
+
+**S-12 required action** (owner: T13/T14, or T18): stop logging `paymentData`; log at most a
+correlation id and the payment method. T00 registered the finding and changed no production code.
 
 T00 introduces no new secret: `.env.test.example` contains **empty** placeholders for every
 provider key and a local-only test database password (`tow_test_password`) that exists solely
@@ -468,6 +486,13 @@ table and enum.
 5. **B-5 — envelope unification is a prerequisite for the first Tow v1 endpoint** (§3.5):
    without an `{success,message,error:{code}}` writer, every new endpoint would ship a third
    envelope family.
+6. **B-6 — the historical committed secret (S-11) requires an external rotation that T00 cannot
+   perform.** Until the Firebase service-account key in `2f9f19cf:socorre_ai_backend/.env` is
+   revoked and rotated — and the historical DB password / JWT secret are evaluated for rotation —
+   the exposure stays live on `origin/main` and `production/main`. Owner: **operations** (outside
+   T00 scope). T00 deliberately did not rewrite history, delete `.env.bak` or touch the secret;
+   any purge must follow rotation, not precede it. S-12 is a code-level follow-up owned by
+   T13/T14 (or T18), not a T00 blocker.
 
 **Explicitly not done by T00** (scope check): no feature-flag behavior, no tow vehicle flow, no
 document approval, no pricing engine, no matching/radius expansion, no proposal lifecycle, no

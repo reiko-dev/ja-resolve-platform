@@ -56,5 +56,10 @@ app.*.map.json
 **/.env
 **/.env.*
 !**/.env.example
+# T00: the Tow test template is a tracked, secret-free example. Without this
+# negation it matches `**/.env.*` and is in Git only because it was force-added.
+# The scope is intentionally one exact path: real `.env` files, `.env.test`,
+# `.env.local`, `.env.production` and `.env.bak` stay ignored.
+!socorre_ai_backend/.env.test.example
 *.pem
 *.key

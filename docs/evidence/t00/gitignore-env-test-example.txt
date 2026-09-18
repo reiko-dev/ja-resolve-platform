@@ -1,0 +1,45 @@
+# T00 — .gitignore negation for the tracked Tow test template (P3)
+#
+# Before: .gitignore:57 (`**/.env.*`) matched `socorre_ai_backend/.env.test.example`,
+# so the file was in Git only because it had been added with `git add -f`.
+# After: an exact-path negation makes the tracking intentional. No real .env
+# file gained coverage.
+
+$ git check-ignore --no-index -v socorre_ai_backend/.env.test.example   # before the change
+.gitignore:57:**/.env.*	socorre_ai_backend/.env.test.example
+
+$ git check-ignore --no-index -v socorre_ai_backend/.env.test.example   # after the change
+.gitignore:63:!socorre_ai_backend/.env.test.example	socorre_ai_backend/.env.test.example
+
+$ git check-ignore --no-index -q socorre_ai_backend/.env.test.example ; echo "exit=$?"   # 1 = NOT ignored (intentional)
+exit=1
+
+# Real environment files must stay ignored (exit 0 = ignored):
+$ git check-ignore --no-index -q .env ; exit=0
+$ git check-ignore --no-index -q socorre_ai_backend/.env ; exit=0
+$ git check-ignore --no-index -q socorre_ai_backend/.env.test ; exit=0
+$ git check-ignore --no-index -q socorre_ai_backend/.env.local ; exit=0
+$ git check-ignore --no-index -q socorre_ai_backend/.env.production ; exit=0
+$ git check-ignore --no-index -q socorre_ai_backend/.env.bak ; exit=0
+
+$ git add --dry-run socorre_ai_backend/.env.bak   # still refused without -f
+The following paths are ignored by one of your .gitignore files:
+socorre_ai_backend/.env.bak
+
+# Scope: exactly one path is re-included; nothing else in .gitignore changed.
+$ git diff .gitignore
+diff --git a/.gitignore b/.gitignore
+index 3ba86466..db3736eb 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -56,5 +56,10 @@ app.*.map.json
+ **/.env
+ **/.env.*
+ !**/.env.example
++# T00: the Tow test template is a tracked, secret-free example. Without this
++# negation it matches `**/.env.*` and is in Git only because it was force-added.
++# The scope is intentionally one exact path: real `.env` files, `.env.test`,
++# `.env.local`, `.env.production` and `.env.bak` stay ignored.
++!socorre_ai_backend/.env.test.example
+ *.pem
+ *.key

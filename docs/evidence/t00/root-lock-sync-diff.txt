@@ -1,0 +1,30 @@
+# root-lock diff: auditable delta of the sync
+# command: git diff --stat package-lock.json
+
+ package-lock.json | 124 ++++++++++++++++++++++++++++++++++++++++--------------
+ 1 file changed, 93 insertions(+), 31 deletions(-)
+
+# command: git diff package-lock.json | grep -E '^[+-]    "node_modules/'
+# added package entries:
+"node_modules/ajv": {
+"node_modules/ajv-formats": {
+"node_modules/fast-deep-equal": {
+"node_modules/fast-uri": {
+"node_modules/json-schema-traverse": {
+"node_modules/require-from-string": {
+"node_modules/yaml": {
+# removed package entries:
+
+# command: git diff package-lock.json | grep -E '^\+ *"(ajv|ajv-formats|yaml)"' (workspace entry)
+# the socorre_ai_backend workspace entry now lists the three new devDependencies:
+"ajv": "^8.0.0"
+"ajv": "^8.0.0"
+"ajv": "^8.17.1",
+"ajv": {
+"ajv-formats": "^3.0.1",
+"yaml": "^2.9.1"
+"yaml": "bin.mjs"
+
+# Removed entries are nested duplicates hoisted to the root by the new
+# graph (fast-deep-equal, fast-uri, require-from-string). No unrelated
+# dependency changed version.
