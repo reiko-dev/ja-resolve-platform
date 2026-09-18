@@ -1,0 +1,137 @@
+#!/usr/bin/env node
+/**
+ * T00 — canonical `npm run verify:tow` gate.
+ *
+ * Sequence (docs/tow/TOW-DOCKER-TEST-STRATEGY.md §5):
+ *
+ *   OpenAPI structure gate        (no Docker, no network)
+ *        ↓
+ *   contract suite                (no Docker, no network)
+ *        ↓
+ *   focused Tow suite             (no Docker; PG harness skipped by default)
+ *        ↓
+ *   disposable PostgreSQL: up → healthcheck → prepare DB → migrations
+ *        ↓
+ *   PostgreSQL foundation gate    (TOW_POSTGRES_E2E=1)
+ *        ↓
+ *   destroy containers/volumes/network (always, even on failure)
+ *        ↓
+ *   exit code + summary
+ *
+ * Flags:
+ *   --skip-postgres   run only the offline gates (CI without Docker)
+ *   --offline         alias of --skip-postgres
+ *
+ * Env:
+ *   TOW_VERIFY_SKIP_POSTGRES=1   same as --skip-postgres
+ */
+'use strict';
+
+const { spawnSync } = require('child_process');
+const path = require('path');
+
+const BACKEND_DIR = path.resolve(__dirname, '..', '..');
+const testEnv = require('./test-env');
+
+const skipPostgres = process.argv.includes('--skip-postgres')
+  || process.argv.includes('--offline')
+  || process.env.TOW_VERIFY_SKIP_POSTGRES === '1';
+
+const results = [];
+
+function stage(name, fn) {
+  const startedAt = Date.now();
+  console.log(`\n=== [verify:tow] ${name} ===`);
+  let ok = true;
+  let detail = '';
+  try {
+    fn();
+  } catch (error) {
+    ok = false;
+    detail = error && error.message ? error.message : String(error);
+    console.error(`[verify:tow] FAILED: ${detail}`);
+  }
+  results.push({ name, ok, detail, ms: Date.now() - startedAt });
+  return ok;
+}
+
+function jest(target, extraEnv = {}) {
+  const result = spawnSync(
+    process.execPath,
+    [path.join(BACKEND_DIR, 'node_modules', 'jest', 'bin', 'jest.js'), target, '--runInBand'],
+    { cwd: BACKEND_DIR, stdio: 'inherit', env: { ...process.env, ...extraEnv } }
+  );
+  if (result.status !== 0) {
+    throw new Error(`jest ${target} exited with ${result.status}`);
+  }
+}
+
+function node(script, extraEnv = {}) {
+  const result = spawnSync(process.execPath, [path.join(BACKEND_DIR, script)], {
+    cwd: BACKEND_DIR,
+    stdio: 'inherit',
+    env: { ...process.env, ...extraEnv },
+  });
+  if (result.status !== 0) {
+    throw new Error(`${script} exited with ${result.status}`);
+  }
+}
+
+async function main() {
+  stage('OpenAPI 3.1 structure gate', () => {
+    node('scripts/tow/validate-openapi.js');
+  });
+
+  stage('contract suite (OpenAPI + patch semantics + discovery + consumer smoke)', () => {
+    jest('tests/contract');
+  });
+
+  stage('focused Tow suite (offline)', () => {
+    jest('tests/tow');
+  });
+
+  if (skipPostgres) {
+    results.push({ name: 'PostgreSQL foundation gate', ok: true, detail: 'skipped (--skip-postgres)', ms: 0 });
+  } else {
+    let envError = null;
+    try {
+      if (!testEnv.enableOptIn()) {
+        throw new Error('TOW_POSTGRES_E2E=0 explicitly disables the PostgreSQL stage');
+      }
+      await testEnv.runWithEnvironment(async () => {
+        stage('prepare database + migrations from zero', () => {
+          node('scripts/tow/migrate-test-db.js', { TOW_POSTGRES_E2E: '1' });
+        });
+        stage('PostgreSQL foundation gate', () => {
+          jest('tests/tow/foundation/towPostgresFoundation.e2e.test.js', { TOW_POSTGRES_E2E: '1' });
+        });
+      });
+    } catch (error) {
+      envError = error;
+    }
+    if (envError) {
+      const alreadyRecorded = results.some((entry) => entry.name.startsWith('prepare database'));
+      if (!alreadyRecorded) {
+        results.push({
+          name: 'PostgreSQL foundation gate',
+          ok: false,
+          detail: envError.message,
+          ms: 0,
+        });
+      }
+    }
+  }
+
+  console.log('\n=== [verify:tow] summary ===');
+  for (const entry of results) {
+    console.log(`  ${entry.ok ? 'PASS' : 'FAIL'}  ${entry.name}${entry.detail ? ` — ${entry.detail}` : ''}`);
+  }
+  const failed = results.filter((entry) => !entry.ok);
+  console.log(`\n[verify:tow] ${failed.length === 0 ? 'GREEN' : `RED (${failed.length} failing stage(s))`}`);
+  process.exitCode = failed.length === 0 ? 0 : 1;
+}
+
+main().catch((error) => {
+  console.error(`[verify:tow] unexpected failure: ${error && error.message ? error.message : error}`);
+  process.exit(1);
+});

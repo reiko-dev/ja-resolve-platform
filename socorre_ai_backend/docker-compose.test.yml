@@ -1,0 +1,47 @@
+# T00 — disposable PostgreSQL test environment for the Tow suite.
+#
+# Design constraints (docs/tow/TOW-DOCKER-TEST-STRATEGY.md §3, §6, §9):
+#   - disposable: data lives in tmpfs, destroyed with the container;
+#   - no persistent volume, no host PostgreSQL dependency;
+#   - isolated network;
+#   - healthcheck is the gate before migrations/tests run;
+#   - non-production, throwaway credentials (never reused from prod);
+#   - host port is overridable to avoid clashing with a local PostgreSQL.
+#
+# Canonical usage (from socorre_ai_backend/):
+#   npm run verify:tow          # up -> healthcheck -> migrate -> gates -> down
+#   npm run test:pg:up          # keep the environment up for development
+#   npm run test:pg:down        # destroy containers/volumes/network
+#
+# NEVER point this file at a production database: the credentials below are
+# intentionally weak and only valid for a throwaway container.
+
+services:
+  tow-postgres-test:
+    image: postgres:14
+    container_name: socorre-tow-postgres-test
+    environment:
+      POSTGRES_USER: tow_test
+      POSTGRES_PASSWORD: tow_test_password
+      POSTGRES_DB: socorre_ai_tow_test
+      POSTGRES_INITDB_ARGS: '--auth-host=scram-sha-256 --auth-local=trust'
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - '${TOW_TEST_PG_PORT:-55432}:5432'
+    # tmpfs keeps the database ephemeral: `docker compose down` leaves nothing.
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U tow_test -d socorre_ai_tow_test']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+    networks:
+      - tow-test-net
+    restart: 'no'
+
+networks:
+  tow-test-net:
+    name: socorre-tow-test-net
+    driver: bridge
