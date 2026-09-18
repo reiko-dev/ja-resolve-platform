@@ -48,7 +48,7 @@ scope_check:
   pushed_to_pr: 30
   pr_created: false
   pr_body_updated: true       # pass 8 / P1-2: body carries the final heads, counters and B-6 OPEN
-  github_review_threads_resolved: 0   # §22: threads are left for the next targeted Muse re-review
+  github_review_threads_resolved_by_this_round: 0   # §22 honoured: zero thread mutations (no resolve, no unresolve, no reply)
 
 commits:
   - sha: 2de870ef
@@ -1390,7 +1390,8 @@ codex_review_correction:
     7ed25c12..8246f989): 4048484277 -> reply 4048610243, 4048484284 -> reply 4048610402 and
     4048484296 -> reply 4048610600. Re-checked with `gh api graphql` (PR #30 reviewThreads):
     14 threads, 14 unresolved, and each round-3 thread carries the pass-7 reply as its last
-    comment.
+    comment. (Historical pass-7 snapshot: the threads were resolved by reiko-dev before the
+    final correction round; see the top-level `codex_threads_verify` for the observed state.)
   newer_threads:
     - comment_id: 4047474342
       path: scripts/tow/negative-controls.sh
@@ -2243,8 +2244,16 @@ codex_round3_resolution:
       reply_comment_id: 4048610600
       resolved: false
   codex_threads_verify: >-
-    gh api graphql (PR #30 reviewThreads): 14 threads, 14 unresolved; each round-3 thread has 2
-    comments with the pass-7 reply as the last one.
+    gh api graphql (PR #30 reviewThreads): 14 threads, each with 2 comments and the pass-7 reply
+    as the last one. OBSERVED STATE AT THE FINAL CORRECTION ROUND: all 14 threads are
+    `isResolved: true`. The resolutions were performed by reiko-dev between
+    2026-09-18T14:06:24Z and 2026-09-18T16:27:47Z, i.e. BEFORE the correction base commit
+    fdecddb8 (2026-09-18T16:30:33Z) — they are not part of this executor round. This round made
+    ZERO GitHub thread mutations (no resolve, no unresolve, no reply); its only GitHub write was
+    the PR #30 body update. The earlier "14 unresolved" snapshot in this file was the pass-7
+    observation and is superseded by this record.
+  codex_threads_verify_command: >-
+    gh api graphql -f query='{repository(owner:"reiko-dev",name:"ja-resolve-platform"){pullRequest(number:30){reviewThreads(first:50){totalCount nodes{isResolved path comments(first:3){nodes{author{login} createdAt}}}}}}}'
 
 # ---------------------------------------------------------------------------
 # Final Muse review (pass 8) — adjudication of the FINAL correction round.
@@ -2258,6 +2267,12 @@ final_muse_review_correction:
   review_source: outside the PR review threads (no GitHub thread exists for it)
   github_threads_touched: 0
   github_threads_resolved: 0
+  observed_thread_state: >-
+    14 review threads exist on PR #30 and ALL 14 are `isResolved: true`. They were resolved by
+    reiko-dev between 2026-09-18T14:06:24Z and 2026-09-18T16:27:47Z, before the correction base
+    fdecddb8 (2026-09-18T16:30:33Z). This round neither resolved nor reopened any thread: §22's
+    "do not auto-resolve" instruction was honoured literally — zero thread mutations were made.
+    The state is recorded here as observed rather than asserted as "unresolved".
   production_src_changed: false
   business_rules_changed: false
   t01_plus_implemented: false
@@ -2501,7 +2516,7 @@ known_limitations:
   - "M4-2: a teardown failure now fails the gate on purpose. A run whose tests all passed but whose `docker compose down` failed exits non-zero and prints a `teardown (docker compose down)` FAIL stage; this is a deliberate fail-closed behavior, not a flaky gate."
   - "M3-4: `scripts/tow/root-lock-evidence.sh` defaults to `TOW_LOCK_PREFIX_REF=0c5de7ed`, an ancestor of this branch but not of a squashed main-only history. A fresh clone containing only the merged history cannot resolve it and the script aborts in its `cat-file` check; in that scenario override `TOW_LOCK_PREFIX_REF`/`TOW_LOCK_CURRENT_REF` or vendor the pre-fix blob. On the branch/PR refs the evidence is reproducible (pass-5 re-run exit 0)."
   - "M3-5: `socorre_ai_backend/tests/helpers/tow/factories.js` inserts through the SQLite test DB (`tests/helpers/testDb.js`, `:memory:`) while the opt-in Express app connects to PostgreSQL. T00 exercises no PG business behavior (the PG gate uses raw Knex and no Tow v1 route), so this is accepted as a T00 limitation; T01+ must inject/accept the active adapter or add PG-backed factory implementations before PG route tests rely on the factories."
-  - "M3-2 (refreshed in passes 6, 7 and 8): all fourteen PR #30 review threads remain `isResolved:false` by decision. The work-result records the in-T00 adjudication (12 fixed, 1 fixed-doc, 1 accepted limitation, 0 dismissed), not a GitHub resolution and not an approval; no re-review was performed inside T00. The final Muse review of pass 8 was delivered OUTSIDE the threads, so it created, replied to and resolved zero threads."
+  - "M3-2 (refreshed in passes 6, 7 and 8): PR #30 carries fourteen review threads and, as observed during the final correction round, ALL fourteen are `isResolved: true` — resolved by reiko-dev between 2026-09-18T14:06:24Z and 2026-09-18T16:27:47Z, i.e. before the correction base fdecddb8 (16:30:33Z) and therefore outside this round. The executor round made zero thread mutations: it neither resolved nor reopened nor replied to any thread (§22 honoured literally); its only GitHub write was the PR body update. The work-result records the in-T00 adjudication (12 fixed, 1 fixed-doc, 1 accepted limitation, 0 dismissed), which is not the same thing as the GitHub resolution state, and not an approval. The final Muse review of pass 8 was delivered OUTSIDE the threads, so it created, replied to and resolved zero threads."
   - "P3-2 / T18: schema satisfiability is NOT real consumer semantic end-to-end coverage. The contract suites prove that every consumer operation resolves, that the required DTO fields exist and that generated fixtures satisfy the frozen schemas; they do not execute client code or assert real business semantics. Real semantic E2E belongs to T18 and was deliberately NOT implemented in T00."
   - "Evidence normalization (pass 8 / P3-1): `scripts/tow/normalize-evidence.sh` (trailing whitespace only) was applied to 7 captured logs and a trailing blank line at EOF was removed from 2 more. Line counts and content are otherwise unchanged; `determinism-normalized-diff.txt` is left byte-exact as the generator emits it (its last byte is a blank line), so `git diff --check e1e7dd2d...HEAD` reports exactly one remaining `new blank line at EOF` notice for that machine-generated artifact."
   - "`docker-compose-simple.yml` carries no T00 change at all: `git diff e1e7dd2d...HEAD -- docker-compose-simple.yml` is empty after the P1-1 revert. The two SERVICE_PHOTO_STORAGE_DIR / service_photo_data lines still present on the `backend` service are pre-existing (they predate the execution base) and are intentionally left untouched."
