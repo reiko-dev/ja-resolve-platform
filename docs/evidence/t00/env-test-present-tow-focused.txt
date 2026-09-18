@@ -1,14 +1,14 @@
 [test-env] env file: /Volumes/Reiko/projects/work/socorre-system/socorre_ai_backend/.env.test loaded (14 value(s) applied, 0 kept from the environment)
- Network socorre-tow-test-net Creating 
- Network socorre-tow-test-net Creating 
- Network socorre-tow-test-net Created 
- Network socorre-tow-test-net Created 
- Container socorre-tow-postgres-test Creating 
- Container socorre-tow-postgres-test Created 
- Container socorre-tow-postgres-test Starting 
- Container socorre-tow-postgres-test Started 
- Container socorre-tow-postgres-test Waiting 
- Container socorre-tow-postgres-test Healthy 
+ Network socorre-tow-test-net Creating
+ Network socorre-tow-test-net Creating
+ Network socorre-tow-test-net Created
+ Network socorre-tow-test-net Created
+ Container socorre-tow-postgres-test Creating
+ Container socorre-tow-postgres-test Created
+ Container socorre-tow-postgres-test Starting
+ Container socorre-tow-postgres-test Started
+ Container socorre-tow-postgres-test Waiting
+ Container socorre-tow-postgres-test Healthy
 PostgreSQL test container is healthy
 ::ffff:127.0.0.1 - - [18/Sep/2026:13:57:42 +0000] "POST /api/upload/emergency-requests/1/photos HTTP/1.1" 401 60 "-" "-"
 ::ffff:127.0.0.1 - - [18/Sep/2026:13:57:42 +0000] "GET /api/upload/emergency-requests/1/photos/pickup HTTP/1.1" 401 60 "-" "-"
@@ -326,10 +326,10 @@ Snapshots:   0 total
 Time:        6.102 s, estimated 7 s
 Ran all test suites matching /tests\/tow/i.
 EXIT=0
- Container socorre-tow-postgres-test Stopping 
- Container socorre-tow-postgres-test Stopped 
- Container socorre-tow-postgres-test Removing 
- Container socorre-tow-postgres-test Removed 
- Network socorre-tow-test-net Removing 
- Network socorre-tow-test-net Removed 
+ Container socorre-tow-postgres-test Stopping
+ Container socorre-tow-postgres-test Stopped
+ Container socorre-tow-postgres-test Removing
+ Container socorre-tow-postgres-test Removed
+ Network socorre-tow-test-net Removing
+ Network socorre-tow-test-net Removed
 PostgreSQL test environment destroyed (containers, volumes, network)

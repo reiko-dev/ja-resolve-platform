@@ -138,8 +138,43 @@ function splitRef(ref) {
 }
 
 /**
+ * Load the document that owns `targetFile`.
+ *
+ * The caller-supplied in-memory `canonical`/`base` documents always win for
+ * their own file names: the composition and the mutation-based negative
+ * controls depend on that. Any OTHER file is read from its REAL file in
+ * docs/tow — a third file must never be silently resolved against the
+ * canonical document (Muse final review P2-1: fail-open aliasing).
+ */
+function loadTargetDocument(targetFile, docs) {
+  if (targetFile === CANONICAL_FILE && docs.canonical) {
+    return { doc: docs.canonical, loaded: true };
+  }
+  if (targetFile === BASE_FILE && docs.base) {
+    return { doc: docs.base, loaded: true };
+  }
+  const filePath = path.join(DOCS_TOW_DIR, targetFile);
+  if (!fs.existsSync(filePath)) {
+    return { loaded: false, reason: 'target_file_missing' };
+  }
+  try {
+    return { doc: YAML.parse(fs.readFileSync(filePath, 'utf8')), loaded: true };
+  } catch (error) {
+    return {
+      loaded: false,
+      reason: 'target_file_unreadable',
+      error: String(error && error.message ? error.message : error),
+    };
+  }
+}
+
+/**
  * Resolve a `$ref` string that appears in `sourceFileName`.
- * Only local files inside docs/tow are supported (no http/https).
+ *
+ * Only local files directly inside docs/tow are supported: no http/https, no
+ * absolute paths, no parent traversal, no nested directories. Anything else
+ * fails closed with an explicit reason instead of being silently rewritten by
+ * `path.basename()`. Resolution is always against the referenced file itself.
  */
 function resolveRef(ref, sourceFileName, documents) {
   const { file, pointer } = splitRef(ref);
@@ -149,13 +184,24 @@ function resolveRef(ref, sourceFileName, documents) {
     if (/^https?:\/\//i.test(file)) {
       return { found: false, reason: 'remote_ref_not_allowed', ref, targetFile: file };
     }
-    targetFile = path.basename(file);
-    if (!fs.existsSync(path.join(DOCS_TOW_DIR, targetFile))) {
-      return { found: false, reason: 'target_file_missing', ref, targetFile };
+    const relative = file.replace(/^\.\//, '');
+    if (relative.length === 0 || relative.includes('/') || relative.includes('\\')) {
+      return { found: false, reason: 'ref_path_outside_docs_tow', ref, targetFile: file };
     }
+    targetFile = relative;
   }
-  const doc = targetFile === BASE_FILE ? docs.base : docs.canonical;
-  const result = getByPointer(doc, pointer);
+  const loaded = loadTargetDocument(targetFile, docs);
+  if (!loaded.loaded) {
+    return {
+      found: false,
+      reason: loaded.reason,
+      ref,
+      targetFile,
+      pointer,
+      error: loaded.error,
+    };
+  }
+  const result = getByPointer(loaded.doc, pointer);
   return {
     found: result.found,
     reason: result.found ? null : 'pointer_not_found',

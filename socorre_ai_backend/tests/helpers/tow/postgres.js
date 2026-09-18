@@ -92,12 +92,30 @@ async function listTables(db) {
   return result.rows.map((row) => row.tablename);
 }
 
+/**
+ * Quote a PostgreSQL identifier (table/column name) for safe interpolation.
+ *
+ * Doubling an embedded `"` is the PostgreSQL rule, so an identifier such as
+ * `x"; DROP TABLE y;--` becomes ONE quoted identifier and can never terminate
+ * the statement or open a second one (Muse final review P2-2). Values are
+ * always data, never SQL: nothing is stripped, rewritten or allowlisted.
+ *
+ * @param {string} value non-empty identifier
+ * @returns {string} the `"..."`-quoted identifier
+ */
+function quoteIdentifier(value) {
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new TypeError(`quoteIdentifier expects a non-empty string, received ${typeof value}`);
+  }
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
 /** TRUNCATE every table in `public` with RESTART IDENTITY CASCADE. */
 async function truncateAll(db) {
   assertSafeTestEnvironment();
   const tables = await listTables(db);
   if (tables.length === 0) return [];
-  const quoted = tables.map((name) => `"${name}"`).join(', ');
+  const quoted = tables.map(quoteIdentifier).join(', ');
   await db.raw(`TRUNCATE ${quoted} RESTART IDENTITY CASCADE`);
   return tables;
 }
@@ -129,7 +147,7 @@ class RollbackSignal extends Error {
 
 /** Count rows in a table (isolation assertions). */
 async function countRows(db, table) {
-  const result = await db.raw(`SELECT COUNT(*)::int AS count FROM "${table}"`);
+  const result = await db.raw(`SELECT COUNT(*)::int AS count FROM ${quoteIdentifier(table)}`);
   return result.rows[0].count;
 }
 
@@ -144,6 +162,7 @@ module.exports = {
   resetSchema,
   migrateFromScratch,
   listTables,
+  quoteIdentifier,
   truncateAll,
   withRollback,
   countRows,

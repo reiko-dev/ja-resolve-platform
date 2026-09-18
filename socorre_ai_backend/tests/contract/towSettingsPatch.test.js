@@ -50,7 +50,11 @@ describe('TowSettingsPatch — true partial PATCH semantics', () => {
   test('TowSettings still requires every property (the patch must not mirror this)', () => {
     expect(Array.isArray(full.required)).toBe(true);
     expect(full.required).toHaveLength(14);
-    expect(full.required).not.toContain('tow_max_radius_km' && undefined);
+    // Non-tautological: every declared property is individually required, and
+    // the named property this suite exercises is one of them. Removing any
+    // entry from TowSettings.required makes this test fail (mutation-proven).
+    expect(full.required).toContain('tow_max_radius_km');
+    expect([...full.required].sort()).toEqual(Object.keys(full.properties).sort());
   });
 
   test('a single-property patch is valid', () => {

@@ -390,16 +390,16 @@ Ran all test suites matching /tests\/tow/i.
 > socorre-ai-backend@1.0.0 test:pg
 > node scripts/tow/run-pg-gate.js
 
- Network socorre-tow-test-net Creating 
- Network socorre-tow-test-net Creating 
- Network socorre-tow-test-net Created 
- Network socorre-tow-test-net Created 
- Container socorre-tow-postgres-test Creating 
- Container socorre-tow-postgres-test Created 
- Container socorre-tow-postgres-test Starting 
- Container socorre-tow-postgres-test Started 
- Container socorre-tow-postgres-test Waiting 
- Container socorre-tow-postgres-test Healthy 
+ Network socorre-tow-test-net Creating
+ Network socorre-tow-test-net Creating
+ Network socorre-tow-test-net Created
+ Network socorre-tow-test-net Created
+ Container socorre-tow-postgres-test Creating
+ Container socorre-tow-postgres-test Created
+ Container socorre-tow-postgres-test Starting
+ Container socorre-tow-postgres-test Started
+ Container socorre-tow-postgres-test Waiting
+ Container socorre-tow-postgres-test Healthy
 PostgreSQL test container is healthy
 healthcheck: healthy
 [verify:tow] migrations against postgresql://tow_test@127.0.0.1:55432/socorre_ai_tow_test
@@ -422,12 +422,12 @@ Tests:       6 passed, 6 total
 Snapshots:   0 total
 Time:        0.964 s, estimated 1 s
 Ran all test suites matching /tests\/tow\/foundation\/towPostgresFoundation.e2e.test.js/i.
- Container socorre-tow-postgres-test Stopping 
- Container socorre-tow-postgres-test Stopped 
- Container socorre-tow-postgres-test Removing 
- Container socorre-tow-postgres-test Removed 
- Network socorre-tow-test-net Removing 
- Network socorre-tow-test-net Removed 
+ Container socorre-tow-postgres-test Stopping
+ Container socorre-tow-postgres-test Stopped
+ Container socorre-tow-postgres-test Removing
+ Container socorre-tow-postgres-test Removed
+ Network socorre-tow-test-net Removing
+ Network socorre-tow-test-net Removed
 PostgreSQL test environment destroyed (containers, volumes, network)
 [test:pg] GREEN
 ### EXIT=0
@@ -810,16 +810,16 @@ Tests:       15 skipped, 258 passed, 273 total
 Snapshots:   0 total
 Time:        4.883 s, estimated 6 s
 Ran all test suites matching /tests\/tow/i.
- Network socorre-tow-test-net Creating 
- Network socorre-tow-test-net Creating 
- Network socorre-tow-test-net Created 
- Network socorre-tow-test-net Created 
- Container socorre-tow-postgres-test Creating 
- Container socorre-tow-postgres-test Created 
- Container socorre-tow-postgres-test Starting 
- Container socorre-tow-postgres-test Started 
- Container socorre-tow-postgres-test Waiting 
- Container socorre-tow-postgres-test Healthy 
+ Network socorre-tow-test-net Creating
+ Network socorre-tow-test-net Creating
+ Network socorre-tow-test-net Created
+ Network socorre-tow-test-net Created
+ Container socorre-tow-postgres-test Creating
+ Container socorre-tow-postgres-test Created
+ Container socorre-tow-postgres-test Starting
+ Container socorre-tow-postgres-test Started
+ Container socorre-tow-postgres-test Waiting
+ Container socorre-tow-postgres-test Healthy
 PostgreSQL test container is healthy
 healthcheck: healthy
 
@@ -846,12 +846,12 @@ Tests:       6 passed, 6 total
 Snapshots:   0 total
 Time:        0.939 s, estimated 1 s
 Ran all test suites matching /tests\/tow\/foundation\/towPostgresFoundation.e2e.test.js/i.
- Container socorre-tow-postgres-test Stopping 
- Container socorre-tow-postgres-test Stopped 
- Container socorre-tow-postgres-test Removing 
- Container socorre-tow-postgres-test Removed 
- Network socorre-tow-test-net Removing 
- Network socorre-tow-test-net Removed 
+ Container socorre-tow-postgres-test Stopping
+ Container socorre-tow-postgres-test Stopped
+ Container socorre-tow-postgres-test Removing
+ Container socorre-tow-postgres-test Removed
+ Network socorre-tow-test-net Removing
+ Network socorre-tow-test-net Removed
 PostgreSQL test environment destroyed (containers, volumes, network)
 
 === [verify:tow] summary ===

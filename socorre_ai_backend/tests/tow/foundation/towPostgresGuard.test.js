@@ -357,4 +357,124 @@ describe('T00 PostgreSQL test foundation (offline mechanism)', () => {
       }
     });
   });
+
+  describe('SQL identifier hardening (Muse final review P2-2)', () => {
+    const INJECTION = 'x"; DROP TABLE y;--';
+
+    /**
+     * Split a SQL string on the `;` that are OUTSIDE a quoted identifier, i.e.
+     * count top-level statements. A `""` inside a quoted identifier is an
+     * escaped quote and does not close it (PostgreSQL rule).
+     */
+    function splitStatements(sql) {
+      const statements = [];
+      let current = '';
+      let inIdentifier = false;
+      for (let index = 0; index < sql.length; index += 1) {
+        const char = sql[index];
+        if (char === '"') {
+          if (inIdentifier && sql[index + 1] === '"') {
+            current += '""';
+            index += 1;
+            continue;
+          }
+          inIdentifier = !inIdentifier;
+          current += char;
+          continue;
+        }
+        if (char === ';' && !inIdentifier) {
+          statements.push(current.trim());
+          current = '';
+          continue;
+        }
+        current += char;
+      }
+      if (current.trim().length > 0) statements.push(current.trim());
+      return statements.filter(Boolean);
+    }
+
+    /** Run `fn` with the canonical disposable target in `process.env`. */
+    async function withSafeEnv(fn) {
+      const original = { ...process.env };
+      try {
+        Object.assign(process.env, SAFE_ENV);
+        delete process.env.DATABASE_URL;
+        delete process.env.PostgreSQL;
+        return await fn();
+      } finally {
+        process.env = original;
+      }
+    }
+
+    test('quoteIdentifier turns the injection into ONE identifier, never two statements', () => {
+      const quoted = postgres.quoteIdentifier(INJECTION);
+      expect(quoted).toBe('"x""; DROP TABLE y;--"');
+      // The `;` and the `--` are INSIDE the identifier: the whole payload is a
+      // single statement, so `DROP TABLE y` can never execute.
+      const sql = `TRUNCATE ${quoted} RESTART IDENTITY CASCADE`;
+      expect(splitStatements(sql)).toEqual([sql]);
+
+      // Negative control: the pre-fix shape (no quote doubling) really does
+      // break the statement into separate ones, so the assertion above is
+      // meaningful rather than vacuous.
+      const preFix = `TRUNCATE "${INJECTION}" RESTART IDENTITY CASCADE`;
+      expect(splitStatements(preFix).length).toBeGreaterThan(1);
+      expect(splitStatements(preFix).join(' ')).toContain('DROP TABLE y');
+    });
+
+    test('quoteIdentifier preserves real pg_tables names and rejects non-identifiers', () => {
+      for (const name of ['users', 'tow_proposals', 'system_settings', 'emergency_requests']) {
+        expect(postgres.quoteIdentifier(name)).toBe(`"${name}"`);
+        expect(splitStatements(`TRUNCATE ${postgres.quoteIdentifier(name)} CASCADE`)).toHaveLength(1);
+      }
+      // A name that already contains a double quote is doubled, not stripped.
+      expect(postgres.quoteIdentifier('we"ird')).toBe('"we""ird"');
+      for (const invalid of [undefined, null, '', 42, {}]) {
+        expect(() => postgres.quoteIdentifier(invalid)).toThrow(TypeError);
+      }
+    });
+
+    test('countRows quotes the identifier before it reaches the driver', async () => {
+      const calls = [];
+      const db = {
+        raw: async (sql) => {
+          calls.push(sql);
+          return { rows: [{ count: 7 }] };
+        },
+      };
+      await expect(postgres.countRows(db, INJECTION)).resolves.toBe(7);
+      expect(calls).toEqual([`SELECT COUNT(*)::int AS count FROM "x""; DROP TABLE y;--"`]);
+      expect(splitStatements(calls[0])).toHaveLength(1);
+    });
+
+    test('truncateAll quotes every table returned by pg_tables', async () => {
+      await withSafeEnv(async () => {
+        const calls = [];
+        const db = {
+          raw: async (sql) => {
+            calls.push(sql);
+            if (/pg_tables/.test(sql)) {
+              return { rows: [{ tablename: 'users' }, { tablename: INJECTION }] };
+            }
+            return { rows: [] };
+          },
+        };
+        const tables = await postgres.truncateAll(db);
+        expect(tables).toEqual(['users', INJECTION]);
+        const truncate = calls.find((sql) => sql.startsWith('TRUNCATE'));
+        expect(truncate).toBe(`TRUNCATE "users", "x""; DROP TABLE y;--" RESTART IDENTITY CASCADE`);
+        expect(splitStatements(truncate)).toHaveLength(1);
+      });
+    });
+
+    test('no harness SQL string interpolates a bare identifier any more', () => {
+      const source = fs.readFileSync(
+        path.join(BACKEND_DIR, 'tests', 'helpers', 'tow', 'postgres.js'),
+        'utf8'
+      );
+      // The pre-fix shapes: `"${table}"` / `"${name}"`.
+      expect(source).not.toMatch(/`[^`]*"\$\{(table|name)\}"[^`]*`/);
+      expect(source).toMatch(/quoteIdentifier/);
+    });
+  });
 });

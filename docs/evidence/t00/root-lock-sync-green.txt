@@ -15,6 +15,6 @@ add @babel/core 7.29.0
 add @babel/compat-data 7.29.0
 add @babel/code-frame 7.29.0
 
-added 1955 packages in 390ms
+added 1955 packages in 402ms
 
 exit_code=0

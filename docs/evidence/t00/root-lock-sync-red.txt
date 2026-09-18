@@ -37,6 +37,6 @@ npm notice New major version of npm available! 10.9.8 -> 12.0.2
 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
 npm notice To update run: npm install -g npm@12.0.2
 npm notice
-npm error A complete log of this run can be found in: /var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-root-lock.gmoMgL/.npm-cache/_logs/2026-09-18T16_24_06_255Z-debug-0.log
+npm error A complete log of this run can be found in: /var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-root-lock.h4Gg4W/.npm-cache/_logs/2026-09-18T17_50_37_064Z-debug-0.log
 
 exit_code=1
