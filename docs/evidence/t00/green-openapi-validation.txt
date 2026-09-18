@@ -1,0 +1,33 @@
+
+> socorre-ai-backend@1.0.0 validate:openapi
+> node scripts/tow/validate-openapi.js
+
+Tow OpenAPI contract validation
+  docs:                             /Volumes/Reiko/projects/work/socorre-system/docs/tow
+  canonical entrypoint:             tow-api-contract.openapi.yaml
+  composition artifact:             tow-api-contract.base.openapi.yaml
+  OpenAPI version:                  3.1.0
+  Contract version:                 1.0.0-draft.4
+  Canonical paths:                  56
+  Base paths:                       51
+  Composed paths:                   56
+  Composed operations:              66
+  Shadowed base paths:              10
+  $ref occurrences checked:         490
+  External/local-file $refs:        124
+  Unresolved refs:                  0
+  Missing operationId:              0
+  Duplicate operationId:            0
+  Path-parameter mismatches:        0
+  Request bodies checked:           24
+  Request bodies without schema:    0
+  Responses checked:                66
+  Operations without 2xx:           0
+  2xx responses without schema:     0
+  Component schemas checked:        110
+  Inline schema nodes checked:      124
+  JSON Schema definition errors:    0
+  Canonical enum mismatches:        0
+  Forbidden legacy enum values:     0
+  TowSettingsPatch errors:          0
+  RESULT:                           PASS

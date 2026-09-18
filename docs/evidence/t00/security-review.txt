@@ -1,0 +1,60 @@
+# T00 security review evidence (no secret values reproduced)
+
+## S-4 JWT production guard
+$ sed -n "15,30p" socorre_ai_backend/src/config/jwt.js
+  return process.env.NODE_ENV === 'production';
+}
+
+function getJwtSecret() {
+  const secret = process.env.JWT_SECRET;
+  if (secret && String(secret).trim().length > 0) {
+    return String(secret);
+  }
+  if (isProduction()) {
+    throw new Error(
+      'JWT_SECRET must be set in production (NODE_ENV=production). Refusing to start with a fallback secret.'
+    );
+  }
+  return DEV_FALLBACK_SECRET;
+}
+
+
+## S-5 provider key literals in source (expect only process.env reads)
+$ grep -rnE "GOOGLE_MAPS_API_KEY|GOOGLE_ROUTES_API_KEY|STRIPE_SECRET_KEY|MERCADOPAGO_ACCESS_TOKEN|PAGSEGURO_TOKEN" socorre_ai_backend/src socorre_ai_backend/scripts socorre_ai_backend/database socorre_ai_backend/tests
+socorre_ai_backend/tests/tow/foundation/towPostgresGuard.test.js:107:        'GOOGLE_MAPS_API_KEY', 'GOOGLE_ROUTES_API_KEY', 'STRIPE_SECRET_KEY',
+socorre_ai_backend/tests/tow/foundation/towPostgresGuard.test.js:108:        'MERCADOPAGO_ACCESS_TOKEN', 'PAGSEGURO_TOKEN',
+
+## S-5b any Google client / maps.googleapis.com call
+$ grep -rn "maps.googleapis.com\|@googlemaps" socorre_ai_backend/src socorre_ai_backend/scripts || echo "(no matches)"
+(no matches)
+
+## S-7 express.static
+$ grep -rn "express.static" socorre_ai_backend/src || echo "(no matches)"
+(no matches)
+
+## S-1 committed infrastructure credentials (location + type + length only; values never printed)
+
+$ python3 scripts-style scan of PASSWORD|SECRET|TOKEN assignments
+--- docker-compose.yml ---
+docker-compose.yml:9: POSTGRES_PASSWORD -> literal(len=8)
+docker-compose.yml:51: DB_PASSWORD -> literal(len=8)
+docker-compose.yml:53: JWT_SECRET -> literal(len=40)
+--- docker-compose-simple.yml ---
+docker-compose-simple.yml:9: POSTGRES_PASSWORD -> literal(len=8)
+docker-compose-simple.yml:38: DB_PASSWORD -> literal(len=8)
+docker-compose-simple.yml:40: JWT_SECRET -> literal(len=40)
+docker-compose-simple.yml:65: DB_PASSWORD -> literal(len=8)
+docker-compose-simple.yml:67: JWT_SECRET -> literal(len=40)
+
+## S-9 private key material in repository
+$ git grep -nE "BEGIN (RSA |EC )?PRIVATE KEY" -- . | head -5
+scripts/setup-firebase-production.sh:82:  "private_key": "-----BEGIN PRIVATE KEY-----\nyour-private-key-here\n-----END PRIVATE KEY-----\n",
+scripts/setup-firebase-production.sh:139:FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nyour-private-key-here\n-----END PRIVATE KEY-----\n"
+socorre_ai_backend/env.example:22:FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nsua_private_key_aqui\n-----END PRIVATE KEY-----\n"
+socorre_ai_backend/env.production.example:40:FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nyour-private-key-here\n-----END PRIVATE KEY-----\n"
+
+## S-10 node_modules history
+$ git log --oneline --diff-filter=A -- socorre_ai_backend/node_modules | tail -2
+2f9f19cf chore: commit inicial do sistema Socorre (monorepo)
+$ git ls-files socorre_ai_backend/node_modules | wc -l
+       0

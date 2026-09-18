@@ -1,0 +1,14 @@
+
+> socorre-ai-backend@1.0.0 test:contract
+> jest tests/contract --runInBand
+
+PASS tests/contract/openapi.structure.test.js
+PASS tests/contract/towSettingsPatch.test.js
+PASS tests/contract/consumerSmoke.test.js
+PASS tests/contract/consumerDiscovery.test.js
+
+Test Suites: 4 passed, 4 total
+Tests:       51 passed, 51 total
+Snapshots:   0 total
+Time:        1.085 s, estimated 3 s
+Ran all test suites matching /tests\/contract/i.

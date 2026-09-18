@@ -1,0 +1,138 @@
+Rota não encontrada: GET /api/admin/tow/audit-events
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "GET /api/admin/tow/audit-events HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: GET /api/admin/tow/disputes
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "GET /api/admin/tow/disputes HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: GET /api/admin/tow/disputes/1
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "GET /api/admin/tow/disputes/1 HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: POST /api/admin/tow/disputes/1/resolve
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "POST /api/admin/tow/disputes/1/resolve HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: GET /api/admin/tow/module
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "GET /api/admin/tow/module HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: PATCH /api/admin/tow/module
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "PATCH /api/admin/tow/module HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: POST /api/admin/tow/payout-batches
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "POST /api/admin/tow/payout-batches HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: GET /api/admin/tow/payout-batches/1
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "GET /api/admin/tow/payout-batches/1 HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: POST /api/admin/tow/payout-batches/1/process
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "POST /api/admin/tow/payout-batches/1/process HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: GET /api/admin/tow/payout-batches/preview
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "GET /api/admin/tow/payout-batches/preview HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: GET /api/admin/tow/requests
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "GET /api/admin/tow/requests HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: GET /api/admin/tow/requests/1
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "GET /api/admin/tow/requests/1 HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: POST /api/admin/tow/requests/1/override-cancel
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "POST /api/admin/tow/requests/1/override-cancel HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: POST /api/admin/tow/requests/1/override-complete
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "POST /api/admin/tow/requests/1/override-complete HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: GET /api/admin/tow/settings
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "GET /api/admin/tow/settings HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: PATCH /api/admin/tow/settings
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "PATCH /api/admin/tow/settings HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: GET /api/admin/tow/vehicle-documents
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "GET /api/admin/tow/vehicle-documents HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: GET /api/admin/tow/vehicle-documents/1
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "GET /api/admin/tow/vehicle-documents/1 HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: POST /api/admin/tow/vehicle-documents/1/approve
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "POST /api/admin/tow/vehicle-documents/1/approve HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: POST /api/admin/tow/vehicle-documents/1/reject
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "POST /api/admin/tow/vehicle-documents/1/reject HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: POST /api/tow/counteroffers/1/accept
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "POST /api/tow/counteroffers/1/accept HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: POST /api/tow/counteroffers/1/reject
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "POST /api/tow/counteroffers/1/reject HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: GET /api/tow/customer/debts
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "GET /api/tow/customer/debts HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: POST /api/tow/customer/debts/1/pay
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "POST /api/tow/customer/debts/1/pay HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: GET /api/tow/module-status
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "GET /api/tow/module-status HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: GET /api/tow/partner/financial-summary
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "GET /api/tow/partner/financial-summary HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: GET /api/tow/partner/jobs
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "GET /api/tow/partner/jobs HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: PUT /api/tow/partner/location
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "PUT /api/tow/partner/location HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: GET /api/tow/partner/opportunities
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "GET /api/tow/partner/opportunities HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: GET /api/tow/partner/proposals
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "GET /api/tow/partner/proposals HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: GET /api/tow/partner/status
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "GET /api/tow/partner/status HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: PATCH /api/tow/partner/status
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "PATCH /api/tow/partner/status HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: POST /api/tow/proposals/1/accept
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "POST /api/tow/proposals/1/accept HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: POST /api/tow/proposals/1/counteroffer
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "POST /api/tow/proposals/1/counteroffer HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: POST /api/tow/proposals/1/withdraw
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "POST /api/tow/proposals/1/withdraw HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: GET /api/tow/requests
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "GET /api/tow/requests HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: POST /api/tow/requests
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "POST /api/tow/requests HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: GET /api/tow/requests/1
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "GET /api/tow/requests/1 HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: POST /api/tow/requests/1/arrived
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "POST /api/tow/requests/1/arrived HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: POST /api/tow/requests/1/cancel
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "POST /api/tow/requests/1/cancel HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: POST /api/tow/requests/1/cancel-partner
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "POST /api/tow/requests/1/cancel-partner HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: POST /api/tow/requests/1/cash-received
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "POST /api/tow/requests/1/cash-received HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: POST /api/tow/requests/1/completion/confirm
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "POST /api/tow/requests/1/completion/confirm HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: POST /api/tow/requests/1/customer-no-show
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "POST /api/tow/requests/1/customer-no-show HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: PATCH /api/tow/requests/1/destination
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "PATCH /api/tow/requests/1/destination HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: POST /api/tow/requests/1/disputes
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "POST /api/tow/requests/1/disputes HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: POST /api/tow/requests/1/en-route
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "POST /api/tow/requests/1/en-route HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: POST /api/tow/requests/1/finish
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "POST /api/tow/requests/1/finish HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: POST /api/tow/requests/1/in-transit
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "POST /api/tow/requests/1/in-transit HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: GET /api/tow/requests/1/payment
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "GET /api/tow/requests/1/payment HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: PUT /api/tow/requests/1/payment-method
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "PUT /api/tow/requests/1/payment-method HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: GET /api/tow/requests/1/proposals
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "GET /api/tow/requests/1/proposals HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: POST /api/tow/requests/1/proposals
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "POST /api/tow/requests/1/proposals HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: POST /api/tow/requests/1/review
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "POST /api/tow/requests/1/review HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: GET /api/tow/requests/1/route
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "GET /api/tow/requests/1/route HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: GET /api/tow/requests/1/tracking
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "GET /api/tow/requests/1/tracking HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: POST /api/tow/requests/1/tracking
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "POST /api/tow/requests/1/tracking HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: GET /api/tow/vehicles
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "GET /api/tow/vehicles HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: POST /api/tow/vehicles
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "POST /api/tow/vehicles HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: GET /api/tow/vehicles/1
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "GET /api/tow/vehicles/1 HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: DELETE /api/tow/vehicles/1
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "DELETE /api/tow/vehicles/1 HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: PATCH /api/tow/vehicles/1
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "PATCH /api/tow/vehicles/1 HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: POST /api/tow/vehicles/1/activate
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "POST /api/tow/vehicles/1/activate HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: GET /api/tow/vehicles/1/documents
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "GET /api/tow/vehicles/1/documents HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: POST /api/tow/vehicles/1/documents
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "POST /api/tow/vehicles/1/documents HTTP/1.1" 404 68 "-" "-"
+Rota não encontrada: DELETE /api/tow/vehicles/1/documents/1
+::ffff:127.0.0.1 - - [18/Sep/2026:07:00:59 +0000] "DELETE /api/tow/vehicles/1/documents/1 HTTP/1.1" 404 68 "-" "-"
+# Tow v1 contract operations vs legacy HTTP surface
+
+Probed operations: 66
+Not routed in the legacy app (404 "Rota não encontrada"): 66
+Routed in the legacy app: 0
+

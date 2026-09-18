@@ -1,0 +1,42 @@
+# RED-4: legacy payment gateways are non-deterministic (real sleeps, wall clock, RNG)
+# command: grep -n 'Date\.now()|Math\.random()|setTimeout(' src/services/gateways/*.js
+# cwd: socorre_ai_backend @ e1e7dd2d20d5da25df00d8106a904f14041654a1
+
+src/services/gateways/mercadopagoGateway.js:8:      await new Promise(resolve => setTimeout(resolve, 1200));
+src/services/gateways/mercadopagoGateway.js:12:        transactionId: `mp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+src/services/gateways/mercadopagoGateway.js:13:        paymentId: `payment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+src/services/gateways/mercadopagoGateway.js:17:          id: Date.now(),
+src/services/gateways/mercadopagoGateway.js:43:      await new Promise(resolve => setTimeout(resolve, 600));
+src/services/gateways/mercadopagoGateway.js:46:      const isSuccess = Math.random() > 0.15;
+src/services/gateways/mercadopagoGateway.js:60:      await new Promise(resolve => setTimeout(resolve, 600));
+src/services/gateways/mercadopagoGateway.js:75:      await new Promise(resolve => setTimeout(resolve, 1200));
+src/services/gateways/mercadopagoGateway.js:79:        refundId: `refund_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+src/services/gateways/mercadopagoGateway.js:100:    return Math.random() < successRate ? 'completed' : 'failed';
+src/services/gateways/pagseguroGateway.js:8:      await new Promise(resolve => setTimeout(resolve, 1500));
+src/services/gateways/pagseguroGateway.js:12:        transactionId: `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+src/services/gateways/pagseguroGateway.js:13:        paymentId: `payment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+src/services/gateways/pagseguroGateway.js:17:          code: Date.now().toString(),
+src/services/gateways/pagseguroGateway.js:47:      await new Promise(resolve => setTimeout(resolve, 700));
+src/services/gateways/pagseguroGateway.js:50:      const isSuccess = Math.random() > 0.12;
+src/services/gateways/pagseguroGateway.js:64:      await new Promise(resolve => setTimeout(resolve, 700));
+src/services/gateways/pagseguroGateway.js:79:      await new Promise(resolve => setTimeout(resolve, 1500));
+src/services/gateways/pagseguroGateway.js:83:        refundId: `refund_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+src/services/gateways/pagseguroGateway.js:104:    return Math.random() < successRate ? 'completed' : 'failed';
+src/services/gateways/stripeGateway.js:8:      await new Promise(resolve => setTimeout(resolve, 1000));
+src/services/gateways/stripeGateway.js:12:        transactionId: `stripe_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+src/services/gateways/stripeGateway.js:13:        paymentId: `pi_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+src/services/gateways/stripeGateway.js:17:          id: `pi_${Date.now()}`,
+src/services/gateways/stripeGateway.js:22:          client_secret: `pi_${Date.now()}_secret_${Math.random().toString(36).substr(2, 9)}`,
+src/services/gateways/stripeGateway.js:23:          created: Math.floor(Date.now() / 1000)
+src/services/gateways/stripeGateway.js:41:      await new Promise(resolve => setTimeout(resolve, 500));
+src/services/gateways/stripeGateway.js:44:      const isSuccess = Math.random() > 0.2;
+src/services/gateways/stripeGateway.js:58:      await new Promise(resolve => setTimeout(resolve, 500));
+src/services/gateways/stripeGateway.js:73:      await new Promise(resolve => setTimeout(resolve, 1000));
+src/services/gateways/stripeGateway.js:77:        refundId: `re_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+src/services/gateways/stripeGateway.js:98:    return Math.random() < successRate ? 'completed' : 'failed';
+
+grep_exit_code=0
+
+# Consequence: any Tow test that exercises a gateway is slow, flaky and
+# cannot be replayed. T00 replaces them with deterministic port doubles
+# (tests/helpers/tow/gateways/) without changing production behavior.
