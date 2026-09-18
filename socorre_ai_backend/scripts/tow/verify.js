@@ -18,6 +18,11 @@
  *        ↓
  *   exit code + summary
  *
+ * Teardown failure contract (Muse M4-2 / Codex thread 4048163642): a failed
+ * `docker compose down` is a FAILED stage and makes the summary RED/exit 1,
+ * even when every test stage passed. If an earlier startup error exists, that
+ * error is recorded and the teardown failure is recorded beside it.
+ *
  * Flags:
  *   --skip-postgres   run only the offline gates (CI without Docker)
  *   --offline         alias of --skip-postgres
@@ -120,12 +125,27 @@ async function main() {
       envError = error;
     }
     if (envError) {
-      const alreadyRecorded = results.some((entry) => entry.name.startsWith('prepare database'));
-      if (!alreadyRecorded) {
+      // A teardown failure must always be visible and must fail the gate
+      // (Muse M4-2 / Codex thread 4048163642), even when every stage already
+      // reported PASS. An earlier startup error keeps its own stage entry; a
+      // teardown-only failure is recorded as the teardown stage.
+      const failedBefore = results.some((entry) => !entry.ok);
+      const teardownError = envError.teardownError
+        || (envError.isTeardownFailure ? envError : null);
+      const teardownOnly = Boolean(teardownError) && envError === teardownError;
+      if (!failedBefore && !teardownOnly) {
         results.push({
           name: 'PostgreSQL foundation gate',
           ok: false,
           detail: envError.message,
+          ms: 0,
+        });
+      }
+      if (teardownError) {
+        results.push({
+          name: 'teardown (docker compose down)',
+          ok: false,
+          detail: teardownError.message,
           ms: 0,
         });
       }

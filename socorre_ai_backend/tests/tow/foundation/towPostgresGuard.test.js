@@ -122,9 +122,33 @@ describe('T00 PostgreSQL test foundation (offline mechanism)', () => {
       expect(compose).toMatch(/POSTGRES_PASSWORD:\s*\$\{DB_PASSWORD:-tow_test_password\}/);
       expect(compose).toMatch(/POSTGRES_DB:\s*\$\{DB_NAME_TEST:-socorre_ai_tow_test\}/);
       // Single source of truth for the host port: DB_PORT, never a harness-only
-      // duplicate that can drift from the client configuration.
-      expect(compose).toMatch(/'\$\{DB_PORT:-55432\}:5432'/);
+      // duplicate that can drift from the client configuration. The mapping is
+      // bound to IPv4 loopback so the weak throwaway credentials are never
+      // published on another interface (Muse M4-1 / Codex thread 4048163637).
+      expect(compose).toMatch(/'127\.0\.0\.1:\$\{DB_PORT:-55432\}:5432'/);
+      // A bare mapping (quote directly before ${DB_PORT...}, i.e. every
+      // interface) is rejected.
+      expect(compose).not.toMatch(/'(\$\{DB_PORT:-55432\}:5432)'/);
       expect(compose).not.toMatch(/TOW_TEST_PG_PORT/);
+    });
+
+    test('the published port is bound to IPv4 loopback (M4-1 negative control)', () => {
+      const compose = fs.readFileSync(COMPOSE_PATH, 'utf8');
+      // The same predicate decides both the real file and the pre-fix shape:
+      // the publish mapping must exist, end in :5432 and start with 127.0.0.1.
+      const isLoopbackBound = (source) => {
+        const mappings = [...source.matchAll(/^\s*-\s*'([^']+)'\s*$/gm)].map((match) => match[1]);
+        const published = mappings.find((mapping) => mapping.endsWith(':5432'));
+        return Boolean(published) && /^127\.0\.0\.1:/.test(published);
+      };
+
+      expect(isLoopbackBound(compose)).toBe(true);
+
+      // Negative control: the pre-fix bare mapping (every interface) must fail
+      // the very predicate the real file passes.
+      const preFix = compose.replace("'127.0.0.1:${DB_PORT:-55432}:5432'", "'${DB_PORT:-55432}:5432'");
+      expect(preFix).toContain("'${DB_PORT:-55432}:5432'");
+      expect(isLoopbackBound(preFix)).toBe(false);
     });
 
     test('compose defaults, healthcheck and guard defaults cannot drift apart', () => {

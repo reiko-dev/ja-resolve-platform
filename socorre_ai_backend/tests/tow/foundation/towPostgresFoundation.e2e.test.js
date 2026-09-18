@@ -152,6 +152,10 @@ describePostgres('T00 PostgreSQL test foundation', () => {
     // port; a second port variable would make this assertion fail.
     expect(String(service.ports[0].published)).toBe(String(target.port));
     expect(String(service.ports[0].target)).toBe('5432');
+    // `docker compose config` exposes the publish bind address: the disposable
+    // database must be reachable on IPv4 loopback only (Muse M4-1 / Codex
+    // thread 4048163637), never on 0.0.0.0.
+    expect(String(service.ports[0].host_ip)).toBe('127.0.0.1');
     // The container credentials are the same ones the guard/Knex use.
     expect(service.environment.POSTGRES_DB).toBe(target.database);
     expect(service.environment.POSTGRES_USER).toBe(target.user);

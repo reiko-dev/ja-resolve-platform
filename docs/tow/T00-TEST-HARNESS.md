@@ -146,29 +146,46 @@ PG dependam dessas factories. É insumo de design para T01, não defeito de T00.
   `NODE_ENV=test`) para os processos filhos antes de qualquer `require`, então um
   `.env` de desenvolvedor não consegue sequestrar a conexão de teste.
 - **Porta única (correção Codex C2).** `DB_PORT` é a única variável de porta:
-  `docker-compose.test.yml` publica `${DB_PORT:-55432}:5432`, o guard resolve a
-  mesma variável e `tests/helpers/tow/postgres.js` conecta nela. `test-env.js`
-  entrega o alvo resolvido explicitamente ao `docker compose` (`targetEnv()`),
-  então um `.env` perdido não pode mais fazer o container publicar 55432
-  enquanto o cliente disca outra porta. A cadeia inteira (porta publicada ==
-  guard == Knex == singleton do app) é verificada offline em
+  `docker-compose.test.yml` publica `127.0.0.1:${DB_PORT:-55432}:5432`, o guard
+  resolve a mesma variável e `tests/helpers/tow/postgres.js` conecta nela.
+  `test-env.js` entrega o alvo resolvido explicitamente ao `docker compose`
+  (`targetEnv()`), então um `.env` perdido não pode mais fazer o container
+  publicar 55432 enquanto o cliente disca outra porta. A cadeia inteira (porta
+  publicada == guard == Knex == singleton do app) é verificada offline em
   `towPostgresGuard.test.js` e, com container real, em
   `towPostgresFoundation.e2e.test.js`.
+- **Bind loopback (correção Muse M4-1 / Codex 4048163637).** A publicação é
+  `127.0.0.1:${DB_PORT:-55432}:5432`: as credenciais descartáveis (e fracas)
+  nunca ficam expostas em outra interface. O bind é **IPv4-loopback por
+  design**; `[::1]` não é adicionado porque a sintaxe curta não é portável
+  entre versões de Docker/Compose e exigiria um segundo mapeamento. A asserção
+  live lê `service.ports[0].host_ip === '127.0.0.1'` do `docker compose config`
+  (`towPostgresFoundation.e2e.test.js`), e o controle offline em
+  `towPostgresGuard.test.js` rejeita o mapeamento nu `${DB_PORT...}:5432`
+  (todas as interfaces) com o mesmo predicado que aprova o arquivo real.
 - **Cobertura de portas (Muse M3-3).** A evidência *live* cobre duas portas: a default
   55432 (`docs/evidence/t00/green-postgres-gate.txt`) e a não-default 55999
   (`docs/evidence/t00/green-postgres-gate-custom-port.txt`, com
   `DB_PORT=55999 TOW_POSTGRES_E2E=1 npm run test:pg`, `docker port` registrando
-  `5432/tcp -> 0.0.0.0:55999` e o mesmo gate 6/6 verde). As demais portas são cobertas
+  `5432/tcp -> 127.0.0.1:55999` e o mesmo gate 6/6 verde). As demais portas são cobertas
   **apenas offline**, pelas asserções de concordância config/guarda/Knex/compose em
   `towPostgresGuard.test.js` e no teste de renderização do compose; nenhuma execução live
   por porta é alegada.
 - **Ciclo de vida (correção Codex C3).** `runWithEnvironment(fn, { up,
-  waitForHealth, down, env })` coloca a subida **dentro** do `try` cujo `finally`
-  executa `down()`: uma subida que falha no meio (porta ocupada, timeout de
-  healthcheck) ainda derruba container, volume tmpfs e network. `down()` é
-  idempotente e nunca lança, e a guarda roda antes de qualquer operação
-  destrutiva. Provado sem Docker em `towHarnessLifecycle.test.js` (seam
-  injetável) e no CLI (docker falso no `PATH`).
+  waitForHealth, down, env })` executa `down()` mesmo quando a subida falha no
+  meio (porta ocupada, timeout de healthcheck), derrubando container, volume
+  tmpfs e network. A guarda roda antes de qualquer operação destrutiva.
+- **Falha de teardown (correção Muse M4-2 / Codex 4048163642).** `down()` é
+  idempotente quando não há nada a remover (`docker compose down` sem recursos
+  retorna 0), mas uma falha real de teardown **não é engolida**: sem erro
+  anterior ela reprova o gate (`runWithEnvironment` rejeita com o erro de
+  teardown; `verify:tow` registra o estágio `teardown (docker compose down)`
+  como FAIL e o summary fica RED mesmo com todos os testes verdes;
+  `npm run test:pg:down` sai com código não-zero). Com erro anterior de
+  workload/startup, esse erro continua sendo a rejeição e carrega
+  `error.teardownError`. A mensagem de erro inclui o comando e o status, nunca
+  segredos. Provado sem Docker em `towHarnessLifecycle.test.js` (seam injetável
+  + docker falso no `PATH`).
 - O gate `tests/tow/foundation/towPostgresFoundation.e2e.test.js` prova:
   PostgreSQL 14 real, migrations a partir de schema vazio, isolamento
   (truncate + rollback), porta publicada == porta do cliente e `GET /health`

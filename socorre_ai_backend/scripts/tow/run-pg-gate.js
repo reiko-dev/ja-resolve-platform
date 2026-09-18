@@ -43,5 +43,11 @@ async function main() {
 
 main().catch((error) => {
   console.error(`[test:pg] RED: ${error && error.message ? error.message : error}`);
+  // A teardown failure attached to an earlier error must stay visible
+  // (Muse M4-2 / Codex thread 4048163642).
+  const teardownError = error && error.teardownError;
+  if (teardownError) {
+    console.error(`[test:pg] teardown also failed: ${teardownError.message}`);
+  }
   process.exit(1);
 });

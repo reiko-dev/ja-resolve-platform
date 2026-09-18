@@ -1,0 +1,89 @@
+# T00 pass 6 — M4-2 teardown-failure contract (negative control, real Docker)
+# git HEAD: e17028e84b5a31b6813d0c2db49e64d1835bb67d
+# captured_at_utc: 2026-09-18T15:58:00Z
+# Fixes: Muse M4-2 / Codex thread 4048163642.
+#
+# Method (deterministic, no mock framework): a wrapper `docker` on PATH
+# delegates EVERY command to the real binary except `compose ... down`, which
+# exits 1 with "fake docker: refusing to tear down". That reproduces a Docker
+# daemon that went away after all test stages passed — the exact scenario that
+# used to print GREEN while leaking the container/network.
+#
+#   /tmp/t00-fakedocker/docker:
+#     #!/bin/sh
+#     for arg in "$@"; do
+#       if [ "$arg" = "down" ]; then
+#         echo "fake docker: refusing to tear down" >&2
+#         exit 1
+#       fi
+#     done
+#     exec /opt/homebrew/bin/docker "$@"
+#
+# The leaked container from (1)/(2) was observed in (3) and removed with the
+# real `docker compose down` in (5). `docker ps` is empty afterwards.
+
+## 1. run-pg-gate: 6/6 tests GREEN + failed teardown -> RED, exit 1
+$ PATH=/tmp/t00-fakedocker:$PATH TOW_POSTGRES_E2E=1 npm run test:pg
+exit_code=1
+--- key lines from /tmp/t00-m4-pg-teardown-fail.log ---
+Test Suites: 1 passed, 1 total
+Tests:       6 passed, 6 total
+fake docker: refusing to tear down
+[test:pg] RED: docker compose down failed (exit status 1): docker compose -p socorre-tow-test -f /Volumes/Reiko/projects/work/socorre-system/socorre_ai_backend/docker-compose.test.yml down --volumes --remove-orphans --timeout 10
+
+## 2. verify:tow: every test stage PASS + failed teardown -> FAIL stage, RED, exit 1
+$ PATH=/tmp/t00-fakedocker:$PATH TOW_POSTGRES_E2E=1 npm run verify:tow
+exit_code=1
+--- key lines from /tmp/t00-m4-verify-teardown-fail.log ---
+  PASS  OpenAPI 3.1 structure gate
+  PASS  contract suite (OpenAPI + patch semantics + discovery + consumer smoke)
+  PASS  focused Tow suite (offline)
+  PASS  prepare database + migrations from zero
+  PASS  PostgreSQL foundation gate
+  FAIL  teardown (docker compose down) — docker compose down failed (exit status 1): docker compose -p socorre-tow-test -f /Volumes/Reiko/projects/work/socorre-system/socorre_ai_backend/docker-compose.test.yml down --volumes --remove-orphans --timeout 10
+
+[verify:tow] RED (1 failing stage(s))
+
+## 3. the leaked container was real (observed before cleanup)
+$ docker ps --filter name=socorre-tow-postgres-test --format '{{.Names}} {{.Ports}}'
+socorre-tow-postgres-test 127.0.0.1:55432->5432/tcp
+
+## 4. `npm run test:pg:down` exits nonzero when teardown cannot run
+$ DOCKER_HOST=unix:///tmp/t00-dead-socket.sock npm run test:pg:down
+exit_code=1
+--- key lines from /tmp/t00-m4-down-dead.log ---
+docker compose down failed (exit status 1): docker compose -p socorre-tow-test -f /Volumes/Reiko/projects/work/socorre-system/socorre_ai_backend/docker-compose.test.yml down --volumes --remove-orphans --timeout 10
+
+$ PATH=/tmp/t00-fakedocker:$PATH npm run test:pg:down
+exit_code=1
+--- key lines from /tmp/t00-m4-down-fake.log ---
+fake docker: refusing to tear down
+docker compose down failed (exit status 1): docker compose -p socorre-tow-test -f /Volumes/Reiko/projects/work/socorre-system/socorre_ai_backend/docker-compose.test.yml down --volumes --remove-orphans --timeout 10
+
+## 5. real down is idempotent: nothing to remove -> exit 0
+$ docker ps --format '{{.Names}}'
+(empty)
+$ TOW_POSTGRES_E2E=1 npm run test:pg:down
+exit_code=0
+--- key lines from /tmp/t00-m4-down-idempotent.log ---
+PostgreSQL test environment destroyed (containers, volumes, network)
+
+$ TOW_POSTGRES_E2E=1 npm run test:pg:down   # after the leaked container existed
+exit_code=0
+--- key lines from /tmp/t00-m4-down-real.log ---
+ Container socorre-tow-postgres-test Removed
+ Network socorre-tow-test-net Removed
+PostgreSQL test environment destroyed (containers, volumes, network)
+
+$ docker ps --format '{{.Names}}'
+(empty)
+
+# Contract implemented in scripts/tow/test-env.js (`down()` + runWithEnvironment):
+#   - no earlier workload/startup error -> runWithEnvironment rejects with the
+#     teardown error (TeardownError, isTeardownFailure=true);
+#   - earlier error present -> that error stays the rejection and carries the
+#     teardown failure as error.teardownError (run-pg-gate.js prints it too);
+#   - verify.js records `teardown (docker compose down)` as a FAILED stage, so
+#     the summary is RED even when all test stages passed;
+#   - error messages carry the command and exit status, never secrets.
+# Offline proof of the same contract: tests/tow/foundation/towHarnessLifecycle.test.js

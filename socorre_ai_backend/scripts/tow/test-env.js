@@ -13,10 +13,15 @@
  * helper and `src/config/database.js` use (Codex finding C2).
  *
  * Cleanup is guaranteed by `runWithEnvironment()` even when the suite fails OR
- * when the startup itself fails part-way: the startup attempt is inside the
- * same `try` as the workload, so the `finally` block always tears the
- * environment down (Codex finding C3). `down()` is safe and idempotent when
- * nothing was created.
+ * when the startup itself fails part-way: the startup attempt lives inside the
+ * same cleanup scope, so a partially created container/network is still
+ * destroyed (Codex finding C3). `down()` is safe and idempotent when nothing
+ * was created.
+ *
+ * Teardown failure contract (Muse M4-2 / Codex thread 4048163642): a real
+ * `docker compose down` failure is NEVER swallowed. With no earlier error it
+ * fails the gate; with an earlier workload/startup error that error stays the
+ * rejection and carries the teardown failure as `error.teardownError`.
  *
  * Commands:
  *   node scripts/tow/test-env.js up
@@ -95,15 +100,42 @@ function up() {
   console.log('PostgreSQL test container is healthy');
 }
 
+/** Error raised when `docker compose down` itself fails (Muse M4-2). */
+function makeTeardownError(message) {
+  const error = new Error(message);
+  error.name = 'TeardownError';
+  error.isTeardownFailure = true;
+  return error;
+}
+
+/** Human-readable teardown command. Contains no credentials by construction. */
+function teardownCommand() {
+  return `docker compose -p ${COMPOSE_PROJECT} -f ${COMPOSE_FILE} down --volumes --remove-orphans --timeout 10`;
+}
+
 /**
- * Destroy containers, volumes and network. Safe and idempotent when nothing
- * was created, and it never masks the failure that triggered the cleanup.
+ * Destroy containers, volumes and network.
+ *
+ * Idempotent when nothing was created (`docker compose down` with no resources
+ * exits 0), but a REAL teardown failure is never swallowed: it is thrown as a
+ * `TeardownError` (Muse M4-2 / Codex thread 4048163642) so the caller can fail
+ * the gate. The message carries the command and exit status, never secrets.
  */
 function down() {
+  const args = ['down', '--volumes', '--remove-orphans', '--timeout', '10'];
+  let result;
   try {
-    compose(['down', '--volumes', '--remove-orphans', '--timeout', '10'], { allowFailure: true });
+    result = compose(args, { allowFailure: true, capture: true });
   } catch (error) {
-    console.error(`[test-env] teardown warning: ${error && error.message ? error.message : error}`);
+    throw makeTeardownError(
+      `docker compose down could not run (${error && error.message ? error.message : error}): ${teardownCommand()}`
+    );
+  }
+  // Preserve the compose progress lines in the console/evidence.
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr);
+  if (result.status !== 0) {
+    throw makeTeardownError(`docker compose down failed (exit status ${result.status}): ${teardownCommand()}`);
   }
   console.log('PostgreSQL test environment destroyed (containers, volumes, network)');
 }
@@ -155,6 +187,23 @@ function enableOptIn() {
 }
 
 /**
+ * Preserve the workload/startup error as the rejection and attach the teardown
+ * failure so it is not lost (Muse M4-2 / Codex thread 4048163642).
+ */
+function attachTeardownError(error, teardownError) {
+  if (error && typeof error === 'object' && !Object.isFrozen(error)) {
+    error.teardownError = teardownError;
+    return error;
+  }
+  const message = `${error && error.message ? error.message : String(error)}`
+    + ` (teardown also failed: ${teardownError.message})`;
+  const wrapped = new Error(message);
+  wrapped.cause = error;
+  wrapped.teardownError = teardownError;
+  return wrapped;
+}
+
+/**
  * Run `fn` with the disposable environment up, tearing it down even on failure.
  *
  * The safety guard runs BEFORE any startup/destructive operation, and the
@@ -162,6 +211,10 @@ function enableOptIn() {
  * container/network from a failed `up()` is still destroyed.
  *
  * `fn` receives the resolved, guard-checked target.
+ *
+ * Teardown contract (Muse M4-2): a teardown failure fails the gate when no
+ * earlier error exists; otherwise the earlier error stays the rejection and
+ * carries the teardown failure as `teardownError`.
  *
  * `options` is a minimal test seam (no mocking framework): `{ env, up,
  * waitForHealth, down }` may be injected to prove the lifecycle deterministically
@@ -180,13 +233,29 @@ async function runWithEnvironment(fn, options = {}) {
   }
   applyTestTargetDefaults(env);
 
+  let result;
+  let workloadError = null;
   try {
     startUp();
     waitHealthy();
-    return await fn(check.target);
-  } finally {
-    tearDown();
+    result = await fn(check.target);
+  } catch (error) {
+    workloadError = error;
   }
+
+  let teardownError = null;
+  try {
+    tearDown();
+  } catch (error) {
+    teardownError = error;
+  }
+
+  if (teardownError) {
+    if (workloadError) throw attachTeardownError(workloadError, teardownError);
+    throw teardownError;
+  }
+  if (workloadError) throw workloadError;
+  return result;
 }
 
 const DOCKER_COMMANDS = new Set(['up', 'wait', 'down', 'status']);

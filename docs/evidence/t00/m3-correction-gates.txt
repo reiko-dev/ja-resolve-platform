@@ -137,3 +137,16 @@ root-lock evidence verified (RED=exit 1, GREEN=exit 0, non-empty ref-to-ref delt
 $ git diff --check
 exit_code=0
 --- deterministic summary lines from the full log (/tmp/t00-m3-gate-diff-check.log) ---
+
+# --- scope note (pass 6, Muse M4-3) ---
+# The exit_code=0 above is the WORKTREE check `git diff --check`: it covers only
+# unstaged tracked changes and is trivially empty on a clean tree, so it does not
+# cover committed content. The RANGE check is
+#   git diff --check <base>..<head>
+# and at pass 5 the range `git diff --check ac2e7804..e17028e8` still reported 32
+# trailing-whitespace lines, all in
+# docs/evidence/t00/green-postgres-gate-custom-port.txt (docker compose prints
+# padded "Creating "/"Created " lines). Pass 6 re-recorded both PostgreSQL gate
+# evidence files through `bash scripts/tow/normalize-evidence.sh` (strips trailing
+# whitespace per line) and re-ran both checks clean; see
+# docs/evidence/t00/pass6-gates.txt.

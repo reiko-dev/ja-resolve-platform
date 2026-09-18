@@ -1,23 +1,25 @@
-# T00 PostgreSQL gate — default port (re-recorded in pass 5)
+# T00 PostgreSQL gate — default port (re-recorded in pass 6 with the loopback bind)
 # command: TOW_POSTGRES_E2E=1 npm run test:pg
 # cwd: socorre_ai_backend
-# git HEAD: ac2e78047d6f152b19e8518d6eb3c1eab064580f
-# captured_at_utc: 2026-09-18T14:29:03Z
+# git HEAD: e17028e84b5a31b6813d0c2db49e64d1835bb67d
+# captured_at_utc: 2026-09-18T15:53:23Z
+# normalizer: bash scripts/tow/normalize-evidence.sh <file>  # strips trailing whitespace (Muse M4-3)
 
+$ TOW_POSTGRES_E2E=1 npm run test:pg
 
 > socorre-ai-backend@1.0.0 test:pg
 > node scripts/tow/run-pg-gate.js
 
- Network socorre-tow-test-net Creating 
- Network socorre-tow-test-net Creating 
- Network socorre-tow-test-net Created 
- Network socorre-tow-test-net Created 
- Container socorre-tow-postgres-test Creating 
- Container socorre-tow-postgres-test Created 
- Container socorre-tow-postgres-test Starting 
- Container socorre-tow-postgres-test Started 
- Container socorre-tow-postgres-test Waiting 
- Container socorre-tow-postgres-test Healthy 
+ Network socorre-tow-test-net Creating
+ Network socorre-tow-test-net Creating
+ Network socorre-tow-test-net Created
+ Network socorre-tow-test-net Created
+ Container socorre-tow-postgres-test Creating
+ Container socorre-tow-postgres-test Created
+ Container socorre-tow-postgres-test Starting
+ Container socorre-tow-postgres-test Started
+ Container socorre-tow-postgres-test Waiting
+ Container socorre-tow-postgres-test Healthy
 PostgreSQL test container is healthy
 healthcheck: healthy
 [verify:tow] migrations against postgresql://tow_test@127.0.0.1:55432/socorre_ai_tow_test
@@ -25,27 +27,55 @@ healthcheck: healthy
 [verify:tow] migrations applied: 43 (batch 1)
 [verify:tow] tables in public: 29
 [verify:tow] database ready at 127.0.0.1:55432/socorre_ai_tow_test
-::ffff:127.0.0.1 - - [18/Sep/2026:14:29:02 +0000] "GET /health HTTP/1.1" 200 179 "-" "-"
+::ffff:127.0.0.1 - - [18/Sep/2026:15:53:30 +0000] "GET /health HTTP/1.1" 200 179 "-" "-"
 PASS tests/tow/foundation/towPostgresFoundation.e2e.test.js
   T00 PostgreSQL test foundation
     ✓ the disposable container reports PostgreSQL 14 (2 ms)
-    ✓ migrations apply from a truly empty schema (327 ms)
-    ✓ the Tow safety guard fails closed for non-test targets (1 ms)
-    ✓ per-test isolation: truncate clears data and rollback leaves no leakage (36 ms)
-    ✓ docker compose publishes exactly the DB_PORT the guard and the client use (54 ms)
-    ✓ the Express app answers GET /health from the same PostgreSQL singleton (521 ms)
+    ✓ migrations apply from a truly empty schema (296 ms)
+    ✓ the Tow safety guard fails closed for non-test targets
+    ✓ per-test isolation: truncate clears data and rollback leaves no leakage (35 ms)
+    ✓ docker compose publishes exactly the DB_PORT the guard and the client use (61 ms)
+    ✓ the Express app answers GET /health from the same PostgreSQL singleton (469 ms)
 
 Test Suites: 1 passed, 1 total
 Tests:       6 passed, 6 total
 Snapshots:   0 total
-Time:        1.336 s
+Time:        1.113 s
 Ran all test suites matching /tests\/tow\/foundation\/towPostgresFoundation.e2e.test.js/i.
- Container socorre-tow-postgres-test Stopping 
- Container socorre-tow-postgres-test Stopped 
- Container socorre-tow-postgres-test Removing 
- Container socorre-tow-postgres-test Removed 
- Network socorre-tow-test-net Removing 
- Network socorre-tow-test-net Removed 
+ Container socorre-tow-postgres-test Stopping
+ Container socorre-tow-postgres-test Stopped
+ Container socorre-tow-postgres-test Removing
+ Container socorre-tow-postgres-test Removed
+ Network socorre-tow-test-net Removing
+ Network socorre-tow-test-net Removed
 PostgreSQL test environment destroyed (containers, volumes, network)
 [test:pg] GREEN
 EXIT=0
+
+# --- live port-publication probe (default port 55432) ---
+$ TOW_POSTGRES_E2E=1 node scripts/tow/test-env.js up
+[test-env] env file: /Volumes/Reiko/projects/work/socorre-system/socorre_ai_backend/.env.test not present (optional: safe defaults apply)
+ Network socorre-tow-test-net Creating
+ Network socorre-tow-test-net Creating
+ Network socorre-tow-test-net Created
+ Network socorre-tow-test-net Created
+ Container socorre-tow-postgres-test Creating
+ Container socorre-tow-postgres-test Created
+ Container socorre-tow-postgres-test Starting
+ Container socorre-tow-postgres-test Started
+ Container socorre-tow-postgres-test Waiting
+ Container socorre-tow-postgres-test Healthy
+PostgreSQL test container is healthy
+$ docker port socorre-tow-postgres-test
+5432/tcp -> 127.0.0.1:55432
+$ docker ps --filter name=socorre-tow-postgres-test --format '{{.Names}} {{.Ports}}'
+socorre-tow-postgres-test 127.0.0.1:55432->5432/tcp
+$ TOW_POSTGRES_E2E=1 node scripts/tow/test-env.js down
+ Container socorre-tow-postgres-test Stopping
+ Container socorre-tow-postgres-test Stopped
+ Container socorre-tow-postgres-test Removing
+ Container socorre-tow-postgres-test Removed
+ Network socorre-tow-test-net Removing
+ Network socorre-tow-test-net Removed
+PostgreSQL test environment destroyed (containers, volumes, network)
+$ docker ps --format '{{.Names}}'   # must be empty

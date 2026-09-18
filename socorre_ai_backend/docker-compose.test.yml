@@ -36,7 +36,12 @@ services:
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
       # Canonical host port: DB_PORT (pg-guard.js default 55432).
-      - '${DB_PORT:-55432}:5432'
+      # Bound to IPv4 loopback ONLY: the throwaway credentials below must never
+      # be published on another interface (Muse M4-1 / Codex thread 4048163637).
+      # IPv6 loopback ([::1]) is intentionally not added: the short-syntax bind
+      # is not portable across Docker/Compose versions and would need a second
+      # mapping. The IPv4 loopback bind is the isolation boundary.
+      - '127.0.0.1:${DB_PORT:-55432}:5432'
     # tmpfs keeps the database ephemeral: `docker compose down` leaves nothing.
     tmpfs:
       - /var/lib/postgresql/data

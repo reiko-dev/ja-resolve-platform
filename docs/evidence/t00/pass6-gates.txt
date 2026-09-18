@@ -1,0 +1,86 @@
+# T00 pass 6 — full gate sweep (Muse pass-5 re-review corrections M4-1..M4-3)
+# cwd: repository root; npm scripts run in socorre_ai_backend
+# git HEAD: e17028e84b5a31b6813d0c2db49e64d1835bb67d
+# captured_at_utc: 2026-09-18T16:12:00Z
+# Docker: real daemon. `docker ps -a`, `docker network ls` and `docker volume ls`
+# filtered by socorre-tow are all empty after the sweep (see the last section).
+# The two PostgreSQL gates below were also re-recorded as standalone artifacts:
+#   docs/evidence/t00/green-postgres-gate.txt              (default port 55432)
+#   docs/evidence/t00/green-postgres-gate-custom-port.txt  (DB_PORT=55999)
+# Teardown negative controls: docs/evidence/t00/m4-teardown-failure-negative-control.txt
+
+## npm run validate:openapi
+exit_code=0
+--- deterministic summary lines from /tmp/t00-p6-openapi.log ---
+Tow OpenAPI contract validation
+  OpenAPI version:                  3.1.0
+  Composed operations:              66
+  JSON Schema definition errors:    0
+  TowSettingsPatch errors:          0
+  RESULT:                           PASS
+
+## npm run test:contract
+exit_code=0
+--- deterministic summary lines from /tmp/t00-p6-contract.log ---
+Test Suites: 4 passed, 4 total
+Tests:       52 passed, 52 total
+
+## npx jest tests/tow --runInBand
+exit_code=0
+--- deterministic summary lines from /tmp/t00-p6-focused.log ---
+Test Suites: 2 skipped, 13 passed, 13 of 15 total
+Tests:       15 skipped, 263 passed, 278 total
+
+## TOW_POSTGRES_E2E=1 npm run test:pg
+exit_code=0
+--- deterministic summary lines from /tmp/t00-p6-pg-default.log ---
+Tests:       6 passed, 6 total
+[test:pg] GREEN
+# full artifact: docs/evidence/t00/green-postgres-gate.txt
+# live publication observed there: 5432/tcp -> 127.0.0.1:55432
+
+## DB_PORT=55999 TOW_POSTGRES_E2E=1 npm run test:pg
+exit_code=0
+--- deterministic summary lines from /tmp/t00-p6-pg-custom.log ---
+Tests:       6 passed, 6 total
+[test:pg] GREEN
+# full artifact: docs/evidence/t00/green-postgres-gate-custom-port.txt
+# live publication observed there: 5432/tcp -> 127.0.0.1:55999
+
+## npm run verify:tow
+exit_code=0
+--- deterministic summary lines from /tmp/t00-p6-verify-tow.log ---
+=== [verify:tow] summary ===
+  PASS  OpenAPI 3.1 structure gate
+  PASS  contract suite (OpenAPI + patch semantics + discovery + consumer smoke)
+  PASS  focused Tow suite (offline)
+  PASS  prepare database + migrations from zero
+  PASS  PostgreSQL foundation gate
+
+[verify:tow] GREEN
+
+## npx jest --runInBand
+exit_code=0
+--- deterministic summary lines from /tmp/t00-p6-full.log ---
+Test Suites: 2 skipped, 44 passed, 44 of 46 total
+Tests:       15 skipped, 670 passed, 685 total
+
+## git diff --check   (worktree scope)
+exit_code=0
+(no output)
+
+## docker ps -a / network ls / volume ls (after the sweep)
+$ docker ps -a --filter name=socorre-tow --format '{{.Names}}'
+(empty)
+$ docker network ls --filter name=socorre-tow --format '{{.Name}}'
+(empty)
+$ docker volume ls --filter name=socorre-tow --format '{{.Name}}'
+(empty)
+
+# Range check scope (Muse M4-3): `git diff --check` above covers the WORKTREE
+# only. The committed-range check is
+#   git diff --check e17028e8..HEAD
+# re-run after the pass-6 commits; at pass 5 that range reported 32
+# trailing-whitespace lines in green-postgres-gate-custom-port.txt, which pass 6
+# fixed by re-recording both gate artifacts through
+# `bash scripts/tow/normalize-evidence.sh` (see m3-correction-gates.txt).

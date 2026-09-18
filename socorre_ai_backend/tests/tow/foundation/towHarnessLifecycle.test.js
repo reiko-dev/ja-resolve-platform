@@ -14,7 +14,10 @@
  *   3. `waitForHealth()` throwing still runs `down()`;
  *   4. the workload throwing still runs `down()` and the original error wins;
  *   5. the safety guard runs BEFORE any startup (fail closed);
- *   6. the real `down()` never throws, even when Docker refuses (idempotent).
+ *   6. a teardown failure fails the gate when no earlier error exists, and is
+ *      attached as `error.teardownError` when an earlier error exists (M4-2);
+ *   7. the real `down()` is idempotent with nothing to remove but propagates a
+ *      genuine docker failure (M4-2 / Codex thread 4048163642).
  */
 'use strict';
 
@@ -50,6 +53,28 @@ function makeTempDir() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tow-lifecycle-'));
   tempDirs.push(dir);
   return dir;
+}
+
+/**
+ * Fake `docker` on PATH: `compose down` exits `downStatus`, every other
+ * command exits 0. No mocking framework, no Docker daemon.
+ */
+function writeFakeDocker(dir, downStatus) {
+  const fake = path.join(dir, 'docker');
+  fs.writeFileSync(fake, [
+    '#!/bin/sh',
+    'for arg in "$@"; do',
+    '  if [ "$arg" = "down" ]; then',
+    '    echo "fake docker: refusing to tear down" >&2',
+    `    exit ${downStatus}`,
+    '  fi',
+    'done',
+    'echo "fake docker: $@"',
+    'exit 0',
+    '',
+  ].join('\n'));
+  fs.chmodSync(fake, 0o755);
+  return fake;
 }
 
 afterAll(() => {
@@ -107,6 +132,74 @@ describe('T00 harness lifecycle (Codex finding C3)', () => {
     expect(spy.calls).toEqual(['up', 'wait', 'down']);
   });
 
+  test('a teardown failure with no earlier error rejects with the teardown error', async () => {
+    const spy = recorder();
+    const teardown = new Error('docker compose down failed (exit status 1)');
+    spy.down = () => {
+      spy.calls.push('down');
+      throw teardown;
+    };
+
+    let caught;
+    try {
+      await testEnv.runWithEnvironment(async () => 'green stages', { env: { ...SAFE_ENV }, ...spy });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBe(teardown);
+    expect(spy.calls).toEqual(['up', 'wait', 'down']);
+  });
+
+  test('a workload error stays the rejection and carries the teardown failure', async () => {
+    const spy = recorder();
+    const teardown = new Error('docker compose down failed (exit status 1)');
+    const workload = new Error('migration failed');
+    spy.down = () => {
+      spy.calls.push('down');
+      throw teardown;
+    };
+
+    let caught;
+    try {
+      await testEnv.runWithEnvironment(async () => {
+        throw workload;
+      }, { env: { ...SAFE_ENV }, ...spy });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBe(workload);
+    expect(caught.message).toMatch(/migration failed/);
+    expect(caught.teardownError).toBe(teardown);
+    expect(spy.calls).toEqual(['up', 'wait', 'down']);
+  });
+
+  test('a startup error also carries the teardown failure', async () => {
+    const spy = recorder();
+    const teardown = new Error('docker compose down failed (exit status 1)');
+    const startup = new Error('port is already allocated');
+    spy.up = () => {
+      spy.calls.push('up');
+      throw startup;
+    };
+    spy.down = () => {
+      spy.calls.push('down');
+      throw teardown;
+    };
+
+    let caught;
+    try {
+      await testEnv.runWithEnvironment(async () => 'never', { env: { ...SAFE_ENV }, ...spy });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBe(startup);
+    expect(caught.teardownError).toBe(teardown);
+    expect(spy.calls).toEqual(['up', 'down']);
+  });
+
   test('the guard fails closed BEFORE any startup or teardown', async () => {
     const spy = recorder();
 
@@ -137,39 +230,22 @@ describe('T00 harness lifecycle (Codex finding C3)', () => {
     expect(testEnv.targetEnv(env).DB_PORT).toBe('55432');
   });
 
-  test('the real down() never throws when docker cannot even be spawned', () => {
+  test('the real down() propagates a docker spawn failure (never swallowed)', () => {
     const dir = makeTempDir(); // empty PATH: `docker` does not exist
     const originalPath = process.env.PATH;
-    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     try {
       process.env.PATH = dir;
-      expect(() => testEnv.down()).not.toThrow();
-      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('teardown warning'));
+      expect(() => testEnv.down()).toThrow(/docker compose down could not run/);
     } finally {
       process.env.PATH = originalPath;
-      errorSpy.mockRestore();
     }
   });
 
-  test('the real down() resolves when docker refuses the teardown', () => {
-    // A fake `docker` on PATH: `compose version` succeeds (so the CLI accepts
-    // the command) while `compose down` fails, exactly like a Docker daemon
-    // that went away mid-run. Teardown must still exit 0.
+  test('the real down() is idempotent when there is nothing to remove', () => {
+    // Fake docker that accepts every command and exits 0: `compose down` with
+    // no resources returns 0, so teardown must resolve and report destroyed.
     const dir = makeTempDir();
-    const fake = path.join(dir, 'docker');
-    fs.writeFileSync(fake, [
-      '#!/bin/sh',
-      'for arg in "$@"; do',
-      '  if [ "$arg" = "down" ]; then',
-      '    echo "fake docker: refusing to tear down" >&2',
-      '    exit 1',
-      '  fi',
-      'done',
-      'echo "fake docker: $@"',
-      'exit 0',
-      '',
-    ].join('\n'));
-    fs.chmodSync(fake, 0o755);
+    writeFakeDocker(dir, 0);
 
     const result = spawnSync(process.execPath, [path.join(BACKEND_DIR, 'scripts', 'tow', 'test-env.js'), 'down'], {
       cwd: BACKEND_DIR,
@@ -179,7 +255,26 @@ describe('T00 harness lifecycle (Codex finding C3)', () => {
 
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('destroyed');
+  });
+
+  test('the down CLI exits nonzero when docker refuses the teardown', () => {
+    // A fake `docker` on PATH: `compose version` succeeds (so the CLI accepts
+    // the command) while `compose down` fails, exactly like a Docker daemon
+    // that went away mid-run. The failure must propagate to the exit code
+    // (Muse M4-2 / Codex thread 4048163642).
+    const dir = makeTempDir();
+    writeFakeDocker(dir, 1);
+
+    const result = spawnSync(process.execPath, [path.join(BACKEND_DIR, 'scripts', 'tow', 'test-env.js'), 'down'], {
+      cwd: BACKEND_DIR,
+      encoding: 'utf8',
+      env: { ...process.env, PATH: dir },
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).not.toContain('destroyed');
     expect(result.stderr).toContain('refusing to tear down');
+    expect(result.stderr).toContain('docker compose down failed (exit status 1)');
   });
 
   test('the guard CLI needs no Docker, while docker commands fail loudly without it', () => {
