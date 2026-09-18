@@ -8,15 +8,25 @@
 # runs the new regression suite against it:
 #
 #   NC-C1  `.env.test` never loaded        -> revert pg-guard.js, test-env.js and
-#                                             postgres.js to HEAD
+#                                             postgres.js to the pre-fix fixture
 #   NC-C2  compose/client port divergence  -> revert docker-compose.test.yml
 #   NC-C3  up() outside the cleanup scope  -> revert test-env.js, then (a) run the
 #                                             lifecycle suite and (b) run a probe
 #                                             that reports whether `down()` ran
-#   NC-C4  Express/PG test false positive  -> run the HEAD version of the e2e
+#   NC-C4  Express/PG test false positive  -> run the pre-fix version of the e2e
 #                                             suite with the app pointed away
 #                                             from the disposable database
 #                                             (DB_SSL=true, no TLS in tmpfs)
+#
+# Pre-fix fixture (Muse finding M3-1 / Codex thread 4047474342)
+# -------------------------------------------------------------
+# The pre-fix files come from `TOW_NC_PREFIX_REF` (default 74e44590, the commit
+# the Codex correction series was built on), NEVER from `HEAD`: once the fixes
+# are committed, `HEAD` holds the fixed files, so restoring from `HEAD` would
+# silently turn every control into a no-op and the script would exit red.
+# The script fails fast when the pinned ref does not resolve to a real commit,
+# when it equals `HEAD`, or when it does not actually differ from `HEAD` in the
+# controlled files — the fixture cannot silently degrade again.
 #
 # Every control asserts that Jest really ran (a script error must never be
 # mistaken for a red suite) and, where possible, that the failure is the one
@@ -30,18 +40,33 @@
 #
 # Output: docs/evidence/t00/negative-controls/*.txt
 #
-# Usage: bash scripts/tow/negative-controls.sh
+# Usage:
+#   bash scripts/tow/negative-controls.sh
+#
+# Environment overrides:
+#   TOW_NC_PREFIX_REF   pre-fix ref used as the fixture (default 74e44590)
 
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 BACKEND="$REPO_ROOT/socorre_ai_backend"
 OUT_DIR="$REPO_ROOT/docs/evidence/t00/negative-controls"
+PREFIX_REF="${TOW_NC_PREFIX_REF:-74e44590}"
+HEAD_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD)"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/t00-negative-controls.XXXXXX")"
 COPY="$WORK/backend"
 FAKE_BIN="$WORK/fakebin"
 PROBE="$WORK/probe-lifecycle.js"
 NODE_BIN="$(command -v node)"
+
+# Files reverted to the pre-fix fixture; each one backs at least one control.
+CONTROLLED_FILES=(
+  scripts/tow/pg-guard.js
+  scripts/tow/test-env.js
+  tests/helpers/tow/postgres.js
+  docker-compose.test.yml
+  tests/tow/foundation/towPostgresFoundation.e2e.test.js
+)
 
 mkdir -p "$OUT_DIR" "$COPY" "$FAKE_BIN"
 
@@ -51,13 +76,37 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# --- pre-fix fixture guard (Muse finding M3-1 / Codex thread 4047474342) -----
+# `HEAD` holds the fixed files, so the fixture must come from a pinned pre-fix
+# ref. Refuse to run when that ref is missing, is HEAD, or matches HEAD in any
+# controlled file: in those cases the controls would exercise fixed code while
+# expecting failures, i.e. the fixture would silently be a no-op.
+if ! PREFIX_SHA="$(git -C "$REPO_ROOT" rev-parse --verify --quiet "${PREFIX_REF}^{commit}")"; then
+  echo "FATAL: TOW_NC_PREFIX_REF=$PREFIX_REF does not resolve to a commit in this repository" >&2
+  exit 1
+fi
+if [ "$PREFIX_SHA" = "$HEAD_SHA" ]; then
+  echo "FATAL: TOW_NC_PREFIX_REF=$PREFIX_REF resolves to HEAD ($HEAD_SHA); the pre-fix fixture would be a no-op" >&2
+  exit 1
+fi
+identical_fixtures=()
+for file in "${CONTROLLED_FILES[@]}"; do
+  if git -C "$REPO_ROOT" diff --quiet "$PREFIX_SHA" "$HEAD_SHA" -- "socorre_ai_backend/$file"; then
+    identical_fixtures+=("$file")
+  fi
+done
+if [ "${#identical_fixtures[@]}" -gt 0 ]; then
+  echo "FATAL: pre-fix fixture $PREFIX_REF is identical to HEAD for: ${identical_fixtures[*]}; the fixture would be a no-op" >&2
+  exit 1
+fi
+
 # Throwaway copy of the backend: real sources, shared node_modules.
 rsync -a --exclude node_modules --exclude .git --exclude coverage --exclude '.env*' \
   "$BACKEND/" "$COPY/"
 ln -s "$BACKEND/node_modules" "$COPY/node_modules"
 
-restore_head() { # $1 = path relative to socorre_ai_backend
-  git -C "$REPO_ROOT" show "HEAD:socorre_ai_backend/$1" > "$COPY/$1"
+restore_prefix() { # $1 = path relative to socorre_ai_backend
+  git -C "$REPO_ROOT" show "$PREFIX_REF:socorre_ai_backend/$1" > "$COPY/$1"
 }
 restore_worktree() { # $1 = path relative to socorre_ai_backend
   cp "$BACKEND/$1" "$COPY/$1"
@@ -151,10 +200,15 @@ expect() {
   printf '%s — %s\n' "$label" "$detail"
 }
 
+echo "== T00 negative controls =="
+echo "pre-fix fixture: TOW_NC_PREFIX_REF=$PREFIX_REF ($PREFIX_SHA) — differs from HEAD in all ${#CONTROLLED_FILES[@]} controlled files"
+echo "current HEAD:    $HEAD_SHA (fixed code under control; the fixture is never read from HEAD)"
+echo
+
 echo "== NC-C1: .env.test was never loaded (pre-fix entrypoints) =="
-restore_head scripts/tow/pg-guard.js
-restore_head scripts/tow/test-env.js
-restore_head tests/helpers/tow/postgres.js
+restore_prefix scripts/tow/pg-guard.js
+restore_prefix scripts/tow/test-env.js
+restore_prefix tests/helpers/tow/postgres.js
 run_jest nc-c1-env-file-not-loaded -- tests/tow/foundation/towHarnessEnvFile.test.js
 c1_exit=$?
 c1_ok=0
@@ -167,7 +221,7 @@ echo "== NC-C2: compose port diverges from the client port =="
 restore_worktree scripts/tow/pg-guard.js
 restore_worktree scripts/tow/test-env.js
 restore_worktree tests/helpers/tow/postgres.js
-restore_head docker-compose.test.yml
+restore_prefix docker-compose.test.yml
 run_jest nc-c2-compose-port -- tests/tow/foundation/towPostgresGuard.test.js
 c2_exit=$?
 c2_ok=0
@@ -178,7 +232,7 @@ grep -E '^  ● ' "$OUT_DIR/nc-c2-compose-port.txt" | sed 's/^/    failing: /' |
 
 echo "== NC-C3: up() outside the cleanup scope =="
 restore_worktree docker-compose.test.yml
-restore_head scripts/tow/test-env.js
+restore_prefix scripts/tow/test-env.js
 # Same conditions for both runs: Docker exists but always refuses `up`.
 run_jest nc-c3a-lifecycle-prefix PATH="$FAKE_BIN" TOW_POSTGRES_E2E=1 \
   DB_HOST=127.0.0.1 DB_PORT=55432 DB_NAME_TEST=socorre_ai_tow_test DB_USER=tow_test DB_PASSWORD=tow_test_password \
@@ -192,7 +246,7 @@ expect "NC-C3a the lifecycle regression suite fails on the pre-fix teardown scop
 run_probe nc-c3b-probe-prefix "$COPY/scripts/tow/test-env.js"
 if grep -q 'docker_up=true docker_down=false' "$OUT_DIR/nc-c3b-probe-prefix.txt"; then c3b_ok=1; else c3b_ok=0; fi
 expect "NC-C3b the pre-fix harness leaves the environment behind when up() fails" "$c3b_ok" nc-c3b-probe-prefix \
-  "$(grep -E '^outcome=|^docker_up=' "$OUT_DIR/nc-c3b-probe-prefix.txt" | tr '\n' ' ')"
+  "$(grep -E '^outcome=|^docker_up=' "$OUT_DIR/nc-c3b-probe-prefix.txt" | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
 
 restore_worktree scripts/tow/test-env.js
 run_jest nc-c3c-lifecycle-fixed PATH="$FAKE_BIN" TOW_POSTGRES_E2E=1 \
@@ -207,11 +261,11 @@ expect "NC-C3c the same suite is green on the fixed harness (control of the cont
 run_probe nc-c3d-probe-fixed "$COPY/scripts/tow/test-env.js"
 if grep -q 'docker_up=true docker_down=true' "$OUT_DIR/nc-c3d-probe-fixed.txt"; then c3d_ok=1; else c3d_ok=0; fi
 expect "NC-C3d the fixed harness tears the environment down after the same failure" "$c3d_ok" nc-c3d-probe-fixed \
-  "$(grep -E '^outcome=|^docker_up=' "$OUT_DIR/nc-c3d-probe-fixed.txt" | tr '\n' ' ')"
+  "$(grep -E '^outcome=|^docker_up=' "$OUT_DIR/nc-c3d-probe-fixed.txt" | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
 
 echo "== NC-C4: Express/PostgreSQL test accepted a 404 as proof of boot =="
-git -C "$REPO_ROOT" show HEAD:socorre_ai_backend/tests/tow/foundation/towPostgresFoundation.e2e.test.js \
-  > "$COPY/tests/tow/foundation/towPostgresFoundation.e2e.head.test.js"
+git -C "$REPO_ROOT" show "$PREFIX_REF:socorre_ai_backend/tests/tow/foundation/towPostgresFoundation.e2e.test.js" \
+  > "$COPY/tests/tow/foundation/towPostgresFoundation.e2e.prefix.test.js"
 
 ( cd "$BACKEND" && node scripts/tow/test-env.js up ) > "$OUT_DIR/nc-c4-container-up.txt" 2>&1
 up_status=$?
@@ -231,12 +285,12 @@ else
   if jest_ran nc-c4a-new-e2e-fails && jest_had_failures nc-c4a-new-e2e-fails && [ "$c4a_exit" -ne 0 ]; then c4a_ok=1; fi
   expect "NC-C4a the new e2e assertion fails when the app cannot reach the database" "$c4a_ok" nc-c4a-new-e2e-fails \
     "jest exit $c4a_exit; app connection forced to fail (DB_SSL=true)"
-  run_jest nc-c4b-old-e2e-false-positive "${app_diverged[@]}" -- tests/tow/foundation/towPostgresFoundation.e2e.head.test.js
+  run_jest nc-c4b-old-e2e-false-positive "${app_diverged[@]}" -- tests/tow/foundation/towPostgresFoundation.e2e.prefix.test.js
   c4b_exit=$?
   c4b_ok=0
   if jest_ran nc-c4b-old-e2e-false-positive && jest_was_green nc-c4b-old-e2e-false-positive && [ "$c4b_exit" -eq 0 ]; then c4b_ok=1; fi
   expect "NC-C4b the pre-fix e2e assertion passes under the same failure (false positive)" "$c4b_ok" nc-c4b-old-e2e-false-positive \
-    "jest exit $c4b_exit; HEAD version of the suite, same broken app connection"
+    "jest exit $c4b_exit; pre-fix version of the suite ($PREFIX_REF), same broken app connection"
   ( cd "$BACKEND" && node scripts/tow/test-env.js down ) > "$OUT_DIR/nc-c4-container-down.txt" 2>&1
 fi
 
@@ -245,7 +299,9 @@ echo "== summary =="
 printf '%s\n' "${summary[@]}"
 {
   echo "# T00 negative controls — re-create the pre-fix state, expect the regression suite to fail"
-  echo "# generated by scripts/tow/negative-controls.sh (HEAD = $(git -C "$REPO_ROOT" rev-parse --short HEAD))"
+  echo "# generated by scripts/tow/negative-controls.sh"
+  echo "# pre-fix fixture: TOW_NC_PREFIX_REF=$PREFIX_REF ($PREFIX_SHA)"
+  echo "# current HEAD:    $HEAD_SHA (fixed code; the fixture is NOT read from HEAD)"
   echo
   printf '%s\n' "${summary[@]}"
 } > "$OUT_DIR/summary.txt"

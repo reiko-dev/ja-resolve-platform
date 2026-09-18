@@ -5,7 +5,7 @@ FAIL tests/tow/foundation/towPostgresGuard.test.js
       ✓ rejects a non-loopback host (production shape) (6 ms)
       ✓ rejects wildcard bind hosts (0.0.0.0 / :: / *) (1 ms)
       ✓ rejects a privileged user by case-insensitive substring, not exact match (1 ms)
-      ✓ rejects a database name without the _test suffix
+      ✓ rejects a database name without the _test suffix (1 ms)
       ✓ rejects DATABASE_URL/PostgreSQL (may point at production)
       ✓ rejects the absence of the explicit opt-in
       ✓ never prints the password when describing the target
@@ -17,7 +17,7 @@ FAIL tests/tow/foundation/towPostgresGuard.test.js
     single source of truth for the PostgreSQL target (Codex finding C2)
       ✓ the resolved target carries the password used by the client
       ✓ the harness hands the resolved DB_PORT/DB_NAME_TEST/DB_USER to compose (9 ms)
-      ✓ the Knex helper connects to exactly that host/port/database/user (25 ms)
+      ✓ the Knex helper connects to exactly that host/port/database/user (29 ms)
       ✕ no harness file reintroduces a second port variable
       ✕ .env.test.example documents the real loading contract
     helper contract
@@ -150,7 +150,7 @@ FAIL tests/tow/foundation/towPostgresGuard.test.js
 
   ● T00 PostgreSQL test foundation (offline mechanism) › disposable environment definition › .env.test.example ships placeholders only and no real secrets
 
-    ENOENT: no such file or directory, open '/private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.1D56QD/backend/.env.test.example'
+    ENOENT: no such file or directory, open '/private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.r9naoJ/backend/.env.test.example'
 
       140 |
       141 |     test('.env.test.example ships placeholders only and no real secrets', () => {
@@ -228,7 +228,7 @@ FAIL tests/tow/foundation/towPostgresGuard.test.js
 
   ● T00 PostgreSQL test foundation (offline mechanism) › single source of truth for the PostgreSQL target (Codex finding C2) › .env.test.example documents the real loading contract
 
-    ENOENT: no such file or directory, open '/private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.1D56QD/backend/.env.test.example'
+    ENOENT: no such file or directory, open '/private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.r9naoJ/backend/.env.test.example'
 
       221 |
       222 |     test('.env.test.example documents the real loading contract', () => {
@@ -243,5 +243,5 @@ FAIL tests/tow/foundation/towPostgresGuard.test.js
 Test Suites: 1 failed, 1 total
 Tests:       5 failed, 14 passed, 19 total
 Snapshots:   0 total
-Time:        0.306 s
+Time:        0.304 s
 Ran all test suites matching /tests\/tow\/foundation\/towPostgresGuard.test.js/i.

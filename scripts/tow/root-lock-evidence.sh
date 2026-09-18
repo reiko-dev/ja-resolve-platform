@@ -40,6 +40,24 @@
 # is a FAILURE, and the expected `ajv` / `ajv-formats` / `yaml` workspace
 # entries must be present in the added lines.
 #
+# Squash-merge reachability (Muse finding M3-4 / Codex thread 4047474349)
+# ---------------------------------------------------------------------
+# The default `TOW_LOCK_PREFIX_REF=0c5de7ed` is an ancestor of the T00 branch
+# but NOT of a squashed main-only history. In a fresh clone that contains only
+# the squash-merged history (or a shallow clone that does not include 0c5de7ed)
+# the `git cat-file -e "$PREFIX_REF^{commit}"` check below aborts the script.
+# That is a property of pinning a pre-fix revision, not a defect in the
+# evidence: on the branch/PR refs both commits are reachable and the delta is
+# non-empty. To reproduce elsewhere, pass any reachable pre-fix revision that
+# still carries the stale root lock:
+#
+#   TOW_LOCK_PREFIX_REF=<reachable-pre-fix-sha> bash scripts/tow/root-lock-evidence.sh
+#
+# `TOW_LOCK_CURRENT_REF` can likewise point at any post-fix commit. If no
+# reachable pre-fix commit exists at all (history rewritten), vendor the stale
+# `package-lock.json` blob from the original review (or from the parent of the
+# lock-fix commit) into a scratch commit and point `TOW_LOCK_PREFIX_REF` at it.
+#
 # Safety
 # ------
 # * Never runs `npm ci` for real: `--dry-run` only.
@@ -51,7 +69,9 @@
 #   bash scripts/tow/root-lock-evidence.sh
 #
 # Environment overrides:
-#   TOW_LOCK_PREFIX_REF    pre-fix ref holding the stale lock (default 0c5de7ed)
+#   TOW_LOCK_PREFIX_REF    pre-fix ref holding the stale lock (default 0c5de7ed;
+#                          must be reachable from the clone — see the
+#                          squash-merge caveat above)
 #   TOW_LOCK_CURRENT_REF   post-fix ref holding the synced lock (default HEAD)
 #
 # Output: docs/evidence/t00/root-lock-sync-red.txt

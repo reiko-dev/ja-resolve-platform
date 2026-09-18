@@ -55,6 +55,13 @@ Este repositório já corrigiu essa mesma classe de drift uma vez em
 de novo para `ajv`, `ajv-formats` e `yaml`. Evidência: `docs/evidence/t00/root-lock-sync-red.txt`
 (exit 1), `root-lock-sync-green.txt` (exit 0), `root-lock-sync-diff.txt`.
 
+**Caveat de reprodutibilidade (Muse M3-4 / Codex thread 4047474349).** O script usa por padrão
+`TOW_LOCK_PREFIX_REF=0c5de7ed`, um ancestral **deste branch**. Enquanto o branch e os refs do PR
+existirem, a evidência é reproduzível; depois de um squash merge em `main`, um clone que só tenha
+o histórico de `main` não resolve `0c5de7ed` e o script aborta no `cat-file`. Nesse cenário, passe
+`TOW_LOCK_PREFIX_REF=<ref alcançável>` (e, se necessário, `TOW_LOCK_CURRENT_REF=<ref>`) ou versione
+o blob pré-fix do lock como fixture. Nenhuma mudança de comportamento é necessária no branch atual.
+
 Nunca commite `node_modules`; o lock da raiz é o único artefato de dependência a versionar.
 
 ## 2. Gate OpenAPI 3.1
@@ -101,6 +108,15 @@ quebrado e um `operationId` duplicado devem falhar.
 | `gateways/paymentGateway.js` | Port double de pagamento com ids fixos. |
 | `postgres.js` | Conexão, migrations do zero, truncate, rollback e contagem — sempre via guarda de segurança. |
 
+**Limitação T00 — factories são SQLite-only (Muse M3-5 / Codex thread 4047474351).**
+`factories.js` (e os helpers de auth construídos sobre ele) inserem via
+`tests/helpers/testDb.js`, um singleton SQLite `:memory:`; o app Express opt-in conecta no
+PostgreSQL. T00 **não exercita nenhum comportamento de negócio em PG** — o gate PostgreSQL usa
+Knex cru (`tests/helpers/tow/postgres.js`) e nenhuma rota Tow v1. Consequência: fixtures criadas
+pelas factories são invisíveis para o app quando ele aponta para o PostgreSQL. T01+ deve
+injetar/aceitar o adapter ativo ou adicionar implementações PG-backed antes que testes de rota
+PG dependam dessas factories. É insumo de design para T01, não defeito de T00.
+
 ## 4. Gate PostgreSQL (opt-in)
 
 - Ambiente: `docker-compose.test.yml` (postgres:14, `tmpfs`, network isolada,
@@ -138,6 +154,14 @@ quebrado e um `operationId` duplicado devem falhar.
   guard == Knex == singleton do app) é verificada offline em
   `towPostgresGuard.test.js` e, com container real, em
   `towPostgresFoundation.e2e.test.js`.
+- **Cobertura de portas (Muse M3-3).** A evidência *live* cobre duas portas: a default
+  55432 (`docs/evidence/t00/green-postgres-gate.txt`) e a não-default 55999
+  (`docs/evidence/t00/green-postgres-gate-custom-port.txt`, com
+  `DB_PORT=55999 TOW_POSTGRES_E2E=1 npm run test:pg`, `docker port` registrando
+  `5432/tcp -> 0.0.0.0:55999` e o mesmo gate 6/6 verde). As demais portas são cobertas
+  **apenas offline**, pelas asserções de concordância config/guarda/Knex/compose em
+  `towPostgresGuard.test.js` e no teste de renderização do compose; nenhuma execução live
+  por porta é alegada.
 - **Ciclo de vida (correção Codex C3).** `runWithEnvironment(fn, { up,
   waitForHealth, down, env })` coloca a subida **dentro** do `try` cujo `finally`
   executa `down()`: uma subida que falha no meio (porta ocupada, timeout de
@@ -207,6 +231,15 @@ alterar a árvore principal).
 - Não cria tabelas Tow v1 nem migrations novas.
 - Não altera comportamento de negócio existente.
 - Não substitui PostgreSQL por SQLite para provar invariantes de banco.
+- Não prova comportamento de negócio no PostgreSQL: as factories de
+  `tests/helpers/tow/factories.js` inserem pelo SQLite de teste
+  (`tests/helpers/testDb.js`, `:memory:`) enquanto o app opt-in conecta no PostgreSQL —
+  limitação aceita em T00 (Muse M3-5 / Codex thread 4047474351); T01+ deve
+  injetar/aceitar o adapter ativo ou adicionar factories PG-backed antes que testes de
+  rota PG dependam delas. Pela mesma família de caveats, a reprodutibilidade do
+  root-lock fora dos refs deste branch não é prometida (M3-4: o default
+  `TOW_LOCK_PREFIX_REF=0c5de7ed` é ancestral deste branch, não de um histórico
+  squash-only — ver §1.1).
 
 ## 8. Definição de determinismo das evidências
 

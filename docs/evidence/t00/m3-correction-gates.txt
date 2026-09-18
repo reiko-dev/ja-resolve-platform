@@ -1,0 +1,139 @@
+# T00 pass 5 — gate sweep on the M3-corrected tree (Muse findings correction)
+# git HEAD: ac2e78047d6f152b19e8518d6eb3c1eab064580f
+# captured_at_utc: 2026-09-18T14:35:02Z
+# Pass 5 changed only root scripts/docs/evidence; no src/ or test file changed, so the
+# pass-4 full logs stay representative and this sweep re-confirms the counters + exit codes.
+
+## focused-tow
+$ npx jest tests/tow --runInBand
+exit_code=0
+--- deterministic summary lines from the full log (/tmp/t00-m3-gate-focused-tow.log) ---
+PASS tests/tow/g2PhotoContract.test.js
+PASS tests/tow/towHttp.transport.test.js
+PASS tests/tow/g3TowProposals.test.js
+PASS tests/tow/foundation/towHarnessLifecycle.test.js
+PASS tests/tow/g3NearbyCoordinates.test.js
+PASS tests/tow/foundation/towHarnessEnvFile.test.js
+PASS tests/tow/foundation/towDeterministicFoundation.test.js
+PASS tests/tow/towDocumentFlow.test.js
+PASS tests/tow/foundation/towPostgresFoundation.e2e.test.js
+PASS tests/tow/towLifecycleController.test.js
+PASS tests/tow/foundation/towPostgresGuard.test.js
+PASS tests/tow/socketService.tow.test.js
+PASS tests/tow/towProposalIdempotency.test.js
+Test Suites: 2 skipped, 13 passed, 13 of 15 total
+Tests:       15 skipped, 258 passed, 273 total
+Snapshots:   0 total
+Time:        5.518 s
+
+## contract
+$ npm run test:contract
+exit_code=0
+--- deterministic summary lines from the full log (/tmp/t00-m3-gate-contract.log) ---
+PASS tests/contract/openapi.structure.test.js
+PASS tests/contract/consumerSmoke.test.js
+PASS tests/contract/towSettingsPatch.test.js
+PASS tests/contract/consumerDiscovery.test.js
+Test Suites: 4 passed, 4 total
+Tests:       52 passed, 52 total
+Snapshots:   0 total
+Time:        1.273 s, estimated 2 s
+
+## verify-tow
+$ npm run verify:tow
+exit_code=0
+--- deterministic summary lines from the full log (/tmp/t00-m3-gate-verify-tow.log) ---
+PASS tests/contract/openapi.structure.test.js
+PASS tests/contract/consumerSmoke.test.js
+PASS tests/contract/towSettingsPatch.test.js
+PASS tests/contract/consumerDiscovery.test.js
+Test Suites: 4 passed, 4 total
+Tests:       52 passed, 52 total
+Snapshots:   0 total
+Time:        1.273 s, estimated 2 s
+PASS tests/tow/g2PhotoContract.test.js
+PASS tests/tow/g3TowProposals.test.js
+PASS tests/tow/towHttp.transport.test.js
+PASS tests/tow/foundation/towHarnessLifecycle.test.js
+PASS tests/tow/g3NearbyCoordinates.test.js
+PASS tests/tow/foundation/towDeterministicFoundation.test.js
+PASS tests/tow/foundation/towHarnessEnvFile.test.js
+PASS tests/tow/towDocumentFlow.test.js
+PASS tests/tow/towLifecycleController.test.js
+PASS tests/tow/foundation/towPostgresGuard.test.js
+PASS tests/tow/foundation/towPostgresFoundation.e2e.test.js
+PASS tests/tow/socketService.tow.test.js
+PASS tests/tow/towProposalIdempotency.test.js
+Test Suites: 2 skipped, 13 passed, 13 of 15 total
+Tests:       15 skipped, 258 passed, 273 total
+Snapshots:   0 total
+Time:        5.286 s, estimated 6 s
+[verify:tow] migrations against postgresql://tow_test@127.0.0.1:55432/socorre_ai_tow_test
+[verify:tow] migrations applied: 43 (batch 1)
+[verify:tow] tables in public: 29
+[verify:tow] database ready at 127.0.0.1:55432/socorre_ai_tow_test
+PASS tests/tow/foundation/towPostgresFoundation.e2e.test.js
+Test Suites: 1 passed, 1 total
+Tests:       6 passed, 6 total
+Snapshots:   0 total
+Time:        0.892 s, estimated 1 s
+PostgreSQL test environment destroyed (containers, volumes, network)
+[verify:tow] GREEN
+
+## full-suite
+$ npx jest --runInBand
+exit_code=0
+--- deterministic summary lines from the full log (/tmp/t00-m3-gate-full-suite.log) ---
+PASS tests/tow/foundation/towHarnessLifecycle.test.js
+PASS tests/tow/g3NearbyCoordinates.test.js
+PASS tests/tow/foundation/towHarnessEnvFile.test.js
+PASS tests/tow/foundation/towDeterministicFoundation.test.js
+PASS tests/tow/towDocumentFlow.test.js
+PASS tests/unit/servicePhotoStorage.test.js
+PASS tests/unit/resetE2eGuards.test.js
+PASS tests/contract/consumerSmoke.test.js
+PASS tests/integration/towProposals.test.js
+PASS tests/integration/subscriptions.test.js
+PASS tests/auth/socketIo.transport.test.js
+PASS tests/contract/towSettingsPatch.test.js
+PASS tests/auth/authHttp.transport.test.js
+PASS tests/contract/consumerDiscovery.test.js
+PASS tests/integration/dashboard.test.js
+PASS tests/endpoints/purchase-orders.integration.test.js
+PASS tests/api.manual.test.js
+PASS tests/unit/partnerOnboardingContracts.test.js
+PASS tests/tow/towLifecycleController.test.js
+PASS tests/tow/foundation/towPostgresGuard.test.js
+PASS tests/auth/authValidation.test.js
+PASS tests/unit/TowProposal.test.js
+PASS tests/unit/DeliveryOrder.test.js
+PASS tests/auth/authController.verify.test.js
+PASS tests/auth/authController.logout.test.js
+PASS tests/unit/Subscription.test.js
+PASS tests/auth/socketService.auth.test.js
+PASS tests/auth/jwtConfig.test.js
+PASS tests/tow/socketService.tow.test.js
+PASS tests/tow/towProposalIdempotency.test.js
+PASS tests/auth/authMiddleware.test.js
+PASS tests/models.validation.test.js
+PASS tests/unit/Subscription.basic.test.js
+PASS tests/unit/DeliveryOrder.basic.test.js
+PASS tests/unit/TowProposal.basic.test.js
+PASS tests/jest.test.js
+Test Suites: 2 skipped, 44 passed, 44 of 46 total
+Tests:       15 skipped, 665 passed, 680 total
+Snapshots:   0 total
+Time:        14.389 s, estimated 15 s
+
+## root-lock
+$ bash scripts/tow/root-lock-evidence.sh
+exit_code=0
+--- deterministic summary lines from the full log (/tmp/t00-m3-gate-root-lock.log) ---
+root-lock evidence captured in /Volumes/Reiko/projects/work/socorre-system/docs/evidence/t00
+root-lock refs: 0c5de7ed (pre-fix) -> HEAD (post-fix)
+root-lock evidence verified (RED=exit 1, GREEN=exit 0, non-empty ref-to-ref delta)
+
+## diff-check
+$ git diff --check
+exit_code=0
+--- deterministic summary lines from the full log (/tmp/t00-m3-gate-diff-check.log) ---

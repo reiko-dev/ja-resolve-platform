@@ -1,8 +1,8 @@
 fake docker: refusing to start
-fake docker: compose -p socorre-tow-test -f /private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.1D56QD/backend/docker-compose.test.yml down --volumes --remove-orphans --timeout 10
+fake docker: compose -p socorre-tow-test -f /private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.r9naoJ/backend/docker-compose.test.yml down --volumes --remove-orphans --timeout 10
 PostgreSQL test environment destroyed (containers, volumes, network)
-outcome=rejected reason=command failed (1): docker compose -p socorre-tow-test -f /private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.1D56QD/backend/docker-compose.test.yml up -d --wait --wait-timeout 90
+outcome=rejected reason=command failed (1): docker compose -p socorre-tow-test -f /private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.r9naoJ/backend/docker-compose.test.yml up -d --wait --wait-timeout 90
 docker_up=true docker_down=true
 --- docker invocations ---
-compose -p socorre-tow-test -f /private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.1D56QD/backend/docker-compose.test.yml up -d --wait --wait-timeout 90
-compose -p socorre-tow-test -f /private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.1D56QD/backend/docker-compose.test.yml down --volumes --remove-orphans --timeout 10
+compose -p socorre-tow-test -f /private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.r9naoJ/backend/docker-compose.test.yml up -d --wait --wait-timeout 90
+compose -p socorre-tow-test -f /private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.r9naoJ/backend/docker-compose.test.yml down --volumes --remove-orphans --timeout 10

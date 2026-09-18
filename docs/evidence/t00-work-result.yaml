@@ -136,6 +136,10 @@ files_added:
     - docs/evidence/t00/m3-shadowed-method-negative-control.txt
     - docs/evidence/t00/m4-emergency-proposals-breaking.txt
     - docs/evidence/t00/m7-count-recount.txt
+  pass_5_evidence_and_scripts:   # Muse findings correction pass (M3-1..M3-5)
+    - docs/evidence/t00/green-postgres-gate-custom-port.txt
+    - docs/evidence/t00/m3-correction-gates.txt
+    - docs/evidence/t00/negative-controls/fixture-guard.txt
 
 files_modified:
   - path: socorre_ai_backend/package.json
@@ -250,6 +254,61 @@ files_modified:
     change: "pass 3: re-checked all 25 T00-added .js files (checked=25 failures=0)."
   - path: docker-compose-simple.yml
     change: "NOT staged and NOT committed (pre-existing modification present at the execution base)."
+  # --- pass 5: Muse Sparks adversarial re-review fixes (M3-1..M3-5) ---
+  - path: scripts/tow/negative-controls.sh
+    change: >-
+      M3-1: the pre-fix fixture is pinned to `TOW_NC_PREFIX_REF` (default 74e44590, the
+      pre-fix correction base) instead of HEAD, with a fail-fast guard (must resolve to a
+      real commit, must differ from HEAD, must differ from HEAD in all five controlled
+      files), the NC-C4 pre-fix suite blob taken from the pinned ref, and the pinned
+      ref/current HEAD recorded in the summary and run-log headers. Also trims the trailing
+      space of the NC-C3b/NC-C3d detail strings so `git diff --check` stays clean.
+  - path: scripts/tow/root-lock-evidence.sh
+    change: >-
+      M3-4: header comment only — documents the squash-merge reachability caveat for the
+      default `TOW_LOCK_PREFIX_REF=0c5de7ed` and the `TOW_LOCK_PREFIX_REF` /
+      `TOW_LOCK_CURRENT_REF` overrides plus the vendor-the-blob alternative. No behavioral
+      change.
+  - path: docs/tow/T00-TEST-HARNESS.md
+    change: >-
+      pass 5: §1.1 records the root-lock squash caveat (M3-4), §3 records the SQLite-only
+      factories limitation (M3-5), §4 documents honest port coverage (live containers on
+      55432 and 55999; other ports by offline agreement assertions — M3-3) and §7
+      cross-references the pass-5 findings.
+  - path: docs/evidence/t00-work-result.yaml
+    change: >-
+      M3-2: corrected the Codex thread accounting (9 threads, 0 resolved) and added the
+      `muse_findings_m3_resolution` section.
+  - path: docs/evidence/t00/negative-controls/summary.txt
+    change: "M3-1: re-recorded; header names the pinned pre-fix ref (74e44590) and the current HEAD."
+  - path: docs/evidence/t00/negative-controls/run-log.txt
+    change: "M3-1: re-recorded; 8/8 PASS, pinned-ref header, no trailing whitespace, exit_code=0."
+  - path: docs/evidence/t00/negative-controls/nc-c1-env-file-not-loaded.txt
+    change: "M3-1: re-recorded from the pinned pre-fix fixture."
+  - path: docs/evidence/t00/negative-controls/nc-c2-compose-port.txt
+    change: "M3-1: re-recorded from the pinned pre-fix fixture."
+  - path: docs/evidence/t00/negative-controls/nc-c3a-lifecycle-prefix.txt
+    change: "M3-1: re-recorded from the pinned pre-fix fixture."
+  - path: docs/evidence/t00/negative-controls/nc-c3b-probe-prefix.txt
+    change: "M3-1: re-recorded from the pinned pre-fix fixture."
+  - path: docs/evidence/t00/negative-controls/nc-c3c-lifecycle-fixed.txt
+    change: "M3-1: re-recorded; control of the control on the fixed harness."
+  - path: docs/evidence/t00/negative-controls/nc-c3d-probe-fixed.txt
+    change: "M3-1: re-recorded; control of the control on the fixed harness."
+  - path: docs/evidence/t00/negative-controls/nc-c4a-new-e2e-fails.txt
+    change: "M3-1: re-recorded; fixed suite fails 1/6 under the pre-fix guard."
+  - path: docs/evidence/t00/negative-controls/nc-c4b-old-e2e-false-positive.txt
+    change: "M3-1: re-recorded; pre-fix suite blob (from the pinned ref) is green = false positive."
+  - path: docs/evidence/t00/green-postgres-gate.txt
+    change: "pass 5: re-recorded at HEAD ac2e7804 (header + 6/6 tests, GREEN, exit_code=0)."
+  - path: docs/evidence/t00/root-lock-sync-red.txt
+    change: >-
+      pass 5 (M3-4): re-run only. The regenerated file differs from the committed one solely
+      by npm timing, so it was restored to keep the PR diff focused; the re-run verdict
+      (RED=exit 1, GREEN=exit 0, non-empty ref-to-ref delta) is recorded in
+      docs/evidence/t00/m3-correction-gates.txt.
+  - path: docs/evidence/t00/root-lock-sync-green.txt
+    change: "pass 5 (M3-4): re-run only; restored for the same npm-timing-only reason as root-lock-sync-red.txt."
 
 not_committed:
   - docker-compose-simple.yml   # pre-existing modification, deliberately left out
@@ -473,15 +532,30 @@ postgres_test_strategy:
     - "refuses with UNSAFE_TEST_DATABASE and never prints the password"
   gate_suite: socorre_ai_backend/tests/tow/foundation/towPostgresFoundation.e2e.test.js
   gate_skipped_by_default: true
-  gate_tests: 5
+  gate_tests: 6
   gate_evidence:
     command: "TOW_POSTGRES_E2E=1 npm run test:pg"
-    tests: 5
+    tests: 6
     migrations_applied: 43
     migration_batch: 1
     tables_in_public: 29
     result: GREEN
     artifact: docs/evidence/t00/green-postgres-gate.txt
+  custom_port_gate:   # pass 5 (Muse M3-3): live run on a non-default port
+    command: "DB_PORT=55999 TOW_POSTGRES_E2E=1 npm run test:pg"
+    tests: 6
+    published_port: 55999
+    live_mapping: "docker port socorre-tow-postgres-test -> 5432/tcp -> 0.0.0.0:55999 and [::]:55999"
+    target: "postgresql://tow_test@127.0.0.1:55999/socorre_ai_tow_test"
+    health: "GET /health -> 200 {success:true,status:'ok',checks:{http:'ok',postgres:'ok'}}"
+    result: GREEN
+    torn_down: true
+    artifact: docs/evidence/t00/green-postgres-gate-custom-port.txt
+  port_coverage: >-
+    Honest coverage: live containers on the default 55432 and on the non-default 55999;
+    every other port is covered only by the offline config/guard/Knex/compose agreement
+    assertions (towPostgresGuard.test.js + the compose-rendering test in the e2e suite).
+    No per-port live container is claimed.
   commands:
     up: "npm run test:pg:up"
     wait: "npm run test:pg:wait"
@@ -528,8 +602,14 @@ tests:
     postgres_gate:
       command: "TOW_POSTGRES_E2E=1 npm run test:pg"
       result: GREEN
-      tests: 5
+      tests: 6
       evidence: [docs/evidence/t00/green-postgres-gate.txt, docs/evidence/t00/green-verify-tow-run1.txt]
+    postgres_gate_custom_port:   # pass 5 (Muse M3-3)
+      command: "DB_PORT=55999 TOW_POSTGRES_E2E=1 npm run test:pg"
+      result: GREEN
+      tests: 6
+      published_port: 55999
+      evidence: docs/evidence/t00/green-postgres-gate-custom-port.txt
     verify_tow:
       command: "npm run verify:tow"
       run_1: {stages_passed: 5, result: GREEN, exit_code: 0}
@@ -595,6 +675,31 @@ tests:
         - docs/evidence/t00/green-verify-tow-run1.txt
         - docs/evidence/t00/green-verify-tow-run2.txt
         - docs/evidence/t00/determinism-normalized-diff.txt
+    pass_5_reverification:
+      note: >-
+        re-run after the Muse Sparks adversarial re-review fixes (M3-1..M3-5). Pass 5 changed
+        no `src/` or test file, so the pass-4 full logs stay representative; this sweep
+        re-confirms the counters and exit codes on the corrected tree
+        (docs/evidence/t00/m3-correction-gates.txt). The negative controls were re-run from
+        the pinned pre-fix ref and the PostgreSQL gate was run live on the default port and
+        on DB_PORT=55999.
+      commands:
+        - {command: "bash scripts/tow/negative-controls.sh", exit_code: 0, result: "8/8 controls PASS; fixture pinned to 74e44590; docker ps empty"}
+        - {command: "npx jest tests/tow --runInBand", exit_code: 0, result: "2 skipped, 13 passed of 15 suites; 15 skipped, 258 passed of 273 tests"}
+        - {command: "npm run test:contract", exit_code: 0, result: "4 suites, 52 tests passed"}
+        - {command: "TOW_POSTGRES_E2E=1 npm run test:pg", exit_code: 0, result: "1 suite, 6 tests, GREEN (default port 55432)"}
+        - {command: "DB_PORT=55999 TOW_POSTGRES_E2E=1 npm run test:pg", exit_code: 0, result: "1 suite, 6 tests, GREEN; container published 55999"}
+        - {command: "npm run verify:tow", exit_code: 0, result: "5/5 stages PASS, GREEN"}
+        - {command: "npx jest --runInBand", exit_code: 0, result: "2 skipped, 44 passed of 46 suites; 15 skipped, 665 passed of 680 tests"}
+        - {command: "bash scripts/tow/root-lock-evidence.sh", exit_code: 0, result: "RED=exit 1, GREEN=exit 0, non-empty ref-to-ref delta"}
+        - {command: "git diff --check", exit_code: 0, result: "no whitespace errors"}
+      evidence:
+        - docs/evidence/t00/m3-correction-gates.txt
+        - docs/evidence/t00/green-postgres-gate.txt
+        - docs/evidence/t00/green-postgres-gate-custom-port.txt
+        - docs/evidence/t00/negative-controls/summary.txt
+        - docs/evidence/t00/negative-controls/fixture-guard.txt
+        - docs/evidence/t00/root-lock-sync-diff.txt
     delta:
       suites_added: 7
       tests_added: 92
@@ -843,11 +948,83 @@ codex_review_correction:
     d5e58796 (C6 + negative controls); this evidence file is committed as the
     following commit.
   result_head_verify: "git log --oneline -6  # e8964d6d 9454d26e d5e58796 17587c94 + this docs commit"
-  findings_posted: 6
-  resolved: 6
-  unresolved: 0
-  dismissed: 0
+  # --- counts corrected in pass 5 (Muse finding M3-2) -----------------------
+  # The previous `findings_posted: 6 / resolved: 6 / unresolved: 0` counted only
+  # the six original C1..C6 threads and reported adjudication as if the GitHub
+  # threads had been resolved. Three newer Codex P2 threads exist on PR #30 and
+  # every thread is still `isResolved:false`; the counts below separate the
+  # GitHub resolution state from the in-T00 adjudication.
+  threads_on_pr: 9                    # 6 original (C1..C6) + 3 newer P2 threads
+  threads_original: 6
+  threads_newer: 3
+  github_replies_posted: 9            # one objective reply per thread; no thread was resolved
+  github_threads_resolved: 0
+  github_threads_unresolved: 9        # all nine threads stay open by decision
+  findings_posted: 9
+  findings_adjudicated: 9
+  adjudication:
+    fixed: 7                          # C1..C6 + M3-1
+    fixed_doc: 1                      # M3-4
+    accepted_as_t00_limitation: 1     # M3-5
+    dismissed: 0
   p2_findings_dismissed: 0
+  newer_threads_note: >-
+    Three P2 review threads opened by Codex on PR #30 after the pass-4 correction
+    (2026-09-18T14:10:13Z), all still isResolved:false at the time of the pass-5
+    push. They are adjudicated in `muse_findings_m3_resolution` and replied to
+    without resolving.
+  newer_threads:
+    - comment_id: 4047474342
+      path: scripts/tow/negative-controls.sh
+      title: "Restore controls from an actual pre-fix snapshot"
+      finding: >-
+        `restore_head()` restored the fixture from HEAD; after the correction commits
+        HEAD contains the fixed files, so a clean checkout could not reproduce the RED
+        controls and the committed script would exit red.
+      decision: FIXED                 # by M3-1
+      fix: >-
+        The fixture now comes from `TOW_NC_PREFIX_REF` (default 74e44590, the pre-fix
+        correction base), never from HEAD, and the script fails fast when the ref is
+        missing, equals HEAD, or matches HEAD in any of the five controlled files.
+      evidence:
+        - scripts/tow/negative-controls.sh
+        - docs/evidence/t00/negative-controls/summary.txt
+        - docs/evidence/t00/negative-controls/run-log.txt
+        - docs/evidence/t00/negative-controls/fixture-guard.txt
+    - comment_id: 4047474349
+      path: scripts/tow/root-lock-evidence.sh
+      title: "Use a reachable revision for lockfile evidence"
+      finding: >-
+        `TOW_LOCK_PREFIX_REF` defaults to 0c5de7ed, an ancestor of this branch but not
+        of a squashed main-only history; a fresh clone containing only the merged history
+        cannot resolve it and the script aborts in the `cat-file` check.
+      decision: FIXED_DOC             # by M3-4
+      fix: >-
+        The script header, `docs/tow/T00-TEST-HARNESS.md` §1.1 and `known_limitations`
+        now document the squash-merge caveat and the `TOW_LOCK_PREFIX_REF` /
+        `TOW_LOCK_CURRENT_REF` overrides (plus the vendor-the-blob alternative). No
+        behavioral change: on the branch/PR refs the evidence is reproducible and was
+        re-run green in pass 5.
+      evidence:
+        - scripts/tow/root-lock-evidence.sh
+        - docs/tow/T00-TEST-HARNESS.md
+    - comment_id: 4047474351
+      path: socorre_ai_backend/tests/helpers/tow/factories.js
+      title: "Route factories to the selected PostgreSQL database"
+      finding: >-
+        `factories.js` inserts through `tests/helpers/testDb.js` (SQLite `:memory:`) while
+        the opt-in Express app connects to PostgreSQL, so factory rows are invisible to
+        the application and future PG route tests cannot use the shared factories.
+      decision: ACCEPTED_AS_T00_LIMITATION   # by M3-5
+      rationale: >-
+        T00 exercises no PostgreSQL business behavior: the PG e2e gate uses raw Knex and
+        no Tow v1 route, so no PG-backed factory path is required to prove the foundation.
+        Implementing one is T01+ design work (inject/accept the active adapter or add
+        PG-backed factory implementations before PG route tests rely on the factories).
+        Recorded precisely in `known_limitations` and `docs/tow/T00-TEST-HARNESS.md` §3.
+      evidence:
+        - docs/tow/T00-TEST-HARNESS.md
+        - docs/evidence/t00-work-result.yaml
   production_src_changed: false
   t01_plus_implemented: false
   architecture_redesigned: false
@@ -1163,6 +1340,178 @@ codex_review_correction:
       loader or compose, so no file changed by this pass is on its code path.
     raw_log: docs/evidence/t00/flake-tow-document-flow-403.txt
 
+# ---------------------------------------------------------------------------
+# Pass 5 — Muse Sparks adversarial re-review of the Codex correction pass:
+# adjudication of findings M3-1..M3-5 (also Codex threads 4047474342/49/51).
+#
+# Verdict: APPROVE_WITH_FINDINGS (P0 = 0, P1 = 0; three P2 and two P3 findings).
+# Orchestrator decisions: M3-1 FIX, M3-2 FIX, M3-3 FIX, M3-4 FIX-DOC,
+# M3-5 ACCEPTED_WITH_JUSTIFICATION. No production `src/` behavior changed and
+# no T01+ work was started.
+# ---------------------------------------------------------------------------
+muse_findings_m3_resolution:
+  review: "Muse Sparks adversarial re-review of the Codex correction pass (PR #30)"
+  verdict: APPROVE_WITH_FINDINGS
+  p0: 0
+  p1: 0
+  findings_total: 5
+  fixed: 3                          # M3-1, M3-2, M3-3
+  fixed_doc: 1                      # M3-4
+  accepted_as_t00_limitation: 1     # M3-5
+  dismissed: 0
+  production_src_changed: false
+  t01_plus_implemented: false
+  merge_performed: false
+  force_push_performed: false
+  findings:
+    - id: M3-1
+      priority: P2
+      also_codex_thread: 4047474342
+      title: "negative controls no longer reproducible (fixture restored from HEAD)"
+      decision: FIXED
+      root_cause: >-
+        scripts/tow/negative-controls.sh restored the pre-fix files with
+        `git show HEAD:...`. Before the correction commits HEAD *was* the pre-fix base
+        (74e44590); after them HEAD holds the fixed files, so a clean checkout would run
+        the fixed implementations while expecting failures, and the committed script
+        would exit red.
+      fix: >-
+        The fixture now comes from `TOW_NC_PREFIX_REF` (default 74e44590), never from HEAD,
+        and stays overridable for future passes. A fail-fast guard refuses to run when the
+        ref does not resolve to a real commit, resolves to HEAD, or is identical to HEAD in
+        any of the five controlled files (pg-guard.js, test-env.js, postgres.js,
+        docker-compose.test.yml, the e2e suite). NC-C4's pre-fix suite blob and the
+        summary/run-log headers record the pinned ref instead of HEAD.
+      files:
+        - scripts/tow/negative-controls.sh
+        - docs/evidence/t00/negative-controls/summary.txt
+        - docs/evidence/t00/negative-controls/run-log.txt
+        - docs/evidence/t00/negative-controls/fixture-guard.txt   # NEW
+        - docs/evidence/t00/negative-controls/nc-c1-env-file-not-loaded.txt
+        - docs/evidence/t00/negative-controls/nc-c2-compose-port.txt
+        - docs/evidence/t00/negative-controls/nc-c3a-lifecycle-prefix.txt
+        - docs/evidence/t00/negative-controls/nc-c3b-probe-prefix.txt
+        - docs/evidence/t00/negative-controls/nc-c3c-lifecycle-fixed.txt
+        - docs/evidence/t00/negative-controls/nc-c3d-probe-fixed.txt
+        - docs/evidence/t00/negative-controls/nc-c4a-new-e2e-fails.txt
+        - docs/evidence/t00/negative-controls/nc-c4b-old-e2e-false-positive.txt
+      command: "bash scripts/tow/negative-controls.sh   # on a clean checkout where HEAD holds the fixed code"
+      observed_result: >-
+        exit_code=0, 8/8 controls PASS, all RED/GREEN expectations reproduced from the pinned
+        fixture. summary.txt header records `pre-fix fixture: TOW_NC_PREFIX_REF=74e44590
+        (74e445900e99ab7a0d7b9f5dee86837e009356ae)` and `current HEAD: ac2e7804...`, with no
+        reference to HEAD as the fixture source. The guard negative runs (fixture=HEAD and an
+        unresolvable ref) both exit 1 with a FATAL message (fixture-guard.txt). The NC-C4
+        container was destroyed afterwards (`docker ps` empty).
+      regression_assertion: >-
+        In-script guard: real commit + differs from HEAD + differs from HEAD in all five
+        controlled files; negative cases captured in fixture-guard.txt.
+      evidence:
+        - docs/evidence/t00/negative-controls/summary.txt
+        - docs/evidence/t00/negative-controls/run-log.txt
+        - docs/evidence/t00/negative-controls/fixture-guard.txt
+    - id: M3-2
+      priority: P2
+      title: "work-result omitted three newer Codex threads and overclaimed resolution"
+      decision: FIXED
+      root_cause: >-
+        `codex_review_correction` claimed `findings_posted: 6, resolved: 6, unresolved: 0`,
+        counting only C1..C6 and reporting in-T00 adjudication as if the GitHub threads had
+        been resolved. Three newer Codex P2 threads exist on PR #30 and all nine threads are
+        still `isResolved:false`.
+      fix: >-
+        The three newer threads were added to `codex_review_correction.newer_threads` with
+        comment id, finding, decision and evidence, and the counts were split into GitHub
+        state (`threads_on_pr: 9`, `github_threads_resolved: 0`, `github_threads_unresolved: 9`,
+        `github_replies_posted: 9`) and in-T00 adjudication (`fixed: 7`, `fixed_doc: 1`,
+        `accepted_as_t00_limitation: 1`, `dismissed: 0`). No thread was resolved on GitHub.
+      files:
+        - docs/evidence/t00-work-result.yaml
+      command: >-
+        gh api graphql (PR #30 reviewThreads)  # 9 threads, all isResolved:false
+      observed_result: >-
+        Nine threads recorded; six original replies plus three objective replies posted in
+        pass 5; zero threads resolved.
+      evidence:
+        - docs/evidence/t00-work-result.yaml
+    - id: M3-3
+      priority: P3
+      title: "non-default DB port was only proven offline"
+      decision: FIXED
+      root_cause: >-
+        Every live PostgreSQL gate run used the default 55432; the `DB_PORT=55999` chain was
+        proven only by config/guard/Knex assertions, never by a container actually published
+        on a non-default port.
+      fix: >-
+        Ran the live gate once with `DB_PORT=55999 TOW_POSTGRES_E2E=1 npm run test:pg` and
+        captured the complete command + output. A separate live probe recorded
+        `docker port socorre-tow-postgres-test` -> `5432/tcp -> 0.0.0.0:55999` (and `[::]:55999`)
+        before the environment was destroyed. Honest coverage is now documented in
+        docs/tow/T00-TEST-HARNESS.md §4 and `postgres_test_strategy.port_coverage`: live
+        containers on 55432 and 55999 only; other ports by offline agreement assertions.
+      files:
+        - docs/evidence/t00/green-postgres-gate-custom-port.txt   # NEW
+        - docs/tow/T00-TEST-HARNESS.md
+        - docs/evidence/t00/green-postgres-gate.txt
+      command: "DB_PORT=55999 TOW_POSTGRES_E2E=1 npm run test:pg"
+      observed_result: >-
+        6/6 e2e tests pass, migrations 43, tables 29, target
+        127.0.0.1:55999/socorre_ai_tow_test, `GET /health` 200, `[test:pg] GREEN`, EXIT=0;
+        container and network removed, `docker ps` empty.
+      evidence:
+        - docs/evidence/t00/green-postgres-gate-custom-port.txt
+        - docs/evidence/t00/green-postgres-gate.txt
+    - id: M3-4
+      priority: P3
+      also_codex_thread: 4047474349
+      title: "squash-merge reachability of the root-lock prefix ref 0c5de7ed"
+      decision: FIXED_DOC
+      root_cause: >-
+        scripts/tow/root-lock-evidence.sh defaults `TOW_LOCK_PREFIX_REF=0c5de7ed`, an ancestor
+        of this branch but not of a squashed main-only history; a fresh clone of only the
+        merged history cannot resolve it and the script exits in the `cat-file` check.
+      fix: >-
+        Documented the caveat and the overrides (`TOW_LOCK_PREFIX_REF`, `TOW_LOCK_CURRENT_REF`)
+        plus the vendor-the-pre-fix-blob alternative in the script header,
+        docs/tow/T00-TEST-HARNESS.md §1.1 and `known_limitations`. No behavioral change: on the
+        branch/PR refs the evidence is reproducible and the pass-5 re-run exited 0 with a
+        non-empty ref-to-ref lock delta.
+      files:
+        - scripts/tow/root-lock-evidence.sh   # header comment only
+        - docs/tow/T00-TEST-HARNESS.md
+        - docs/evidence/t00-work-result.yaml
+      command: "bash scripts/tow/root-lock-evidence.sh"
+      observed_result: >-
+        exit 0; RED exit 1 (stale lock), GREEN exit 0 (synced lock), non-empty ref-to-ref
+        delta containing ajv, ajv-formats and yaml.
+      evidence:
+        - docs/evidence/t00/root-lock-sync-red.txt
+        - docs/evidence/t00/root-lock-sync-green.txt
+        - docs/evidence/t00/root-lock-sync-diff.txt
+    - id: M3-5
+      priority: P3
+      also_codex_thread: 4047474351
+      title: "factories are SQLite-only while the opt-in app connects to PostgreSQL"
+      decision: ACCEPTED_AS_T00_LIMITATION
+      rationale: >-
+        T00 exercises no PostgreSQL business behavior: the PG e2e gate uses raw Knex
+        (tests/helpers/tow/postgres.js) and no Tow v1 route, so a PG-backed factory is not
+        required to prove the foundation. factories.js intentionally inserts through the
+        existing SQLite test DB (tests/helpers/testDb.js) for the offline suites. T01+ must
+        inject/accept the active adapter or add PG-backed factory implementations before PG
+        route tests rely on the factories; this is design input for T01, not a T00 defect.
+        Implementing a PG-backed factory in this pass was explicitly out of scope.
+      files:
+        - docs/tow/T00-TEST-HARNESS.md
+        - docs/evidence/t00-work-result.yaml
+      command: "n/a — accepted limitation, recorded not implemented"
+      observed_result: >-
+        Recorded in `known_limitations` and docs/tow/T00-TEST-HARNESS.md §3 (+ §7 cross
+        reference); no PG-backed factory was implemented.
+      evidence:
+        - docs/tow/T00-TEST-HARNESS.md
+        - docs/evidence/t00-work-result.yaml
+
 red_evidence:
   script: scripts/tow/red-evidence.sh
   command: "bash scripts/tow/red-evidence.sh"
@@ -1312,6 +1661,11 @@ known_limitations:
   - "The Codex review on PR #30 (C1..C6) is adjudicated FIXED in pass 4 with per-finding commands, regression tests and eight negative controls (see `codex_review_correction`). No finding was dismissed; no re-review was performed inside this pass, so this file records correction evidence, not an approval."
   - "`socorre_ai_backend/.env.test` remains optional and git-ignored: the tracked baseline runs with the file absent, which is why 15 focused Tow tests (the opt-in PostgreSQL suites) are skipped in the committed logs. With a real `.env.test` present the guard applies 14 values, `verify:tow` stays green and the PG e2e suite executes (263 passed / 9 skipped) — see docs/evidence/t00/env-test-present-*.txt."
   - "One pre-existing intermittent failure of tests/tow/towDocumentFlow.test.js (403 on an admin approval + two `socket hang up`) was observed once in six offline focused-Tow runs and did not reproduce in the five subsequent runs; the raw log is kept as docs/evidence/t00/flake-tow-document-flow-403.txt. The suite uses its own in-memory SQLite mock and no file changed by this pass is on its code path."
+  - "M3-1: the negative controls take their pre-fix fixture from the pinned ref `TOW_NC_PREFIX_REF=74e44590`, never from HEAD. On a clone that does not contain that commit the script fails fast with a FATAL guard instead of silently running the fixed code (both negative cases captured in docs/evidence/t00/negative-controls/fixture-guard.txt); set `TOW_NC_PREFIX_REF` to any reachable pre-fix revision to reproduce."
+  - "M3-3: live PostgreSQL evidence exists for the default port 55432 and the non-default port 55999 only. Every other port is covered by the offline config/guard/Knex/compose agreement assertions, not by a live container; no per-port live claim is made."
+  - "M3-4: `scripts/tow/root-lock-evidence.sh` defaults to `TOW_LOCK_PREFIX_REF=0c5de7ed`, an ancestor of this branch but not of a squashed main-only history. A fresh clone containing only the merged history cannot resolve it and the script aborts in its `cat-file` check; in that scenario override `TOW_LOCK_PREFIX_REF`/`TOW_LOCK_CURRENT_REF` or vendor the pre-fix blob. On the branch/PR refs the evidence is reproducible (pass-5 re-run exit 0)."
+  - "M3-5: `socorre_ai_backend/tests/helpers/tow/factories.js` inserts through the SQLite test DB (`tests/helpers/testDb.js`, `:memory:`) while the opt-in Express app connects to PostgreSQL. T00 exercises no PG business behavior (the PG gate uses raw Knex and no Tow v1 route), so this is accepted as a T00 limitation; T01+ must inject/accept the active adapter or add PG-backed factory implementations before PG route tests rely on the factories."
+  - "M3-2: all nine PR #30 review threads remain `isResolved:false` by decision. The work-result records the in-T00 adjudication (7 fixed, 1 fixed-doc, 1 accepted limitation, 0 dismissed), not a GitHub resolution and not an approval; no re-review was performed inside T00."
 
 blockers:
   - id: B-1

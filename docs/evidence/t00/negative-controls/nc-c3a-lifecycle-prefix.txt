@@ -6,19 +6,19 @@ fake docker: refusing to start
 fake docker: refusing to start
 FAIL tests/tow/foundation/towHarnessLifecycle.test.js
   T00 harness lifecycle (Codex finding C3)
-    ✕ happy path: up -> wait -> workload -> down, in that order (569 ms)
-    ✕ down() runs even when up() fails part-way (the regression) (28 ms)
-    ✕ down() runs even when the healthcheck times out (18 ms)
-    ✕ down() runs when the workload fails, and the workload error wins (11 ms)
-    ✕ the guard fails closed BEFORE any startup or teardown (12 ms)
-    ✕ the canonical target is exported to the workload and to children (9 ms)
-    ✕ the real down() never throws when docker cannot even be spawned (12 ms)
-    ✓ the real down() resolves when docker refuses the teardown (324 ms)
-    ✕ the guard CLI needs no Docker, while docker commands fail loudly without it (70 ms)
+    ✕ happy path: up -> wait -> workload -> down, in that order (371 ms)
+    ✕ down() runs even when up() fails part-way (the regression) (19 ms)
+    ✕ down() runs even when the healthcheck times out (8 ms)
+    ✕ down() runs when the workload fails, and the workload error wins (4 ms)
+    ✕ the guard fails closed BEFORE any startup or teardown (5 ms)
+    ✕ the canonical target is exported to the workload and to children (4 ms)
+    ✕ the real down() never throws when docker cannot even be spawned (5 ms)
+    ✓ the real down() resolves when docker refuses the teardown (302 ms)
+    ✕ the guard CLI needs no Docker, while docker commands fail loudly without it (76 ms)
 
   ● T00 harness lifecycle (Codex finding C3) › happy path: up -> wait -> workload -> down, in that order
 
-    command failed (1): docker compose -p socorre-tow-test -f /private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.1D56QD/backend/docker-compose.test.yml up -d --wait --wait-timeout 90
+    command failed (1): docker compose -p socorre-tow-test -f /private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.r9naoJ/backend/docker-compose.test.yml up -d --wait --wait-timeout 90
 
       36 |   if (result.error) throw result.error;
       37 |   if (result.status !== 0 && !options.allowFailure) {
@@ -39,7 +39,7 @@ FAIL tests/tow/foundation/towHarnessLifecycle.test.js
     expect(received).rejects.toThrow(expected)
 
     Expected pattern: /port is already allocated/
-    Received message: "command failed (1): docker compose -p socorre-tow-test -f /private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.1D56QD/backend/docker-compose.test.yml up -d --wait --wait-timeout 90"
+    Received message: "command failed (1): docker compose -p socorre-tow-test -f /private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.r9naoJ/backend/docker-compose.test.yml up -d --wait --wait-timeout 90"
 
           36 |   if (result.error) throw result.error;
           37 |   if (result.status !== 0 && !options.allowFailure) {
@@ -62,7 +62,7 @@ FAIL tests/tow/foundation/towHarnessLifecycle.test.js
     expect(received).rejects.toThrow(expected)
 
     Expected pattern: /did not become healthy/
-    Received message: "command failed (1): docker compose -p socorre-tow-test -f /private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.1D56QD/backend/docker-compose.test.yml up -d --wait --wait-timeout 90"
+    Received message: "command failed (1): docker compose -p socorre-tow-test -f /private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.r9naoJ/backend/docker-compose.test.yml up -d --wait --wait-timeout 90"
 
           36 |   if (result.error) throw result.error;
           37 |   if (result.status !== 0 && !options.allowFailure) {
@@ -85,7 +85,7 @@ FAIL tests/tow/foundation/towHarnessLifecycle.test.js
     expect(received).rejects.toThrow(expected)
 
     Expected pattern: /migration failed/
-    Received message: "command failed (1): docker compose -p socorre-tow-test -f /private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.1D56QD/backend/docker-compose.test.yml up -d --wait --wait-timeout 90"
+    Received message: "command failed (1): docker compose -p socorre-tow-test -f /private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.r9naoJ/backend/docker-compose.test.yml up -d --wait --wait-timeout 90"
 
           36 |   if (result.error) throw result.error;
           37 |   if (result.status !== 0 && !options.allowFailure) {
@@ -108,7 +108,7 @@ FAIL tests/tow/foundation/towHarnessLifecycle.test.js
     expect(received).rejects.toThrow(expected)
 
     Expected pattern: /refusing to start test environment/
-    Received message: "command failed (1): docker compose -p socorre-tow-test -f /private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.1D56QD/backend/docker-compose.test.yml up -d --wait --wait-timeout 90"
+    Received message: "command failed (1): docker compose -p socorre-tow-test -f /private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.r9naoJ/backend/docker-compose.test.yml up -d --wait --wait-timeout 90"
 
           36 |   if (result.error) throw result.error;
           37 |   if (result.status !== 0 && !options.allowFailure) {
@@ -128,7 +128,7 @@ FAIL tests/tow/foundation/towHarnessLifecycle.test.js
 
   ● T00 harness lifecycle (Codex finding C3) › the canonical target is exported to the workload and to children
 
-    command failed (1): docker compose -p socorre-tow-test -f /private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.1D56QD/backend/docker-compose.test.yml up -d --wait --wait-timeout 90
+    command failed (1): docker compose -p socorre-tow-test -f /private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.r9naoJ/backend/docker-compose.test.yml up -d --wait --wait-timeout 90
 
       36 |   if (result.error) throw result.error;
       37 |   if (result.status !== 0 && !options.allowFailure) {
@@ -188,5 +188,5 @@ FAIL tests/tow/foundation/towHarnessLifecycle.test.js
 Test Suites: 1 failed, 1 total
 Tests:       8 failed, 1 passed, 9 total
 Snapshots:   0 total
-Time:        1.331 s
+Time:        1.039 s
 Ran all test suites matching /tests\/tow\/foundation\/towHarnessLifecycle.test.js/i.

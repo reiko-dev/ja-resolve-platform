@@ -4,21 +4,21 @@ FAIL tests/tow/foundation/towHarnessEnvFile.test.js
       ✓ applies the file values into the provided environment (2 ms)
       ✓ shell/CI values always win (never override:true) (1 ms)
       ✓ an empty value counts as unset (it cannot silently configure the target)
-      ✓ a missing file is not an error: the guard defaults apply (2 ms)
-      ✓ resolves the canonical path and honours TOW_TEST_ENV_FILE
+      ✓ a missing file is not an error: the guard defaults apply (1 ms)
+      ✓ resolves the canonical path and honours TOW_TEST_ENV_FILE (1 ms)
       ✓ describeEnvFile never prints values (1 ms)
     the real entrypoints observe .env.test (child processes)
-      ✕ pg-guard CLI loads .env.test and reports the resolved target (56 ms)
-      ✕ the Knex helper resolves the file target and exports it to the app (87 ms)
-      ✓ shell DB_PORT beats the file, end to end (51 ms)
-      ✓ a shell TOW_POSTGRES_E2E=0 vetoes the file opt-in (50 ms)
-      ✕ without a file the documented defaults still apply (no Docker needed) (51 ms)
+      ✕ pg-guard CLI loads .env.test and reports the resolved target (55 ms)
+      ✕ the Knex helper resolves the file target and exports it to the app (181 ms)
+      ✓ shell DB_PORT beats the file, end to end (58 ms)
+      ✓ a shell TOW_POSTGRES_E2E=0 vetoes the file opt-in (62 ms)
+      ✕ without a file the documented defaults still apply (no Docker needed) (61 ms)
 
   ● T00 harness env file (Codex finding C1) › the real entrypoints observe .env.test (child processes) › pg-guard CLI loads .env.test and reports the resolved target
 
     expect(received).toContain(expected) // indexOf
 
-    Expected substring: "/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/tow-env-file-wIGrfL/.env.test"
+    Expected substring: "/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/tow-env-file-bomrdt/.env.test"
     Received string:    "Tow PostgreSQL test target: postgresql://tow_test@127.0.0.1:55432/socorre_ai_tow_test
     opt-in (TOW_POSTGRES_E2E=1): no
     "
@@ -73,5 +73,5 @@ FAIL tests/tow/foundation/towHarnessEnvFile.test.js
 Test Suites: 1 failed, 1 total
 Tests:       3 failed, 8 passed, 11 total
 Snapshots:   0 total
-Time:        0.763 s
+Time:        0.781 s
 Ran all test suites matching /tests\/tow\/foundation\/towHarnessEnvFile.test.js/i.

@@ -1,3 +1,7 @@
+== T00 negative controls ==
+pre-fix fixture: TOW_NC_PREFIX_REF=74e44590 (74e445900e99ab7a0d7b9f5dee86837e009356ae) — differs from HEAD in all 5 controlled files
+current HEAD:    ac2e78047d6f152b19e8518d6eb3c1eab064580f (fixed code under control; the fixture is never read from HEAD)
+
 == NC-C1: .env.test was never loaded (pre-fix entrypoints) ==
 NC-C1 the env-file regression suite fails on the pre-fix loader — jest exit 1; reverted: pg-guard.js, test-env.js, postgres.js
     failing:   ● T00 harness env file (Codex finding C1) › the real entrypoints observe .env.test (child processes) › pg-guard CLI loads .env.test and reports the resolved target
@@ -12,12 +16,12 @@ NC-C2 the port regression suite fails on the pre-fix compose file — jest exit 
     failing:   ● T00 PostgreSQL test foundation (offline mechanism) › single source of truth for the PostgreSQL target (Codex finding C2) › .env.test.example documents the real loading contract
 == NC-C3: up() outside the cleanup scope ==
 NC-C3a the lifecycle regression suite fails on the pre-fix teardown scope — jest exit 1; reverted: test-env.js
-NC-C3b the pre-fix harness leaves the environment behind when up() fails — outcome=rejected reason=command failed (1): docker compose -p socorre-tow-test -f /private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.1D56QD/backend/docker-compose.test.yml up -d --wait --wait-timeout 90 docker_up=true docker_down=false 
+NC-C3b the pre-fix harness leaves the environment behind when up() fails — outcome=rejected reason=command failed (1): docker compose -p socorre-tow-test -f /private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.r9naoJ/backend/docker-compose.test.yml up -d --wait --wait-timeout 90 docker_up=true docker_down=false
 NC-C3c the same suite is green on the fixed harness (control of the control) — jest exit 0; fixed test-env.js, identical Docker stub
-NC-C3d the fixed harness tears the environment down after the same failure — outcome=rejected reason=command failed (1): docker compose -p socorre-tow-test -f /private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.1D56QD/backend/docker-compose.test.yml up -d --wait --wait-timeout 90 docker_up=true docker_down=true 
+NC-C3d the fixed harness tears the environment down after the same failure — outcome=rejected reason=command failed (1): docker compose -p socorre-tow-test -f /private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.r9naoJ/backend/docker-compose.test.yml up -d --wait --wait-timeout 90 docker_up=true docker_down=true
 == NC-C4: Express/PostgreSQL test accepted a 404 as proof of boot ==
 NC-C4a the new e2e assertion fails when the app cannot reach the database — jest exit 1; app connection forced to fail (DB_SSL=true)
-NC-C4b the pre-fix e2e assertion passes under the same failure (false positive) — jest exit 0; HEAD version of the suite, same broken app connection
+NC-C4b the pre-fix e2e assertion passes under the same failure (false positive) — jest exit 0; pre-fix version of the suite (74e44590), same broken app connection
 
 == summary ==
 PASS  NC-C1 the env-file regression suite fails on the pre-fix loader -> docs/evidence/t00/negative-controls/nc-c1-env-file-not-loaded.txt
@@ -28,3 +32,5 @@ PASS  NC-C3c the same suite is green on the fixed harness (control of the contro
 PASS  NC-C3d the fixed harness tears the environment down after the same failure -> docs/evidence/t00/negative-controls/nc-c3d-probe-fixed.txt
 PASS  NC-C4a the new e2e assertion fails when the app cannot reach the database -> docs/evidence/t00/negative-controls/nc-c4a-new-e2e-fails.txt
 PASS  NC-C4b the pre-fix e2e assertion passes under the same failure (false positive) -> docs/evidence/t00/negative-controls/nc-c4b-old-e2e-false-positive.txt
+
+exit_code=0
