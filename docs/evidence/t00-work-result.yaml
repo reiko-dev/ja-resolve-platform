@@ -6,12 +6,12 @@ issue: 11
 repository: reiko-dev/ja-resolve-platform
 branch: feature/t00-tow-test-harness
 execution_base: e1e7dd2d20d5da25df00d8106a904f14041654a1
-result_head: 9037101689603fc6764df60461eb281f40c06b05
+result_head: b5afcc3e4385bba5d3e8d7ea321d7ed8a70d0f31
 result_head_note: >-
-  SHA of the last code/docs commit (docs(t00): add tow current-state audit and legacy mapping).
-  This evidence file is committed as the following commit; use
-  `git log --oneline -4` to see the full T00 series.
-result_head_verify: "git rev-parse HEAD  # after the 4th commit; parent of HEAD is result_head"
+  SHA of the last code/docs commit (fix(t00): sync workspace root lock and complete security
+  review), i.e. the tip of the pass-2 substantive work. This evidence file is committed as the
+  following commit; use `git log --oneline -6` to see the full T00 series.
+result_head_verify: "git rev-parse HEAD  # after the 6th commit; parent of HEAD is result_head"
 
 result: PASS
 scope_check:
@@ -32,14 +32,26 @@ commits:
   - sha: 2de870ef
     message: "test(t00): add tow contract and consumer smoke harness"
     files: 10
+    pass: 1
   - sha: 8f32f2ee
     message: "test(t00): add postgres test foundation and factories"
     files: 19
+    pass: 1
   - sha: 90371016
     message: "docs(t00): add tow current-state audit and legacy mapping"
     files: 20
-  - message: "docs(t00): add t00 work result evidence"
+    pass: 1
+  - sha: 0c5de7ed
+    message: "docs(t00): add t00 work result evidence"
     files: 1
+    pass: 1
+  - message: "fix(t00): sync workspace root lock and complete security review"
+    sha: b5afcc3e4385bba5d3e8d7ea321d7ed8a70d0f31
+    files: 15
+    pass: 2
+  - message: "docs(t00): refresh t00 work result evidence"
+    files: 1
+    pass: 2
 
 files_added:
   contract_harness:
@@ -94,6 +106,13 @@ files_added:
     - docs/evidence/t00/green-syntax-check.txt
     - docs/evidence/t00/security-review.txt
     - docs/evidence/t00/google-routes-audit.txt
+  pass_2_evidence_and_scripts:
+    - scripts/tow/root-lock-evidence.sh
+    - docs/evidence/t00/red-5-tow-settings-patch-mutation.txt
+    - docs/evidence/t00/root-lock-sync-red.txt
+    - docs/evidence/t00/root-lock-sync-green.txt
+    - docs/evidence/t00/root-lock-sync-diff.txt
+    - docs/evidence/t00/gitignore-env-test-example.txt
 
 files_modified:
   - path: socorre_ai_backend/package.json
@@ -103,15 +122,94 @@ files_modified:
       verify:tow, verify:tow:offline. No existing script removed or changed.
   - path: socorre_ai_backend/package-lock.json
     change: "lockfile updated by the install of the three devDependencies above"
-  - path: .gitignore
-    change: "NOT modified. socorre_ai_backend/.env.test.example is ignored by .gitignore:57 (**.env.*) and was committed with an explicit `git add -f` because it is a required T00 deliverable and contains placeholders only."
+  - path: package-lock.json   # ROOT workspace lock (pass 2)
+    change: >-
+      synced with `npm install --package-lock-only` at the repository root so the
+      socorre_ai_backend workspace entry lists the three new devDependencies
+      (ajv@^8.17.1, ajv-formats@^3.0.1, yaml@^2.9.1) and their hoisted transitive
+      graph. Delta is +93/-31 lines and is limited to the new dependency graph:
+      added root entries ajv, ajv-formats, fast-deep-equal, fast-uri,
+      json-schema-traverse, require-from-string, yaml; removed nested duplicates
+      hoisted to the root. No unrelated dependency changed version. Before the
+      sync, `npm ci --dry-run` at the root failed with EUSAGE
+      (Missing: ajv@8.20.0 ...). node_modules and every workspace package.json
+      were verified byte-identical before/after.
+  - path: .gitignore   # pass 2 (optional P3)
+    change: >-
+      added the exact-path negation `!socorre_ai_backend/.env.test.example` after
+      `!**/.env.example` so the tracked Tow test template is intentional instead of
+      force-added (`git add -f`). Scope is one path: `.env`, `.env.test`,
+      `.env.local`, `.env.production` and `.env.bak` remain ignored (verified with
+      `git check-ignore --no-index -q`). Evidence:
+      docs/evidence/t00/gitignore-env-test-example.txt.
+  - path: scripts/tow/red-evidence.sh
+    change: >-
+      pass 2: added RED-5 (mutation proof of the prohibited pre-freeze
+      TowSettingsPatch form) using a second throwaway worktree; RED-1..RED-4
+      unchanged.
+  - path: docs/tow/T00-TEST-HARNESS.md
+    change: >-
+      pass 2: added §1.1 (root workspace lock obligation), §6 (RED criterion
+      mapping) and the .env.test.example gitignore note in §4.
+  - path: docs/tow/T00-CURRENT-STATE-AUDIT.md
+    change: >-
+      pass 2: §9 corrected (S-1 re-classified P2 with an explicit "cannot verify
+      production use" caveat, S-9 narrowed to the current tree, S-11 P0 historical
+      committed secret added, S-12 P1 payment-payload logging added) and blocker
+      B-6 registered.
+  - path: docs/evidence/t00/security-review.txt
+    change: >-
+      pass 2: added the git-history scan (counts/lengths only, no secret value),
+      the S-9 current-tree correction, S-11 and S-12 sections.
   - path: docker-compose-simple.yml
     change: "NOT staged and NOT committed (pre-existing modification present at the execution base)."
 
 not_committed:
   - docker-compose-simple.yml   # pre-existing modification, deliberately left out
-  - .env.bak                    # never existed / never staged
+  - socorre_ai_backend/.env.bak # untracked, ignored, contains key material — NOT read into any artifact and NOT deleted (rotation is an external action, B-6)
   - node_modules                # not tracked
+
+# ---------------------------------------------------------------------------
+root_workspace_lock:
+  problem: >-
+    the repository root is an npm workspace (workspaces: [socorre_ai_backend,
+    socorre_ai_admin]); adding ajv/ajv-formats/yaml to
+    socorre_ai_backend/package.json without resyncing the ROOT package-lock.json
+    breaks `npm ci` at the repository root.
+  precedent: "15771e1e fix(release): sync workspace root lock with backend sharp dependency"
+  reproduction:
+    command: "npm ci --dry-run   (isolated temp copy of root package.json + root lock@0c5de7ed + both workspace package.json)"
+    result: "EUSAGE, exit 1"
+    missing_from_lock_file:
+      - ajv@8.20.0
+      - ajv-formats@3.0.1
+      - yaml@2.9.1
+      - fast-deep-equal@3.1.3
+      - fast-uri@3.1.8
+      - json-schema-traverse@1.0.0
+      - require-from-string@2.0.2
+    evidence: docs/evidence/t00/root-lock-sync-red.txt
+  fix:
+    command: "npm install --package-lock-only   (at the repository root)"
+    exit_code: 0
+    node_modules_touched: false
+    workspace_package_jsons_changed: false
+    verification: >-
+      sha256 of package.json, socorre_ai_backend/package.json and
+      socorre_ai_admin/package.json identical before/after; node_modules entry
+      count (356) and mtime unchanged.
+  validation:
+    command: "npm ci --dry-run   (same isolated copy, post-fix lock)"
+    result: "exit 0, added 1955 packages in <1s"
+    evidence: docs/evidence/t00/root-lock-sync-green.txt
+  diff:
+    stat: "package-lock.json | 124 +++++--- (93 insertions, 31 deletions)"
+    added_root_entries: [ajv, ajv-formats, fast-deep-equal, fast-uri, json-schema-traverse, require-from-string, yaml]
+    removed_entries: "nested duplicates hoisted to the root (socorre_ai_admin/node_modules/{fast-deep-equal,fast-uri,require-from-string}, socorre_ai_backend/node_modules/fast-deep-equal)"
+    unrelated_version_changes: 0
+    evidence: docs/evidence/t00/root-lock-sync-diff.txt
+  reproducible_script: scripts/tow/root-lock-evidence.sh
+  obligation_documented_in: docs/tow/T00-TEST-HARNESS.md §1.1
 
 # ---------------------------------------------------------------------------
 openapi:
@@ -349,6 +447,21 @@ tests:
       command: "npx jest --runInBand"
       result: {suites: "2 skipped, 42 passed, 44 total", tests: "14 skipped, 634 passed, 648 total", exit_code: 0}
       evidence: docs/evidence/t00/green-full-suite.txt
+    pass_2_reverification:
+      note: >-
+        re-run on the pass-2 tree (b5afcc3e) to prove the root-lock sync, the .gitignore negation
+        and the docs/script changes did not perturb the suite. All four gates exit 0 and every
+        counter is identical to pass 1.
+      commands:
+        - {command: "npm run validate:openapi", exit_code: 0, result: "PASS (counters unchanged)"}
+        - {command: "npm run test:contract", exit_code: 0, result: "4 suites, 51 tests passed"}
+        - {command: "npx jest tests/tow --runInBand", exit_code: 0, result: "2 skipped, 11 passed of 13 suites; 14 skipped, 228 passed of 242 tests"}
+        - {command: "npx jest --runInBand", exit_code: 0, result: "2 skipped, 42 passed of 44 suites; 14 skipped, 634 passed of 648 tests"}
+      evidence:
+        - docs/evidence/t00/green-openapi-validation.txt
+        - docs/evidence/t00/green-contract-suite.txt
+        - docs/evidence/t00/green-tow-focused.txt
+        - docs/evidence/t00/green-full-suite.txt
     delta:
       suites_added: 7
       tests_added: 89
@@ -365,8 +478,10 @@ red_evidence:
   command: "bash scripts/tow/red-evidence.sh"
   exit_code: 0
   method: >-
-    creates a detached worktree at the execution base e1e7dd2d, captures the failures that the
-    T00 harness fixes, and removes the worktree via trap
+    RED-1..RED-4 create a detached worktree at the execution base e1e7dd2d and capture the
+    failures the T00 harness fixes. RED-5 (pass 2) creates a second detached worktree at HEAD
+    (harness present), mutates the contract into the prohibited pre-freeze form and captures the
+    contract suite failing. Both worktrees are removed via trap.
   files:
     - path: docs/evidence/t00/red-1-contract-gate-absent.txt
       shows: "jest tests/contract -> No tests found, exit 1 at the execution base"
@@ -376,16 +491,35 @@ red_evidence:
       shows: "towContract.js, towConsumerFlows.js, tests/helpers/tow, tests/contract, tests/tow/foundation, docker-compose.test.yml and .env.test.example all absent at the execution base"
     - path: docs/evidence/t00/red-4-legacy-gateway-nondeterminism.txt
       shows: "grep of Date.now()/Math.random()/setTimeout( in src/services/gateways/*.js"
-  verdict: "RED confirmed for a real deficiency before the harness existed; GREEN after."
+    - path: docs/evidence/t00/red-5-tow-settings-patch-mutation.txt
+      shows: >-
+        mutation proof: TowSettingsPatch rewritten to allOf: [TowSettings, {...}] (the form
+        prohibited by TOW-OPENAPI-CONTRACT-DECISIONS.md §2) -> 15 failed / 36 passed of 51,
+        exit 1, including the explicit assertion
+        "the contract does not compose the patch with allOf over TowSettings"
+  criterion_mapping: docs/tow/T00-TEST-HARNESS.md §6
+  criterion_mapping_note: >-
+    T00 is a harness task, so the real base-state deficiency is "gate/environment absent"
+    (RED-1..RED-3) plus legacy gateway non-determinism (RED-4). Per
+    TOW-TDD-IMPLEMENTATION-PLAN.md §4 (RED), behaviour that is already frozen must be proven by a
+    baseline/regression test rather than an artificial RED; for TowSettingsPatch the honest
+    executable proof is the RED-5 mutation/negative control, not a fabricated failing endpoint
+    test. RED-5 is an executable failing assertion (exit 1), unlike RED-4 which is a grep.
+  verdict: "RED confirmed for real deficiencies (absence at the base, gateway non-determinism, and a provably guarded frozen decision); GREEN after."
 
 security_findings:
   artifact_section: docs/tow/T00-CURRENT-STATE-AUDIT.md §9
   evidence: docs/evidence/t00/security-review.txt
   secret_values_reproduced: false
+  review_scope: "socorre_ai_backend/ current tree AND git history (history scan added in pass 2)"
+  pass_2_correction: >-
+    pass 1 reviewed only the working tree, wrongly cleared S-9 for history, missed the
+    current-tree payment logging and over-classified dev placeholders as P0. All four are
+    corrected below.
   findings:
     - id: S-1
-      severity: P0
-      type: committed_infrastructure_credentials
+      severity: P2   # re-classified in pass 2 (was P0)
+      type: dev_test_placeholder_credentials
       locations:
         - "docker-compose.yml:9 POSTGRES_PASSWORD literal(len=8)"
         - "docker-compose.yml:51 DB_PASSWORD literal(len=8)"
@@ -393,7 +527,13 @@ security_findings:
         - "docker-compose-simple.yml:9 POSTGRES_PASSWORD literal(len=8)"
         - "docker-compose-simple.yml:38,65 DB_PASSWORD literal(len=8)"
         - "docker-compose-simple.yml:40,67 JWT_SECRET literal(len=40)"
-      note: "location, type and length only — values are not reproduced in any T00 artifact"
+      note: >-
+        location, type and length only — values are not reproduced in any T00 artifact. These are
+        dev/test placeholders referenced only from local/homologation guides (quick-start.sh:5,
+        README.md:81, SETUP_GUIDE.md:166, docs/GUIA-DEPLOY-HOMOLOGACAO-HOSTINGER.md:136). This
+        repository contains no evidence they were ever used in a production or customer-facing
+        environment, and that cannot be disproven from the repository alone; if any operator
+        deployed these files as-is this escalates to P0 and both secrets must be rotated.
       action_owner: outside T00 scope (report only)
     - id: S-2
       severity: medium
@@ -423,10 +563,47 @@ security_findings:
       type: uploads_authenticated_local_storage
     - id: S-9
       severity: info
-      type: private_key_grep_hits_are_placeholders
+      type: current_tree_private_key_hits_are_placeholders
+      note: >-
+        corrected in pass 2: true for the current tracked tree only (4 source hits, 0
+        non-placeholder). It does NOT clear git history — see S-11.
     - id: S-10
       severity: info
       type: node_modules_in_initial_commit_not_tracked_in_HEAD
+    - id: S-11   # added in pass 2
+      severity: P0
+      type: real_committed_secret_in_git_history
+      locations:
+        - "2f9f19cf:socorre_ai_backend/.env (blob 6e8fc90f294984eb3265a8433c0a3348438b3ea5) — FIREBASE_PRIVATE_KEY PEM block count=1 (NOT a placeholder), FIREBASE_PRIVATE_KEY_ID count=1"
+        - "2f9f19cf:socorre_ai_backend/.env.production (blob a8867d8fb451db71e51f102fd3ad71910c0a112a) — DB_PASSWORD literal(len=21), JWT_SECRET literal(len=54)"
+        - "socorre_ai_backend/.env.bak (untracked, ignored, mode 0644, 2987 bytes) — BEGIN PRIVATE KEY count=1"
+      reachable_from: [origin/main, origin/feature/implements-tow-service, production/main]
+      committed_in: 2f9f19cf
+      deleted_from_head_in: 50e57ff6
+      note: >-
+        counts, blob ids and lengths only — no secret value was read into any artifact. The
+        untracked .env.bak was NOT read into any artifact and was NOT deleted.
+      required_external_actions:
+        - "operations: revoke + rotate the Firebase service-account key whose PEM is in 2f9f19cf:socorre_ai_backend/.env"
+        - "operations: evaluate rotation of the historical production DB password and JWT secret if that environment was ever deployed (rotating the JWT secret invalidates every issued token)"
+        - "operations: delete socorre_ai_backend/.env.bak only AFTER rotation (human decision)"
+        - "operations: consider a history purge only AFTER rotation, coordinated across every branch containing 2f9f19cf"
+        - "later task: add a secret scanner (gitleaks/trufflehog) to CI"
+      history_rewrite_performed: false
+      action_owner: operations (outside T00 scope) — registered as B-6
+    - id: S-12   # added in pass 2
+      severity: P1
+      type: pci_unsafe_payment_payload_logging
+      locations:
+        - "socorre_ai_backend/src/services/gateways/stripeGateway.js:5 console.log('Processando pagamento no Stripe:', paymentData)"
+        - "socorre_ai_backend/src/services/gateways/mercadopagoGateway.js:5 console.log('Processando pagamento no Mercado Pago:', paymentData)"
+        - "socorre_ai_backend/src/services/gateways/pagseguroGateway.js:5 console.log('Processando pagamento no PagSeguro:', paymentData)"
+        - "socorre_ai_backend/src/routes/payments.js:48-51 paymentData = { ...req.body, userId } (no whitelist)"
+        - "socorre_ai_backend/src/services/paymentService.js:223-232 forwards cardData/pixData/bankSlipData into the gateway call"
+      note: >-
+        client-supplied cardData/pixData/bankSlipData can therefore be written to application logs
+        before any provider call. Registered only — no production code was changed in T00.
+      action_owner: T13/T14 (or T18)
 
 known_limitations:
   - "T00 delivers mechanism only. No Tow v1 table, endpoint, DTO, feature flag or business rule was implemented."
@@ -435,8 +612,12 @@ known_limitations:
   - "The reais-vs-cents decision (C-10) and the pricing-ownership decision (C-1) are registered as ambiguities, not resolved."
   - "The consumer smoke validates the contract surface and generated fixtures; it does not execute client code."
   - "PostgreSQL evidence was produced on a single local PG14 container (Colima/Docker); no CI matrix was run."
-  - "socorre_ai_backend/.env.test.example is committed with `git add -f` because .gitignore:57 ignores **/.env.*; it contains placeholders only."
+  - "socorre_ai_backend/.env.test.example is tracked intentionally: pass 2 added the exact-path negation `!socorre_ai_backend/.env.test.example` to .gitignore so it no longer depends on `git add -f`. It contains placeholders only; real `.env*` files remain ignored (docs/evidence/t00/gitignore-env-test-example.txt)."
   - "legacy-surface-probe.js boots the real app with no database connection; unmatched routes 404 before any query, so no DB is required."
+  - "S-11 (historical committed secret) could NOT be remediated inside T00: revoking/rotating the key, deleting .env.bak and any history purge are operational decisions. T00 deliberately performed no history rewrite and no file deletion; the exposure stays live until B-6 is executed."
+  - "RED-1..RED-3 prove absence at the execution base and RED-4 is a deterministic grep; neither is a failing assertion. RED-5 is the executable failing assertion (mutation proof) that makes the Issue #11 RED criterion defensible — see docs/tow/T00-TEST-HARNESS.md §6."
+  - "The root-lock GREEN validation uses `npm ci --dry-run` in an isolated temp copy, not a real `npm ci` (which would wipe node_modules). It proves manifest/lock agreement and full resolution of the 1955-package graph, not that every tarball downloads."
+  - "No Tow v1 test could exercise the payment-payload logging path (S-12) end to end because T00 adds no payment orchestration; the finding is a static, line-referenced registration."
 
 blockers:
   - id: B-1
@@ -454,6 +635,14 @@ blockers:
   - id: B-5
     description: "Envelope unification ({success,message,error:{code}}) is a prerequisite for the first Tow v1 endpoint; without it a third envelope family would ship."
     owner: T01
+  - id: B-6   # added in pass 2
+    description: >-
+      S-11: a real Firebase service-account private key was committed in 2f9f19cf
+      (socorre_ai_backend/.env) and is still reachable from origin/main and production/main.
+      Until it is revoked and rotated — and the historical production DB password / JWT secret
+      are evaluated for rotation — the exposure is live. T00 cannot perform this: it requires
+      external action and a human decision on history purge and .env.bak deletion.
+    owner: operations (outside T00 scope)
 
 ambiguities_registered: 10   # C-1..C-10 in docs/tow/T00-CURRENT-STATE-AUDIT.md §7
 tech_debt_registered: 11      # docs/tow/T00-CURRENT-STATE-AUDIT.md §8
