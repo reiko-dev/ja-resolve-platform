@@ -1,0 +1,2 @@
+--- git check-ignore ---
+.gitignore:57:**/.env.*	.env.test

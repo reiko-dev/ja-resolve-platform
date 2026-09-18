@@ -1,0 +1,73 @@
+# T00 M5-1 (Codex round-3 P1 / thread 4048484277) — per-run Compose project isolation
+# command: node -e '<two-port render probe>' ; npx jest tests/tow/foundation/towPostgresGuard.test.js --runInBand --verbose
+# cwd: socorre_ai_backend
+# git HEAD: 7ed25c12c5ef690ffb2e61bf1c486ba1a3c4aa1d (pass-7 corrections in the working tree; committed as the pass-7 fix commit)
+# captured_at_utc: 2026-09-18T16:23:46Z
+# Docker: real daemon (Colima). No tow container/network/volume remains after the probes.
+#
+# Fix under test:
+#   scripts/tow/test-env.js  resolveComposeProject(env) replaces the fixed COMPOSE_PROJECT.
+#       TOW_TEST_PG_PROJECT (non-empty) overrides it and must match
+#       ^[a-z0-9][a-z0-9_-]{0,62}$ ; otherwise the default is
+#       socorre-tow-test-<DB_PORT>-<first 8 hex of sha256(BACKEND_DIR)>.
+#       compose()/down()/targetEnv() all resolve the same name.
+#   docker-compose.test.yml  no container_name and no network name: (Compose derives both).
+#   tests/tow/foundation/towPostgresFoundation.e2e.test.js  renders 'docker compose config'
+#       with the harness-resolved project and asserts the derived names.
+
+=== two-port derived project + rendered compose config (TOW_TEST_PG_PROJECT unset) ===
+DB_PORT=55432 (TOW_TEST_PG_PROJECT unset)
+  derived project        = socorre-tow-test-55432-cb0d0933
+  compose top-level name = socorre-tow-test-55432-cb0d0933
+  container_name         = undefined (undefined -> Compose derives <project>-tow-postgres-test-1)
+  network name           = socorre-tow-test-55432-cb0d0933_tow-test-net
+  published port         = 127.0.0.1:55432
+DB_PORT=55999 (TOW_TEST_PG_PROJECT unset)
+  derived project        = socorre-tow-test-55999-cb0d0933
+  compose top-level name = socorre-tow-test-55999-cb0d0933
+  container_name         = undefined (undefined -> Compose derives <project>-tow-postgres-test-1)
+  network name           = socorre-tow-test-55999-cb0d0933_tow-test-net
+  published port         = 127.0.0.1:55999
+
+
+=== guard + project-isolation assertions ===
+      ✓ accepts only the explicit loopback disposable target (2 ms)
+      ✓ rejects a non-loopback host (production shape) (8 ms)
+      ✓ rejects wildcard bind hosts (0.0.0.0 / :: / *) (1 ms)
+      ✓ rejects a privileged user by case-insensitive substring, not exact match (2 ms)
+      ✓ rejects a database name without the _test suffix
+      ✓ rejects DATABASE_URL/PostgreSQL (may point at production)
+      ✓ rejects the absence of the explicit opt-in
+      ✓ never prints the password when describing the target
+      ✓ docker-compose.test.yml is ephemeral, isolated and health-checked
+      ✓ the published port is bound to IPv4 loopback (M4-1 negative control)
+      ✓ compose defaults, healthcheck and guard defaults cannot drift apart
+      ✓ .env.test.example ships placeholders only and no real secrets (4 ms)
+      ✓ package.json exposes the canonical Tow commands
+    compose project isolation (Codex round-3 P1 / thread 4048484277)
+      ✓ docker-compose.test.yml fixes no container_name and no network name (7 ms)
+      ✓ resolveComposeProject honors TOW_TEST_PG_PROJECT and rejects invalid overrides (3 ms)
+      ✓ the derived default is unique per DB_PORT and per backend directory
+      ✓ the resolved project is forwarded to child processes with the target env (1 ms)
+      ✓ the resolved target carries the password used by the client
+      ✓ the harness hands the resolved DB_PORT/DB_NAME_TEST/DB_USER to compose
+      ✓ the Knex helper connects to exactly that host/port/database/user (26 ms)
+      ✓ no harness file reintroduces a second port variable
+      ✓ .env.test.example documents the real loading contract
+      ✓ exposes the harness surface without connecting
+      ✓ destructive helpers refuse an unsafe environment before touching the DB (2 ms)
+Test Suites: 1 passed, 1 total
+Tests:       24 passed, 24 total
+
+# --- live gate names (cross-reference) ---
+# docs/evidence/t00/green-postgres-gate.txt (DB_PORT=55432):
+#   container socorre-tow-test-55432-cb0d0933-tow-postgres-test-1
+#   network   socorre-tow-test-55432-cb0d0933_tow-test-net
+# docs/evidence/t00/green-postgres-gate-custom-port.txt (DB_PORT=55999):
+#   container socorre-tow-test-55999-cb0d0933-tow-postgres-test-1
+#   network   socorre-tow-test-55999-cb0d0933_tow-test-net
+
+# --- leftover check after the probes ---
+$ docker ps -a --format '{{.Names}}' | grep -i tow            # empty
+$ docker network ls --format '{{.Name}}' | grep -i tow        # empty
+$ docker volume ls --format '{{.Name}}' | grep -i tow         # empty

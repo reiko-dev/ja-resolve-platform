@@ -1,0 +1,14 @@
+::ffff:127.0.0.1 - - [18/Sep/2026:14:35:01 +0000] "GET /api/tow/module-status HTTP/1.1" 404 68 "-" "-"
+PASS tests/tow/foundation/towPostgresFoundation.e2e.prefix.test.js
+  T00 PostgreSQL test foundation
+    ✓ the disposable container reports PostgreSQL 14 (2 ms)
+    ✓ migrations apply from a truly empty schema (298 ms)
+    ✓ the Tow safety guard fails closed for non-test targets (1 ms)
+    ✓ per-test isolation: truncate clears data and rollback leaves no leakage (38 ms)
+    ✓ the Express app boots against real PostgreSQL (939 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       5 passed, 5 total
+Snapshots:   0 total
+Time:        1.587 s
+Ran all test suites matching /tests\/tow\/foundation\/towPostgresFoundation.e2e.prefix.test.js/i.

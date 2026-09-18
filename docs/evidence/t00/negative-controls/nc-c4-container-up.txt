@@ -1,0 +1,12 @@
+[test-env] env file: /Volumes/Reiko/projects/work/socorre-system/socorre_ai_backend/.env.test not present (optional: safe defaults apply)
+ Network socorre-tow-test-net Creating
+ Network socorre-tow-test-net Creating
+ Network socorre-tow-test-net Created
+ Network socorre-tow-test-net Created
+ Container socorre-tow-postgres-test Creating
+ Container socorre-tow-postgres-test Created
+ Container socorre-tow-postgres-test Starting
+ Container socorre-tow-postgres-test Started
+ Container socorre-tow-postgres-test Waiting
+ Container socorre-tow-postgres-test Healthy
+PostgreSQL test container is healthy

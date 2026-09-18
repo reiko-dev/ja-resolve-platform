@@ -1,0 +1,112 @@
+# T00 pass 7 — full gate sweep (Codex round-3 corrections: 1×P1 + 2×P2)
+# cwd: repository root; npm scripts run in socorre_ai_backend
+# git HEAD: 7ed25c12c5ef690ffb2e61bf1c486ba1a3c4aa1d (pass-7 corrections in the working tree; committed as the pass-7 fix commit)
+# captured_at_utc: 2026-09-18T16:24:52Z
+# Docker: real daemon (Colima). `docker ps -a`, `docker network ls` and `docker volume ls`
+# filtered by socorre-tow are all empty after the sweep (see the last section).
+# The two PostgreSQL gates below were also re-recorded as standalone artifacts:
+#   docs/evidence/t00/green-postgres-gate.txt              (default port 55432)
+#   docs/evidence/t00/green-postgres-gate-custom-port.txt  (DB_PORT=55999)
+# Codex round-3 focused artifacts:
+#   docs/evidence/t00/m5-1-compose-project-isolation.txt      (thread 4048484277, P1)
+#   docs/evidence/t00/m5-2-root-lock-manifest-refs.txt        (thread 4048484284, P2)
+#   docs/evidence/t00/m5-3-verify-pg-startup-failure.txt      (thread 4048484296, P2)
+# Expected-RED negative control (not part of the gate list):
+#   DOCKER_HOST=unix:///tmp/t00-dead.sock npm run verify:tow  -> exit 1, see m5-3 artifact
+
+## npm run validate:openapi
+exit_code=0
+--- deterministic summary lines from /tmp/t00-p7-openapi.log ---
+  OpenAPI version:                  3.1.0
+  Composed operations:              66
+  Unresolved refs:                  0
+  JSON Schema definition errors:    0
+  TowSettingsPatch errors:          0
+  RESULT:                           PASS
+
+## npm run test:contract
+exit_code=0
+--- deterministic summary lines from /tmp/t00-p7-contract.log ---
+Test Suites: 4 passed, 4 total
+Tests:       52 passed, 52 total
+
+## npx jest tests/tow --runInBand
+exit_code=0
+--- deterministic summary lines from /tmp/t00-p7-focused.log ---
+Test Suites: 2 skipped, 13 passed, 13 of 15 total
+Tests:       15 skipped, 267 passed, 282 total
+
+## TOW_POSTGRES_E2E=1 npm run test:pg
+exit_code=0
+--- deterministic summary lines from /tmp/t00-p7-pg-default.log ---
+Tests:       6 passed, 6 total
+[test:pg] GREEN
+# full artifact: docs/evidence/t00/green-postgres-gate.txt
+# live publication observed there: 5432/tcp -> 127.0.0.1:55432
+# derived compose project: socorre-tow-test-55432-cb0d0933
+
+## DB_PORT=55999 TOW_POSTGRES_E2E=1 npm run test:pg
+exit_code=0
+--- deterministic summary lines from /tmp/t00-p7-pg-custom.log ---
+Tests:       6 passed, 6 total
+[test:pg] GREEN
+# full artifact: docs/evidence/t00/green-postgres-gate-custom-port.txt
+# live publication observed there: 5432/tcp -> 127.0.0.1:55999
+# derived compose project: socorre-tow-test-55999-cb0d0933
+
+## npm run verify:tow
+exit_code=0
+--- deterministic summary lines from /tmp/t00-p7-verify.log ---
+=== [verify:tow] summary ===
+  PASS  OpenAPI 3.1 structure gate
+  PASS  contract suite (OpenAPI + patch semantics + discovery + consumer smoke)
+  PASS  focused Tow suite (offline)
+  PASS  prepare database + migrations from zero
+  PASS  PostgreSQL foundation gate
+
+
+## npx jest --runInBand
+exit_code=0
+--- deterministic summary lines from /tmp/t00-p7-full.log ---
+Test Suites: 2 skipped, 45 passed, 45 of 47 total
+Tests:       15 skipped, 681 passed, 696 total
+
+## bash scripts/tow/root-lock-evidence.sh
+exit_code=0
+--- output ---
+root-lock evidence captured in /Volumes/Reiko/projects/work/socorre-system/docs/evidence/t00
+root-lock refs: 0c5de7ed (pre-fix) -> HEAD (post-fix)
+root-lock evidence verified (RED=exit 1, GREEN=exit 0, non-empty ref-to-ref delta)
+
+## focused Codex round-3 regression suites
+$ npx jest tests/tow/foundation/towPostgresGuard.test.js tests/unit/towVerifyStageRecording.test.js --runInBand
+exit_code=0
+--- deterministic summary lines from /tmp/t00-p7-focused-guard.log ---
+Test Suites: 2 passed, 2 total
+Tests:       31 passed, 31 total
+# per-test lines: m5-1-compose-project-isolation.txt (24 guard tests) and
+# m5-3-verify-pg-startup-failure.txt (7 stage-recording tests)
+
+## git diff --check   (worktree scope)
+exit_code=0
+(no output)
+
+## docker ps -a / network ls / volume ls (after the sweep)
+$ docker ps -a --format '{{.Names}}' | grep -i tow
+(empty)
+$ docker network ls --format '{{.Name}}' | grep -i tow
+(empty)
+$ docker volume ls --format '{{.Name}}' | grep -i tow
+(empty)
+# (the four socorre-system*/socorre-system-g2* volumes are the pre-existing dev-compose
+#  volumes, not harness leftovers: they are outside the socorre-tow-test-* project)
+
+# Range check scope (Muse M4-3): `git diff --check` above covers the WORKTREE only.
+# The committed-range check is
+#   git diff --check 7ed25c12c5ef690ffb2e61bf1c486ba1a3c4aa1d..<pass-7 fix commit>
+# and is appended below after the fix commit (see the docs commit).
+
+## git diff --check 7ed25c12..8246f989   (committed-range scope, after the fix commit)
+exit_code=0
+(no output — the 32 trailing-whitespace findings from the pass-5 range are still gone;
+ the pass-7 evidence artifacts were normalized with scripts/tow/normalize-evidence.sh)

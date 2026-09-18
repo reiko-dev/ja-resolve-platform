@@ -1,0 +1,43 @@
+# M-2 — the PostgreSQL fail-closed guard must refuse BOTH bypass commands:
+#   DB_USER=postgres_user  (privileged user, previously only an exact match on 'postgres')
+#   DB_HOST=0.0.0.0        (wildcard bind, previously accepted as a plain string)
+# TOW_POSTGRES_E2E=1 is set in every case so the opt-in rule (covered by its own
+# tests) does not mask the host/user rules under test.
+
+--- bypass attempt 1 (privileged user substring)
+$ TOW_POSTGRES_E2E=1 DB_USER=postgres_user node scripts/tow/test-env.js guard
+target: postgresql://postgres_user@127.0.0.1:55432/socorre_ai_tow_test
+UNSAFE: DB_USER "postgres_user" looks like a privileged production user
+exit_code=1
+
+--- bypass attempt 2 (wildcard bind)
+$ TOW_POSTGRES_E2E=1 DB_HOST=0.0.0.0 node scripts/tow/test-env.js guard
+target: postgresql://tow_test@0.0.0.0:55432/socorre_ai_tow_test
+UNSAFE: DB_HOST must not be a wildcard bind address, got "0.0.0.0"
+exit_code=1
+
+--- privileged user variant
+$ TOW_POSTGRES_E2E=1 DB_USER=prod_admin node scripts/tow/test-env.js guard
+target: postgresql://prod_admin@127.0.0.1:55432/socorre_ai_tow_test
+UNSAFE: DB_USER "prod_admin" looks like a privileged production user
+exit_code=1
+
+--- privileged user variant
+$ TOW_POSTGRES_E2E=1 DB_USER=root2 node scripts/tow/test-env.js guard
+target: postgresql://root2@127.0.0.1:55432/socorre_ai_tow_test
+UNSAFE: DB_USER "root2" looks like a privileged production user
+exit_code=1
+
+--- case-variant of a privileged user
+$ TOW_POSTGRES_E2E=1 DB_USER=POSTGRES node scripts/tow/test-env.js guard
+target: postgresql://POSTGRES@127.0.0.1:55432/socorre_ai_tow_test
+UNSAFE: DB_USER "POSTGRES" looks like a privileged production user
+exit_code=1
+
+--- safe test environment
+$ TOW_POSTGRES_E2E=1 DB_USER=tow_test DB_HOST=127.0.0.1 DB_NAME=socorre_ai_tow_test node scripts/tow/test-env.js guard
+target: postgresql://tow_test@127.0.0.1:55432/socorre_ai_tow_test
+SAFE
+exit_code=0
+
+# Verdict: every privileged/wildcard case exits 1; the safe case exits 0.

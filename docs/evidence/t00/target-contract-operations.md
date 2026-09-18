@@ -1,0 +1,70 @@
+# Composed Tow v1 contract operations (66)
+
+| # | Method | Path | operationId | Tag | Summary |
+| --- | --- | --- | --- | --- | --- |
+| 1 | GET | `/admin/tow/audit-events` | `adminListTowAuditEvents` | Tow Admin |  |
+| 2 | GET | `/admin/tow/disputes` | `adminListTowDisputes` | Tow Admin |  |
+| 3 | GET | `/admin/tow/disputes/{disputeId}` | `adminGetTowDispute` | Tow Admin |  |
+| 4 | POST | `/admin/tow/disputes/{disputeId}/resolve` | `adminResolveTowDispute` | Tow Admin |  |
+| 5 | GET | `/admin/tow/module` | `adminGetTowModule` | Tow Admin |  |
+| 6 | PATCH | `/admin/tow/module` | `adminToggleTowModule` | Tow Admin |  |
+| 7 | POST | `/admin/tow/payout-batches` | `adminCreateTowPayoutBatch` | Tow Admin |  |
+| 8 | GET | `/admin/tow/payout-batches/{batchId}` | `adminGetTowPayoutBatch` | Tow Admin |  |
+| 9 | POST | `/admin/tow/payout-batches/{batchId}/process` | `adminProcessTowPayoutBatch` | Tow Admin |  |
+| 10 | GET | `/admin/tow/payout-batches/preview` | `adminPreviewTowPayoutBatch` | Tow Admin |  |
+| 11 | GET | `/admin/tow/requests` | `adminListTowRequests` | Tow Admin |  |
+| 12 | GET | `/admin/tow/requests/{requestId}` | `adminGetTowRequest` | Tow Admin |  |
+| 13 | POST | `/admin/tow/requests/{requestId}/override-cancel` | `adminOverrideCancelTowRequest` | Tow Admin |  |
+| 14 | POST | `/admin/tow/requests/{requestId}/override-complete` | `adminOverrideCompleteTowRequest` | Tow Admin |  |
+| 15 | GET | `/admin/tow/settings` | `adminGetTowSettings` | Tow Admin |  |
+| 16 | PATCH | `/admin/tow/settings` | `adminPatchTowSettings` | Tow Admin |  |
+| 17 | GET | `/admin/tow/vehicle-documents` | `adminListTowVehicleDocuments` | Tow Admin |  |
+| 18 | GET | `/admin/tow/vehicle-documents/{documentId}` | `adminGetTowVehicleDocument` | Tow Admin |  |
+| 19 | POST | `/admin/tow/vehicle-documents/{documentId}/approve` | `adminApproveTowVehicleDocument` | Tow Admin |  |
+| 20 | POST | `/admin/tow/vehicle-documents/{documentId}/reject` | `adminRejectTowVehicleDocument` | Tow Admin |  |
+| 21 | POST | `/tow/counteroffers/{counterofferId}/accept` | `acceptTowCounteroffer` | Tow Partner |  |
+| 22 | POST | `/tow/counteroffers/{counterofferId}/reject` | `rejectTowCounteroffer` | Tow Partner |  |
+| 23 | GET | `/tow/customer/debts` | `listTowCustomerDebts` | Tow Customer |  |
+| 24 | POST | `/tow/customer/debts/{debtId}/pay` | `payTowCustomerDebt` | Tow Customer |  |
+| 25 | GET | `/tow/module-status` | `getTowModuleStatus` | Tow Module |  |
+| 26 | GET | `/tow/partner/financial-summary` | `getTowPartnerFinancialSummary` | Tow Partner |  |
+| 27 | GET | `/tow/partner/jobs` | `listPartnerTowJobs` | Tow Partner |  |
+| 28 | PUT | `/tow/partner/location` | `updateTowPartnerLocation` | Tow Partner |  |
+| 29 | GET | `/tow/partner/opportunities` | `listTowOpportunities` | Tow Partner |  |
+| 30 | GET | `/tow/partner/proposals` | `listPartnerTowProposals` | Tow Partner |  |
+| 31 | GET | `/tow/partner/status` | `getTowPartnerStatus` | Tow Partner |  |
+| 32 | PATCH | `/tow/partner/status` | `patchTowPartnerStatus` | Tow Partner |  |
+| 33 | POST | `/tow/proposals/{proposalId}/accept` | `acceptTowProposal` | Tow Customer |  |
+| 34 | POST | `/tow/proposals/{proposalId}/counteroffer` | `createTowCounteroffer` | Tow Customer |  |
+| 35 | POST | `/tow/proposals/{proposalId}/withdraw` | `withdrawTowProposal` | Tow Partner |  |
+| 36 | GET | `/tow/requests` | `listTowRequests` | Tow Customer |  |
+| 37 | POST | `/tow/requests` | `createTowRequest` | Tow Customer |  |
+| 38 | GET | `/tow/requests/{requestId}` | `getTowRequest` | Tow Customer, Tow Partner |  |
+| 39 | POST | `/tow/requests/{requestId}/arrived` | `markTowArrived` | Tow Partner |  |
+| 40 | POST | `/tow/requests/{requestId}/cancel` | `cancelTowRequestByCustomer` | Tow Customer |  |
+| 41 | POST | `/tow/requests/{requestId}/cancel-partner` | `cancelTowRequestByPartner` | Tow Partner |  |
+| 42 | POST | `/tow/requests/{requestId}/cash-received` | `markTowCashReceived` | Tow Partner |  |
+| 43 | POST | `/tow/requests/{requestId}/completion/confirm` | `confirmTowCompletion` | Tow Customer |  |
+| 44 | POST | `/tow/requests/{requestId}/customer-no-show` | `reportTowCustomerNoShow` | Tow Partner |  |
+| 45 | PATCH | `/tow/requests/{requestId}/destination` | `changeTowDestination` | Tow Customer |  |
+| 46 | POST | `/tow/requests/{requestId}/disputes` | `createTowDispute` | Tow Customer |  |
+| 47 | POST | `/tow/requests/{requestId}/en-route` | `startTowEnRoute` | Tow Partner |  |
+| 48 | POST | `/tow/requests/{requestId}/finish` | `finishTowService` | Tow Partner |  |
+| 49 | POST | `/tow/requests/{requestId}/in-transit` | `startTowInTransit` | Tow Partner |  |
+| 50 | GET | `/tow/requests/{requestId}/payment` | `getTowPaymentSummary` | Tow Customer, Tow Partner |  |
+| 51 | PUT | `/tow/requests/{requestId}/payment-method` | `selectTowPaymentMethod` | Tow Customer |  |
+| 52 | GET | `/tow/requests/{requestId}/proposals` | `listTowRequestProposals` | Tow Customer |  |
+| 53 | POST | `/tow/requests/{requestId}/proposals` | `createTowProposal` | Tow Partner |  |
+| 54 | POST | `/tow/requests/{requestId}/review` | `createTowReview` | Tow Customer |  |
+| 55 | GET | `/tow/requests/{requestId}/route` | `getTowRequestRoute` | Tow Customer, Tow Partner |  |
+| 56 | GET | `/tow/requests/{requestId}/tracking` | `getTowTracking` | Tow Customer, Tow Partner |  |
+| 57 | POST | `/tow/requests/{requestId}/tracking` | `postTowTrackingPoint` | Tow Partner |  |
+| 58 | GET | `/tow/vehicles` | `listTowVehicles` | Tow Vehicles |  |
+| 59 | POST | `/tow/vehicles` | `createTowVehicle` | Tow Vehicles |  |
+| 60 | DELETE | `/tow/vehicles/{vehicleId}` | `deleteTowVehicle` | Tow Vehicles |  |
+| 61 | GET | `/tow/vehicles/{vehicleId}` | `getTowVehicle` | Tow Vehicles |  |
+| 62 | PATCH | `/tow/vehicles/{vehicleId}` | `updateTowVehicle` | Tow Vehicles |  |
+| 63 | POST | `/tow/vehicles/{vehicleId}/activate` | `activateTowVehicle` | Tow Vehicles |  |
+| 64 | GET | `/tow/vehicles/{vehicleId}/documents` | `listTowVehicleDocuments` | Tow Vehicles |  |
+| 65 | POST | `/tow/vehicles/{vehicleId}/documents` | `uploadTowVehicleDocument` | Tow Vehicles |  |
+| 66 | DELETE | `/tow/vehicles/{vehicleId}/documents/{documentId}` | `deleteTowVehicleDocument` | Tow Vehicles |  |

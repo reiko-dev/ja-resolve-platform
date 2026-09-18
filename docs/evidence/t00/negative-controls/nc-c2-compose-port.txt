@@ -1,0 +1,247 @@
+FAIL tests/tow/foundation/towPostgresGuard.test.js
+  T00 PostgreSQL test foundation (offline mechanism)
+    safety guard fails closed
+      ✓ accepts only the explicit loopback disposable target (1 ms)
+      ✓ rejects a non-loopback host (production shape) (6 ms)
+      ✓ rejects wildcard bind hosts (0.0.0.0 / :: / *) (1 ms)
+      ✓ rejects a privileged user by case-insensitive substring, not exact match (1 ms)
+      ✓ rejects a database name without the _test suffix (1 ms)
+      ✓ rejects DATABASE_URL/PostgreSQL (may point at production)
+      ✓ rejects the absence of the explicit opt-in
+      ✓ never prints the password when describing the target
+    disposable environment definition
+      ✕ docker-compose.test.yml is ephemeral, isolated and health-checked (1 ms)
+      ✕ compose defaults, healthcheck and guard defaults cannot drift apart (1 ms)
+      ✕ .env.test.example ships placeholders only and no real secrets
+      ✓ package.json exposes the canonical Tow commands (1 ms)
+    single source of truth for the PostgreSQL target (Codex finding C2)
+      ✓ the resolved target carries the password used by the client
+      ✓ the harness hands the resolved DB_PORT/DB_NAME_TEST/DB_USER to compose (9 ms)
+      ✓ the Knex helper connects to exactly that host/port/database/user (29 ms)
+      ✕ no harness file reintroduces a second port variable
+      ✕ .env.test.example documents the real loading contract
+    helper contract
+      ✓ exposes the harness surface without connecting
+      ✓ destructive helpers refuse an unsafe environment before touching the DB (1 ms)
+
+  ● T00 PostgreSQL test foundation (offline mechanism) › disposable environment definition › docker-compose.test.yml is ephemeral, isolated and health-checked
+
+    expect(received).toMatch(expected)
+
+    Expected pattern: /POSTGRES_USER:\s*\$\{DB_USER:-tow_test\}/
+    Received string:  "# T00 — disposable PostgreSQL test environment for the Tow suite.
+    #
+    # Design constraints (docs/tow/TOW-DOCKER-TEST-STRATEGY.md §3, §6, §9):
+    #   - disposable: data lives in tmpfs, destroyed with the container;
+    #   - no persistent volume, no host PostgreSQL dependency;
+    #   - isolated network;
+    #   - healthcheck is the gate before migrations/tests run;
+    #   - non-production, throwaway credentials (never reused from prod);
+    #   - host port is overridable to avoid clashing with a local PostgreSQL.
+    #
+    # Canonical usage (from socorre_ai_backend/):
+    #   npm run verify:tow          # up -> healthcheck -> migrate -> gates -> down
+    #   npm run test:pg:up          # keep the environment up for development
+    #   npm run test:pg:down        # destroy containers/volumes/network
+    #
+    # NEVER point this file at a production database: the credentials below are
+    # intentionally weak and only valid for a throwaway container.·
+    services:
+      tow-postgres-test:
+        image: postgres:14
+        container_name: socorre-tow-postgres-test
+        environment:
+          POSTGRES_USER: tow_test
+          POSTGRES_PASSWORD: tow_test_password
+          POSTGRES_DB: socorre_ai_tow_test
+          POSTGRES_INITDB_ARGS: '--auth-host=scram-sha-256 --auth-local=trust'
+          PGDATA: /var/lib/postgresql/data/pgdata
+        ports:
+          - '${TOW_TEST_PG_PORT:-55432}:5432'
+        # tmpfs keeps the database ephemeral: `docker compose down` leaves nothing.
+        tmpfs:
+          - /var/lib/postgresql/data
+        healthcheck:
+          test: ['CMD-SHELL', 'pg_isready -U tow_test -d socorre_ai_tow_test']
+          interval: 2s
+          timeout: 3s
+          retries: 30
+          start_period: 5s
+        networks:
+          - tow-test-net
+        restart: 'no'·
+    networks:
+      tow-test-net:
+        name: socorre-tow-test-net
+        driver: bridge
+    "
+
+      119 |       // Throwaway credentials, parametrized with the SAME canonical variables
+      120 |       // the guard and the Knex helper read (Codex finding C2).
+    > 121 |       expect(compose).toMatch(/POSTGRES_USER:\s*\$\{DB_USER:-tow_test\}/);
+          |                       ^
+      122 |       expect(compose).toMatch(/POSTGRES_PASSWORD:\s*\$\{DB_PASSWORD:-tow_test_password\}/);
+      123 |       expect(compose).toMatch(/POSTGRES_DB:\s*\$\{DB_NAME_TEST:-socorre_ai_tow_test\}/);
+      124 |       // Single source of truth for the host port: DB_PORT, never a harness-only
+
+      at Object.toMatch (tests/tow/foundation/towPostgresGuard.test.js:121:23)
+
+  ● T00 PostgreSQL test foundation (offline mechanism) › disposable environment definition › compose defaults, healthcheck and guard defaults cannot drift apart
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected substring: "${DB_PORT:-55432}"
+    Received string:    "# T00 — disposable PostgreSQL test environment for the Tow suite.
+    #
+    # Design constraints (docs/tow/TOW-DOCKER-TEST-STRATEGY.md §3, §6, §9):
+    #   - disposable: data lives in tmpfs, destroyed with the container;
+    #   - no persistent volume, no host PostgreSQL dependency;
+    #   - isolated network;
+    #   - healthcheck is the gate before migrations/tests run;
+    #   - non-production, throwaway credentials (never reused from prod);
+    #   - host port is overridable to avoid clashing with a local PostgreSQL.
+    #
+    # Canonical usage (from socorre_ai_backend/):
+    #   npm run verify:tow          # up -> healthcheck -> migrate -> gates -> down
+    #   npm run test:pg:up          # keep the environment up for development
+    #   npm run test:pg:down        # destroy containers/volumes/network
+    #
+    # NEVER point this file at a production database: the credentials below are
+    # intentionally weak and only valid for a throwaway container.·
+    services:
+      tow-postgres-test:
+        image: postgres:14
+        container_name: socorre-tow-postgres-test
+        environment:
+          POSTGRES_USER: tow_test
+          POSTGRES_PASSWORD: tow_test_password
+          POSTGRES_DB: socorre_ai_tow_test
+          POSTGRES_INITDB_ARGS: '--auth-host=scram-sha-256 --auth-local=trust'
+          PGDATA: /var/lib/postgresql/data/pgdata
+        ports:
+          - '${TOW_TEST_PG_PORT:-55432}:5432'
+        # tmpfs keeps the database ephemeral: `docker compose down` leaves nothing.
+        tmpfs:
+          - /var/lib/postgresql/data
+        healthcheck:
+          test: ['CMD-SHELL', 'pg_isready -U tow_test -d socorre_ai_tow_test']
+          interval: 2s
+          timeout: 3s
+          retries: 30
+          start_period: 5s
+        networks:
+          - tow-test-net
+        restart: 'no'·
+    networks:
+      tow-test-net:
+        name: socorre-tow-test-net
+        driver: bridge
+    "
+
+      131 |       const compose = fs.readFileSync(COMPOSE_PATH, 'utf8');
+      132 |       const defaults = guard.resolveTestTarget({ TOW_POSTGRES_E2E: '1' });
+    > 133 |       expect(compose).toContain(`\${DB_PORT:-${defaults.port}}`);
+          |                       ^
+      134 |       expect(compose).toContain(`\${DB_USER:-${defaults.user}}`);
+      135 |       expect(compose).toContain(`\${DB_PASSWORD:-${defaults.password}}`);
+      136 |       expect(compose).toContain(`\${DB_NAME_TEST:-${defaults.database}}`);
+
+      at Object.toContain (tests/tow/foundation/towPostgresGuard.test.js:133:23)
+
+  ● T00 PostgreSQL test foundation (offline mechanism) › disposable environment definition › .env.test.example ships placeholders only and no real secrets
+
+    ENOENT: no such file or directory, open '/private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.r9naoJ/backend/.env.test.example'
+
+      140 |
+      141 |     test('.env.test.example ships placeholders only and no real secrets', () => {
+    > 142 |       const example = fs.readFileSync(ENV_EXAMPLE_PATH, 'utf8');
+          |                          ^
+      143 |       expect(example).toMatch(/DB_NAME_TEST=socorre_ai_tow_test/);
+      144 |       expect(example).toMatch(/TOW_POSTGRES_E2E=1/);
+      145 |       expect(example).toMatch(/DB_HOST=127\.0\.0\.1/);
+
+      at Object.readFileSync (tests/tow/foundation/towPostgresGuard.test.js:142:26)
+
+  ● T00 PostgreSQL test foundation (offline mechanism) › single source of truth for the PostgreSQL target (Codex finding C2) › no harness file reintroduces a second port variable
+
+    expect(received).not.toMatch(expected)
+
+    Expected pattern: not /TOW_TEST_PG_PORT/
+    Received string:      "# T00 — disposable PostgreSQL test environment for the Tow suite.
+    #
+    # Design constraints (docs/tow/TOW-DOCKER-TEST-STRATEGY.md §3, §6, §9):
+    #   - disposable: data lives in tmpfs, destroyed with the container;
+    #   - no persistent volume, no host PostgreSQL dependency;
+    #   - isolated network;
+    #   - healthcheck is the gate before migrations/tests run;
+    #   - non-production, throwaway credentials (never reused from prod);
+    #   - host port is overridable to avoid clashing with a local PostgreSQL.
+    #
+    # Canonical usage (from socorre_ai_backend/):
+    #   npm run verify:tow          # up -> healthcheck -> migrate -> gates -> down
+    #   npm run test:pg:up          # keep the environment up for development
+    #   npm run test:pg:down        # destroy containers/volumes/network
+    #
+    # NEVER point this file at a production database: the credentials below are
+    # intentionally weak and only valid for a throwaway container.
+
+    services:
+      tow-postgres-test:
+        image: postgres:14
+        container_name: socorre-tow-postgres-test
+        environment:
+          POSTGRES_USER: tow_test
+          POSTGRES_PASSWORD: tow_test_password
+          POSTGRES_DB: socorre_ai_tow_test
+          POSTGRES_INITDB_ARGS: '--auth-host=scram-sha-256 --auth-local=trust'
+          PGDATA: /var/lib/postgresql/data/pgdata
+        ports:
+          - '${TOW_TEST_PG_PORT:-55432}:5432'
+        # tmpfs keeps the database ephemeral: `docker compose down` leaves nothing.
+        tmpfs:
+          - /var/lib/postgresql/data
+        healthcheck:
+          test: ['CMD-SHELL', 'pg_isready -U tow_test -d socorre_ai_tow_test']
+          interval: 2s
+          timeout: 3s
+          retries: 30
+          start_period: 5s
+        networks:
+          - tow-test-net
+        restart: 'no'
+
+    networks:
+      tow-test-net:
+        name: socorre-tow-test-net
+        driver: bridge
+    "
+
+      216 |       ]) {
+      217 |         const source = fs.readFileSync(path.join(BACKEND_DIR, file), 'utf8');
+    > 218 |         expect(source).not.toMatch(/TOW_TEST_PG_PORT/);
+          |                            ^
+      219 |       }
+      220 |     });
+      221 |
+
+      at Object.toMatch (tests/tow/foundation/towPostgresGuard.test.js:218:28)
+
+  ● T00 PostgreSQL test foundation (offline mechanism) › single source of truth for the PostgreSQL target (Codex finding C2) › .env.test.example documents the real loading contract
+
+    ENOENT: no such file or directory, open '/private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.r9naoJ/backend/.env.test.example'
+
+      221 |
+      222 |     test('.env.test.example documents the real loading contract', () => {
+    > 223 |       const example = fs.readFileSync(ENV_EXAMPLE_PATH, 'utf8');
+          |                          ^
+      224 |       expect(example).toMatch(/test-env-file\.js/);
+      225 |       expect(example).toMatch(/TOW_TEST_ENV_FILE/);
+      226 |       expect(example).toMatch(/never loaded with[\s\S]{0,60}override: true/);
+
+      at Object.readFileSync (tests/tow/foundation/towPostgresGuard.test.js:223:26)
+
+Test Suites: 1 failed, 1 total
+Tests:       5 failed, 14 passed, 19 total
+Snapshots:   0 total
+Time:        0.304 s
+Ran all test suites matching /tests\/tow\/foundation\/towPostgresGuard.test.js/i.

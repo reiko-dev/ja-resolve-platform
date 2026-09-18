@@ -1,0 +1,7 @@
+ Container socorre-tow-postgres-test Stopping
+ Container socorre-tow-postgres-test Stopped
+ Container socorre-tow-postgres-test Removing
+ Container socorre-tow-postgres-test Removed
+ Network socorre-tow-test-net Removing
+ Network socorre-tow-test-net Removed
+PostgreSQL test environment destroyed (containers, volumes, network)

@@ -1,0 +1,14 @@
+# RED-1: no in-repo OpenAPI/consumer contract gate at the execution base
+# command: node <backend>/node_modules/jest/bin/jest.js --rootDir . tests/contract --runInBand
+# cwd: socorre_ai_backend @ e1e7dd2d20d5da25df00d8106a904f14041654a1
+
+No tests found, exiting with code 1
+Run with `--passWithNoTests` to exit with code 0
+In /Volumes/Reiko/projects/work/socorre-system/.t00-red-worktree/socorre_ai_backend
+  204 files checked.
+  testMatch: **/__tests__/**/*.[jt]s?(x), **/?(*.)+(spec|test).[tj]s?(x) - 37 matches
+  testPathIgnorePatterns: /node_modules/ - 204 matches
+  testRegex:  - 0 matches
+Pattern: tests/contract - 0 matches
+
+exit_code=1

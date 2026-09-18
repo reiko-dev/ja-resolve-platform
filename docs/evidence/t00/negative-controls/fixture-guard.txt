@@ -1,0 +1,16 @@
+# T00 negative controls — pre-fix fixture guard (Muse finding M3-1 / Codex thread 4047474342)
+# The controls restore pg-guard.js, test-env.js, postgres.js, docker-compose.test.yml and
+# the pre-fix e2e suite from TOW_NC_PREFIX_REF (default 74e44590), never from HEAD.
+# These runs prove the guard refuses a fixture that would silently be a no-op.
+
+# command: TOW_NC_PREFIX_REF=HEAD bash scripts/tow/negative-controls.sh
+FATAL: TOW_NC_PREFIX_REF=HEAD resolves to HEAD (ac2e78047d6f152b19e8518d6eb3c1eab064580f); the pre-fix fixture would be a no-op
+exit_code=1
+
+# command: TOW_NC_PREFIX_REF=deadbeefdeadbeef bash scripts/tow/negative-controls.sh
+FATAL: TOW_NC_PREFIX_REF=deadbeefdeadbeef does not resolve to a commit in this repository
+exit_code=1
+
+# positive case: the default fixture 74e44590 resolves to a real commit, differs from HEAD
+# in all 5 controlled files, and the full control run is green (8/8 assertions).
+# See run-log.txt (header) and summary.txt.

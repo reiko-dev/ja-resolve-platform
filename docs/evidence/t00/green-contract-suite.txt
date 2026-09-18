@@ -1,0 +1,12 @@
+PASS tests/contract/openapi.structure.test.js
+PASS tests/contract/consumerSmoke.test.js
+PASS tests/contract/towRefResolution.test.js
+PASS tests/contract/towSettingsPatch.test.js
+PASS tests/contract/consumerDiscovery.test.js
+
+Test Suites: 5 passed, 5 total
+Tests:       62 passed, 62 total
+Snapshots:   0 total
+Time:        1.812 s, estimated 2 s
+Ran all test suites matching /tests\/contract/i.
+EXIT=0

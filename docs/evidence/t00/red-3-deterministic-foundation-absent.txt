@@ -1,0 +1,29 @@
+# RED-3: no deterministic Tow test foundation at the execution base
+# command: ls tests/helpers/ tests/tow/ ; test -e <each expected new path>
+# cwd: socorre_ai_backend @ e1e7dd2d20d5da25df00d8106a904f14041654a1
+
+api.js
+auth.js
+db.js
+sqlitePgCompat.js
+testDb.js
+---
+g2PhotoContract.test.js
+g3NearbyCoordinates.test.js
+g3TowPostgres.e2e.test.js
+g3TowProposals.test.js
+helpers
+socketService.tow.test.js
+towDocumentFlow.test.js
+towHttp.transport.test.js
+towLifecycleController.test.js
+towPostgres.e2e.test.js
+towProposalIdempotency.test.js
+
+absent at base: tests/helpers/towContract.js
+absent at base: tests/helpers/towConsumerFlows.js
+absent at base: tests/helpers/tow
+absent at base: tests/contract
+absent at base: tests/tow/foundation
+absent at base: docker-compose.test.yml
+absent at base: .env.test.example

@@ -1,0 +1,68 @@
+# T00 — disposable PostgreSQL test environment for the Tow suite.
+#
+# Design constraints (docs/tow/TOW-DOCKER-TEST-STRATEGY.md §3, §6, §9):
+#   - disposable: data lives in tmpfs, destroyed with the container;
+#   - no persistent volume, no host PostgreSQL dependency;
+#   - isolated network;
+#   - healthcheck is the gate before migrations/tests run;
+#   - non-production, throwaway credentials (never reused from prod);
+#   - host port is overridable to avoid clashing with a local PostgreSQL.
+#
+# Single source of truth for configuration (Codex findings C1/C2):
+#   `DB_PORT`, `DB_USER`, `DB_PASSWORD` and `DB_NAME_TEST` are the SAME
+#   variables read by scripts/tow/pg-guard.js, tests/helpers/tow/postgres.js and
+#   src/config/postgresConnection.js. scripts/tow/test-env.js resolves them
+#   (from `.env.test` or its safe defaults) and passes them to `docker compose`
+#   explicitly, so the published port, the container credentials and the client
+#   connection can never diverge. Do NOT add a second port/credential variable.
+#
+# Canonical usage (from socorre_ai_backend/):
+#   npm run verify:tow          # up -> healthcheck -> migrate -> gates -> down
+#   npm run test:pg:up          # keep the environment up for development
+#   npm run test:pg:down        # destroy containers/volumes/network
+#
+# Project isolation (Codex round-3 P1, thread 4048484277): NO fixed
+# `container_name` and NO fixed network `name` here. Compose derives both from
+# the project name, which scripts/tow/test-env.js resolves per run
+# (`socorre-tow-test-<DB_PORT>-<backend-hash>`, overridable through
+# `TOW_TEST_PG_PROJECT`). Two concurrent runs on the same Docker daemon can
+# therefore never recreate or destroy each other's container/network/volume.
+# The service key stays `tow-postgres-test`: `docker compose ps ... tow-postgres-test`
+# looks the service up by that name.
+#
+# NEVER point this file at a production database: the credentials below are
+# intentionally weak and only valid for a throwaway container.
+
+services:
+  tow-postgres-test:
+    image: postgres:14
+    environment:
+      POSTGRES_USER: ${DB_USER:-tow_test}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-tow_test_password}
+      POSTGRES_DB: ${DB_NAME_TEST:-socorre_ai_tow_test}
+      POSTGRES_INITDB_ARGS: '--auth-host=scram-sha-256 --auth-local=trust'
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      # Canonical host port: DB_PORT (pg-guard.js default 55432).
+      # Bound to IPv4 loopback ONLY: the throwaway credentials below must never
+      # be published on another interface (Muse M4-1 / Codex thread 4048163637).
+      # IPv6 loopback ([::1]) is intentionally not added: the short-syntax bind
+      # is not portable across Docker/Compose versions and would need a second
+      # mapping. The IPv4 loopback bind is the isolation boundary.
+      - '127.0.0.1:${DB_PORT:-55432}:5432'
+    # tmpfs keeps the database ephemeral: `docker compose down` leaves nothing.
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-tow_test} -d ${DB_NAME_TEST:-socorre_ai_tow_test}']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+    networks:
+      - tow-test-net
+    restart: 'no'
+
+networks:
+  tow-test-net:
+    driver: bridge

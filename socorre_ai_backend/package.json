@@ -12,7 +12,17 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:integration": "jest --testPathPattern=tests/integration",
-    "test:unit": "jest --testPathPattern=tests/unit"
+    "test:unit": "jest --testPathPattern=tests/unit",
+    "test:tow": "jest tests/tow --runInBand",
+    "test:contract": "jest tests/contract --runInBand",
+    "validate:openapi": "node scripts/tow/validate-openapi.js",
+    "test:pg": "node scripts/tow/run-pg-gate.js",
+    "test:pg:up": "node scripts/tow/test-env.js up",
+    "test:pg:wait": "node scripts/tow/test-env.js wait",
+    "test:pg:down": "node scripts/tow/test-env.js down",
+    "test:pg:guard": "node scripts/tow/test-env.js guard",
+    "verify:tow": "node scripts/tow/verify.js",
+    "verify:tow:offline": "node scripts/tow/verify.js --skip-postgres"
   },
   "dependencies": {
     "axios": "^1.14.0",
@@ -35,11 +45,14 @@
     "socket.io": "^4.8.1"
   },
   "devDependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
     "jest": "^29.7.0",
     "nodemon": "^3.0.2",
     "socket.io-client": "^4.8.3",
     "sqlite3": "^5.1.6",
-    "supertest": "^6.3.3"
+    "supertest": "^6.3.3",
+    "yaml": "^2.9.1"
   },
   "jest": {
     "testEnvironment": "node",

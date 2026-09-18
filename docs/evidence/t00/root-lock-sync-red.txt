@@ -1,0 +1,42 @@
+# root-lock RED: root package-lock.json is out of sync with the workspace manifests
+# command: npm ci --dry-run --no-audit --no-fund   (isolated temp copy, no node_modules)
+# lock source: 0c5de7ed:package-lock.json (pre-fix, committed)
+# manifests: HEAD:{package.json, socorre_ai_backend/package.json, socorre_ai_admin/package.json} (committed)
+
+npm error code EUSAGE
+npm error
+npm error `npm ci` can only install packages when your package.json and package-lock.json or npm-shrinkwrap.json are in sync. Please update your lock file with `npm install` before continuing.
+npm error
+npm error Missing: ajv@8.20.0 from lock file
+npm error Missing: ajv-formats@3.0.1 from lock file
+npm error Missing: yaml@2.9.1 from lock file
+npm error Missing: fast-deep-equal@3.1.3 from lock file
+npm error Missing: fast-uri@3.1.8 from lock file
+npm error Missing: json-schema-traverse@1.0.0 from lock file
+npm error Missing: require-from-string@2.0.2 from lock file
+npm error
+npm error Clean install a project
+npm error
+npm error Usage:
+npm error npm ci
+npm error
+npm error Options:
+npm error [--install-strategy <hoisted|nested|shallow|linked>] [--legacy-bundling]
+npm error [--global-style] [--omit <dev|optional|peer> [--omit <dev|optional|peer> ...]]
+npm error [--include <prod|dev|optional|peer> [--include <prod|dev|optional|peer> ...]]
+npm error [--strict-peer-deps] [--foreground-scripts] [--ignore-scripts] [--no-audit]
+npm error [--no-bin-links] [--no-fund] [--dry-run]
+npm error [-w|--workspace <workspace-name> [-w|--workspace <workspace-name> ...]]
+npm error [-ws|--workspaces] [--include-workspace-root] [--install-links]
+npm error
+npm error aliases: clean-install, ic, install-clean, isntall-clean
+npm error
+npm error Run "npm help ci" for more info
+npm notice
+npm notice New major version of npm available! 10.9.8 -> 12.0.2
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+npm notice To update run: npm install -g npm@12.0.2
+npm notice
+npm error A complete log of this run can be found in: /var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-root-lock.h4Gg4W/.npm-cache/_logs/2026-09-18T17_50_37_064Z-debug-0.log
+
+exit_code=1

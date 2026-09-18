@@ -1,0 +1,192 @@
+fake docker: refusing to start
+fake docker: refusing to start
+fake docker: refusing to start
+fake docker: refusing to start
+fake docker: refusing to start
+fake docker: refusing to start
+FAIL tests/tow/foundation/towHarnessLifecycle.test.js
+  T00 harness lifecycle (Codex finding C3)
+    ✕ happy path: up -> wait -> workload -> down, in that order (371 ms)
+    ✕ down() runs even when up() fails part-way (the regression) (19 ms)
+    ✕ down() runs even when the healthcheck times out (8 ms)
+    ✕ down() runs when the workload fails, and the workload error wins (4 ms)
+    ✕ the guard fails closed BEFORE any startup or teardown (5 ms)
+    ✕ the canonical target is exported to the workload and to children (4 ms)
+    ✕ the real down() never throws when docker cannot even be spawned (5 ms)
+    ✓ the real down() resolves when docker refuses the teardown (302 ms)
+    ✕ the guard CLI needs no Docker, while docker commands fail loudly without it (76 ms)
+
+  ● T00 harness lifecycle (Codex finding C3) › happy path: up -> wait -> workload -> down, in that order
+
+    command failed (1): docker compose -p socorre-tow-test -f /private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.r9naoJ/backend/docker-compose.test.yml up -d --wait --wait-timeout 90
+
+      36 |   if (result.error) throw result.error;
+      37 |   if (result.status !== 0 && !options.allowFailure) {
+    > 38 |     throw new Error(`command failed (${result.status}): ${command} ${args.join(' ')}`);
+         |           ^
+      39 |   }
+      40 |   return result;
+      41 | }
+
+      at run (scripts/tow/test-env.js:38:11)
+      at run (scripts/tow/test-env.js:44:10)
+      at compose (scripts/tow/test-env.js:53:3)
+      at Object.up [as runWithEnvironment] (scripts/tow/test-env.js:117:3)
+      at Object.runWithEnvironment (tests/tow/foundation/towHarnessLifecycle.test.js:64:34)
+
+  ● T00 harness lifecycle (Codex finding C3) › down() runs even when up() fails part-way (the regression)
+
+    expect(received).rejects.toThrow(expected)
+
+    Expected pattern: /port is already allocated/
+    Received message: "command failed (1): docker compose -p socorre-tow-test -f /private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.r9naoJ/backend/docker-compose.test.yml up -d --wait --wait-timeout 90"
+
+          36 |   if (result.error) throw result.error;
+          37 |   if (result.status !== 0 && !options.allowFailure) {
+        > 38 |     throw new Error(`command failed (${result.status}): ${command} ${args.join(' ')}`);
+             |           ^
+          39 |   }
+          40 |   return result;
+          41 | }
+
+      at run (scripts/tow/test-env.js:38:11)
+      at run (scripts/tow/test-env.js:44:10)
+      at compose (scripts/tow/test-env.js:53:3)
+      at Object.up [as runWithEnvironment] (scripts/tow/test-env.js:117:3)
+      at Object.runWithEnvironment (tests/tow/foundation/towHarnessLifecycle.test.js:81:26)
+      at Object.toThrow (../../../../../../../../Volumes/Reiko/projects/work/socorre-system/socorre_ai_backend/node_modules/expect/build/index.js:218:22)
+      at Object.toThrow (tests/tow/foundation/towHarnessLifecycle.test.js:82:16)
+
+  ● T00 harness lifecycle (Codex finding C3) › down() runs even when the healthcheck times out
+
+    expect(received).rejects.toThrow(expected)
+
+    Expected pattern: /did not become healthy/
+    Received message: "command failed (1): docker compose -p socorre-tow-test -f /private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.r9naoJ/backend/docker-compose.test.yml up -d --wait --wait-timeout 90"
+
+          36 |   if (result.error) throw result.error;
+          37 |   if (result.status !== 0 && !options.allowFailure) {
+        > 38 |     throw new Error(`command failed (${result.status}): ${command} ${args.join(' ')}`);
+             |           ^
+          39 |   }
+          40 |   return result;
+          41 | }
+
+      at run (scripts/tow/test-env.js:38:11)
+      at run (scripts/tow/test-env.js:44:10)
+      at compose (scripts/tow/test-env.js:53:3)
+      at Object.up [as runWithEnvironment] (scripts/tow/test-env.js:117:3)
+      at Object.runWithEnvironment (tests/tow/foundation/towHarnessLifecycle.test.js:94:26)
+      at Object.toThrow (../../../../../../../../Volumes/Reiko/projects/work/socorre-system/socorre_ai_backend/node_modules/expect/build/index.js:218:22)
+      at Object.toThrow (tests/tow/foundation/towHarnessLifecycle.test.js:95:16)
+
+  ● T00 harness lifecycle (Codex finding C3) › down() runs when the workload fails, and the workload error wins
+
+    expect(received).rejects.toThrow(expected)
+
+    Expected pattern: /migration failed/
+    Received message: "command failed (1): docker compose -p socorre-tow-test -f /private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.r9naoJ/backend/docker-compose.test.yml up -d --wait --wait-timeout 90"
+
+          36 |   if (result.error) throw result.error;
+          37 |   if (result.status !== 0 && !options.allowFailure) {
+        > 38 |     throw new Error(`command failed (${result.status}): ${command} ${args.join(' ')}`);
+             |           ^
+          39 |   }
+          40 |   return result;
+          41 | }
+
+      at run (scripts/tow/test-env.js:38:11)
+      at run (scripts/tow/test-env.js:44:10)
+      at compose (scripts/tow/test-env.js:53:3)
+      at Object.up [as runWithEnvironment] (scripts/tow/test-env.js:117:3)
+      at Object.runWithEnvironment (tests/tow/foundation/towHarnessLifecycle.test.js:103:26)
+      at Object.toThrow (../../../../../../../../Volumes/Reiko/projects/work/socorre-system/socorre_ai_backend/node_modules/expect/build/index.js:218:22)
+      at Object.toThrow (tests/tow/foundation/towHarnessLifecycle.test.js:105:51)
+
+  ● T00 harness lifecycle (Codex finding C3) › the guard fails closed BEFORE any startup or teardown
+
+    expect(received).rejects.toThrow(expected)
+
+    Expected pattern: /refusing to start test environment/
+    Received message: "command failed (1): docker compose -p socorre-tow-test -f /private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.r9naoJ/backend/docker-compose.test.yml up -d --wait --wait-timeout 90"
+
+          36 |   if (result.error) throw result.error;
+          37 |   if (result.status !== 0 && !options.allowFailure) {
+        > 38 |     throw new Error(`command failed (${result.status}): ${command} ${args.join(' ')}`);
+             |           ^
+          39 |   }
+          40 |   return result;
+          41 | }
+
+      at run (scripts/tow/test-env.js:38:11)
+      at run (scripts/tow/test-env.js:44:10)
+      at compose (scripts/tow/test-env.js:53:3)
+      at Object.up [as runWithEnvironment] (scripts/tow/test-env.js:117:3)
+      at Object.runWithEnvironment (tests/tow/foundation/towHarnessLifecycle.test.js:113:26)
+      at Object.toThrow (../../../../../../../../Volumes/Reiko/projects/work/socorre-system/socorre_ai_backend/node_modules/expect/build/index.js:218:22)
+      at Object.toThrow (tests/tow/foundation/towHarnessLifecycle.test.js:116:17)
+
+  ● T00 harness lifecycle (Codex finding C3) › the canonical target is exported to the workload and to children
+
+    command failed (1): docker compose -p socorre-tow-test -f /private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.r9naoJ/backend/docker-compose.test.yml up -d --wait --wait-timeout 90
+
+      36 |   if (result.error) throw result.error;
+      37 |   if (result.status !== 0 && !options.allowFailure) {
+    > 38 |     throw new Error(`command failed (${result.status}): ${command} ${args.join(' ')}`);
+         |           ^
+      39 |   }
+      40 |   return result;
+      41 | }
+
+      at run (scripts/tow/test-env.js:38:11)
+      at run (scripts/tow/test-env.js:44:10)
+      at compose (scripts/tow/test-env.js:53:3)
+      at Object.up [as runWithEnvironment] (scripts/tow/test-env.js:117:3)
+      at Object.runWithEnvironment (tests/tow/foundation/towHarnessLifecycle.test.js:126:19)
+
+  ● T00 harness lifecycle (Codex finding C3) › the real down() never throws when docker cannot even be spawned
+
+    expect(received).not.toThrow()
+
+    Error name:    "Error"
+    Error message: "spawnSync docker ENOENT"
+
+          28 |
+          29 | function run(command, args, options = {}) {
+        > 30 |   const result = spawnSync(command, args, {
+             |                  ^
+          31 |     cwd: BACKEND_DIR,
+          32 |     stdio: options.capture ? 'pipe' : 'inherit',
+          33 |     encoding: 'utf8',
+
+      at spawnSync (scripts/tow/test-env.js:30:18)
+      at run (scripts/tow/test-env.js:44:10)
+      at Object.compose [as down] (scripts/tow/test-env.js:58:3)
+      at down (tests/tow/foundation/towHarnessLifecycle.test.js:146:28)
+      at Object.<anonymous> (../../../../../../../../Volumes/Reiko/projects/work/socorre-system/socorre_ai_backend/node_modules/expect/build/toThrowMatchers.js:74:11)
+      at Object.throwingMatcher [as toThrow] (../../../../../../../../Volumes/Reiko/projects/work/socorre-system/socorre_ai_backend/node_modules/expect/build/index.js:320:21)
+      at Object.toThrow (tests/tow/foundation/towHarnessLifecycle.test.js:146:40)
+      at Object.toThrow (tests/tow/foundation/towHarnessLifecycle.test.js:146:40)
+
+  ● T00 harness lifecycle (Codex finding C3) › the guard CLI needs no Docker, while docker commands fail loudly without it
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 0
+    Received: 1
+
+      191 |       env: { ...process.env, PATH: dir, ...SAFE_ENV },
+      192 |     });
+    > 193 |     expect(guardRun.status).toBe(0);
+          |                             ^
+      194 |     expect(guardRun.stdout).toContain('SAFE');
+      195 |     expect(guardRun.stdout).not.toContain('docker compose is not available');
+      196 |
+
+      at Object.toBe (tests/tow/foundation/towHarnessLifecycle.test.js:193:29)
+
+Test Suites: 1 failed, 1 total
+Tests:       8 failed, 1 passed, 9 total
+Snapshots:   0 total
+Time:        1.039 s
+Ran all test suites matching /tests\/tow\/foundation\/towHarnessLifecycle.test.js/i.

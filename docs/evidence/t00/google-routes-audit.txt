@@ -1,0 +1,59 @@
+# T00 Google Maps / Routes audit evidence (AUDIT + BOUNDARY + EVIDENCE only)
+
+## No Google API client or key usage in backend source
+$ grep -rn "maps.googleapis.com\|@googlemaps\|googleapis\|GOOGLE_MAPS_API_KEY\|GOOGLE_ROUTES_API_KEY" socorre_ai_backend/src
+socorre_ai_backend/src/services/notificationService.js:23:          token_uri: "https://oauth2.googleapis.com/token",
+socorre_ai_backend/src/services/notificationService.js:24:          auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
+socorre_ai_backend/src/services/notificationService.js:25:          client_x509_cert_url: `https://www.googleapis.com/robot/v1/metadata/x509/${process.env.FIREBASE_CLIENT_EMAIL}`
+
+## No route geometry / polyline / duration_seconds in backend source
+$ grep -rn "polyline\|geometry\|duration_seconds\|total_distance_meters" socorre_ai_backend/src || echo "(no matches)"
+(no matches)
+
+## Distance is computed locally by Haversine (SQL + JS copies)
+$ grep -rn "6371 \* acos\|calculateDistance" socorre_ai_backend/src
+socorre_ai_backend/src/models/Partner.js:9:  static calculateDistance(lat1, lon1, lat2, lon2) {
+socorre_ai_backend/src/models/Partner.js:284:        6371 * acos(
+socorre_ai_backend/src/models/Partner.js:291:        6371 * acos(
+socorre_ai_backend/src/models/DeliveryOrder.js:204:          6371 * acos(
+socorre_ai_backend/src/models/TowProposal.js:67:          6371 * acos(
+socorre_ai_backend/src/models/Mechanic.js:59:            6371 * acos(
+socorre_ai_backend/src/models/Mechanic.js:69:          6371 * acos(
+socorre_ai_backend/src/models/Mechanic.js:128:              6371 * acos(
+socorre_ai_backend/src/models/Mechanic.js:138:            6371 * acos(
+socorre_ai_backend/src/models/Product.js:109:          6371 * acos(
+socorre_ai_backend/src/models/Product.js:193:          6371 * acos(
+socorre_ai_backend/src/models/Product.js:255:          6371 * acos(
+socorre_ai_backend/src/models/DeliveryOrderModel.js:196:      6371 * acos(
+socorre_ai_backend/src/models/DeliveryOrderModel.js:424:    const distanceKm = this.calculateDistance(
+socorre_ai_backend/src/models/DeliveryOrderModel.js:442:  static calculateDistance(lat1, lon1, lat2, lon2) {
+socorre_ai_backend/src/models/EmergencyRequest.js:223:  static calculateDistanceKm(lat1, lon1, lat2, lon2) {
+socorre_ai_backend/src/models/EmergencyRequest.js:286:    const operationalDistanceKm = this.calculateDistanceKm(
+socorre_ai_backend/src/models/EmergencyRequest.js:458:      6371 * acos(
+socorre_ai_backend/src/models/EmergencyRequest.js:1023:      6371 * acos(
+socorre_ai_backend/src/models/EmergencyRequest.js:1049:      6371 * acos(
+socorre_ai_backend/src/controllers/TowProposalController.js:348:      const distance = Partner.calculateDistance(
+socorre_ai_backend/src/controllers/ProductController.js:26:  static calculateDistance(lat1, lon1, lat2, lon2) {
+socorre_ai_backend/src/controllers/ProductController.js:338:            const distance = Product.calculateDistance(
+socorre_ai_backend/src/services/TowProposalService.js:103:    const partnerDistance = Partner.calculateDistance(
+socorre_ai_backend/src/services/TowProposalService.js:364:      const distance = Partner.calculateDistance(
+
+## ETA comes from partner input (minutes), never from a routing provider
+$ grep -rn "estimated_time_minutes\|partner_eta_minutes" socorre_ai_backend/src | head -12
+socorre_ai_backend/src/models/TowProposal.js:347:        knex.raw('AVG(estimated_time_minutes) as avg_time'),
+socorre_ai_backend/src/models/DeliveryOrderModel.js:11:      knex.raw('delivery_orders.estimated_delivery_minutes as estimated_time_minutes'),
+socorre_ai_backend/src/models/DeliveryOrderModel.js:438:      estimated_time_minutes: Math.max(20, Math.round(distanceKm * 4))
+socorre_ai_backend/src/models/EmergencyRequest.js:899:          estimated_duration_minutes: proposal.estimated_time_minutes,
+socorre_ai_backend/src/controllers/TowProposalController.js:12:      const { emergency_request_id, proposed_price, estimated_time_minutes, message } = req.body;
+socorre_ai_backend/src/controllers/TowProposalController.js:17:        estimated_time_minutes,
+socorre_ai_backend/src/controllers/DeliveryOrderControllerNew.js:46:      estimated_time_minutes: order.estimated_time_minutes || order.estimated_delivery_minutes || null,
+socorre_ai_backend/src/services/TowProposalService.js:49:    const estimatedTimeMinutes = Number.parseInt(proposalData.estimated_time_minutes, 10);
+socorre_ai_backend/src/services/TowProposalService.js:54:        'estimated_time_minutes deve ser um número maior que zero'
+socorre_ai_backend/src/services/TowProposalService.js:114:      estimated_time_minutes: estimatedTimeMinutes,
+socorre_ai_backend/src/services/TowProposalService.js:388:    if (!data.estimated_time_minutes || parseInt(data.estimated_time_minutes) <= 0) {
+socorre_ai_backend/src/services/TowProposalService.js:393:    if (data.estimated_time_minutes && parseInt(data.estimated_time_minutes) > 120) {
+
+## T00 boundary: the only routes gateway in the repo is the deterministic fake
+$ ls socorre_ai_backend/tests/helpers/tow/gateways/
+mapsGateway.js
+paymentGateway.js

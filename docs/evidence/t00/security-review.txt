@@ -1,0 +1,226 @@
+# T00 security review evidence (no secret values reproduced)
+
+## S-4 JWT production guard
+$ sed -n "15,30p" socorre_ai_backend/src/config/jwt.js
+  return process.env.NODE_ENV === 'production';
+}
+
+function getJwtSecret() {
+  const secret = process.env.JWT_SECRET;
+  if (secret && String(secret).trim().length > 0) {
+    return String(secret);
+  }
+  if (isProduction()) {
+    throw new Error(
+      'JWT_SECRET must be set in production (NODE_ENV=production). Refusing to start with a fallback secret.'
+    );
+  }
+  return DEV_FALLBACK_SECRET;
+}
+
+
+## S-5 provider key literals in source (expect only process.env reads)
+$ grep -rnE "GOOGLE_MAPS_API_KEY|GOOGLE_ROUTES_API_KEY|STRIPE_SECRET_KEY|MERCADOPAGO_ACCESS_TOKEN|PAGSEGURO_TOKEN" socorre_ai_backend/src socorre_ai_backend/scripts socorre_ai_backend/database socorre_ai_backend/tests
+socorre_ai_backend/tests/tow/foundation/towPostgresGuard.test.js:107:        'GOOGLE_MAPS_API_KEY', 'GOOGLE_ROUTES_API_KEY', 'STRIPE_SECRET_KEY',
+socorre_ai_backend/tests/tow/foundation/towPostgresGuard.test.js:108:        'MERCADOPAGO_ACCESS_TOKEN', 'PAGSEGURO_TOKEN',
+
+## S-5b any Google client / maps.googleapis.com call
+$ grep -rn "maps.googleapis.com\|@googlemaps" socorre_ai_backend/src socorre_ai_backend/scripts || echo "(no matches)"
+(no matches)
+
+## S-7 express.static
+$ grep -rn "express.static" socorre_ai_backend/src || echo "(no matches)"
+(no matches)
+
+## S-1 committed infrastructure credentials (location + type + length only; values never printed)
+
+# Classification (corrected in pass 2): P2 HYGIENE for the unmodified files, not P0.
+# The compose DB user/password pair and the compose JWT secret are dev/test
+# placeholders (values deliberately not repeated here — see the lengths in the
+# scan below) that match `docker-compose.test.yml` and the local quick-start flow
+# (`quick-start.sh:5`, `README.md:81`). This repository contains NO evidence that
+# these literals were ever used in a production or customer-facing environment:
+# there is no production compose file, no deploy script that references these two
+# files, and `docker-compose.yml` / `docker-compose-simple.yml` are only referenced
+# from local/homologation guides. That cannot be proven from the repository alone,
+# so the honest classification is P2 hygiene with an explicit "cannot verify"
+# caveat. If any operator ever deployed these files as-is, the finding escalates
+# to P0 and the DB password + JWT secret must be rotated.
+
+$ python3 scripts-style scan of PASSWORD|SECRET|TOKEN assignments
+--- docker-compose.yml ---
+docker-compose.yml:9: POSTGRES_PASSWORD -> literal(len=8)
+docker-compose.yml:51: DB_PASSWORD -> literal(len=8)
+docker-compose.yml:53: JWT_SECRET -> literal(len=40)
+--- docker-compose-simple.yml ---
+docker-compose-simple.yml:9: POSTGRES_PASSWORD -> literal(len=8)
+docker-compose-simple.yml:38: DB_PASSWORD -> literal(len=8)
+docker-compose-simple.yml:40: JWT_SECRET -> literal(len=40)
+docker-compose-simple.yml:65: DB_PASSWORD -> literal(len=8)
+docker-compose-simple.yml:67: JWT_SECRET -> literal(len=40)
+
+## S-9 private key material in the CURRENT tracked tree (corrected in pass 2)
+
+# The pass-1 conclusion ("all `BEGIN PRIVATE KEY` grep hits are documentation
+# placeholders") is TRUE ONLY for the current working tree. It is FALSE for git
+# history — see S-11 below, which is the real P0.
+$ git grep -nE "BEGIN (RSA |EC )?PRIVATE KEY" -- . ":!docs"
+scripts/setup-firebase-production.sh:82:  "private_key": "-----BEGIN PRIVATE KEY-----\nyour-private-key-here\n-----END PRIVATE KEY-----\n",
+scripts/setup-firebase-production.sh:139:FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nyour-private-key-here\n-----END PRIVATE KEY-----\n"
+socorre_ai_backend/env.example:22:FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nsua_private_key_aqui\n-----END PRIVATE KEY-----\n"
+socorre_ai_backend/env.production.example:40:FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nyour-private-key-here\n-----END PRIVATE KEY-----\n"
+
+# Every current-tree hit is a placeholder literal: non-placeholder hits = 0.
+$ git grep -nE "BEGIN (RSA |EC )?PRIVATE KEY" -- . ":!docs" | grep -vc "your-private-key-here\|sua_private_key_aqui"
+0
+
+## S-11 REAL committed secret in git history (P0 — added in pass 2)
+
+# `socorre_ai_backend/.env` was committed in 2f9f19cf and deleted from HEAD in
+# 50e57ff6, but its blob is still reachable from the remote branches below.
+# Commands are read-only and print counts/lengths only — no secret value is
+# reproduced anywhere in this artifact.
+
+$ git log --all --oneline --follow -- socorre_ai_backend/.env
+50e57ff6 fix(security): harden backend for VPS production deploy
+79f6cd1b refactor: remove client and partner application source code and add administrative Dockerfile and backend assets
+1e284bfd chore: update environment variables and refactor JWT expiration handling; clean up partner registration screen by removing unused code
+449dac9d chore: remove node_modules from git tracking and fix admin panel compilation
+2f9f19cf chore: commit inicial do sistema Socorre (monorepo)
+
+$ git cat-file -e 2f9f19cf:socorre_ai_backend/.env ; echo "exit=$?"
+exit=0
+
+$ git cat-file -e HEAD:socorre_ai_backend/.env ; echo "exit=$?"   # deleted from HEAD
+fatal: path 'socorre_ai_backend/.env' does not exist in 'HEAD'
+exit=128
+
+$ git log --all --oneline --diff-filter=D -- socorre_ai_backend/.env
+50e57ff6 fix(security): harden backend for VPS production deploy
+
+$ git branch -r --contains 2f9f19cf
+  origin/HEAD -> origin/main
+  origin/codex/deploy-guide
+  origin/feature/implements-tow-service
+  origin/main
+  production/HEAD -> production/main
+  production/codex/deploy-guide
+  production/feature/implements-tow-service
+  production/main
+
+$ git rev-parse 2f9f19cf:socorre_ai_backend/.env    # blob id (40-hex, not a secret)
+6e8fc90f294984eb3265a8433c0a3348438b3ea5
+
+$ git cat-file -p 2f9f19cf:socorre_ai_backend/.env | grep -c "BEGIN PRIVATE KEY"
+1
+
+$ git cat-file -p 2f9f19cf:socorre_ai_backend/.env | grep -c "FIREBASE_PRIVATE_KEY_ID"
+1
+
+# The historical blob is a REAL key block, not a placeholder:
+$ git cat-file -p 2f9f19cf:socorre_ai_backend/.env | grep -c "your-private-key-here\|sua_private_key_aqui"
+0
+
+# Historical `socorre_ai_backend/.env.production` (same two commits) carried
+# production-themed literals. Lengths only; values never printed.
+$ git log --all --oneline --follow -- socorre_ai_backend/.env.production
+50e57ff6 fix(security): harden backend for VPS production deploy
+2f9f19cf chore: commit inicial do sistema Socorre (monorepo)
+
+$ git cat-file -e 2f9f19cf:socorre_ai_backend/.env.production ; echo "exit=$?"
+exit=0
+
+$ git rev-parse 2f9f19cf:socorre_ai_backend/.env.production
+a8867d8fb451db71e51f102fd3ad71910c0a112a
+
+$ git cat-file -p 2f9f19cf:socorre_ai_backend/.env.production | grep -oE "^(DB_PASSWORD|JWT_SECRET)=" | sort
+DB_PASSWORD=
+JWT_SECRET=
+
+$ git cat-file -p 2f9f19cf:socorre_ai_backend/.env.production | awk -F= '/^(DB_PASSWORD|JWT_SECRET)=/{v=substr($0,index($0,"=")+1); gsub(/^"|"$/,"",v); print $1" -> literal(len="length(v)")"}'
+DB_PASSWORD -> literal(len=21)
+JWT_SECRET -> literal(len=54)
+
+$ git cat-file -e HEAD:socorre_ai_backend/.env.production ; echo "exit=$?"   # deleted from HEAD
+fatal: path 'socorre_ai_backend/.env.production' does not exist in 'HEAD'
+exit=128
+
+# Untracked local backup file, same kind of key material. Metadata + count only:
+# the file was NOT read into any artifact and was NOT deleted (human decision
+# after rotation).
+$ ls -l socorre_ai_backend/.env.bak
+-rw-r--r--@ 1 vitorlucaspirescordovil  staff  2987 Aug 11 09:27 socorre_ai_backend/.env.bak
+
+$ grep -c "BEGIN PRIVATE KEY" socorre_ai_backend/.env.bak
+1
+
+$ git ls-files --error-unmatch socorre_ai_backend/.env.bak ; echo "exit=$?"   # untracked
+error: pathspec 'socorre_ai_backend/.env.bak' did not match any file(s) known to git
+Did you forget to 'git add'?
+exit=1
+
+$ git check-ignore -v socorre_ai_backend/.env.bak
+.gitignore:57:**/.env.*	socorre_ai_backend/.env.bak
+
+# Required external actions (owner: operations, outside T00 scope):
+#   1. revoke + rotate the Firebase service-account key whose PEM is in
+#      2f9f19cf:socorre_ai_backend/.env (blob 6e8fc90f...);
+#   2. evaluate rotation of the historical production DB password (len=21) and
+#      JWT secret (len=54) if that environment was ever deployed — rotating the
+#      JWT secret invalidates every issued token;
+#   3. delete socorre_ai_backend/.env.bak only AFTER rotation (human decision);
+#   4. consider a history purge (filter-repo/BFG + force-push) only AFTER
+#      rotation, coordinated with every branch listed above;
+#   5. add a secret scanner (gitleaks/trufflehog) to CI in a later task.
+# No history rewrite and no file deletion was performed by T00.
+
+## S-12 Payment payload logged in full before provider calls (P1 — added in pass 2)
+
+# Current tree. `paymentData` is `{ ...req.body, userId }` (payments.js), so any
+# client-supplied cardData / pixData / bankSlipData reaches the gateway and is
+# printed verbatim. PCI-unsafe. Registered, NOT changed (production code is out
+# of T00 scope; owner T13/T14, or T18).
+$ grep -n "console.log" socorre_ai_backend/src/services/gateways/*.js | grep -i "processando"
+socorre_ai_backend/src/services/gateways/mercadopagoGateway.js:5:      console.log('Processando pagamento no Mercado Pago:', paymentData);
+socorre_ai_backend/src/services/gateways/pagseguroGateway.js:5:      console.log('Processando pagamento no PagSeguro:', paymentData);
+socorre_ai_backend/src/services/gateways/stripeGateway.js:5:      console.log('Processando pagamento no Stripe:', paymentData);
+
+$ sed -n "1,8p" socorre_ai_backend/src/services/gateways/stripeGateway.js   # same shape in all three
+class StripeGateway {
+  async processPayment(paymentData) {
+    try {
+      // Simular processamento do Stripe
+      console.log('Processando pagamento no Stripe:', paymentData);
+
+      // Simular delay de processamento
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+$ sed -n "44,52p" socorre_ai_backend/src/routes/payments.js
+  body('purchaseOrderId').optional().isInt().withMessage('ID da compra deve ser um número'),
+  handleValidationErrors
+], async (req, res) => {
+  try {
+    const paymentData = {
+      ...req.body,
+      userId: req.user.id
+    };
+
+# No whitelist: express-validator validates the listed fields but does not strip
+# unknown ones, so cardData/pixData/bankSlipData pass through untouched.
+$ sed -n "223,233p" socorre_ai_backend/src/services/paymentService.js
+      const response = await gateway.processPayment({
+        amount: paymentRecord.amount,
+        currency: paymentRecord.currency,
+        method: paymentRecord.method,
+        description: paymentRecord.description,
+        referenceId: paymentRecord.reference_id,
+        cardData: paymentData.cardData,
+        pixData: paymentData.pixData,
+        bankSlipData: paymentData.bankSlipData
+      });
+
+## S-10 node_modules history
+$ git log --oneline --diff-filter=A -- socorre_ai_backend/node_modules | tail -2
+2f9f19cf chore: commit inicial do sistema Socorre (monorepo)
+$ git ls-files socorre_ai_backend/node_modules | wc -l
+       0

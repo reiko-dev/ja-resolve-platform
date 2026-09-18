@@ -1,0 +1,670 @@
+# RED-5: the T00 contract gate provably detects the prohibited pre-freeze
+# TowSettingsPatch form (allOf over TowSettings).
+#
+# This is a MUTATION proof, not an absence proof: the harness is present at
+# HEAD and the contract is mutated inside a throwaway worktree.
+# Normative rule: docs/tow/TOW-OPENAPI-CONTRACT-DECISIONS.md §2
+#   'The previous allOf: TowSettings + object form is prohibited because
+#    TowSettings requires the complete object and would make generated
+#    clients treat PATCH as a full replacement.'
+#
+# command: node -e '<mutate TowSettingsPatch into allOf form>'
+#          node <backend>/node_modules/jest/bin/jest.js --rootDir . tests/contract --runInBand
+# cwd: socorre_ai_backend @ HEAD (detached worktree)
+# mutation applied to: docs/tow/tow-api-contract.openapi.yaml
+
+before: {"type":"object","additionalProperties":false,"minProperties":1,"description":"True partial update. Every property is optional. Backend merges the subset with persisted settings and validates invariants on the complete result.","properties":{"tow_initial_radius_km":{"type":"number","exclusiveMinimum":0},"tow_radius_increment_km":{"type":"number","exclusiveMinimum":0},"tow_max_radius_km":{"type":"number","exclusiveMinimum":0,"maximum":100},"tow_radius_expansion_interval_minutes":{"type":"integer","minimum":1},"tow_request_search_timeout_minutes":{"type":"integer","minimum":1},"tow_proposal_expiry_minutes":{"type":"integer","minimum":1},"tow_counteroffer_expiry_minutes":{"type":"integer","minimum":1},"tow_completion_confirmation_timeout_minutes":{"type":"integer","minimum":1},"tow_customer_no_show_timeout_minutes":{"type":"integer","minimum":1},"tow_platform_fixed_fee_cents":{"type":"integer","minimum":0},"tow_cancellation_fee_cents":{"type":"integer","minimum":0},"tow_cancellation_partner_percentage":{"type":"number","minimum":0,"maximum":100},"tow_cancellation_platform_percentage":{"type":"number","minimum":0,"maximum":100},"tow_max_platform_fee_debt_cents":{"type":"integer","minimum":0}}}
+after:  {"allOf":[{"$ref":"#/components/schemas/TowSettings"},{"type":"object","additionalProperties":false,"minProperties":1}]}
+
+PASS tests/contract/consumerDiscovery.test.js
+FAIL tests/contract/openapi.structure.test.js
+  ● Tow OpenAPI 3.1 — structural contract validation › every local external $ref resolves into the base composition artifact
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 8
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "file": "tow-api-contract.openapi.yaml",
+    +     "jsonPath": "$.components.schemas.TowSettingsPatch.allOf[0]",
+    +     "reason": "pointer_not_found",
+    +     "ref": "#/components/schemas/TowSettings",
+    +   },
+    + ]
+
+      48 |     expect(report.refs.checked).toBeGreaterThan(0);
+      49 |     expect(report.refs.external).toBeGreaterThan(0);
+    > 50 |     expect(report.refs.unresolved).toEqual([]);
+         |                                    ^
+      51 |
+      52 |     // The `~1`-escaped path refs are the composition mechanism for path items:
+      53 |     // they must resolve to a real base path item, not to a component.
+
+      at Object.toEqual (tests/contract/openapi.structure.test.js:50:36)
+
+  ● Tow OpenAPI 3.1 — structural contract validation › the full validation report is GREEN (same gate as the CLI exit code)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      149 |
+      150 |   test('the full validation report is GREEN (same gate as the CLI exit code)', () => {
+    > 151 |     expect(report.ok).toBe(true);
+          |                       ^
+      152 |   });
+      153 |
+      154 |   test('the validator itself detects a broken ref (negative control)', () => {
+
+      at Object.toBe (tests/contract/openapi.structure.test.js:151:23)
+
+FAIL tests/contract/towSettingsPatch.test.js
+  ● TowSettingsPatch — true partial PATCH semantics › schema shape is a true partial patch
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "object"
+    Received: undefined
+
+      39 |
+      40 |   test('schema shape is a true partial patch', () => {
+    > 41 |     expect(patch.type).toBe('object');
+         |                        ^
+      42 |     expect(patch.additionalProperties).toBe(false);
+      43 |     expect(patch.minProperties).toBe(1);
+      44 |     expect(patch.required).toBeUndefined();
+
+      at Object.toBe (tests/contract/towSettingsPatch.test.js:41:24)
+
+  ● TowSettingsPatch — true partial PATCH semantics › a single-property patch is valid
+
+    can't resolve reference #/components/schemas/TowSettings from id #
+
+      29 |   const ajv = new Ajv2020({ strict: false, allErrors: true, allowUnionTypes: true, validateFormats: true });
+      30 |   addFormats(ajv);
+    > 31 |   return ajv.compile(schema);
+         |              ^
+      32 | }
+      33 |
+      34 | describe('TowSettingsPatch — true partial PATCH semantics', () => {
+
+      at Object.code (../../socorre_ai_backend/node_modules/ajv/lib/vocabularies/core/ref.ts:19:39)
+      at keywordCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:228:21
+      at CodeGen.code (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:228:9)
+      at typeAndKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/vocabularies/applicator/allOf.ts:15:26
+          at Array.forEach (<anonymous>)
+      at Object.code (../../socorre_ai_backend/node_modules/ajv/lib/vocabularies/applicator/allOf.ts:13:12)
+      at keywordCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:248:7)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:100:5
+      at CodeGen.code (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:61:45
+      at CodeGen.code (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.func (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:719:24)
+      at validateFunction (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:60:9)
+      at topSchemaObjCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:94:3)
+      at validateFunctionCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:42:7)
+      at Ajv2020.compileSchema (../../socorre_ai_backend/node_modules/ajv/lib/compile/index.ts:163:25)
+      at Ajv2020._compileSchemaEnv (../../socorre_ai_backend/node_modules/ajv/lib/core.ts:737:24)
+      at Ajv2020.compile (../../socorre_ai_backend/node_modules/ajv/lib/core.ts:389:34)
+      at compile (tests/contract/towSettingsPatch.test.js:31:14)
+      at Object.buildValidator (tests/contract/towSettingsPatch.test.js:57:22)
+
+  ● TowSettingsPatch — true partial PATCH semantics › a multi-property partial patch is valid
+
+    can't resolve reference #/components/schemas/TowSettings from id #
+
+      29 |   const ajv = new Ajv2020({ strict: false, allErrors: true, allowUnionTypes: true, validateFormats: true });
+      30 |   addFormats(ajv);
+    > 31 |   return ajv.compile(schema);
+         |              ^
+      32 | }
+      33 |
+      34 | describe('TowSettingsPatch — true partial PATCH semantics', () => {
+
+      at Object.code (../../socorre_ai_backend/node_modules/ajv/lib/vocabularies/core/ref.ts:19:39)
+      at keywordCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:228:21
+      at CodeGen.code (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:228:9)
+      at typeAndKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/vocabularies/applicator/allOf.ts:15:26
+          at Array.forEach (<anonymous>)
+      at Object.code (../../socorre_ai_backend/node_modules/ajv/lib/vocabularies/applicator/allOf.ts:13:12)
+      at keywordCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:248:7)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:100:5
+      at CodeGen.code (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:61:45
+      at CodeGen.code (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.func (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:719:24)
+      at validateFunction (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:60:9)
+      at topSchemaObjCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:94:3)
+      at validateFunctionCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:42:7)
+      at Ajv2020.compileSchema (../../socorre_ai_backend/node_modules/ajv/lib/compile/index.ts:163:25)
+      at Ajv2020._compileSchemaEnv (../../socorre_ai_backend/node_modules/ajv/lib/core.ts:737:24)
+      at Ajv2020.compile (../../socorre_ai_backend/node_modules/ajv/lib/core.ts:389:34)
+      at compile (tests/contract/towSettingsPatch.test.js:31:14)
+      at Object.buildValidator (tests/contract/towSettingsPatch.test.js:63:22)
+
+  ● TowSettingsPatch — true partial PATCH semantics › an empty object is invalid (minProperties: 1)
+
+    can't resolve reference #/components/schemas/TowSettings from id #
+
+      29 |   const ajv = new Ajv2020({ strict: false, allErrors: true, allowUnionTypes: true, validateFormats: true });
+      30 |   addFormats(ajv);
+    > 31 |   return ajv.compile(schema);
+         |              ^
+      32 | }
+      33 |
+      34 | describe('TowSettingsPatch — true partial PATCH semantics', () => {
+
+      at Object.code (../../socorre_ai_backend/node_modules/ajv/lib/vocabularies/core/ref.ts:19:39)
+      at keywordCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:228:21
+      at CodeGen.code (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:228:9)
+      at typeAndKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/vocabularies/applicator/allOf.ts:15:26
+          at Array.forEach (<anonymous>)
+      at Object.code (../../socorre_ai_backend/node_modules/ajv/lib/vocabularies/applicator/allOf.ts:13:12)
+      at keywordCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:248:7)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:100:5
+      at CodeGen.code (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:61:45
+      at CodeGen.code (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.func (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:719:24)
+      at validateFunction (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:60:9)
+      at topSchemaObjCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:94:3)
+      at validateFunctionCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:42:7)
+      at Ajv2020.compileSchema (../../socorre_ai_backend/node_modules/ajv/lib/compile/index.ts:163:25)
+      at Ajv2020._compileSchemaEnv (../../socorre_ai_backend/node_modules/ajv/lib/core.ts:737:24)
+      at Ajv2020.compile (../../socorre_ai_backend/node_modules/ajv/lib/core.ts:389:34)
+      at compile (tests/contract/towSettingsPatch.test.js:31:14)
+      at Object.buildValidator (tests/contract/towSettingsPatch.test.js:72:22)
+
+  ● TowSettingsPatch — true partial PATCH semantics › unknown properties are rejected (additionalProperties: false)
+
+    can't resolve reference #/components/schemas/TowSettings from id #
+
+      29 |   const ajv = new Ajv2020({ strict: false, allErrors: true, allowUnionTypes: true, validateFormats: true });
+      30 |   addFormats(ajv);
+    > 31 |   return ajv.compile(schema);
+         |              ^
+      32 | }
+      33 |
+      34 | describe('TowSettingsPatch — true partial PATCH semantics', () => {
+
+      at Object.code (../../socorre_ai_backend/node_modules/ajv/lib/vocabularies/core/ref.ts:19:39)
+      at keywordCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:228:21
+      at CodeGen.code (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:228:9)
+      at typeAndKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/vocabularies/applicator/allOf.ts:15:26
+          at Array.forEach (<anonymous>)
+      at Object.code (../../socorre_ai_backend/node_modules/ajv/lib/vocabularies/applicator/allOf.ts:13:12)
+      at keywordCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:248:7)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:100:5
+      at CodeGen.code (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:61:45
+      at CodeGen.code (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.func (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:719:24)
+      at validateFunction (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:60:9)
+      at topSchemaObjCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:94:3)
+      at validateFunctionCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:42:7)
+      at Ajv2020.compileSchema (../../socorre_ai_backend/node_modules/ajv/lib/compile/index.ts:163:25)
+      at Ajv2020._compileSchemaEnv (../../socorre_ai_backend/node_modules/ajv/lib/core.ts:737:24)
+      at Ajv2020.compile (../../socorre_ai_backend/node_modules/ajv/lib/core.ts:389:34)
+      at compile (tests/contract/towSettingsPatch.test.js:31:14)
+      at Object.buildValidator (tests/contract/towSettingsPatch.test.js:78:22)
+
+  ● TowSettingsPatch — true partial PATCH semantics › wrong types are rejected
+
+    can't resolve reference #/components/schemas/TowSettings from id #
+
+      29 |   const ajv = new Ajv2020({ strict: false, allErrors: true, allowUnionTypes: true, validateFormats: true });
+      30 |   addFormats(ajv);
+    > 31 |   return ajv.compile(schema);
+         |              ^
+      32 | }
+      33 |
+      34 | describe('TowSettingsPatch — true partial PATCH semantics', () => {
+
+      at Object.code (../../socorre_ai_backend/node_modules/ajv/lib/vocabularies/core/ref.ts:19:39)
+      at keywordCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:228:21
+      at CodeGen.code (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:228:9)
+      at typeAndKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/vocabularies/applicator/allOf.ts:15:26
+          at Array.forEach (<anonymous>)
+      at Object.code (../../socorre_ai_backend/node_modules/ajv/lib/vocabularies/applicator/allOf.ts:13:12)
+      at keywordCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:248:7)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:100:5
+      at CodeGen.code (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:61:45
+      at CodeGen.code (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.func (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:719:24)
+      at validateFunction (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:60:9)
+      at topSchemaObjCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:94:3)
+      at validateFunctionCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:42:7)
+      at Ajv2020.compileSchema (../../socorre_ai_backend/node_modules/ajv/lib/compile/index.ts:163:25)
+      at Ajv2020._compileSchemaEnv (../../socorre_ai_backend/node_modules/ajv/lib/core.ts:737:24)
+      at Ajv2020.compile (../../socorre_ai_backend/node_modules/ajv/lib/core.ts:389:34)
+      at compile (tests/contract/towSettingsPatch.test.js:31:14)
+      at Object.buildValidator (tests/contract/towSettingsPatch.test.js:84:22)
+
+  ● TowSettingsPatch — true partial PATCH semantics › the whole-settings payload is also a valid patch (superset)
+
+    can't resolve reference #/components/schemas/TowSettings from id #
+
+      29 |   const ajv = new Ajv2020({ strict: false, allErrors: true, allowUnionTypes: true, validateFormats: true });
+      30 |   addFormats(ajv);
+    > 31 |   return ajv.compile(schema);
+         |              ^
+      32 | }
+      33 |
+      34 | describe('TowSettingsPatch — true partial PATCH semantics', () => {
+
+      at Object.code (../../socorre_ai_backend/node_modules/ajv/lib/vocabularies/core/ref.ts:19:39)
+      at keywordCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:228:21
+      at CodeGen.code (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:228:9)
+      at typeAndKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/vocabularies/applicator/allOf.ts:15:26
+          at Array.forEach (<anonymous>)
+      at Object.code (../../socorre_ai_backend/node_modules/ajv/lib/vocabularies/applicator/allOf.ts:13:12)
+      at keywordCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:248:7)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:100:5
+      at CodeGen.code (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:61:45
+      at CodeGen.code (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.func (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:719:24)
+      at validateFunction (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:60:9)
+      at topSchemaObjCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:94:3)
+      at validateFunctionCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:42:7)
+      at Ajv2020.compileSchema (../../socorre_ai_backend/node_modules/ajv/lib/compile/index.ts:163:25)
+      at Ajv2020._compileSchemaEnv (../../socorre_ai_backend/node_modules/ajv/lib/core.ts:737:24)
+      at Ajv2020.compile (../../socorre_ai_backend/node_modules/ajv/lib/core.ts:389:34)
+      at compile (tests/contract/towSettingsPatch.test.js:31:14)
+      at Object.buildValidator (tests/contract/towSettingsPatch.test.js:89:22)
+
+  ● TowSettingsPatch — true partial PATCH semantics › the contract does not compose the patch with allOf over TowSettings
+
+    expect(received).toBeUndefined()
+
+    Received: [{"$ref": "#/components/schemas/TowSettings"}, {"additionalProperties": false, "minProperties": 1, "type": "object"}]
+
+      107 |   test('the contract does not compose the patch with allOf over TowSettings', () => {
+      108 |     const raw = documents.canonical.components.schemas.TowSettingsPatch;
+    > 109 |     expect(raw.allOf).toBeUndefined();
+          |                       ^
+      110 |     expect(JSON.stringify(raw)).not.toContain('TowSettings"');
+      111 |   });
+      112 |
+
+      at Object.toBeUndefined (tests/contract/towSettingsPatch.test.js:109:23)
+
+  ● TowSettingsPatch — true partial PATCH semantics › negative control: a patch inheriting TowSettings.required is rejected
+
+    can't resolve reference #/components/schemas/TowSettings from id #
+
+      29 |   const ajv = new Ajv2020({ strict: false, allErrors: true, allowUnionTypes: true, validateFormats: true });
+      30 |   addFormats(ajv);
+    > 31 |   return ajv.compile(schema);
+         |              ^
+      32 | }
+      33 |
+      34 | describe('TowSettingsPatch — true partial PATCH semantics', () => {
+
+      at Object.code (../../socorre_ai_backend/node_modules/ajv/lib/vocabularies/core/ref.ts:19:39)
+      at keywordCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:228:21
+      at CodeGen.code (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:228:9)
+      at typeAndKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/vocabularies/applicator/allOf.ts:15:26
+          at Array.forEach (<anonymous>)
+      at Object.code (../../socorre_ai_backend/node_modules/ajv/lib/vocabularies/applicator/allOf.ts:13:12)
+      at keywordCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:248:7)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:100:5
+      at CodeGen.code (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at ../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:61:45
+      at CodeGen.code (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.func (../../socorre_ai_backend/node_modules/ajv/lib/compile/codegen/index.ts:719:24)
+      at validateFunction (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:60:9)
+      at topSchemaObjCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:94:3)
+      at validateFunctionCode (../../socorre_ai_backend/node_modules/ajv/lib/compile/validate/index.ts:42:7)
+      at Ajv2020.compileSchema (../../socorre_ai_backend/node_modules/ajv/lib/compile/index.ts:163:25)
+      at Ajv2020._compileSchemaEnv (../../socorre_ai_backend/node_modules/ajv/lib/core.ts:737:24)
+      at Ajv2020.compile (../../socorre_ai_backend/node_modules/ajv/lib/core.ts:389:34)
+      at compile (tests/contract/towSettingsPatch.test.js:31:14)
+      at Object.buildValidator (tests/contract/towSettingsPatch.test.js:119:22)
+
+FAIL tests/contract/consumerSmoke.test.js
+  ● Tow consumer contract smoke › every consumer flow is schema-valid in both directions
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 69
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "errors": Array [
+    +       Object {
+    +         "instancePath": "",
+    +         "keyword": "additionalProperties",
+    +         "message": "must NOT have additional properties",
+    +         "params": Object {
+    +           "additionalProperty": "tow_initial_radius_km",
+    +         },
+    +         "schemaPath": "#/allOf/1/additionalProperties",
+    +       },
+    +       Object {
+    +         "instancePath": "",
+    +         "keyword": "additionalProperties",
+    +         "message": "must NOT have additional properties",
+    +         "params": Object {
+    +           "additionalProperty": "tow_radius_increment_km",
+    +         },
+    +         "schemaPath": "#/allOf/1/additionalProperties",
+    +       },
+    +       Object {
+    +         "instancePath": "",
+    +         "keyword": "additionalProperties",
+    +         "message": "must NOT have additional properties",
+    +         "params": Object {
+    +           "additionalProperty": "tow_max_radius_km",
+    +         },
+    +         "schemaPath": "#/allOf/1/additionalProperties",
+    +       },
+    +       Object {
+    +         "instancePath": "",
+    +         "keyword": "additionalProperties",
+    +         "message": "must NOT have additional properties",
+    +         "params": Object {
+    +           "additionalProperty": "tow_radius_expansion_interval_minutes",
+    +         },
+    +         "schemaPath": "#/allOf/1/additionalProperties",
+    +       },
+    +       Object {
+    +         "instancePath": "",
+    +         "keyword": "additionalProperties",
+    +         "message": "must NOT have additional properties",
+    +         "params": Object {
+    +           "additionalProperty": "tow_request_search_timeout_minutes",
+    +         },
+    +         "schemaPath": "#/allOf/1/additionalProperties",
+    +       },
+    +     ],
+    +     "fixture": Object {
+    +       "tow_cancellation_fee_cents": 0,
+    +       "tow_cancellation_partner_percentage": 0,
+    +       "tow_cancellation_platform_percentage": 0,
+    +       "tow_completion_confirmation_timeout_minutes": 1,
+    +       "tow_counteroffer_expiry_minutes": 1,
+    +       "tow_customer_no_show_timeout_minutes": 1,
+    +       "tow_initial_radius_km": 0.5,
+    +       "tow_max_platform_fee_debt_cents": 0,
+    +       "tow_max_radius_km": 0.5,
+    +       "tow_platform_fixed_fee_cents": 0,
+    +       "tow_proposal_expiry_minutes": 1,
+    +       "tow_radius_expansion_interval_minutes": 1,
+    +       "tow_radius_increment_km": 0.5,
+    +       "tow_request_search_timeout_minutes": 1,
+    +     },
+    +     "mediaType": "application/json",
+    +     "operationId": "adminPatchTowSettings",
+    +   },
+    + ]
+
+      50 |   test('every consumer flow is schema-valid in both directions', () => {
+      51 |     expect(smoke.schemaGenerationFailures).toEqual([]);
+    > 52 |     expect(smoke.invalidRequests).toEqual([]);
+         |                                   ^
+      53 |     expect(smoke.invalidResponses).toEqual([]);
+      54 |     expect(smoke.untypedSuccessResponses).toEqual([]);
+      55 |     expect(smoke.ok).toBe(true);
+
+      at Object.toEqual (tests/contract/consumerSmoke.test.js:52:35)
+
+  ● Tow consumer contract smoke › dashboard: 20 operations / 6 request bodies / 20 responses
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 69
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "errors": Array [
+    +       Object {
+    +         "instancePath": "",
+    +         "keyword": "additionalProperties",
+    +         "message": "must NOT have additional properties",
+    +         "params": Object {
+    +           "additionalProperty": "tow_initial_radius_km",
+    +         },
+    +         "schemaPath": "#/allOf/1/additionalProperties",
+    +       },
+    +       Object {
+    +         "instancePath": "",
+    +         "keyword": "additionalProperties",
+    +         "message": "must NOT have additional properties",
+    +         "params": Object {
+    +           "additionalProperty": "tow_radius_increment_km",
+    +         },
+    +         "schemaPath": "#/allOf/1/additionalProperties",
+    +       },
+    +       Object {
+    +         "instancePath": "",
+    +         "keyword": "additionalProperties",
+    +         "message": "must NOT have additional properties",
+    +         "params": Object {
+    +           "additionalProperty": "tow_max_radius_km",
+    +         },
+    +         "schemaPath": "#/allOf/1/additionalProperties",
+    +       },
+    +       Object {
+    +         "instancePath": "",
+    +         "keyword": "additionalProperties",
+    +         "message": "must NOT have additional properties",
+    +         "params": Object {
+    +           "additionalProperty": "tow_radius_expansion_interval_minutes",
+    +         },
+    +         "schemaPath": "#/allOf/1/additionalProperties",
+    +       },
+    +       Object {
+    +         "instancePath": "",
+    +         "keyword": "additionalProperties",
+    +         "message": "must NOT have additional properties",
+    +         "params": Object {
+    +           "additionalProperty": "tow_request_search_timeout_minutes",
+    +         },
+    +         "schemaPath": "#/allOf/1/additionalProperties",
+    +       },
+    +     ],
+    +     "fixture": Object {
+    +       "tow_cancellation_fee_cents": 0,
+    +       "tow_cancellation_partner_percentage": 0,
+    +       "tow_cancellation_platform_percentage": 0,
+    +       "tow_completion_confirmation_timeout_minutes": 1,
+    +       "tow_counteroffer_expiry_minutes": 1,
+    +       "tow_customer_no_show_timeout_minutes": 1,
+    +       "tow_initial_radius_km": 0.5,
+    +       "tow_max_platform_fee_debt_cents": 0,
+    +       "tow_max_radius_km": 0.5,
+    +       "tow_platform_fixed_fee_cents": 0,
+    +       "tow_proposal_expiry_minutes": 1,
+    +       "tow_radius_expansion_interval_minutes": 1,
+    +       "tow_radius_increment_km": 0.5,
+    +       "tow_request_search_timeout_minutes": 1,
+    +     },
+    +     "mediaType": "application/json",
+    +     "operationId": "adminPatchTowSettings",
+    +   },
+    + ]
+
+      66 |       expect(report.undocumentedCapabilities).toEqual([]);
+      67 |       expect(report.schemaGenerationFailures).toEqual([]);
+    > 68 |       expect(report.invalidRequests).toEqual([]);
+         |                                      ^
+      69 |       expect(report.invalidResponses).toEqual([]);
+      70 |       expect(report.untypedSuccessResponses).toEqual([]);
+      71 |     });
+
+      at Object.toEqual (tests/contract/consumerSmoke.test.js:68:38)
+
+  ● Tow consumer contract smoke › the smoke is deterministic across runs (same counters, same order)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      87 |   test('the smoke is deterministic across runs (same counters, same order)', () => {
+      88 |     const second = runConsumerSmoke({ composed, ajv });
+    > 89 |     expect(second.ok).toBe(true);
+         |                       ^
+      90 |     expect(JSON.stringify(second.consumers)).toBe(JSON.stringify(smoke.consumers));
+      91 |   });
+      92 |
+
+      at Object.toBe (tests/contract/consumerSmoke.test.js:89:23)
+
+  ● Tow consumer contract smoke › the smoke detects an invalid request fixture (negative control)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      126 |     expect(schema.$ref).toBe('#/components/schemas/TowSettingsPatch');
+      127 |     expect(validate({})).toBe(false);
+    > 128 |     expect(validate({ tow_max_radius_km: 80 })).toBe(true);
+          |                                                 ^
+      129 |   });
+      130 | });
+      131 |
+
+      at Object.toBe (tests/contract/consumerSmoke.test.js:128:49)
+
+Test Suites: 3 failed, 1 passed, 4 total
+Tests:       15 failed, 36 passed, 51 total
+Snapshots:   0 total
+Time:        1.76 s
+Ran all test suites matching /tests\/contract/i.
+
+exit_code=1
+
+# Verdict: the guard FAILS the mutated contract (expected). Restoring the
+# frozen standalone schema makes the same command exit 0 — see
+# docs/evidence/t00/green-contract-suite.txt.
