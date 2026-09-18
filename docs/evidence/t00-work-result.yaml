@@ -578,8 +578,8 @@ unrelated_change_correction:
   file: docker-compose-simple.yml
   introduced_by: 74e44590
   introduced_change: >-
-    `- SERVICE_PHOTO_STORAGE_DIR=/var/lib/service_photo_data` and
-    `- service_photo_data:/var/lib/service_photo_data` added to the
+    `- SERVICE_PHOTO_STORAGE_DIR=/var/lib/socorre-ai/private/service-photos` and
+    `- service_photo_data:/var/lib/socorre-ai/private/service-photos` added to the
     `backend_legacy_off` service only (old lines ~68 and ~71).
   not_the_same_as: >-
     the equivalent two lines on the `backend` service (lines ~41 and ~44) predate
