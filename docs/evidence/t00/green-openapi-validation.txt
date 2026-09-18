@@ -1,7 +1,3 @@
-
-> socorre-ai-backend@1.0.0 validate:openapi
-> node scripts/tow/validate-openapi.js
-
 Tow OpenAPI contract validation
   docs:                             /Volumes/Reiko/projects/work/socorre-system/docs/tow
   canonical entrypoint:             tow-api-contract.openapi.yaml
@@ -45,5 +41,4 @@ Shadowed base paths (base methods must survive composition or be allowlisted):
   - /admin/tow/payout-batches/{batchId}: base=[get] composed=[get] dropped=[] added=[]
   - /admin/tow/payout-batches/{batchId}/process: base=[post] composed=[post] dropped=[] added=[]
   allowlist: (empty — the frozen contract drops no base method)
-
-# exit_code=0
+EXIT=0

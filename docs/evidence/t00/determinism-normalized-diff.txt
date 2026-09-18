@@ -26,6 +26,8 @@
 
 --- deterministic observables (normalized) ---
 PASS tests/tow/foundation/towDeterministicFoundation.test.js
+PASS tests/tow/foundation/towHarnessEnvFile.test.js
+PASS tests/tow/foundation/towHarnessLifecycle.test.js
 PASS tests/tow/foundation/towPostgresFoundation.e2e.test.js
 PASS tests/tow/foundation/towPostgresGuard.test.js
 PASS tests/tow/g2PhotoContract.test.js
@@ -36,8 +38,8 @@ PASS tests/tow/towDocumentFlow.test.js
 PASS tests/tow/towHttp.transport.test.js
 PASS tests/tow/towLifecycleController.test.js
 PASS tests/tow/towProposalIdempotency.test.js
-Test Suites: 2 skipped, 11 passed, 11 of 13 total
-Tests:       14 skipped, 230 passed, 244 total
+Test Suites: 2 skipped, 13 passed, 13 of 15 total
+Tests:       15 skipped, 258 passed, 273 total
 Snapshots:   0 total
 Ran all test suites matching /tests\/tow/i.
 
@@ -58,6 +60,8 @@ PASS tests/contract/consumerSmoke.test.js
 PASS tests/contract/openapi.structure.test.js
 PASS tests/contract/towSettingsPatch.test.js
 PASS tests/tow/foundation/towDeterministicFoundation.test.js
+PASS tests/tow/foundation/towHarnessEnvFile.test.js
+PASS tests/tow/foundation/towHarnessLifecycle.test.js
 PASS tests/tow/foundation/towPostgresFoundation.e2e.test.js
 PASS tests/tow/foundation/towPostgresGuard.test.js
 PASS tests/tow/g2PhotoContract.test.js
@@ -69,11 +73,11 @@ PASS tests/tow/towHttp.transport.test.js
 PASS tests/tow/towLifecycleController.test.js
 PASS tests/tow/towProposalIdempotency.test.js
 Test Suites: 4 passed, 4 total
-Test Suites: 2 skipped, 11 passed, 11 of 13 total
+Test Suites: 2 skipped, 13 passed, 13 of 15 total
 Test Suites: 1 passed, 1 total
 Tests:       52 passed, 52 total
-Tests:       14 skipped, 230 passed, 244 total
-Tests:       5 passed, 5 total
+Tests:       15 skipped, 258 passed, 273 total
+Tests:       6 passed, 6 total
 Snapshots:   0 total
 Snapshots:   0 total
 Snapshots:   0 total

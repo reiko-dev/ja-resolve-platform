@@ -1,0 +1,4 @@
+[test-env] env file: /Volumes/Reiko/projects/work/socorre-system/socorre_ai_backend/.env.test loaded (14 value(s) applied, 0 kept from the environment)
+target: postgresql://tow_test@127.0.0.1:55432/socorre_ai_tow_test
+SAFE
+EXIT=0

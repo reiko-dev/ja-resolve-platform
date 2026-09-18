@@ -1,1 +1,17 @@
-checked=25 failures=0
+# node --check on every new/changed JavaScript file (Codex correction pass)
+# command: for f in <files>; do node --check "$f"; done
+OK   socorre_ai_backend/scripts/tow/test-env-file.js
+OK   socorre_ai_backend/scripts/tow/pg-guard.js
+OK   socorre_ai_backend/scripts/tow/test-env.js
+OK   socorre_ai_backend/scripts/tow/run-pg-gate.js
+OK   socorre_ai_backend/scripts/tow/verify.js
+OK   socorre_ai_backend/tests/helpers/tow/postgres.js
+OK   socorre_ai_backend/tests/helpers/tow/factories.js
+OK   socorre_ai_backend/tests/tow/foundation/towHarnessEnvFile.test.js
+OK   socorre_ai_backend/tests/tow/foundation/towHarnessLifecycle.test.js
+OK   socorre_ai_backend/tests/tow/foundation/towPostgresGuard.test.js
+OK   socorre_ai_backend/tests/tow/foundation/towPostgresFoundation.e2e.test.js
+OK   socorre_ai_backend/tests/tow/foundation/towDeterministicFoundation.test.js
+files_checked: 12
+failures: 0
+EXIT=0
