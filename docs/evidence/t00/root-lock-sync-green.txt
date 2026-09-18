@@ -1,6 +1,7 @@
 # root-lock GREEN: synced root package-lock.json satisfies npm ci
 # command: npm ci --dry-run --no-audit --no-fund   (isolated temp copy, no node_modules)
 # lock source: HEAD:package-lock.json (post-fix, committed)
+# manifests: HEAD:{package.json, socorre_ai_backend/package.json, socorre_ai_admin/package.json} (committed)
 # tail only: the dry-run lists every package it would add
 
 add @babel/helper-string-parser 7.27.1
@@ -14,6 +15,6 @@ add @babel/core 7.29.0
 add @babel/compat-data 7.29.0
 add @babel/code-frame 7.29.0
 
-added 1955 packages in 366ms
+added 1955 packages in 390ms
 
 exit_code=0

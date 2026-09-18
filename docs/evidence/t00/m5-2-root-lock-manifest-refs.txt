@@ -1,0 +1,38 @@
+# T00 M5-2 (Codex round-3 P2 / thread 4048484284) — root-lock evidence uses committed manifests
+# command: bash scripts/tow/root-lock-evidence.sh  (plus two negative probes below)
+# cwd: repository root
+# git HEAD: 7ed25c12c5ef690ffb2e61bf1c486ba1a3c4aa1d (pass-7 corrections in the working tree; committed as the pass-7 fix commit)
+# captured_at_utc: 2026-09-18T16:24:05Z
+#
+# Fix under test (scripts/tow/root-lock-evidence.sh):
+#   MANIFEST_PATHS=(package.json socorre_ai_backend/package.json
+#                   socorre_ai_admin/package.json package-lock.json)
+#   - both refs must contain every manifest (fail fast, otherwise FATAL, exit 1);
+#   - the staged copies come from 'git show <ref>:<manifest>' for BOTH refs,
+#     so a dirty working tree cannot leak into the recorded RED/GREEN evidence;
+#   - a dirty tree only produces a WARNING that names the differing paths.
+
+## 1) clean run (main working tree)
+$ bash scripts/tow/root-lock-evidence.sh
+root-lock evidence captured in /Volumes/Reiko/projects/work/socorre-system/docs/evidence/t00
+root-lock refs: 0c5de7ed (pre-fix) -> HEAD (post-fix)
+root-lock evidence verified (RED=exit 1, GREEN=exit 0, non-empty ref-to-ref delta)
+EXIT=0
+
+## 2) dirty working tree, isolated throwaway worktree at 7ed25c12c5ef690ffb2e61bf1c486ba1a3c4aa1d
+#    (socorre_ai_backend/package.json modified in that worktree only; the fix script
+#     was copied in because the committed ref predates the pass-7 fix)
+$ git -C $TMPWT diff --name-only HEAD -- <manifests>
+socorre_ai_backend/package.json
+$ bash scripts/tow/root-lock-evidence.sh   # inside the dirty worktree
+WARNING: working tree differs from HEAD for: socorre_ai_backend/package.json
+WARNING: evidence uses the committed refs, not the working tree
+root-lock evidence captured in /tmp/t00-p7-wt.ZpXog3/docs/evidence/t00
+root-lock refs: 0c5de7ed (pre-fix) -> HEAD (post-fix)
+root-lock evidence verified (RED=exit 1, GREEN=exit 0, non-empty ref-to-ref delta)
+EXIT=0
+
+## 3) fail-fast when a ref does not contain a manifest
+$ TOW_LOCK_CURRENT_REF=$(git hash-object -t tree /dev/null) bash scripts/tow/root-lock-evidence.sh
+FATAL: 4b825dc642cb6eb9a060e54bf8d69288fbee4904:package.json not found
+EXIT=1

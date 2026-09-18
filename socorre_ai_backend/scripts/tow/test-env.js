@@ -23,6 +23,14 @@
  * fails the gate; with an earlier workload/startup error that error stays the
  * rejection and carries the teardown failure as `error.teardownError`.
  *
+ * Compose project isolation (Codex round-3 P1, thread 4048484277): the project
+ * name is no longer a fixed constant. Two concurrent runs on the same Docker
+ * daemon (different worktrees or CI jobs, even with different `DB_PORT`) must
+ * never manage the same container/network/volume, so `resolveComposeProject()`
+ * derives a unique, deterministic name scoped to this run and
+ * `docker-compose.test.yml` fixes no `container_name` / network `name` any
+ * more. `TOW_TEST_PG_PROJECT` overrides the name explicitly.
+ *
  * Commands:
  *   node scripts/tow/test-env.js up
  *   node scripts/tow/test-env.js wait
@@ -33,13 +41,16 @@
 'use strict';
 
 const { spawnSync } = require('child_process');
+const crypto = require('crypto');
 const path = require('path');
 const { describeEnvFile, loadTestEnvFile } = require('./test-env-file');
 
 const BACKEND_DIR = path.resolve(__dirname, '..', '..');
 const COMPOSE_FILE = path.join(BACKEND_DIR, 'docker-compose.test.yml');
-const COMPOSE_PROJECT = 'socorre-tow-test';
 const HEALTH_TIMEOUT_MS = Number(process.env.TOW_TEST_PG_HEALTH_TIMEOUT_MS) || 90_000;
+// Compose accepts [a-z0-9][a-z0-9_-]* (max 63 chars). Reject anything else
+// loudly instead of letting Compose fail with an opaque error.
+const COMPOSE_PROJECT_PATTERN = /^[a-z0-9][a-z0-9_-]{0,62}$/;
 
 // Explicit, optional, shell-preserving: this is the only env file the harness
 // reads. Loaded before pg-guard so the resolved target uses these values.
@@ -52,6 +63,39 @@ const {
   resolveHarnessEnv,
   resolveTestTarget,
 } = require('./pg-guard');
+
+/**
+ * Compose project name for THIS harness run (Codex round-3 P1 / thread
+ * 4048484277).
+ *
+ * `TOW_TEST_PG_PROJECT` overrides the name when set (and is validated); with it
+ * unset the default is deterministic and unique per run scope:
+ *
+ *   socorre-tow-test-<DB_PORT>-<first 8 hex of sha256(BACKEND_DIR)>
+ *
+ * The port keeps concurrent runs on different ports apart; the BACKEND_DIR hash
+ * keeps different worktrees/clones apart even when they share a port. The name
+ * is lowercase and Compose-safe. Empty `TOW_TEST_PG_PROJECT` counts as unset,
+ * like every other harness variable.
+ */
+function resolveComposeProject(env = process.env) {
+  const override = env.TOW_TEST_PG_PROJECT === undefined ? '' : String(env.TOW_TEST_PG_PROJECT).trim();
+  if (override !== '') {
+    if (!COMPOSE_PROJECT_PATTERN.test(override)) {
+      throw new Error(
+        `TOW_TEST_PG_PROJECT "${override}" is not a valid Compose project name`
+        + ` (must match ${COMPOSE_PROJECT_PATTERN})`
+      );
+    }
+    return override;
+  }
+  const port = resolveTestTarget(env).port;
+  const scope = crypto.createHash('sha256').update(BACKEND_DIR).digest('hex').slice(0, 8);
+  return `socorre-tow-test-${port}-${scope}`;
+}
+
+/** Project resolved for this process (`.env.test` already loaded). */
+const COMPOSE_PROJECT = resolveComposeProject();
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -71,17 +115,24 @@ function run(command, args, options = {}) {
  * Environment forwarded to child processes (docker compose, migrations, Jest).
  * The canonical target always wins over any stray `.env` Compose would
  * otherwise auto-load, so the published port and the client port cannot
- * diverge (Codex finding C2).
+ * diverge (Codex finding C2). The resolved Compose project travels with it so
+ * migrations/Jest (and the e2e `docker compose config` render) inspect exactly
+ * the project this run created (Codex round-3 P1 / thread 4048484277).
  */
 function targetEnv(env = process.env) {
-  return resolveHarnessEnv(env);
+  const resolved = resolveHarnessEnv(env);
+  return {
+    ...resolved,
+    TOW_TEST_PG_PROJECT: resolveComposeProject({ ...env, ...resolved }),
+  };
 }
 
 function compose(args, options = {}) {
+  const env = { ...targetEnv(), ...options.env };
   return run(
     'docker',
-    ['compose', '-p', COMPOSE_PROJECT, '-f', COMPOSE_FILE, ...args],
-    { ...options, env: { ...targetEnv(), ...options.env } }
+    ['compose', '-p', resolveComposeProject(env), '-f', COMPOSE_FILE, ...args],
+    { ...options, env }
   );
 }
 
@@ -109,8 +160,8 @@ function makeTeardownError(message) {
 }
 
 /** Human-readable teardown command. Contains no credentials by construction. */
-function teardownCommand() {
-  return `docker compose -p ${COMPOSE_PROJECT} -f ${COMPOSE_FILE} down --volumes --remove-orphans --timeout 10`;
+function teardownCommand(project = resolveComposeProject()) {
+  return `docker compose -p ${project} -f ${COMPOSE_FILE} down --volumes --remove-orphans --timeout 10`;
 }
 
 /**
@@ -123,19 +174,21 @@ function teardownCommand() {
  */
 function down() {
   const args = ['down', '--volumes', '--remove-orphans', '--timeout', '10'];
+  // The teardown message must name the SAME project `compose()` will use.
+  const project = resolveComposeProject(targetEnv());
   let result;
   try {
     result = compose(args, { allowFailure: true, capture: true });
   } catch (error) {
     throw makeTeardownError(
-      `docker compose down could not run (${error && error.message ? error.message : error}): ${teardownCommand()}`
+      `docker compose down could not run (${error && error.message ? error.message : error}): ${teardownCommand(project)}`
     );
   }
   // Preserve the compose progress lines in the console/evidence.
   if (result.stdout) process.stdout.write(result.stdout);
   if (result.stderr) process.stderr.write(result.stderr);
   if (result.status !== 0) {
-    throw makeTeardownError(`docker compose down failed (exit status ${result.status}): ${teardownCommand()}`);
+    throw makeTeardownError(`docker compose down failed (exit status ${result.status}): ${teardownCommand(project)}`);
   }
   console.log('PostgreSQL test environment destroyed (containers, volumes, network)');
 }
@@ -311,7 +364,9 @@ module.exports = {
   enableOptIn,
   COMPOSE_FILE,
   COMPOSE_PROJECT,
+  COMPOSE_PROJECT_PATTERN,
   compose,
+  resolveComposeProject,
   targetEnv,
   up,
   down,

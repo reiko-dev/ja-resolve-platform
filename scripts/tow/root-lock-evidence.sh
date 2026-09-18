@@ -20,15 +20,25 @@
 #
 # What it does
 # ------------
-# 1. RED  — copies the ROOT manifests (root package.json + both workspace
-#    package.json files from the working tree) plus the lock from
-#    `$PREFIX_REF` into an isolated temp directory and runs `npm ci --dry-run`
-#    there. Expected: EUSAGE / exit 1.
+# 1. RED  — stages the ROOT manifests (root package.json + both workspace
+#    package.json files) from `$CURRENT_REF` plus the lock from `$PREFIX_REF`
+#    into an isolated temp directory and runs `npm ci --dry-run` there.
+#    Expected: EUSAGE / exit 1.
 # 2. GREEN — replaces the lock with `$CURRENT_REF:package-lock.json` and runs
 #    the same command in the same isolated copy. Expected: exit 0.
 # 3. DIFF  — captures `git diff $PREFIX_REF $CURRENT_REF -- package-lock.json`
 #    (plus the added/removed lock entries) so the lock delta can be audited as
 #    "new dependency graph only".
+#
+# Manifest provenance (Codex round-3 P2 / thread 4048484284)
+# ---------------------------------------------------------
+# ALL FOUR staged files (the three manifests and the lock) are read from
+# committed refs with `git show`, never from the working tree. Pairing worktree
+# manifests with ref locks made the RED/GREEN result describe neither selected
+# revision when `TOW_LOCK_CURRENT_REF` != worktree HEAD or a manifest was dirty;
+# the dirty-state warning also covered only `package-lock.json`. The script now
+# fails fast when any of the four paths is missing at either ref and warns when
+# the worktree differs from `$CURRENT_REF` for ANY of them.
 #
 # Reproducibility (Codex finding C6)
 # ----------------------------------
@@ -93,23 +103,38 @@ trap cleanup EXIT
 
 status=0
 
-# --- stage the isolated copy -------------------------------------------------
-cp "$REPO_ROOT/package.json" "$TMP_DIR/package.json"
-cp "$REPO_ROOT/socorre_ai_backend/package.json" "$TMP_DIR/socorre_ai_backend/package.json"
-cp "$REPO_ROOT/socorre_ai_admin/package.json" "$TMP_DIR/socorre_ai_admin/package.json"
+# The staged evidence describes committed refs only (Codex round-3 P2).
+MANIFEST_PATHS=(
+  "package.json"
+  "socorre_ai_backend/package.json"
+  "socorre_ai_admin/package.json"
+  "package-lock.json"
+)
 
+# --- fail fast on missing refs ----------------------------------------------
 for ref in "$PREFIX_REF" "$CURRENT_REF"; do
-  if ! git -C "$REPO_ROOT" cat-file -e "$ref:package-lock.json" 2>/dev/null; then
-    echo "FATAL: $ref:package-lock.json not found" >&2
-    exit 1
-  fi
+  for manifest in "${MANIFEST_PATHS[@]}"; do
+    if ! git -C "$REPO_ROOT" cat-file -e "$ref:$manifest" 2>/dev/null; then
+      echo "FATAL: $ref:$manifest not found" >&2
+      exit 1
+    fi
+  done
 done
 
-# The evidence describes committed state only. If the working tree lock differs
-# from $CURRENT_REF the script still uses the committed lock (reproducible), but
-# it says so loudly.
-if ! git -C "$REPO_ROOT" diff --quiet "$CURRENT_REF" -- package-lock.json; then
-  echo "WARNING: working-tree package-lock.json differs from $CURRENT_REF; evidence uses the committed ref" >&2
+# --- stage the isolated copy from the committed refs -------------------------
+# Manifests come from $CURRENT_REF (the revision whose lock is being validated),
+# exactly like the GREEN lock below; the RED lock comes from $PREFIX_REF.
+for manifest in "${MANIFEST_PATHS[@]}"; do
+  git -C "$REPO_ROOT" show "$CURRENT_REF:$manifest" > "$TMP_DIR/$manifest"
+done
+
+# The evidence describes committed state only. If the working tree differs from
+# $CURRENT_REF for ANY of the four staged files the script still uses the
+# committed refs (reproducible), but it says so loudly.
+dirty="$(git -C "$REPO_ROOT" diff --name-only "$CURRENT_REF" -- "${MANIFEST_PATHS[@]}")"
+if [ -n "$dirty" ]; then
+  echo "WARNING: working tree differs from $CURRENT_REF for: $(printf '%s' "$dirty" | tr '\n' ' ')" >&2
+  echo "WARNING: evidence uses the committed refs, not the working tree" >&2
 fi
 
 git -C "$REPO_ROOT" show "$PREFIX_REF:package-lock.json" > "$TMP_DIR/package-lock.json"
@@ -124,8 +149,8 @@ code=$?
 {
   echo "# root-lock RED: root package-lock.json is out of sync with the workspace manifests"
   echo "# command: npm ci --dry-run --no-audit --no-fund   (isolated temp copy, no node_modules)"
-  echo "# lock source: $PREFIX_REF:package-lock.json (pre-fix)"
-  echo "# manifests: root package.json + socorre_ai_backend/package.json + socorre_ai_admin/package.json"
+  echo "# lock source: $PREFIX_REF:package-lock.json (pre-fix, committed)"
+  echo "# manifests: $CURRENT_REF:{package.json, socorre_ai_backend/package.json, socorre_ai_admin/package.json} (committed)"
   echo
   echo "$raw"
   echo
@@ -144,6 +169,7 @@ code=$?
   echo "# root-lock GREEN: synced root package-lock.json satisfies npm ci"
   echo "# command: npm ci --dry-run --no-audit --no-fund   (isolated temp copy, no node_modules)"
   echo "# lock source: $CURRENT_REF:package-lock.json (post-fix, committed)"
+  echo "# manifests: $CURRENT_REF:{package.json, socorre_ai_backend/package.json, socorre_ai_admin/package.json} (committed)"
   echo "# tail only: the dry-run lists every package it would add"
   echo
   echo "$raw" | tail -12

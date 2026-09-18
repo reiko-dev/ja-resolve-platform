@@ -163,6 +163,24 @@ PG dependam dessas factories. É insumo de design para T01, não defeito de T00.
   (`towPostgresFoundation.e2e.test.js`), e o controle offline em
   `towPostgresGuard.test.js` rejeita o mapeamento nu `${DB_PORT...}:5432`
   (todas as interfaces) com o mesmo predicado que aprova o arquivo real.
+- **Isolamento de projeto Compose (correção Codex round-3 P1 / thread 4048484277).**
+  O projeto não é mais um nome fixo: `scripts/tow/test-env.js` resolve
+  `socorre-tow-test-<DB_PORT>-<8 hex de sha256(BACKEND_DIR)>` por execução, de
+  forma determinística (`TOW_TEST_PG_PROJECT` sobrescreve; o override é
+  validado contra `^[a-z0-9][a-z0-9_-]{0,62}$` e um valor inválido falha
+  ruidosamente). O projeto resolvido viaja em `targetEnv()` para os filhos de
+  `run-pg-gate.js`/`verify.js` (migrations e Jest), então o gate e2e inspeciona
+  exatamente o projeto que subiu. `docker-compose.test.yml` **não** fixa mais
+  `container_name` nem `name:` da network: o Compose deriva
+  `<project>-tow-postgres-test-1` e `<project>_tow-test-net`, e o serviço
+  continua se chamando `tow-postgres-test` (a busca
+  `compose ps --format json tow-postgres-test` depende do nome do serviço).
+  Duas execuções concorrentes no mesmo daemon — inclusive em worktrees
+  diferentes com a mesma porta — não compartilham container/network/volume.
+  Verificado offline em `towPostgresGuard.test.js` (override válido/inválido,
+  default determinístico por porta, arquivo sem nomes fixos) e live em
+  `towPostgresFoundation.e2e.test.js` (`docker compose config` sem
+  `container_name` e com a network derivada do projeto).
 - **Cobertura de portas (Muse M3-3).** A evidência *live* cobre duas portas: a default
   55432 (`docs/evidence/t00/green-postgres-gate.txt`) e a não-default 55999
   (`docs/evidence/t00/green-postgres-gate-custom-port.txt`, com

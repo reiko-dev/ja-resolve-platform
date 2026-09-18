@@ -1,0 +1,40 @@
+# T00 M5-3 (Codex round-3 P2 / thread 4048484296) — a PG startup failure is a recorded stage
+# command: DOCKER_HOST=unix:///tmp/t00-dead.sock npm run verify:tow ; npx jest tests/unit/towVerifyStageRecording.test.js --runInBand --verbose
+# cwd: socorre_ai_backend
+# git HEAD: 7ed25c12c5ef690ffb2e61bf1c486ba1a3c4aa1d (pass-7 corrections in the working tree; committed as the pass-7 fix commit)
+# captured_at_utc: 2026-09-18T16:23:46Z
+#
+# Before the fix, verify.js only added a synthetic failure entry when an earlier
+# (offline) stage had failed ('failedBefore'). When every offline stage passed and
+# the PostgreSQL environment itself failed to start, the summary listed the
+# startup failure but no 'PostgreSQL environment (startup)' stage entry.
+# Now the decision lives in scripts/tow/verify-stage-recording.js:
+#   - no PostgreSQL stage recorded at all -> add the startup failure entry;
+#   - a teardown error -> add/keep the teardown entry (never swallowed);
+#   - both -> both entries; never a duplicate when the PG stage did run.
+
+$ DOCKER_HOST=unix:///tmp/t00-dead.sock npm run verify:tow   # dead daemon: PG cannot start
+=== [verify:tow] summary ===
+  PASS  OpenAPI 3.1 structure gate
+  PASS  contract suite (OpenAPI + patch semantics + discovery + consumer smoke)
+  PASS  focused Tow suite (offline)
+  FAIL  PostgreSQL environment (startup) — command failed (1): docker compose -p socorre-tow-test-55432-cb0d0933 -f /Volumes/Reiko/projects/work/socorre-system/socorre_ai_backend/docker-compose.test.yml up -d --wait --wait-timeout 90
+  FAIL  teardown (docker compose down) — docker compose down failed (exit status 1): docker compose -p socorre-tow-test-55432-cb0d0933 -f /Volumes/Reiko/projects/work/socorre-system/socorre_ai_backend/docker-compose.test.yml down --volumes --remove-orphans --timeout 10
+
+EXIT=1
+
+PASS tests/unit/towVerifyStageRecording.test.js
+  verify:tow PostgreSQL stage recording (Codex round-3 M5-3 / thread 4048484296)
+    ✓ earlier offline failure + PG startup failure => both entries (1 ms)
+    ✓ PG stage already recorded => no duplicate startup entry
+    ✓ teardown-only failure => teardown entry only
+    ✓ PG startup failure + teardown failure => startup and teardown entries
+    ✓ PG stage recorded + teardown failure => teardown entry only, never a duplicate
+    ✓ no error => no extra entries (1 ms)
+    ✓ verify.js delegates the decision to the helper (no failedBefore predicate) (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       7 passed, 7 total
+Snapshots:   0 total
+Time:        0.293 s, estimated 1 s
+Ran all test suites matching /tests\/unit\/towVerifyStageRecording.test.js/i.

@@ -21,13 +21,21 @@
 #   npm run test:pg:up          # keep the environment up for development
 #   npm run test:pg:down        # destroy containers/volumes/network
 #
+# Project isolation (Codex round-3 P1, thread 4048484277): NO fixed
+# `container_name` and NO fixed network `name` here. Compose derives both from
+# the project name, which scripts/tow/test-env.js resolves per run
+# (`socorre-tow-test-<DB_PORT>-<backend-hash>`, overridable through
+# `TOW_TEST_PG_PROJECT`). Two concurrent runs on the same Docker daemon can
+# therefore never recreate or destroy each other's container/network/volume.
+# The service key stays `tow-postgres-test`: `docker compose ps ... tow-postgres-test`
+# looks the service up by that name.
+#
 # NEVER point this file at a production database: the credentials below are
 # intentionally weak and only valid for a throwaway container.
 
 services:
   tow-postgres-test:
     image: postgres:14
-    container_name: socorre-tow-postgres-test
     environment:
       POSTGRES_USER: ${DB_USER:-tow_test}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-tow_test_password}
@@ -57,5 +65,4 @@ services:
 
 networks:
   tow-test-net:
-    name: socorre-tow-test-net
     driver: bridge

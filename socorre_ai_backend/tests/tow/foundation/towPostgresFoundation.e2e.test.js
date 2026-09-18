@@ -24,6 +24,7 @@ const request = require('supertest');
 const YAML = require('yaml');
 
 const postgres = require('../../helpers/tow/postgres');
+const testEnv = require('../../../scripts/tow/test-env');
 
 const enabled = postgres.isEnabled();
 const describePostgres = enabled ? describe : describe.skip;
@@ -142,12 +143,18 @@ describePostgres('T00 PostgreSQL test foundation', () => {
 
   test('docker compose publishes exactly the DB_PORT the guard and the client use', () => {
     const target = postgres.safeTarget();
+    // The harness-resolved project (forwarded by run-pg-gate.js/verify.js as
+    // TOW_TEST_PG_PROJECT, otherwise derived from BACKEND_DIR + DB_PORT) — never
+    // a hardcoded name (Codex round-3 P1 / thread 4048484277).
+    const project = testEnv.resolveComposeProject();
     const rendered = execFileSync(
       'docker',
-      ['compose', '-p', 'socorre-tow-test', '-f', COMPOSE_FILE, 'config'],
+      ['compose', '-p', project, '-f', COMPOSE_FILE, 'config'],
       { cwd: BACKEND_DIR, encoding: 'utf8', env: { ...process.env } }
     );
-    const service = YAML.parse(rendered).services['tow-postgres-test'];
+    const parsed = YAML.parse(rendered);
+    const service = parsed.services['tow-postgres-test'];
+    expect(service).toBeDefined();
     // Compose interpolation resolves ${DB_PORT:-55432} to the canonical target
     // port; a second port variable would make this assertion fail.
     expect(String(service.ports[0].published)).toBe(String(target.port));
@@ -160,6 +167,12 @@ describePostgres('T00 PostgreSQL test foundation', () => {
     expect(service.environment.POSTGRES_DB).toBe(target.database);
     expect(service.environment.POSTGRES_USER).toBe(target.user);
     expect(service.environment.POSTGRES_PASSWORD).toBe(target.password);
+    // No globally fixed names: Compose derives them from the run project, so
+    // concurrent harness runs cannot collide (Codex round-3 P1).
+    expect(service.container_name).toBeUndefined();
+    expect(parsed.networks['tow-test-net'].name).toBe(`${project}_tow-test-net`);
+    expect(rendered).not.toContain('socorre-tow-postgres-test');
+    expect(rendered).not.toContain('socorre-tow-test-net');
   });
 
   test('the Express app answers GET /health from the same PostgreSQL singleton', async () => {

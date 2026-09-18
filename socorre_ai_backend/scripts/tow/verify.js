@@ -23,6 +23,12 @@
  * even when every test stage passed. If an earlier startup error exists, that
  * error is recorded and the teardown failure is recorded beside it.
  *
+ * Startup-failure contract (Codex round-3 P2 / thread 4048484296): a
+ * PostgreSQL startup/health failure that recorded no stage entry always gets
+ * its own `PostgreSQL environment (startup)` FAIL entry, even when an earlier
+ * offline stage failed — the summary must never hide that the environment
+ * never came up.
+ *
  * Flags:
  *   --skip-postgres   run only the offline gates (CI without Docker)
  *   --offline         alias of --skip-postgres
@@ -43,6 +49,7 @@ const path = require('path');
 
 const BACKEND_DIR = path.resolve(__dirname, '..', '..');
 const testEnv = require('./test-env');
+const { planPostgresFailureEntries } = require('./verify-stage-recording');
 
 const skipPostgres = process.argv.includes('--skip-postgres')
   || process.argv.includes('--offline')
@@ -125,29 +132,17 @@ async function main() {
       envError = error;
     }
     if (envError) {
-      // A teardown failure must always be visible and must fail the gate
-      // (Muse M4-2 / Codex thread 4048163642), even when every stage already
-      // reported PASS. An earlier startup error keeps its own stage entry; a
-      // teardown-only failure is recorded as the teardown stage.
-      const failedBefore = results.some((entry) => !entry.ok);
-      const teardownError = envError.teardownError
-        || (envError.isTeardownFailure ? envError : null);
-      const teardownOnly = Boolean(teardownError) && envError === teardownError;
-      if (!failedBefore && !teardownOnly) {
-        results.push({
-          name: 'PostgreSQL foundation gate',
-          ok: false,
-          detail: envError.message,
-          ms: 0,
-        });
-      }
-      if (teardownError) {
-        results.push({
-          name: 'teardown (docker compose down)',
-          ok: false,
-          detail: teardownError.message,
-          ms: 0,
-        });
+      // A PostgreSQL failure that recorded no stage entry (opt-in veto,
+      // startup, health wait) is ALWAYS visible, even when an unrelated offline
+      // stage already failed; a teardown failure keeps its own stage entry and
+      // is never duplicated (Codex round-3 P2 / thread 4048484296, Muse M4-2 /
+      // thread 4048163642). The decision is unit-tested in
+      // tests/unit/towVerifyStageRecording.test.js.
+      for (const entry of planPostgresFailureEntries({
+        recordedNames: results.map((recorded) => recorded.name),
+        error: envError,
+      })) {
+        results.push(entry);
       }
     }
   }

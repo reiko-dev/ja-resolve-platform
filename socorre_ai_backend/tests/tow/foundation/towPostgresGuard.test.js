@@ -9,6 +9,8 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
+const YAML = require('yaml');
 
 const guard = require('../../../scripts/tow/pg-guard');
 const postgres = require('../../helpers/tow/postgres');
@@ -116,6 +118,12 @@ describe('T00 PostgreSQL test foundation (offline mechanism)', () => {
       // Isolated network.
       expect(compose).toMatch(/networks:/);
       expect(compose).toMatch(/tow-test-net/);
+      // No globally fixed container/network names: Compose must derive them
+      // from the per-run project (Codex round-3 P1 / thread 4048484277).
+      expect(compose).not.toMatch(/^\s*container_name:/m);
+      expect(compose).not.toMatch(/^\s*name:\s*\S/m);
+      expect(compose).not.toMatch(/socorre-tow-postgres-test/);
+      expect(compose).not.toMatch(/socorre-tow-test-net/);
       // Throwaway credentials, parametrized with the SAME canonical variables
       // the guard and the Knex helper read (Codex finding C2).
       expect(compose).toMatch(/POSTGRES_USER:\s*\$\{DB_USER:-tow_test\}/);
@@ -187,6 +195,74 @@ describe('T00 PostgreSQL test foundation (offline mechanism)', () => {
       expect(pkg.scripts['verify:tow']).toBe('node scripts/tow/verify.js');
       expect(pkg.scripts['test:pg']).toBe('node scripts/tow/run-pg-gate.js');
       expect(pkg.scripts['test:pg:down']).toContain('test-env.js down');
+    });
+  });
+
+  describe('compose project isolation (Codex round-3 P1 / thread 4048484277)', () => {
+    const testEnv = require('../../../scripts/tow/test-env');
+    const COMPOSE_PROJECT_PATTERN = /^[a-z0-9][a-z0-9_-]{0,62}$/;
+
+    test('docker-compose.test.yml fixes no container_name and no network name', () => {
+      const parsed = YAML.parse(fs.readFileSync(COMPOSE_PATH, 'utf8'));
+      expect(parsed.services['tow-postgres-test']).toBeDefined();
+      // The service key stays `tow-postgres-test`: `compose ps ... tow-postgres-test`
+      // resolves the service by name.
+      expect(parsed.services['tow-postgres-test'].container_name).toBeUndefined();
+      expect(parsed.networks['tow-test-net']).toBeDefined();
+      expect(parsed.networks['tow-test-net'].name).toBeUndefined();
+      // Compose must be free to derive `<project>-tow-postgres-test-1` and
+      // `<project>_tow-test-net`.
+      expect(parsed.name).toBeUndefined();
+    });
+
+    test('resolveComposeProject honors TOW_TEST_PG_PROJECT and rejects invalid overrides', () => {
+      expect(testEnv.resolveComposeProject({ ...SAFE_ENV, TOW_TEST_PG_PROJECT: 'my-tow-run_1' }))
+        .toBe('my-tow-run_1');
+      // Empty counts as unset, like every other harness variable.
+      expect(testEnv.resolveComposeProject({ ...SAFE_ENV, TOW_TEST_PG_PROJECT: '   ' }))
+        .toMatch(/^socorre-tow-test-55432-[0-9a-f]{8}$/);
+
+      for (const invalid of [
+        'Socorre-Tow',        // uppercase
+        'has space',
+        '-leading-dash',
+        '.dot',
+        'socorre/tow',
+        'a'.repeat(64),       // longer than 63 chars
+      ]) {
+        expect(() => testEnv.resolveComposeProject({ ...SAFE_ENV, TOW_TEST_PG_PROJECT: invalid }))
+          .toThrow(/TOW_TEST_PG_PROJECT .* is not a valid Compose project name/);
+      }
+    });
+
+    test('the derived default is unique per DB_PORT and per backend directory', () => {
+      const defaultPort = testEnv.resolveComposeProject({ ...SAFE_ENV, DB_PORT: '55432' });
+      const customPort = testEnv.resolveComposeProject({ ...SAFE_ENV, DB_PORT: '55999' });
+      expect(defaultPort).toBe('socorre-tow-test-55432-'
+        + crypto.createHash('sha256').update(BACKEND_DIR).digest('hex').slice(0, 8));
+      expect(customPort).toMatch(/^socorre-tow-test-55999-[0-9a-f]{8}$/);
+      // Different ports -> different projects (two concurrent runs).
+      expect(customPort).not.toBe(defaultPort);
+      // Deterministic: same input, same project.
+      expect(testEnv.resolveComposeProject({ ...SAFE_ENV, DB_PORT: '55999' })).toBe(customPort);
+      // Guard default port when DB_PORT is absent.
+      expect(testEnv.resolveComposeProject({ TOW_POSTGRES_E2E: '1' }))
+        .toMatch(/^socorre-tow-test-55432-[0-9a-f]{8}$/);
+      for (const name of [defaultPort, customPort, testEnv.COMPOSE_PROJECT]) {
+        expect(name).toMatch(COMPOSE_PROJECT_PATTERN);
+        expect(name.length).toBeLessThanOrEqual(63);
+      }
+    });
+
+    test('the resolved project is forwarded to child processes with the target env', () => {
+      const env = { ...SAFE_ENV, DB_PORT: '55999' };
+      expect(testEnv.targetEnv(env).TOW_TEST_PG_PROJECT).toBe(testEnv.resolveComposeProject(env));
+      expect(testEnv.targetEnv(env).TOW_TEST_PG_PROJECT).toBe(
+        testEnv.resolveComposeProject({ ...SAFE_ENV, DB_PORT: '55999' })
+      );
+      // An explicit override wins and travels unchanged.
+      const override = { ...env, TOW_TEST_PG_PROJECT: 'ci-run-42' };
+      expect(testEnv.targetEnv(override).TOW_TEST_PG_PROJECT).toBe('ci-run-42');
     });
   });
 
