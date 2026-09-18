@@ -1082,6 +1082,11 @@ codex_review_correction:
     (2026-09-18T14:10:13Z) are adjudicated in `muse_findings_m3_resolution`; the
     two newest (M4-1/M4-2) are adjudicated in `muse_findings_m4_resolution`.
     Every one was replied to without resolving.
+  pass_6_replies: >-
+    The two newest threads were replied to after the pass-6 push (fast-forward
+    e17028e8..18f82998): 4048163637 -> reply 4048451412 and 4048163642 -> reply 4048451624.
+    Re-checked with `gh api graphql` (PR #30 reviewThreads): 11 threads, 11 unresolved, and
+    both threads carry the pass-6 reply as their last comment.
   newer_threads:
     - comment_id: 4047474342
       path: scripts/tow/negative-controls.sh
@@ -1756,13 +1761,18 @@ muse_findings_m4_resolution:
     - comment_id: 4048163637
       node_id: PRRT_kwDOUUETdc6jy8Z_
       decision: FIXED   # by M4-1
-      reply_posted: "pass 6 — posted after the pass-6 push; reply id recorded in the pass-6 report"
+      reply_posted: true
+      reply_comment_id: 4048451412
       resolved: false
     - comment_id: 4048163642
       node_id: PRRT_kwDOUUETdc6jy8aB
       decision: FIXED   # by M4-2
-      reply_posted: "pass 6 — posted after the pass-6 push; reply id recorded in the pass-6 report"
+      reply_posted: true
+      reply_comment_id: 4048451624
       resolved: false
+  codex_threads_verify: >-
+    gh api graphql (PR #30 reviewThreads): 11 threads, 11 unresolved; both new threads have 2
+    comments with the pass-6 reply as the last one.
 
 red_evidence:
   script: scripts/tow/red-evidence.sh
