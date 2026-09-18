@@ -6,14 +6,14 @@ issue: 11
 repository: reiko-dev/ja-resolve-platform
 branch: feature/t00-tow-test-harness
 execution_base: e1e7dd2d20d5da25df00d8106a904f14041654a1
-result_head: 17587c94e7acdd4a07bc6b4fc8f09a6c43f0e590
+result_head: b8c6ad5a44b78af833bdc5ce5caefe32871705aa
 result_head_note: >-
-  SHA of the last substantive commit of the pass-4 Codex correction series
-  (docs(t00): refresh harness evidence after the codex correction pass), whose parents are
-  d5e58796 (C6 + negative controls), 9454d26e (C4 + C5) and e8964d6d (C1..C3) on top of the
-  reviewed head 74e44590. This evidence file is committed as the following commit; the
-  reviewed commit 13ce8937 was never reset, amended or force-pushed.
-result_head_verify: "git rev-parse HEAD  # after the 5th correction commit; parent of HEAD is result_head"
+  SHA of the last substantive commit of the pass-5 Muse M3 correction series
+  (fix(t00): pin negative-control fixture and record the Muse M3 corrections), whose parent is
+  ac2e7804 (the pass-4 Codex correction tip). This evidence file is committed as the following
+  commit; the reviewed commit 13ce8937 and the pass-4 series were never reset, amended or
+  force-pushed.
+result_head_verify: "git rev-parse HEAD  # tip after the pass-5 docs commit; its parent is result_head"
 
 result: PASS
 scope_check:
@@ -63,6 +63,37 @@ commits:
   - message: "docs(t00): record Muse findings resolution in t00 work result"
     files: 1
     pass: 3
+  - message: "fix(t00): load .env.test explicitly and keep up() inside the cleanup scope"
+    sha: e8964d6d
+    files: 12
+    pass: 4
+  - message: "test(t00): prove the app answers from PostgreSQL and forward customerOverrides"
+    sha: 9454d26e
+    files: 3
+    pass: 4
+  - message: "test(t00): make the root-lock evidence diff non-empty and add harness controls"
+    sha: d5e58796
+    files: 17
+    pass: 4
+  - message: "docs(t00): refresh harness evidence after the codex correction pass"
+    sha: 17587c94
+    files: 16
+    pass: 4
+  - message: "docs(t00): record the codex review corrections in t00 work result"
+    sha: ce4e6699
+    files: 2
+    pass: 4
+  - message: "docs(t00): fix the changed-file counters in the codex correction record"
+    sha: ac2e7804
+    files: 1
+    pass: 4
+  - message: "fix(t00): pin negative-control fixture and record the Muse M3 corrections"
+    sha: b8c6ad5a
+    files: 18
+    pass: 5
+  - message: "docs(t00): record the pass-5 head and commit list"
+    files: 1
+    pass: 5
 
 files_added:
   contract_harness:
@@ -677,12 +708,13 @@ tests:
         - docs/evidence/t00/determinism-normalized-diff.txt
     pass_5_reverification:
       note: >-
-        re-run after the Muse Sparks adversarial re-review fixes (M3-1..M3-5). Pass 5 changed
-        no `src/` or test file, so the pass-4 full logs stay representative; this sweep
-        re-confirms the counters and exit codes on the corrected tree
-        (docs/evidence/t00/m3-correction-gates.txt). The negative controls were re-run from
-        the pinned pre-fix ref and the PostgreSQL gate was run live on the default port and
-        on DB_PORT=55999.
+        re-run after the Muse Sparks adversarial re-review fixes (M3-1..M3-5), with `git HEAD`
+        at ac2e7804 (the pass-4 tip) plus the uncommitted pass-5 changes; that exact tree is
+        frozen as commit b8c6ad5a. Pass 5 changed no `src/` or test file, so the pass-4 full
+        logs stay representative; this sweep re-confirms the counters and exit codes on the
+        corrected tree (docs/evidence/t00/m3-correction-gates.txt). The negative controls were
+        re-run from the pinned pre-fix ref and the PostgreSQL gate was run live on the default
+        port and on DB_PORT=55999.
       commands:
         - {command: "bash scripts/tow/negative-controls.sh", exit_code: 0, result: "8/8 controls PASS; fixture pinned to 74e44590; docker ps empty"}
         - {command: "npx jest tests/tow --runInBand", exit_code: 0, result: "2 skipped, 13 passed of 15 suites; 15 skipped, 258 passed of 273 tests"}
