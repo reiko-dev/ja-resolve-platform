@@ -1,0 +1,459 @@
+# T00 — Work Result (Tow Test Harness & Current-State Audit)
+# Every claim in this file is backed by a command whose output is captured under docs/evidence/t00/.
+task: T00
+task_title: "Tow Test Harness & Current-State Audit"
+issue: 11
+repository: reiko-dev/ja-resolve-platform
+branch: feature/t00-tow-test-harness
+execution_base: e1e7dd2d20d5da25df00d8106a904f14041654a1
+result_head: 9037101689603fc6764df60461eb281f40c06b05
+result_head_note: >-
+  SHA of the last code/docs commit (docs(t00): add tow current-state audit and legacy mapping).
+  This evidence file is committed as the following commit; use
+  `git log --oneline -4` to see the full T00 series.
+result_head_verify: "git rev-parse HEAD  # after the 4th commit; parent of HEAD is result_head"
+
+result: PASS
+scope_check:
+  t01_plus_implemented: false
+  business_behavior_changed: false
+  harness_only_fixes: true
+  protected_directories_untouched:
+    - socorre_ai_admin/
+    - socorre_ai_client/
+    - socorre_ai_partner/
+    - site-oficial/
+  mobile_clients_touched: false
+  invented_endpoints_or_dtos: 0
+  merged_or_pushed: false
+  pr_created: false
+
+commits:
+  - sha: 2de870ef
+    message: "test(t00): add tow contract and consumer smoke harness"
+    files: 10
+  - sha: 8f32f2ee
+    message: "test(t00): add postgres test foundation and factories"
+    files: 19
+  - sha: 90371016
+    message: "docs(t00): add tow current-state audit and legacy mapping"
+    files: 20
+  - message: "docs(t00): add t00 work result evidence"
+    files: 1
+
+files_added:
+  contract_harness:
+    - socorre_ai_backend/tests/helpers/towContract.js
+    - socorre_ai_backend/tests/helpers/towConsumerFlows.js
+    - socorre_ai_backend/tests/contract/openapi.structure.test.js
+    - socorre_ai_backend/tests/contract/towSettingsPatch.test.js
+    - socorre_ai_backend/tests/contract/consumerDiscovery.test.js
+    - socorre_ai_backend/tests/contract/consumerSmoke.test.js
+    - socorre_ai_backend/scripts/tow/validate-openapi.js
+    - socorre_ai_backend/scripts/tow/list-contract-operations.js
+  deterministic_foundation:
+    - socorre_ai_backend/tests/helpers/tow/index.js
+    - socorre_ai_backend/tests/helpers/tow/clock.js
+    - socorre_ai_backend/tests/helpers/tow/factories.js
+    - socorre_ai_backend/tests/helpers/tow/builders.js
+    - socorre_ai_backend/tests/helpers/tow/auth.js
+    - socorre_ai_backend/tests/helpers/tow/gateways/mapsGateway.js
+    - socorre_ai_backend/tests/helpers/tow/gateways/paymentGateway.js
+    - socorre_ai_backend/tests/helpers/tow/postgres.js
+  postgres_foundation:
+    - socorre_ai_backend/docker-compose.test.yml
+    - socorre_ai_backend/.env.test.example
+    - socorre_ai_backend/scripts/tow/pg-guard.js
+    - socorre_ai_backend/scripts/tow/test-env.js
+    - socorre_ai_backend/scripts/tow/migrate-test-db.js
+    - socorre_ai_backend/scripts/tow/run-pg-gate.js
+    - socorre_ai_backend/scripts/tow/verify.js
+    - socorre_ai_backend/scripts/tow/legacy-surface-probe.js
+    - socorre_ai_backend/tests/tow/foundation/towDeterministicFoundation.test.js
+    - socorre_ai_backend/tests/tow/foundation/towPostgresFoundation.e2e.test.js
+    - socorre_ai_backend/tests/tow/foundation/towPostgresGuard.test.js
+  evidence_and_docs:
+    - docs/tow/T00-CURRENT-STATE-AUDIT.md
+    - docs/tow/T00-LEGACY-TO-TARGET-MAPPING.md
+    - docs/tow/T00-TEST-HARNESS.md
+    - docs/evidence/t00-work-result.yaml
+    - scripts/tow/red-evidence.sh
+    - docs/evidence/t00/red-1-contract-gate-absent.txt
+    - docs/evidence/t00/red-2-openapi-validator-absent.txt
+    - docs/evidence/t00/red-3-deterministic-foundation-absent.txt
+    - docs/evidence/t00/red-4-legacy-gateway-nondeterminism.txt
+    - docs/evidence/t00/target-contract-operations.md
+    - docs/evidence/t00/legacy-surface-probe.txt
+    - docs/evidence/t00/green-openapi-validation.txt
+    - docs/evidence/t00/green-contract-suite.txt
+    - docs/evidence/t00/green-tow-focused.txt
+    - docs/evidence/t00/green-tow-focused-run2.txt
+    - docs/evidence/t00/green-full-suite.txt
+    - docs/evidence/t00/green-verify-tow-run1.txt
+    - docs/evidence/t00/green-verify-tow-run2.txt
+    - docs/evidence/t00/green-syntax-check.txt
+    - docs/evidence/t00/security-review.txt
+    - docs/evidence/t00/google-routes-audit.txt
+
+files_modified:
+  - path: socorre_ai_backend/package.json
+    change: >-
+      added devDependencies yaml@^2.9.1, ajv@^8.17.1, ajv-formats@^3.0.1 and scripts
+      test:tow, test:contract, validate:openapi, test:pg, test:pg:up|wait|down|guard,
+      verify:tow, verify:tow:offline. No existing script removed or changed.
+  - path: socorre_ai_backend/package-lock.json
+    change: "lockfile updated by the install of the three devDependencies above"
+  - path: .gitignore
+    change: "NOT modified. socorre_ai_backend/.env.test.example is ignored by .gitignore:57 (**.env.*) and was committed with an explicit `git add -f` because it is a required T00 deliverable and contains placeholders only."
+  - path: docker-compose-simple.yml
+    change: "NOT staged and NOT committed (pre-existing modification present at the execution base)."
+
+not_committed:
+  - docker-compose-simple.yml   # pre-existing modification, deliberately left out
+  - .env.bak                    # never existed / never staged
+  - node_modules                # not tracked
+
+# ---------------------------------------------------------------------------
+openapi:
+  canonical_entrypoint: docs/tow/tow-api-contract.openapi.yaml
+  base_document: docs/tow/tow-api-contract.base.openapi.yaml
+  contract_version: "1.0.0-draft.4"
+  openapi_version: "3.1.0"
+  validator: socorre_ai_backend/scripts/tow/validate-openapi.js
+  command: "npm run validate:openapi"
+  evidence: docs/evidence/t00/green-openapi-validation.txt
+  exit_code: 0
+  counters:
+    canonical_paths: 56
+    base_paths: 51
+    composed_paths: 56
+    composed_operations: 66
+    shadowed_base_paths: 10
+    ref_occurrences_checked: 490
+    external_local_file_refs: 124
+    unresolved_refs: 0
+    missing_operationId: 0
+    duplicate_operationId: 0
+    path_parameter_mismatches: 0
+    request_bodies_checked: 24
+    request_bodies_without_schema: 0
+    responses_checked: 66
+    operations_without_2xx: 0
+    twoxx_without_schema: 0
+    component_schemas_checked: 110
+    inline_schema_nodes_checked: 124
+    json_schema_definition_errors: 0
+    canonical_enum_mismatches: 0
+    forbidden_legacy_enum_values: 0
+    tow_settings_patch_errors: 0
+    result: PASS
+  negative_controls:
+    - "broken $ref must be reported (tests/contract/openapi.structure.test.js)"
+    - "duplicate operationId must be reported (tests/contract/openapi.structure.test.js)"
+    - "consumer smoke must fail when a required operation is removed (tests/contract/consumerSmoke.test.js)"
+  operation_inventory: docs/evidence/t00/target-contract-operations.md
+
+tow_settings_patch_semantics:
+  schema: TowSettingsPatch
+  shape: "type: object, additionalProperties: false, minProperties: 1, no required"
+  prohibited_form: "allOf: [TowSettings, {...}]"
+  suite: socorre_ai_backend/tests/contract/towSettingsPatch.test.js
+  tests: 15
+  result: PASS
+
+consumer_discovery_and_rehydration:
+  suite: socorre_ai_backend/tests/contract/consumerDiscovery.test.js
+  tests: 11
+  verified:
+    - "listTowRequests -> GET /api/tow/requests with [state, From, To, Page, Limit]"
+    - "listPartnerTowJobs -> GET /api/tow/partner/jobs"
+    - "TowRequestListResponse = {success, data:{items:[TowRequest], meta:PaginationMeta}}"
+    - "all 8 *ListResponse schemas present; paginated ones carry PaginationMeta"
+    - "rehydration of TowRequest requires id, state, module_key, customer_id, pickup, destination, vehicle, payment, allowed_actions, created_at, updated_at"
+  result: PASS
+
+consumer_smoke:
+  suite: socorre_ai_backend/tests/contract/consumerSmoke.test.js
+  tests: 10
+  flows: socorre_ai_backend/tests/helpers/towConsumerFlows.js
+  counters:
+    cliente:   {operations: 18, request_bodies: 8,  responses: 18}
+    parceiro:  {operations: 29, request_bodies: 10, responses: 29}
+    dashboard: {operations: 20, request_bodies: 6,  responses: 20}
+  missing_operations: 0
+  unresolved_refs: 0
+  undocumented_dto_required: 0
+  result: PASS
+
+migration_map:
+  artifact: docs/tow/T00-LEGACY-TO-TARGET-MAPPING.md
+  audit_artifact: docs/tow/T00-CURRENT-STATE-AUDIT.md
+  rows: 109   # data rows carrying a status token across sections A-F
+  sections: [A endpoints emergency-requests, B endpoints tow-proposals, C admin/settings/payments/wallet/disputes, D data model, E values/units/enums, F models/services/cross-cutting, G reusable T00 test assets, H ownership summary]
+  statuses_used: [KEEP, ADAPT, REPLACE, DEPRECATE, MISSING]
+  owning_tasks_covered: T01-T18
+  legacy_endpoints_classified: 29   # 16 emergency-requests + 13 tow-proposals
+  tow_v1_operations_covered: 66
+  contract_ambiguities_registered: 10
+  evidence: docs/evidence/t00/legacy-surface-probe.txt
+
+current_state_audit:
+  artifact: docs/tow/T00-CURRENT-STATE-AUDIT.md
+  classifications: [REUSABLE, PARTIAL, BROKEN, INCOMPATIBLE, TO_BE_REPLACED, MISSING]
+  required_coverage_confirmed:
+    route: MISSING
+    partner_status: MISSING
+    partner_location: PARTIAL
+    opportunity_dto: MISSING
+    partner_financial_summary: PARTIAL
+    admin_request_detail: PARTIAL
+    admin_dispute_detail: PARTIAL
+    admin_vehicle_document_detail: MISSING
+    payout_detail: MISSING
+  probe:
+    command: "node scripts/tow/legacy-surface-probe.js"
+    contract_operations_probed: 66
+    routed_in_legacy_app: 0
+    not_routed: 66
+    evidence: docs/evidence/t00/legacy-surface-probe.txt
+
+google_maps_routes:
+  mode: AUDIT_BOUNDARY_EVIDENCE_ONLY
+  adapter_implemented: false
+  external_calls_made: false
+  google_maps_client_in_src: none
+  evidence: docs/evidence/t00/google-routes-audit.txt
+  boundary:
+    port: RouteQuote
+    units: {distance: meters, duration: seconds}
+    fake_gateway: socorre_ai_backend/tests/helpers/tow/gateways/mapsGateway.js
+    fake_route: {distanceMeters: 8400, durationSeconds: 1320, geometry: LineString}
+    owner_of_real_adapter: T05
+
+# ---------------------------------------------------------------------------
+test_harness:
+  deterministic_foundation:
+    suite: socorre_ai_backend/tests/tow/foundation/towDeterministicFoundation.test.js
+    tests: 21
+    helpers:
+      bootstrap: tests/helpers/tow/index.js
+      factories: tests/helpers/tow/factories.js
+      builders: tests/helpers/tow/builders.js
+      auth: tests/helpers/tow/auth.js
+      clock: tests/helpers/tow/clock.js
+      fake_gateways: [tests/helpers/tow/gateways/mapsGateway.js, tests/helpers/tow/gateways/paymentGateway.js]
+    guarantees:
+      - "no external network in the Tow focused suite"
+      - "two consecutive runs produce identical counters"
+      - "monotonic module-level sequences prevent UNIQUE(user email) collisions"
+      - "fake clock default start 2026-01-15T12:00:00.000Z; does not control PostgreSQL NOW()"
+      - "gateway source scan rejects Date.now()/Math.random()/setTimeout( in src/services/gateways"
+  offline_guard_suite:
+    suite: socorre_ai_backend/tests/tow/foundation/towPostgresGuard.test.js
+    result: PASS
+    requires_docker: false
+    requires_network: false
+    asserts:
+      - "guard rules (opt-in, loopback host, _test suffix, no DATABASE_URL/PostgreSQL, non-prod user)"
+      - "compose file is postgres:14 with tmpfs and no named volume"
+      - ".env.test.example has empty placeholders for every provider key"
+      - "package.json exposes the canonical scripts"
+      - "destructive helpers refuse an unsafe environment"
+
+postgres_test_strategy:
+  engine: "PostgreSQL 14 (docker image postgres:14, already cached locally)"
+  container: socorre-tow-postgres-test
+  compose_file: socorre_ai_backend/docker-compose.test.yml
+  isolation:
+    - "tmpfs data directory, no named volume"
+    - "dedicated network socorre-tow-test-net"
+    - "destroyed after every run (down --volumes --remove-orphans)"
+  guard: socorre_ai_backend/scripts/tow/pg-guard.js
+  guard_rules:
+    - "TOW_POSTGRES_E2E === '1' (explicit opt-in)"
+    - "host is loopback"
+    - "database name ends with _test"
+    - "DATABASE_URL / PostgreSQL provider URL refused"
+    - "user is not prod/root/postgres"
+    - "refuses with UNSAFE_TEST_DATABASE and never prints the password"
+  gate_suite: socorre_ai_backend/tests/tow/foundation/towPostgresFoundation.e2e.test.js
+  gate_skipped_by_default: true
+  gate_tests: 5
+  gate_evidence:
+    command: "npm run test:pg"
+    migrations_applied: 43
+    migration_batch: 1
+    tables_in_public: 29
+    result: GREEN
+  commands:
+    up: "npm run test:pg:up"
+    wait: "npm run test:pg:wait"
+    down: "npm run test:pg:down"
+    guard: "npm run test:pg:guard"
+    gate: "npm run test:pg"
+
+time_test_strategy:
+  helper: socorre_ai_backend/tests/helpers/tow/clock.js
+  class: TowFakeClock
+  default_start: "2026-01-15T12:00:00.000Z"
+  install: "jest.useFakeTimers({doNotFake:[nextTick,queueMicrotask,setImmediate,clearImmediate,requestAnimationFrame,cancelAnimationFrame,requestIdleCallback,cancelIdleCallback,hrtime]})"
+  limitation: "does not control PostgreSQL NOW(); T07/T10 must not rely on wall-clock comparisons in DB-side expiry (registered as C-4)"
+
+tests:
+  lint_typecheck:
+    linter_configured: false
+    typescript_configured: false
+    substitute_check: "node --check on every new .js file"
+    command: "for f in <new js files>; do node --check \"$f\"; done"
+    files_checked: 25
+    failures: 0
+    evidence: docs/evidence/t00/green-syntax-check.txt
+  targeted:
+    tow_focused:
+      command: "npx jest tests/tow --runInBand"
+      run_1: {suites: "2 skipped, 11 passed, 13 total", tests: "14 skipped, 228 passed, 242 total", exit_code: 0}
+      run_2: {suites: "2 skipped, 11 passed, 13 total", tests: "14 skipped, 228 passed, 242 total", exit_code: 0}
+      deterministic: true
+      evidence: [docs/evidence/t00/green-tow-focused.txt, docs/evidence/t00/green-tow-focused-run2.txt]
+    contract:
+      command: "npm run test:contract"
+      result: {suites: 4, tests: 51, exit_code: 0}
+      evidence: docs/evidence/t00/green-contract-suite.txt
+    openapi_gate:
+      command: "npm run validate:openapi"
+      exit_code: 0
+      result: PASS
+      evidence: docs/evidence/t00/green-openapi-validation.txt
+    postgres_gate:
+      command: "TOW_POSTGRES_E2E=1 npm run test:pg"
+      result: GREEN
+      tests: 5
+      evidence: docs/evidence/t00/green-verify-tow-run1.txt
+    verify_tow:
+      command: "npm run verify:tow"
+      run_1: {stages_passed: 5, result: GREEN, exit_code: 0}
+      run_2: {stages_passed: 5, result: GREEN, exit_code: 0}
+      deterministic: true
+      evidence: [docs/evidence/t00/green-verify-tow-run1.txt, docs/evidence/t00/green-verify-tow-run2.txt]
+  regression:
+    focused_baseline:
+      command: "npx jest tests/tow --runInBand"
+      result: {suites: "2 skipped, 8 passed, 10 total", tests: "9 skipped, 195 passed, 204 total", exit_code: 0}
+      captured_at: execution_base
+    full_baseline:
+      command: "npx jest --runInBand"
+      result: {suites: "2 skipped, 35 passed, 37 total", tests: "9 skipped, 550 passed, 559 total", exit_code: 0}
+      captured_at: execution_base
+      verified_twice_identical: true
+    full_after:
+      command: "npx jest --runInBand"
+      result: {suites: "2 skipped, 42 passed, 44 total", tests: "14 skipped, 634 passed, 648 total", exit_code: 0}
+      evidence: docs/evidence/t00/green-full-suite.txt
+    delta:
+      suites_added: 7
+      tests_added: 89
+      tests_added_passing: 84
+      tests_added_skipped: 5
+      new_failures: 0
+      existing_tests_modified_or_removed: 0
+    notes: >-
+      The 5 new skipped tests are the opt-in PostgreSQL gate; they are skipped unless
+      TOW_POSTGRES_E2E=1 and are executed by `npm run test:pg` / `npm run verify:tow`.
+
+red_evidence:
+  script: scripts/tow/red-evidence.sh
+  command: "bash scripts/tow/red-evidence.sh"
+  exit_code: 0
+  method: >-
+    creates a detached worktree at the execution base e1e7dd2d, captures the failures that the
+    T00 harness fixes, and removes the worktree via trap
+  files:
+    - path: docs/evidence/t00/red-1-contract-gate-absent.txt
+      shows: "jest tests/contract -> No tests found, exit 1 at the execution base"
+    - path: docs/evidence/t00/red-2-openapi-validator-absent.txt
+      shows: "node scripts/tow/validate-openapi.js -> Cannot find module, exit 1 at the execution base"
+    - path: docs/evidence/t00/red-3-deterministic-foundation-absent.txt
+      shows: "towContract.js, towConsumerFlows.js, tests/helpers/tow, tests/contract, tests/tow/foundation, docker-compose.test.yml and .env.test.example all absent at the execution base"
+    - path: docs/evidence/t00/red-4-legacy-gateway-nondeterminism.txt
+      shows: "grep of Date.now()/Math.random()/setTimeout( in src/services/gateways/*.js"
+  verdict: "RED confirmed for a real deficiency before the harness existed; GREEN after."
+
+security_findings:
+  artifact_section: docs/tow/T00-CURRENT-STATE-AUDIT.md §9
+  evidence: docs/evidence/t00/security-review.txt
+  secret_values_reproduced: false
+  findings:
+    - id: S-1
+      severity: P0
+      type: committed_infrastructure_credentials
+      locations:
+        - "docker-compose.yml:9 POSTGRES_PASSWORD literal(len=8)"
+        - "docker-compose.yml:51 DB_PASSWORD literal(len=8)"
+        - "docker-compose.yml:53 JWT_SECRET literal(len=40)"
+        - "docker-compose-simple.yml:9 POSTGRES_PASSWORD literal(len=8)"
+        - "docker-compose-simple.yml:38,65 DB_PASSWORD literal(len=8)"
+        - "docker-compose-simple.yml:40,67 JWT_SECRET literal(len=40)"
+      note: "location, type and length only — values are not reproduced in any T00 artifact"
+      action_owner: outside T00 scope (report only)
+    - id: S-2
+      severity: medium
+      type: raw_error_message_leak
+      locations: ["socorre_ai_backend/src/controllers/emergencyRequestController.js:666-669", "socorre_ai_backend/src/controllers/emergencyRequestController.js:714-717"]
+      action_owner: T18
+    - id: S-3
+      severity: low
+      type: envelope_without_error_code
+      locations: ["socorre_ai_backend/src/app.js:154-167"]
+      action_owner: T01/T18
+    - id: S-4
+      severity: info
+      type: jwt_production_guard_verified
+      locations: ["socorre_ai_backend/src/config/jwt.js:19-28"]
+    - id: S-5
+      severity: info
+      type: no_hardcoded_provider_secrets
+    - id: S-6
+      severity: info
+      type: no_raw_gps_authorization_or_body_logging
+    - id: S-7
+      severity: info
+      type: no_express_static_exposure
+    - id: S-8
+      severity: info
+      type: uploads_authenticated_local_storage
+    - id: S-9
+      severity: info
+      type: private_key_grep_hits_are_placeholders
+    - id: S-10
+      severity: info
+      type: node_modules_in_initial_commit_not_tracked_in_HEAD
+
+known_limitations:
+  - "T00 delivers mechanism only. No Tow v1 table, endpoint, DTO, feature flag or business rule was implemented."
+  - "The legacy surface still answers 404 for all 66 Tow v1 operations (documented, not fixed)."
+  - "The fake clock cannot control PostgreSQL NOW(); DB-side expiry determinism is a T07/T10 design obligation (C-4)."
+  - "The reais-vs-cents decision (C-10) and the pricing-ownership decision (C-1) are registered as ambiguities, not resolved."
+  - "The consumer smoke validates the contract surface and generated fixtures; it does not execute client code."
+  - "PostgreSQL evidence was produced on a single local PG14 container (Colima/Docker); no CI matrix was run."
+  - "socorre_ai_backend/.env.test.example is committed with `git add -f` because .gitignore:57 ignores **/.env.*; it contains placeholders only."
+  - "legacy-surface-probe.js boots the real app with no database connection; unmatched routes 404 before any query, so no DB is required."
+
+blockers:
+  - id: B-1
+    description: "Tow v1 persistence is entirely absent; T01 must create the clean-DB baseline/reset/admin seed first."
+    owner: T01
+  - id: B-2
+    description: "C-1 pricing ownership (client-supplied legacy price vs. body-less server-calculated contract proposal) must be resolved by T07/T05."
+    owner: T07
+  - id: B-3
+    description: "C-10 reais vs. cents settings migration must be decided by T02/T05 before migrating tow_* settings keys."
+    owner: T02
+  - id: B-4
+    description: "C-4 fake clock cannot control PostgreSQL NOW(); expiry comparison design must stay deterministic on PG."
+    owner: T07
+  - id: B-5
+    description: "Envelope unification ({success,message,error:{code}}) is a prerequisite for the first Tow v1 endpoint; without it a third envelope family would ship."
+    owner: T01
+
+ambiguities_registered: 10   # C-1..C-10 in docs/tow/T00-CURRENT-STATE-AUDIT.md §7
+tech_debt_registered: 11      # docs/tow/T00-CURRENT-STATE-AUDIT.md §8
