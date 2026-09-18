@@ -1,0 +1,27 @@
+# M-4 — the legacy endpoint filters status='pending'; the target operation exposes all
+# proposal statuses, so the response set widens: Breaking? must be 'yes'.
+
+$ grep -n 'emergency/:id' docs/tow/T00-LEGACY-TO-TARGET-MAPPING.md
+49:| `GET /api/tow-proposals/emergency/:id` | `listTowRequestProposals` | ADAPT | Remove hardcoded `status='pending'` filter — the response set becomes a superset (all proposal statuses), so consumers that assumed pending-only must adapt | yes | T07 | `TowProposalController.js:46`; `TowProposal.js:53-86` |
+59:| `POST /api/tow-proposals/emergency/:id/expire` (admin) | internal job / `adminOverrideCancelTowRequest` | DEPRECATE | Not in contract | n/a | T07, T17 | `TowProposalController.js:308-314` |
+
+$ grep -n 'findByEmergency(emergency_request_id' socorre_ai_backend/src/controllers/TowProposalController.js
+46:      const proposals = await TowProposal.findByEmergency(emergency_request_id, 'pending');
+
+$ sed -n '53,56p;78,84p' socorre_ai_backend/src/models/TowProposal.js
+  static async findByEmergency(emergencyRequestId, status = null) {
+    let query = knex('tow_proposals')
+      .select(
+        'tow_proposals.*',
+    if (status) {
+      query = query.where('tow_proposals.status', status);
+    }
+
+    return await query.orderBy('tow_proposals.created_at', 'asc');
+  }
+
+
+# The 'if (status)' branch is the only filter: passing no status returns every proposal
+# of the emergency request (pending, accepted, rejected, expired, withdrawn, ...).
+# The sibling row that maps the same target operation from
+# GET /api/emergency-requests/:id/proposals already declares Breaking? = yes.

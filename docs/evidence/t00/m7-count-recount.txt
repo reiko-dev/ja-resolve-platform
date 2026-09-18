@@ -1,0 +1,37 @@
+# M-7 — recount of the audit numbers corrected in pass 3.
+
+$ grep -rn '6371' src/ | wc -l   # all occurrences
+      19
+$ grep -rln '6371' src/ | wc -l  # files
+       8
+$ grep -rn '6371 \* acos' src/ | wc -l   # SQL Haversine sites
+      15
+
+# The 4 non-SQL occurrences are JS radius constants:
+  src/models/Partner.js:15:    const earthRadiusKm = 6371;
+  src/models/DeliveryOrderModel.js:443:    const R = 6371;
+  src/models/EmergencyRequest.js:231:    const earthRadiusKm = 6371;
+  src/controllers/ProductController.js:32:    const earthRadiusKm = 6371;
+
+$ grep -rn 'static calculateDistance' src/   # JS Haversine definitions
+  src/models/Partner.js:9:  static calculateDistance(lat1, lon1, lat2, lon2) {
+  src/models/DeliveryOrderModel.js:442:  static calculateDistance(lat1, lon1, lat2, lon2) {
+  src/models/EmergencyRequest.js:223:  static calculateDistanceKm(lat1, lon1, lat2, lon2) {
+  src/controllers/ProductController.js:26:  static calculateDistance(lat1, lon1, lat2, lon2) {
+
+$ grep -rn 'calculateDistance' src/ | grep -v 'static calculateDistance'   # call sites
+  src/models/DeliveryOrderModel.js:424:    const distanceKm = this.calculateDistance(
+  src/models/EmergencyRequest.js:286:    const operationalDistanceKm = this.calculateDistanceKm(
+  src/controllers/TowProposalController.js:348:      const distance = Partner.calculateDistance(
+  src/controllers/ProductController.js:338:            const distance = Product.calculateDistance(
+  src/services/TowProposalService.js:103:    const partnerDistance = Partner.calculateDistance(
+  src/services/TowProposalService.js:364:      const distance = Partner.calculateDistance(
+
+# Tow path (tow requests/proposals/partners): 6 SQL
+#   EmergencyRequest.js:458,1023,1049; TowProposal.js:67; Partner.js:284,291
+# Tow path JS: 2 definitions (EmergencyRequest.calculateDistanceKm, Partner.calculateDistance)
+
+# Route handler counts (router.use is middleware, not a route):
+  src/routes/emergency-requests.js: handlers=16 router.use=0
+  src/routes/towProposals.js: handlers=12 router.use=1
+  src/routes/systemSettings.js: handlers=22 router.use=2

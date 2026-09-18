@@ -62,10 +62,25 @@ Nunca commite `node_modules`; o lock da raiz é o único artefato de dependênci
 - Entrada canônica: `docs/tow/tow-api-contract.openapi.yaml`.
 - Base referenciada: `docs/tow/tow-api-contract.base.openapi.yaml`.
 - Composição: itens de path inline na canônica **sobrescrevem** integralmente o
-  path item da base; os 11 operations sombreados da base não são contados duas vezes.
+  path item da base; os 10 paths sombreados (11 operations da base) não são contados
+  duas vezes. A regra é **superset + allowlist**: toda method da base sombreada precisa
+  sobreviver na composição ou estar em `SHADOWED_METHOD_ALLOWLIST` (hoje vazio, congelado).
+  `tests/contract/openapi.structure.test.js` verifica method a method e inclui um controle
+  negativo que remove um method sombreado sem allowlist e exige `ok === false`. A lista de
+  paths sombreados (`base=`, `composed=`, `dropped=`, `added=`) é impressa por
+  `npm run validate:openapi` e registrada em `docs/evidence/t00/green-openapi-validation.txt`.
 - Contadores esperados (congelados em `TOW-OPENAPI-CONSISTENCY-REVIEW.md`):
   56 paths canônicos, 51 paths na base, 56 paths compostos, 66 operations,
-  10 paths sombreados, 0 `$ref` não resolvidos, 0 `operationId` ausente/duplicado.
+  10 paths sombreados, 0 methods sombreados descartados sem allowlist, 0 `$ref` não
+  resolvidos, 0 `operationId` ausente/duplicado.
+
+O smoke de contrato de consumidor é dirigido **apenas** pelo documento OpenAPI composto:
+cada passo valida o request body contra o fixture e a resposta 2xx contra o schema tipado.
+T00 estende o fluxo Parceiro com os dois DELETEs exigidos por
+`TOW-CONSUMER-FLOW-SPEC.md` §6.2 — `deleteTowVehicle` e `deleteTowVehicleDocument` —
+levando o fluxo de 29 para **31 operations, 10 request bodies e 31 responses**
+(`docs/tow/TOW-CONSUMER-CONTRACT-SMOKE-RESULT.md` é o registro histórico da medição
+anterior, 29/9/29, e não é reescrito).
 
 O validador é implementado em `tests/helpers/towContract.js` (biblioteca) e
 exposto em `scripts/tow/validate-openapi.js` (CLI, `--json` opcional). A suíte
@@ -157,3 +172,34 @@ alterar a árvore principal).
 - Não cria tabelas Tow v1 nem migrations novas.
 - Não altera comportamento de negócio existente.
 - Não substitui PostgreSQL por SQLite para provar invariantes de banco.
+
+## 8. Definição de determinismo das evidências
+
+"Determinístico" nos artefatos de T00 tem definição explícita e verificável. Duas execuções
+do mesmo gate são determinísticas quando **todas** as condições valem:
+
+1. o **exit code** é idêntico;
+2. a linha `Test Suites:` é idêntica (suítes puladas/aprovadas/total);
+3. a linha `Tests:` é idêntica (testes pulados/aprovados/total);
+4. o **conjunto** de resultados por suíte (`PASS`/`FAIL` + caminho) é idêntico,
+   independente da ordem de impressão;
+5. em `npm run verify:tow`, os 5 estágios e o veredito final (`GREEN`/`RED`) são idênticos.
+
+Ficam **fora** da definição, por serem observáveis não-determinísticos já conhecidos:
+
+- timestamps e tamanho em bytes das linhas de access log do morgan (payloads carregam
+  ids/timestamps gerados a cada execução);
+- durações por teste/suíte e as linhas `Time:` do Jest;
+- a ordem em que o Jest imprime as linhas `PASS` (ordem de conclusão).
+
+Os logs brutos são mantidos como capturados; a comparação normalizada é um artefato
+separado, gerado por `bash scripts/tow/determinism-evidence.sh` em
+`docs/evidence/t00/determinism-normalized-diff.txt`, que extrai apenas os observáveis
+determinísticos acima e mostra diff vazio para os pares
+`green-tow-focused.txt`/`green-tow-focused-run2.txt` e
+`green-verify-tow-run1.txt`/`green-verify-tow-run2.txt`.
+
+O baseline pré-T00 (`docs/evidence/t00/baseline-focused.txt`,
+`docs/evidence/t00/baseline-full.txt`) é reproduzível por
+`bash scripts/tow/baseline-evidence.sh`, que cria um worktree descartável no commit base
+`e1e7dd2d`, roda as suítes foco e completa duas vezes cada e aplica a mesma definição.

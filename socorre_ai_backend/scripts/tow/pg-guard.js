@@ -7,10 +7,12 @@
  *
  * Rules (docs/tow/TOW-DOCKER-TEST-STRATEGY.md §9):
  *   1. `TOW_POSTGRES_E2E === '1'` — explicit opt-in, never implicit;
- *   2. host must be loopback (localhost / 127.0.0.1 / ::1);
+ *   2. host must be loopback (localhost / 127.0.0.1 / ::1); wildcard binds
+ *      (0.0.0.0 / :: / *) are refused explicitly;
  *   3. database name must end with `_test`;
  *   4. `DATABASE_URL` / `PostgreSQL` must not be set (they may point at prod);
- *   5. user must not be a privileged-sounding production user.
+ *   5. user must not contain a privileged-sounding production user hint
+ *      (case-insensitive substring: `prod`, `root`, `postgres`).
  *
  * Usage:
  *   node scripts/tow/pg-guard.js            # prints the resolved target
@@ -18,7 +20,10 @@
  */
 'use strict';
 
-const LOOPBACK_HOSTS = ['localhost', '127.0.0.1', '::1', '0.0.0.0'];
+const LOOPBACK_HOSTS = ['localhost', '127.0.0.1', '::1'];
+// Wildcard binds are explicitly refused: `0.0.0.0` / `::` listen on every
+// interface, so a "test" database reachable through them is not isolated.
+const WILDCARD_HOSTS = ['0.0.0.0', '::', '[::]', '*'];
 const FORBIDDEN_USER_HINTS = ['prod', 'root', 'postgres'];
 const TEST_DB_SUFFIX = '_test';
 
@@ -44,7 +49,10 @@ function checkTestEnvironment(env = process.env) {
   if (!target.enabled) {
     violations.push('TOW_POSTGRES_E2E is not "1": the PostgreSQL harness is opt-in only');
   }
-  if (!LOOPBACK_HOSTS.includes(String(target.host))) {
+  const host = String(target.host).trim().toLowerCase();
+  if (WILDCARD_HOSTS.includes(host)) {
+    violations.push(`DB_HOST must not be a wildcard bind address, got "${target.host}"`);
+  } else if (!LOOPBACK_HOSTS.includes(host)) {
     violations.push(`DB_HOST must be loopback for tests, got "${target.host}"`);
   }
   if (!String(target.database).endsWith(TEST_DB_SUFFIX)) {
@@ -53,7 +61,7 @@ function checkTestEnvironment(env = process.env) {
   if (target.hasConnectionUrl) {
     violations.push('DATABASE_URL/PostgreSQL must not be set for the disposable test environment');
   }
-  if (FORBIDDEN_USER_HINTS.some((hint) => String(target.user).toLowerCase() === hint)) {
+  if (FORBIDDEN_USER_HINTS.some((hint) => String(target.user).toLowerCase().includes(hint))) {
     violations.push(`DB_USER "${target.user}" looks like a privileged production user`);
   }
 
@@ -92,6 +100,7 @@ if (require.main === module) {
 
 module.exports = {
   LOOPBACK_HOSTS,
+  WILDCARD_HOSTS,
   TEST_DB_SUFFIX,
   resolveTestTarget,
   checkTestEnvironment,

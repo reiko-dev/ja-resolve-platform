@@ -76,8 +76,8 @@ a five-value `status` that collapses several Tow v1 states.
 
 | Item | Evidence | Class |
 | --- | --- | --- |
-| `/api/emergency-requests` (16 routes) | `src/app.js:135`, `src/routes/emergency-requests.js` | TO_BE_REPLACED (request lifecycle) |
-| `/api/tow-proposals` (13 routes) | `src/app.js:140`, `src/routes/towProposals.js` | TO_BE_REPLACED (proposal lifecycle) |
+| `/api/emergency-requests` (16 route handlers; 0 `router.use`) | `src/app.js:135`, `src/routes/emergency-requests.js` | TO_BE_REPLACED (request lifecycle) |
+| `/api/tow-proposals` (12 route handlers + 1 `router.use(auth)`; the "(13 routes)" figure counted the mount middleware as a route) | `src/app.js:140`, `src/routes/towProposals.js` | TO_BE_REPLACED (proposal lifecycle) |
 | Photo routes `/api/upload/emergency-requests/:id/photos` | `src/routes/upload.js:19-20` | PARTIAL (reusable upload plumbing, wrong URL/DTO) |
 | 404 catch-all `{success:false,message:'Rota não encontrada no backend da API'}` | `src/app.js:154-159` | INCOMPATIBLE (no `error.code`) |
 | Global 500 handler `{success:false,message:'Erro interno do servidor'}` | `src/app.js:162-167` | INCOMPATIBLE (no `error.code`) |
@@ -192,8 +192,8 @@ contract maps `validation_error` to 422. 409 only from `proposal_duplicate`
 | --- | --- | --- |
 | `findNearby` SQL Haversine + `whereRaw distance <= radius` + tow filters + `excludePartnerId` | `EmergencyRequest.js:450-527` | PARTIAL (reusable SQL pattern; km + no progressive radius) |
 | `findForGuinchos` / `findForMechanics` | `EmergencyRequest.js:1020-1069` | PARTIAL |
-| JS Haversine (2 independent copies) | `EmergencyRequest.js:223-246`, `Partner.js:9-30` | BROKEN (duplication; km floats) |
-| SQL Haversine copies on the tow path (6 total) | `EmergencyRequest.js:458,1023,1049`; `TowProposal.js:67`; `Partner.js:284,291` | BROKEN (duplication) |
+| JS Haversine (2 independent copies on the tow path, of 4 repo-wide) | `EmergencyRequest.js:223-246`, `Partner.js:9-30` | BROKEN (duplication; km floats) |
+| SQL Haversine copies on the tow path (6 of the 15 repo-wide `6371 * acos` sites) | `EmergencyRequest.js:458,1023,1049`; `TowProposal.js:67`; `Partner.js:284,291` | BROKEN (duplication) |
 | Default radius 15 km, per-request `search_radius_km` from settings | `EmergencyRequestService.js:17,103-122`; `EmergencyRequest.js:751,805,1085-1093` | PARTIAL (no initial/increment/max) |
 | Ordering by distance | `EmergencyRequest.js:483`, `g3NearbyCoordinates.test.js:295` | REUSABLE |
 | Exclude already-proposed partners | `EmergencyRequest.js:515-523`; `g3NearbyCoordinates.test.js:355-416` | REUSABLE |
@@ -269,16 +269,21 @@ contract maps `validation_error` to 422. 409 only from `proposal_duplicate`
 
 | Run | Command | Result |
 | --- | --- | --- |
-| Pre-T00 focused (twice, identical) | `npx jest tests/tow --runInBand` | 2 skipped, 8 passed suites; 9 skipped, 195 passed, 204 total; exit 0 |
-| Pre-T00 full (twice, identical) | `npx jest --runInBand` | 2 skipped, 35 passed suites; 9 skipped, 550 passed, 559 total; exit 0 |
-| Post-T00 focused run 1 | `npx jest tests/tow --runInBand` | 2 skipped, 11 passed suites; 14 skipped, 228 passed, 242 total; exit 0 |
-| Post-T00 focused run 2 | same | identical counters (determinism check) |
-| Post-T00 contract | `npm run test:contract` | 4 suites, 51 tests, exit 0 |
-| Post-T00 full | `npx jest --runInBand` | 2 skipped, 42 passed suites; 14 skipped, 634 passed, 648 total; exit 0 |
+| Pre-T00 focused (twice, identical) | `node <backend>/node_modules/jest/bin/jest.js --rootDir . tests/tow --runInBand` in a detached worktree @ `e1e7dd2d` | 2 skipped, 8 passed suites; 9 skipped, 195 passed, 204 total; exit 0 — `docs/evidence/t00/baseline-focused.txt` |
+| Pre-T00 full (twice, identical) | `node <backend>/node_modules/jest/bin/jest.js --rootDir . --runInBand` in a detached worktree @ `e1e7dd2d` | 2 skipped, 35 passed suites; 9 skipped, 550 passed, 559 total; exit 0 — `docs/evidence/t00/baseline-full.txt` |
+| Post-T00 focused run 1 | `npx jest tests/tow --runInBand` | 2 skipped, 11 passed suites; 14 skipped, 230 passed, 244 total; exit 0 |
+| Post-T00 focused run 2 | same | identical counters (determinism check) — `docs/evidence/t00/determinism-normalized-diff.txt` |
+| Post-T00 contract | `npm run test:contract` | 4 suites, 52 tests, exit 0 |
+| Post-T00 full | `npx jest --runInBand` | 2 skipped, 42 passed suites; 14 skipped, 637 passed, 651 total; exit 0 |
+| Post-T00 PostgreSQL gate | `TOW_POSTGRES_E2E=1 npm run test:pg` | 1 suite, 5 tests, `GREEN`, exit 0 — `docs/evidence/t00/green-postgres-gate.txt` |
 | Post-T00 gate | `npm run verify:tow` (twice) | 5/5 stages PASS, `GREEN`, identical stage results |
 
-No pre-existing test was modified, skipped or deleted. The delta is +7 suites and +89 tests
-(84 passing + 5 opt-in PostgreSQL tests skipped by default).
+No pre-existing test was modified, skipped or deleted. The delta is +7 suites and +92 tests
+(87 passing + 5 opt-in PostgreSQL tests skipped by default).
+
+The pre-T00 rows are reproducible with `bash scripts/tow/baseline-evidence.sh` (detached
+worktree at the execution base, `node_modules` symlinked, two runs per command, same
+determinism definition as §8 of `T00-TEST-HARNESS.md`).
 
 ## 4. Legacy endpoint disposition
 
@@ -286,7 +291,7 @@ Legend: **KEEP** = reuse as-is behind the new surface · **ADAPT** = reuse with 
 changes · **REPLACE** = superseded by a Tow v1 operation · **DEPRECATE** = retire after migration ·
 **MISSING** = no legacy counterpart.
 
-### `/api/emergency-requests` (16 routes)
+### `/api/emergency-requests` (16 route handlers)
 
 | Legacy route | Tow v1 target | Action |
 | --- | --- | --- |
@@ -317,7 +322,7 @@ changes · **REPLACE** = superseded by a Tow v1 operation · **DEPRECATE** = ret
 | — | `GET /tow/customer/debts`, `POST /tow/customer/debts/{id}/pay` | MISSING |
 | Photo routes (`/api/upload/emergency-requests/:id/photos`) | `POST /tow/vehicles/{id}/documents` | REPLACE (tow-vehicle-scoped, document statuses) |
 
-### `/api/tow-proposals` (13 routes)
+### `/api/tow-proposals` (12 route handlers + 1 `router.use` middleware)
 
 | Legacy route | Tow v1 target | Action |
 | --- | --- | --- |
@@ -339,7 +344,7 @@ changes · **REPLACE** = superseded by a Tow v1 operation · **DEPRECATE** = ret
 
 | Legacy | Tow v1 target | Action |
 | --- | --- | --- |
-| `/api/system-settings/*` (24 routes) | `GET|PATCH /admin/tow/settings` | ADAPT (partial patch semantics) |
+| `/api/system-settings/*` (22 route handlers + 2 `router.use` middleware; the "(24 routes)" figure counted the middleware as routes) | `GET|PATCH /admin/tow/settings` | ADAPT (partial patch semantics) |
 | — | `GET|PATCH /admin/tow/module` | MISSING |
 | — | `/admin/tow/vehicle-documents` (list/get/approve/reject) | MISSING |
 | — | `/admin/tow/disputes` (list/get/resolve) | MISSING |
@@ -420,7 +425,7 @@ Registered, not resolved. Each item names the authorities in tension and the own
 | `TowProposal.updateStatus` only served the removed `PATCH /:id/status` | `TowProposal.js:101-107`; `towProposals.test.js:551,561` | Dead code |
 | `emergencyRequestSchemas.accept` defined but never wired | `validation.js:359-362` | `POST /:id/accept` accepts unvalidated `estimated_price`/`estimated_duration` |
 | `TowProposalController.calculatePartnerDistance` unused | `TowProposalController.js:339-360` | Dead code |
-| Haversine duplication: 13 SQL `6371 * acos` sites and 5 JS `calculateDistance*` sites repo-wide, of which 6 SQL + 2 JS sit on the tow path | `docs/evidence/t00/google-routes-audit.txt`; §3.7 | Single distance source required before T05/T06 |
+| Haversine duplication: 15 SQL `6371 * acos` sites and 4 JS `calculateDistance*` definitions (6 call sites) repo-wide, of which 6 SQL + 2 JS sit on the tow path | `grep -rn '6371' src/` → 19 hits in 8 files = 15 SQL + 4 JS radius constants; §3.7 | Single distance source required before T05/T06 |
 | Envelope family sprawl (7 shapes on two prefixes) | §3.5 | Every migrated endpoint needs an envelope adapter |
 | `incrementViews` is a non-atomic raw increment | `TowProposal.js:215-222` | Minor; views are not part of Tow v1 |
 | `legacyRouteRegistry`/`legacyRoute` middleware + `/legacy-route-*` settings routes | `src/routes/systemSettings.js:53-69` | Unrelated to Tow v1; must not be touched by T01+ |

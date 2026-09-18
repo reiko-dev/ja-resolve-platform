@@ -43,6 +43,30 @@ describe('T00 PostgreSQL test foundation (offline mechanism)', () => {
         .toThrow(/non-test PostgreSQL target/);
     });
 
+    test('rejects wildcard bind hosts (0.0.0.0 / :: / *)', () => {
+      for (const host of ['0.0.0.0', '::', '[::]', '*']) {
+        const result = guard.checkTestEnvironment({ ...SAFE_ENV, DB_HOST: host });
+        expect(result.safe).toBe(false);
+        expect(result.violations.join(' ')).toMatch(/wildcard bind/);
+        expect(() => guard.assertSafeTestEnvironment({ ...SAFE_ENV, DB_HOST: host }))
+          .toThrow(/non-test PostgreSQL target/);
+      }
+      // `0.0.0.0` must not be treated as loopback by the exported allowlist.
+      expect(guard.LOOPBACK_HOSTS).not.toContain('0.0.0.0');
+    });
+
+    test('rejects a privileged user by case-insensitive substring, not exact match', () => {
+      for (const user of ['postgres_user', 'prod_admin', 'root2', 'POSTGRES', 'PrOd_ReadOnly']) {
+        const result = guard.checkTestEnvironment({ ...SAFE_ENV, DB_USER: user });
+        expect(result.safe).toBe(false);
+        expect(result.violations.join(' ')).toMatch(/privileged production user/);
+        expect(() => guard.assertSafeTestEnvironment({ ...SAFE_ENV, DB_USER: user }))
+          .toThrow(/non-test PostgreSQL target/);
+      }
+      // A legitimate disposable user still passes.
+      expect(guard.checkTestEnvironment({ ...SAFE_ENV, DB_USER: 'tow_test' }).safe).toBe(true);
+    });
+
     test('rejects a database name without the _test suffix', () => {
       const result = guard.checkTestEnvironment({ ...SAFE_ENV, DB_NAME_TEST: 'socorre_ai_db' });
       expect(result.safe).toBe(false);

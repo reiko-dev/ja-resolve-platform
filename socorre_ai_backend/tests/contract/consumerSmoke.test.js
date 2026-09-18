@@ -7,8 +7,12 @@
  *
  *   consumer   operations   request bodies   typed 2xx responses
  *   Cliente    18           8                18
- *   Parceiro   29           10               29
+ *   Parceiro   31           10               31
  *   Dashboard  20           6                20
+ *
+ * Parceiro covers 31 operations because TOW-CONSUMER-FLOW-SPEC.md §6.2 requires
+ * both DELETE capabilities (`deleteTowVehicle`, `deleteTowVehicleDocument`) in
+ * addition to list/create/update/activate/list/upload.
  *
  * Expected final counters: missing operation = 0, broken ref = 0, schema
  * generation failure = 0, invalid request smoke = 0, invalid response smoke = 0,
@@ -31,7 +35,7 @@ const {
 
 const EXPECTED = {
   cliente: { steps: 18, requestBodies: 8, responses: 18 },
-  parceiro: { steps: 29, requestBodies: 10, responses: 29 },
+  parceiro: { steps: 31, requestBodies: 10, responses: 31 },
   dashboard: { steps: 20, requestBodies: 6, responses: 20 },
 };
 

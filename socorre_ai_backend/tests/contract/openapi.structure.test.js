@@ -71,7 +71,7 @@ describe('Tow OpenAPI 3.1 — structural contract validation', () => {
     expect(report.operationIds.count).toBe(operations.length);
   });
 
-  test('shadowed base operations are not double-counted in the composition', () => {
+  test('shadowed base operations are preserved (superset/allowlist) and not double-counted', () => {
     // `/tow/requests` exists in the base (POST only) and is re-declared inline
     // by the canonical entrypoint (GET + POST). The composed document must
     // contain exactly one POST createTowRequest and one GET listTowRequests.
@@ -82,17 +82,36 @@ describe('Tow OpenAPI 3.1 — structural contract validation', () => {
     expect(listOps).toHaveLength(1);
     expect(listOps[0].method).toBe('get');
 
-    // Every canonical inline path that shadows a base path keeps the base
-    // operations that the canonical definition does not re-declare.
-    for (const pathKey of composition.stats.shadowedPaths) {
-      const baseMethods = Object.keys(documents.base.paths[pathKey])
-        .filter((key) => ['get', 'post', 'put', 'patch', 'delete'].includes(key));
-      const composedMethods = Object.keys(composition.composed.paths[pathKey])
-        .filter((key) => ['get', 'post', 'put', 'patch', 'delete'].includes(key));
-      for (const method of composedMethods) {
-        expect(baseMethods.includes(method) || composedMethods.includes(method)).toBe(true);
+    // Real superset/allowlist check (not tautological): iterate the BASE
+    // methods on every shadowed path and require each one to survive into the
+    // composed path item, unless it is explicitly allowlisted as dropped.
+    expect(composition.stats.shadowedPathDetails).toHaveLength(composition.stats.shadowedPaths.length);
+    for (const detail of composition.stats.shadowedPathDetails) {
+      const allowlist = report.shadowedMethods.allowlist[detail.path] || [];
+      for (const method of detail.baseMethods) {
+        expect(detail.composedMethods.includes(method) || allowlist.includes(method)).toBe(true);
       }
     }
+    // The frozen contract drops nothing; the allowlist is empty.
+    expect(report.shadowedMethods.dropped).toEqual([]);
+    expect(report.shadowedMethods.allowlist).toEqual({});
+  });
+
+  test('a shadowed base method dropped without allowlist is detected (negative control)', () => {
+    // `/admin/tow/settings` is shadowed by an inline canonical path item that
+    // re-declares GET + PATCH. Drop PATCH from the canonical definition to
+    // simulate a base operation silently disappearing in the composition.
+    const mutated = JSON.parse(JSON.stringify(documents));
+    const inlinePath = mutated.canonical.paths['/admin/tow/settings'];
+    expect(inlinePath.patch).toBeDefined();
+    delete inlinePath.patch;
+
+    const mutatedReport = validateContract({ documents: mutated });
+    expect(mutatedReport.shadowedMethods.dropped).toContainEqual({
+      path: '/admin/tow/settings',
+      method: 'patch',
+    });
+    expect(mutatedReport.ok).toBe(false);
   });
 
   test('path parameters are all declared and no extra path parameters exist', () => {

@@ -1,0 +1,94 @@
+# T00 determinism comparison (M-5)
+#
+# Definition — two runs of the same gate are DETERMINISTIC when:
+#   1. the exit code is identical;
+#   2. the 'Test Suites:' counter line is identical;
+#   3. the 'Tests:' counter line is identical;
+#   4. the set of suite outcomes (PASS/FAIL + suite path) is identical,
+#      independent of print order;
+#   5. for verify:tow, every stage result and the final verdict are identical.
+#
+# Explicitly outside the definition (non-deterministic observables):
+#   - morgan access-log timestamps and response byte sizes (payload fields
+#     such as generated ids/timestamps vary between runs);
+#   - jest per-test/per-suite durations and the 'Time:' lines;
+#   - the order in which jest prints PASS lines (completion order).
+#
+# The raw run logs are kept byte-for-byte; this artifact only diffs the
+# extracted fingerprint. Reproduce with:
+#   bash scripts/tow/determinism-evidence.sh
+
+===============================================================================
+## focused Tow suite — run 1 vs run 2
+===============================================================================
+# left : docs/evidence/t00/green-tow-focused.txt
+# right: docs/evidence/t00/green-tow-focused-run2.txt
+
+--- deterministic observables (normalized) ---
+PASS tests/tow/foundation/towDeterministicFoundation.test.js
+PASS tests/tow/foundation/towPostgresFoundation.e2e.test.js
+PASS tests/tow/foundation/towPostgresGuard.test.js
+PASS tests/tow/g2PhotoContract.test.js
+PASS tests/tow/g3NearbyCoordinates.test.js
+PASS tests/tow/g3TowProposals.test.js
+PASS tests/tow/socketService.tow.test.js
+PASS tests/tow/towDocumentFlow.test.js
+PASS tests/tow/towHttp.transport.test.js
+PASS tests/tow/towLifecycleController.test.js
+PASS tests/tow/towProposalIdempotency.test.js
+Test Suites: 2 skipped, 11 passed, 11 of 13 total
+Tests:       14 skipped, 230 passed, 244 total
+Snapshots:   0 total
+Ran all test suites matching /tests\/tow/i.
+
+--- normalized diff (empty means identical) ---
+(no differences)
+
+RESULT: IDENTICAL
+
+===============================================================================
+## verify:tow — run 1 vs run 2
+===============================================================================
+# left : docs/evidence/t00/green-verify-tow-run1.txt
+# right: docs/evidence/t00/green-verify-tow-run2.txt
+
+--- deterministic observables (normalized) ---
+PASS tests/contract/consumerDiscovery.test.js
+PASS tests/contract/consumerSmoke.test.js
+PASS tests/contract/openapi.structure.test.js
+PASS tests/contract/towSettingsPatch.test.js
+PASS tests/tow/foundation/towDeterministicFoundation.test.js
+PASS tests/tow/foundation/towPostgresFoundation.e2e.test.js
+PASS tests/tow/foundation/towPostgresGuard.test.js
+PASS tests/tow/g2PhotoContract.test.js
+PASS tests/tow/g3NearbyCoordinates.test.js
+PASS tests/tow/g3TowProposals.test.js
+PASS tests/tow/socketService.tow.test.js
+PASS tests/tow/towDocumentFlow.test.js
+PASS tests/tow/towHttp.transport.test.js
+PASS tests/tow/towLifecycleController.test.js
+PASS tests/tow/towProposalIdempotency.test.js
+Test Suites: 4 passed, 4 total
+Test Suites: 2 skipped, 11 passed, 11 of 13 total
+Test Suites: 1 passed, 1 total
+Tests:       52 passed, 52 total
+Tests:       14 skipped, 230 passed, 244 total
+Tests:       5 passed, 5 total
+Snapshots:   0 total
+Snapshots:   0 total
+Snapshots:   0 total
+Ran all test suites matching /tests\/contract/i.
+Ran all test suites matching /tests\/tow/i.
+Ran all test suites matching /tests\/tow\/foundation\/towPostgresFoundation.e2e.test.js/i.
+  PASS  OpenAPI 3.1 structure gate
+  PASS  contract suite (OpenAPI + patch semantics + discovery + consumer smoke)
+  PASS  focused Tow suite (offline)
+  PASS  prepare database + migrations from zero
+  PASS  PostgreSQL foundation gate
+[verify:tow] GREEN
+
+--- normalized diff (empty means identical) ---
+(no differences)
+
+RESULT: IDENTICAL
+

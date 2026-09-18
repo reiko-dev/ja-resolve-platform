@@ -43,6 +43,7 @@ function main() {
   lines.push(`  Composed paths:                   ${report.composition.composedPaths}`);
   lines.push(`  Composed operations:              ${report.operations.count}`);
   lines.push(`  Shadowed base paths:              ${report.composition.shadowedPaths.length}`);
+  lines.push(`  Unallowlisted dropped methods:    ${report.shadowedMethods.dropped.length}`);
   lines.push(`  $ref occurrences checked:         ${report.refs.checked}`);
   lines.push(`  External/local-file $refs:        ${report.refs.external}`);
   lines.push(`  Unresolved refs:                  ${report.refs.unresolved.length}`);
@@ -79,6 +80,28 @@ function main() {
   pushDetails('Canonical enum mismatches', report.enums.mismatches);
   pushDetails('Forbidden legacy enum values', report.enums.forbidden);
   pushDetails('TowSettingsPatch errors', report.settingsPatch.errors);
+
+  // Shadowed paths are printed unconditionally: a base method that disappears
+  // behind an inline canonical path item must be visible in the evidence, not
+  // only counted.
+  detail.push('\nShadowed base paths (base methods must survive composition or be allowlisted):');
+  for (const entry of report.shadowedMethods.details) {
+    detail.push(
+      `  - ${entry.path}: base=[${entry.baseMethods.join(',')}]`
+      + ` composed=[${entry.composedMethods.join(',')}]`
+      + ` dropped=[${entry.droppedMethods.join(',')}]`
+      + ` added=[${entry.addedMethods.join(',')}]`
+    );
+  }
+  detail.push(
+    `  allowlist: ${Object.keys(report.shadowedMethods.allowlist).length === 0
+      ? '(empty — the frozen contract drops no base method)'
+      : JSON.stringify(report.shadowedMethods.allowlist)}`
+  );
+  if (report.shadowedMethods.dropped.length > 0) {
+    detail.push('\nUnallowlisted dropped shadowed methods:');
+    for (const item of report.shadowedMethods.dropped) detail.push(`  - ${JSON.stringify(item)}`);
+  }
 
   process.stdout.write(`${lines.concat(detail).join('\n')}\n`);
   process.exit(report.ok ? 0 : 1);

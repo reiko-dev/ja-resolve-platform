@@ -46,7 +46,7 @@ replace or deprecate, whether the change breaks existing consumers, and where th
 | Current | Target Tow v1 | Status | Action | Breaking? | Owning task | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
 | `POST /api/tow-proposals` | `createTowProposal` `POST /tow/requests/{requestId}/proposals` | REPLACE | No request body; server-calculated price; duplicate → `conflict`/`proposal_not_actionable` | yes | T05, T07 | `TowProposalService.js:33-180`; contract op 51 |
-| `GET /api/tow-proposals/emergency/:id` | `listTowRequestProposals` | ADAPT | Remove hardcoded `status='pending'` filter | no | T07 | `TowProposalController.js:46` |
+| `GET /api/tow-proposals/emergency/:id` | `listTowRequestProposals` | ADAPT | Remove hardcoded `status='pending'` filter — the response set becomes a superset (all proposal statuses), so consumers that assumed pending-only must adapt | yes | T07 | `TowProposalController.js:46`; `TowProposal.js:53-86` |
 | `GET /api/tow-proposals/partner` | `listPartnerTowProposals` `GET /tow/partner/proposals` | ADAPT | Add `state` filter + pagination meta | yes | T07 | `TowProposalController.js:76` |
 | `GET /api/tow-proposals/:id` | embedded in `listTowRequestProposals` | REPLACE | No standalone proposal GET in the contract | yes | T07 | contract op 51 |
 | `POST /api/tow-proposals/:id/accept` | `acceptTowProposal` `POST /tow/proposals/{proposalId}/accept` | REPLACE | Returns `TowRequest`; atomic assignment; idempotency key | yes | T09 | `TowProposalController.js:120-161` |
@@ -64,7 +64,7 @@ replace or deprecate, whether the change breaks existing consumers, and where th
 
 | Current | Target Tow v1 | Status | Action | Breaking? | Owning task | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
-| `GET/POST/PUT/DELETE /api/system-settings/*` (24 routes) | `adminGetTowSettings` / `adminPatchTowSettings` | ADAPT | Keep generic store; add Tow-scoped partial patch (`TowSettingsPatch`, `minProperties:1`) | no | T02 | `src/routes/systemSettings.js:9-84`; `tests/contract/towSettingsPatch.test.js` |
+| `GET/POST/PUT/DELETE /api/system-settings/*` (22 route handlers + 2 `router.use` middleware; the "(24 routes)" figure counted the middleware as routes) | `adminGetTowSettings` / `adminPatchTowSettings` | ADAPT | Keep generic store; add Tow-scoped partial patch (`TowSettingsPatch`, `minProperties:1`) | no | T02 | `src/routes/systemSettings.js:9-84`; `tests/contract/towSettingsPatch.test.js` |
 | `GET /api/system-settings/guincho` | `adminGetTowSettings` | ADAPT | Reais strings → `*_cents` (see C-10) | yes | T02, T05 | `SystemSettingsController.js:413-429`; `migrations/040:5-43` |
 | — | `getTowModuleStatus` `GET /tow/module-status` | MISSING | Public module/flag gate for consumers | n/a | T02 | contract op 25; probe 404 |
 | — | `adminGetTowModule` / `adminToggleTowModule` | MISSING | Feature flag + `service_module_disabled` | n/a | T02 | contract ops 5, 6 |
@@ -136,7 +136,7 @@ replace or deprecate, whether the change breaks existing consumers, and where th
 | --- | --- | --- | --- | --- | --- | --- |
 | `EmergencyRequest.findNearby` (SQL Haversine, radius filter, `excludePartnerId`) | opportunity query | ADAPT | Meters, progressive radius, compatibility filters | yes | T06 | `EmergencyRequest.js:450-527` |
 | `EmergencyRequest.findForGuinchos` / `findForMechanics` | opportunity query | ADAPT | Keep as the tow branch; drop duplicate SQL | yes | T06 | `EmergencyRequest.js:1020-1069` |
-| Haversine duplication (6 SQL + 2 JS on the tow path; 13 SQL + 5 JS repo-wide) | one distance source | REPLACE | Consolidate before T05/T06 | yes | T05, T06 | `EmergencyRequest.js:223-246,458,1023,1049`; `Partner.js:9-30,284,291`; `TowProposal.js:67`; `docs/evidence/t00/google-routes-audit.txt` |
+| Haversine duplication (6 SQL + 2 JS on the tow path; 15 SQL + 4 JS repo-wide, plus 6 JS call sites) | one distance source | REPLACE | Consolidate before T05/T06 | yes | T05, T06 | `EmergencyRequest.js:223-246,458,1023,1049`; `Partner.js:9-30,284,291`; `TowProposal.js:67`; §3.7/§8 of the audit; `grep -rn '6371' src/` → 19 hits in 8 files |
 | `TowProposalService.createProposal` (trx + FOR UPDATE + duplicate translation) | proposal creation | KEEP | Reuse transaction pattern; change price ownership | no | T07 | `TowProposalService.js:16-26,128-180` |
 | `EmergencyRequest.acceptProposal` (trx + CAS + sibling rejection) | atomic assignment | ADAPT | Add assignment record + `request_already_assigned` | yes | T09 | `EmergencyRequest.js:836-915` |
 | `EmergencyRequest.start/complete/cancel` CAS updates | state transitions | ADAPT | New state machine + audit events | yes | T10, T11 | `EmergencyRequest.js:548-604` |

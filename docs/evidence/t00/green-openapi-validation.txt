@@ -13,6 +13,7 @@ Tow OpenAPI contract validation
   Composed paths:                   56
   Composed operations:              66
   Shadowed base paths:              10
+  Unallowlisted dropped methods:    0
   $ref occurrences checked:         490
   External/local-file $refs:        124
   Unresolved refs:                  0
@@ -31,3 +32,18 @@ Tow OpenAPI contract validation
   Forbidden legacy enum values:     0
   TowSettingsPatch errors:          0
   RESULT:                           PASS
+
+Shadowed base paths (base methods must survive composition or be allowlisted):
+  - /tow/requests: base=[post] composed=[get,post] dropped=[] added=[get]
+  - /tow/partner/opportunities: base=[get] composed=[get] dropped=[] added=[]
+  - /admin/tow/settings: base=[get,patch] composed=[get,patch] dropped=[] added=[]
+  - /admin/tow/vehicle-documents/{documentId}: base=[get] composed=[get] dropped=[] added=[]
+  - /admin/tow/requests/{requestId}: base=[get] composed=[get] dropped=[] added=[]
+  - /admin/tow/disputes/{disputeId}: base=[get] composed=[get] dropped=[] added=[]
+  - /admin/tow/payout-batches/preview: base=[get] composed=[get] dropped=[] added=[]
+  - /admin/tow/payout-batches: base=[post] composed=[post] dropped=[] added=[]
+  - /admin/tow/payout-batches/{batchId}: base=[get] composed=[get] dropped=[] added=[]
+  - /admin/tow/payout-batches/{batchId}/process: base=[post] composed=[post] dropped=[] added=[]
+  allowlist: (empty — the frozen contract drops no base method)
+
+# exit_code=0

@@ -1,0 +1,35 @@
+# T00 pre-T00 baseline — focused Tow suite
+# execution base: e1e7dd2d20d5da25df00d8106a904f14041654a1
+# command: node <backend>/node_modules/jest/bin/jest.js --rootDir . tests/tow --runInBand
+# cwd: socorre_ai_backend @ e1e7dd2d20d5da25df00d8106a904f14041654a1 (detached worktree, node_modules symlinked)
+# two runs are captured to make the 'captured twice, identical' claim reproducible.
+
+=== run 1 ===
+PASS tests/tow/g2PhotoContract.test.js
+PASS tests/tow/g3TowProposals.test.js
+PASS tests/tow/towHttp.transport.test.js
+PASS tests/tow/towDocumentFlow.test.js
+PASS tests/tow/towLifecycleController.test.js
+PASS tests/tow/g3NearbyCoordinates.test.js
+PASS tests/tow/towProposalIdempotency.test.js
+PASS tests/tow/socketService.tow.test.js
+Test Suites: 2 skipped, 8 passed, 8 of 10 total
+Tests:       9 skipped, 195 passed, 204 total
+Snapshots:   0 total
+exit_code=0
+
+=== run 2 ===
+PASS tests/tow/g2PhotoContract.test.js
+PASS tests/tow/towHttp.transport.test.js
+PASS tests/tow/g3TowProposals.test.js
+PASS tests/tow/g3NearbyCoordinates.test.js
+PASS tests/tow/towDocumentFlow.test.js
+PASS tests/tow/towLifecycleController.test.js
+PASS tests/tow/socketService.tow.test.js
+PASS tests/tow/towProposalIdempotency.test.js
+Test Suites: 2 skipped, 8 passed, 8 of 10 total
+Tests:       9 skipped, 195 passed, 204 total
+Snapshots:   0 total
+exit_code=0
+
+determinism: IDENTICAL (suite/test counts + suite outcome set + exit code)

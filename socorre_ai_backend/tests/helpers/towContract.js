@@ -38,6 +38,19 @@ const BASE_FILE = 'tow-api-contract.base.openapi.yaml';
 
 const HTTP_METHODS = ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'];
 
+/**
+ * Methods intentionally dropped when a canonical inline path shadows a base
+ * path. Empty for the frozen contract: every base method on a shadowed path is
+ * preserved by the canonical definition (verified by
+ * `unallowlistedDroppedShadowedMethods` / the OpenAPI structure suite).
+ *
+ * Any entry added here MUST carry a justification on the same line, otherwise
+ * the structure test fails.
+ */
+const SHADOWED_METHOD_ALLOWLIST = Object.freeze({
+  // '/tow/example/{id}': ['delete'], // justification: canonical drops DELETE because ...
+});
+
 /** Canonical enum values frozen by TOW-API-CONTRACT.md §3 / the addendum §9. */
 const CANONICAL_ENUMS = {
   TowRequestState: [
@@ -208,6 +221,7 @@ function composeDocument(documents) {
   composed.tags = deepClone(canonical.tags || base.tags);
 
   const shadowedPaths = [];
+  const shadowedPathDetails = [];
   const inheritedPaths = [];
   composed.paths = deepClone(base.paths || {});
   for (const [pathKey, pathItem] of Object.entries(canonical.paths || {})) {
@@ -220,8 +234,22 @@ function composeDocument(documents) {
         if (resolved.found) composed.paths[pathKey] = deepClone(resolved.value);
       }
     } else {
-      if (composed.paths[pathKey]) shadowedPaths.push(pathKey);
-      composed.paths[pathKey] = deepClone(pathItem);
+      const basePathItem = composed.paths[pathKey];
+      if (basePathItem) {
+        const baseMethods = HTTP_METHODS.filter((method) => basePathItem[method]);
+        shadowedPaths.push(pathKey);
+        composed.paths[pathKey] = deepClone(pathItem);
+        const composedMethods = HTTP_METHODS.filter((method) => composed.paths[pathKey][method]);
+        shadowedPathDetails.push({
+          path: pathKey,
+          baseMethods,
+          composedMethods,
+          droppedMethods: baseMethods.filter((method) => !composedMethods.includes(method)),
+          addedMethods: composedMethods.filter((method) => !baseMethods.includes(method)),
+        });
+      } else {
+        composed.paths[pathKey] = deepClone(pathItem);
+      }
     }
   }
 
@@ -265,8 +293,28 @@ function composeDocument(documents) {
       basePaths: Object.keys(base.paths || {}).length,
       composedPaths: Object.keys(composed.paths || {}).length,
       shadowedPaths,
+      shadowedPathDetails,
     },
   };
+}
+
+/**
+ * Base methods on shadowed paths that the composition drops without an explicit
+ * `SHADOWED_METHOD_ALLOWLIST` entry. Always `[]` for a healthy composition; a
+ * non-empty result means a base operation silently disappeared.
+ *
+ * @returns {Array<{path: string, method: string}>}
+ */
+function unallowlistedDroppedShadowedMethods(documents) {
+  const composition = composeDocument(documents);
+  const dropped = [];
+  for (const detail of composition.stats.shadowedPathDetails) {
+    const allowlist = SHADOWED_METHOD_ALLOWLIST[detail.path] || [];
+    for (const method of detail.droppedMethods) {
+      if (!allowlist.includes(method)) dropped.push({ path: detail.path, method });
+    }
+  }
+  return dropped;
 }
 
 function collectOperations(composed) {
@@ -796,6 +844,11 @@ function validateContract(options = {}) {
   const enums = validateEnumValues(composed);
   const settingsPatch = validateTowSettingsPatch(composed);
 
+  // A base operation silently disappearing behind a canonical inline path item
+  // is a contract defect, not a detail: the composition must preserve every
+  // base method unless it is explicitly allowlisted.
+  const droppedShadowedMethods = unallowlistedDroppedShadowedMethods(documents);
+
   const ok = refs.unresolved.length === 0
     && missingOperationIds.length === 0
     && duplicates.length === 0
@@ -806,6 +859,7 @@ function validateContract(options = {}) {
     && schemas.errors.length === 0
     && enums.mismatches.length === 0
     && enums.forbidden.length === 0
+    && droppedShadowedMethods.length === 0
     && settingsPatch.ok;
 
   return {
@@ -813,6 +867,11 @@ function validateContract(options = {}) {
     openapiVersion: composed.openapi,
     contractVersion: composed.info?.version,
     composition: composition.stats,
+    shadowedMethods: {
+      dropped: droppedShadowedMethods,
+      details: composition.stats.shadowedPathDetails,
+      allowlist: SHADOWED_METHOD_ALLOWLIST,
+    },
     operations: {
       count: operations.length,
       catalog: operations.map((op) => ({ operationId: op.operationId, method: op.method, path: op.path })),
@@ -845,6 +904,7 @@ module.exports = {
   COMPOSED_SCHEMA_ID,
   schemaUri,
   HTTP_METHODS,
+  SHADOWED_METHOD_ALLOWLIST,
   CANONICAL_ENUMS,
   CANONICAL_ERROR_CODES,
   FORBIDDEN_ENUM_VALUES,
@@ -858,6 +918,7 @@ module.exports = {
   collectRefs,
   composeDocument,
   collectOperations,
+  unallowlistedDroppedShadowedMethods,
   collectSchemaPointers,
   buildAjv,
   compileComponentSchema,

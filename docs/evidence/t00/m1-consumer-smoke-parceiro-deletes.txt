@@ -1,0 +1,35 @@
+# M-1 — Parceiro consumer smoke must exercise the two DELETEs required by
+# docs/tow/TOW-CONSUMER-FLOW-SPEC.md §6.2:
+#   DELETE /api/tow/vehicles/{vehicleId}
+#   DELETE /api/tow/vehicles/{vehicleId}/documents/{documentId}
+# command: npx jest tests/contract/consumerSmoke.test.js --runInBand
+
+PASS tests/contract/consumerSmoke.test.js
+  Tow consumer contract smoke
+    ✓ every consumer flow uses only documented operations (1 ms)
+    ✓ every consumer flow is schema-valid in both directions (1 ms)
+    ✓ cliente: 18 operations / 8 request bodies / 18 responses
+    ✓ parceiro: 31 operations / 10 request bodies / 31 responses (1 ms)
+    ✓ dashboard: 20 operations / 6 request bodies / 20 responses
+    ✓ every flow step maps to exactly one capability and one operationId (4 ms)
+    ✓ the smoke is deterministic across runs (same counters, same order) (21 ms)
+    ✓ the smoke performs no network, database or filesystem side effect (11 ms)
+    ✓ the smoke detects an undocumented consumer capability (negative control)
+    ✓ the smoke detects an invalid request fixture (negative control) (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       10 passed, 10 total
+Snapshots:   0 total
+Time:        0.613 s, estimated 1 s
+Ran all test suites matching /tests\/contract\/consumerSmoke.test.js/i.
+
+# exit_code=0
+
+===============================================================================
+# Step-level verification of the two DELETEs (composed document + flow only)
+# command: node -e '<runConsumerFlow("parceiro", PARCEIRO_FLOW)>'
+
+  {"capability":"tow_vehicle_delete","operationId":"deleteTowVehicle","method":"DELETE","path":"/tow/vehicles/{vehicleId}","requestValidated":false,"responsesValidated":1}
+  {"capability":"tow_vehicle_document_delete","operationId":"deleteTowVehicleDocument","method":"DELETE","path":"/tow/vehicles/{vehicleId}/documents/{documentId}","requestValidated":false,"responsesValidated":1}
+  parceiro totals: steps=31 requestBodies=10 responses=31
+  missingOperations=0 invalidRequests=0 invalidResponses=0 untypedSuccessResponses=0 schemaGenerationFailures=0
