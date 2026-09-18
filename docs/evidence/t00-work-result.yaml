@@ -6,13 +6,13 @@ issue: 11
 repository: reiko-dev/ja-resolve-platform
 branch: feature/t00-tow-test-harness
 execution_base: e1e7dd2d20d5da25df00d8106a904f14041654a1
-result_head: 2506064308f4ec7a210af7696f3872ba77d8dfa9
+result_head: 8246f98928401f4d1dd2cabb873ccfb0480b8db9
 result_head_note: >-
-  SHA of the pass-6 fix commit (fix(t00): bind the pg test port to loopback and fail the gate
-  on teardown failure), whose parent is e17028e8 (the pass-5 docs tip). This evidence file is
-  committed as the following commit; no earlier commit — including the reviewed 13ce8937 and
-  the pass-4/pass-5 series — was reset, amended or force-pushed.
-result_head_verify: "git rev-parse HEAD  # tip after the pass-6 docs commit; its parent is result_head"
+  SHA of the pass-7 fix commit (fix(t00): isolate the compose project, ref-source root-lock
+  evidence and record pg startup failures), whose parent is 7ed25c12 (the pass-6 docs tip).
+  This evidence file is committed as the following commit; no earlier commit — including the
+  reviewed 13ce8937 and the pass-4/pass-5/pass-6 series — was reset, amended or force-pushed.
+result_head_verify: "git rev-parse HEAD  # tip after the pass-7 docs commit; its parent is result_head"
 
 result: PASS
 scope_check:
@@ -100,6 +100,13 @@ commits:
   - message: "docs(t00): record the pass-6 codex corrections in t00 work result"
     files: 2
     pass: 6
+  - sha: 8246f98928401f4d1dd2cabb873ccfb0480b8db9
+    message: "fix(t00): isolate the compose project, ref-source root-lock evidence and record pg startup failures"
+    files: 16
+    pass: 7
+  - message: "docs(t00): record the pass-7 codex round-3 corrections in t00 work result"
+    files: 2
+    pass: 7
 
 files_added:
   contract_harness:
@@ -181,6 +188,13 @@ files_added:
     - scripts/tow/normalize-evidence.sh
     - docs/evidence/t00/m4-teardown-failure-negative-control.txt
     - docs/evidence/t00/pass6-gates.txt
+  pass_7_evidence_and_scripts:   # Codex round-3 corrections (M5-1..M5-3)
+    - socorre_ai_backend/scripts/tow/verify-stage-recording.js
+    - socorre_ai_backend/tests/unit/towVerifyStageRecording.test.js
+    - docs/evidence/t00/m5-1-compose-project-isolation.txt
+    - docs/evidence/t00/m5-2-root-lock-manifest-refs.txt
+    - docs/evidence/t00/m5-3-verify-pg-startup-failure.txt
+    - docs/evidence/t00/pass7-gates.txt
 
 files_modified:
   - path: socorre_ai_backend/package.json
@@ -394,6 +408,60 @@ files_modified:
       pass 6: thread accounting corrected to 11 threads / 0 resolved (adding 4048163637 and
       4048163642), `muse_findings_m4_resolution` added, `result_head`/commits updated, and the
       stale wildcard `0.0.0.0:55999` quotes replaced.
+  # --- pass 7: Codex round-3 fixes (M5-1..M5-3) ---
+  - path: socorre_ai_backend/docker-compose.test.yml
+    change: >-
+      M5-1 (thread 4048484277): removed the fixed `container_name: socorre-tow-postgres-test`
+      and the network `name: socorre-tow-test-net`; Compose now derives both from the per-run
+      project. The service key stays `tow-postgres-test`.
+  - path: socorre_ai_backend/scripts/tow/test-env.js
+    change: >-
+      M5-1: `resolveComposeProject(env)` replaces the fixed project constant —
+      `TOW_TEST_PG_PROJECT` (validated `^[a-z0-9][a-z0-9_-]{0,62}$`) or the derived
+      `socorre-tow-test-<DB_PORT>-<sha256(BACKEND_DIR)[0:8]>`; `compose()`, `down()` and
+      `targetEnv()` all resolve and forward the same name.
+  - path: socorre_ai_backend/scripts/tow/verify.js
+    change: >-
+      M5-3 (thread 4048484296): the synthetic PG-failure entry decision is delegated to
+      `planPostgresFailureEntries`, so a startup failure with no recorded PG stage always adds
+      `PostgreSQL environment (startup)` even when an earlier offline stage failed.
+  - path: scripts/tow/root-lock-evidence.sh
+    change: >-
+      M5-2 (thread 4048484284): `MANIFEST_PATHS` (root + both workspace package.json +
+      package-lock.json) must exist at both refs (fail fast), all four staged files come from
+      `git show <ref>:<path>`, and a dirty worktree only warns — naming every differing path.
+  - path: socorre_ai_backend/tests/tow/foundation/towPostgresGuard.test.js
+    change: >-
+      M5-1: rejects any `container_name:`/network `name:` in the compose file and adds the
+      `compose project isolation` describe (valid/invalid overrides, per-port defaults,
+      `targetEnv` forwarding).
+  - path: socorre_ai_backend/tests/tow/foundation/towPostgresFoundation.e2e.test.js
+    change: >-
+      M5-1: renders `docker compose config` with `testEnv.resolveComposeProject()` and asserts
+      the derived network name, an undefined `container_name` and the loopback port.
+  - path: docs/tow/T00-TEST-HARNESS.md
+    change: >-
+      pass 7: §4 documents the Compose project isolation contract (derived name, validated
+      override, no fixed container/network names, service-key lookup).
+  - path: docs/evidence/t00/green-postgres-gate.txt
+    change: >-
+      pass 7: re-recorded with the derived project `socorre-tow-test-55432-cb0d0933`
+      (`...-tow-postgres-test-1` / `..._tow-test-net`, 6/6 GREEN, EXIT=0, normalized).
+  - path: docs/evidence/t00/green-postgres-gate-custom-port.txt
+    change: >-
+      pass 7: re-recorded with the derived project `socorre-tow-test-55999-cb0d0933`
+      (6/6 GREEN, EXIT=0, normalized).
+  - path: docs/evidence/t00/root-lock-sync-red.txt
+    change: >-
+      pass 7 (M5-2): re-recorded from the committed refs; the header now names the manifest
+      provenance (`<ref>:{...} (committed)`). npm timing/temp-log-path lines differ as usual.
+  - path: docs/evidence/t00/root-lock-sync-green.txt
+    change: "pass 7 (M5-2): re-recorded; header now names the committed manifests."
+  - path: docs/evidence/t00-work-result.yaml
+    change: >-
+      pass 7: thread accounting extended to 14 threads / 0 resolved (adding 4048484277,
+      4048484284, 4048484296), `codex_round3_resolution` added, `result_head`/commits updated,
+      and the stale M3-2 limitation bullet refreshed.
 
 not_committed:
   - docker-compose-simple.yml   # pre-existing modification, deliberately left out
@@ -1062,31 +1130,38 @@ codex_review_correction:
   # counts below separate the GitHub resolution state from the in-T00
   # adjudication. Pass 6 added the two newer Codex threads 4048163637 (M4-1) and
   # 4048163642 (M4-2) opened after the pass-5 push.
-  threads_on_pr: 11                   # 6 original (C1..C6) + 5 newer P2 threads
+  threads_on_pr: 14                   # 6 original (C1..C6) + 8 newer P1/P2 threads
   threads_original: 6
-  threads_newer: 5
-  github_replies_posted: 11           # one objective reply per thread; no thread was resolved
+  threads_newer: 8
+  github_replies_posted: 14           # one objective reply per thread; no thread was resolved
   github_threads_resolved: 0
-  github_threads_unresolved: 11       # all eleven threads stay open by decision
-  findings_posted: 11
-  findings_adjudicated: 11
+  github_threads_unresolved: 14       # all fourteen threads stay open by decision
+  findings_posted: 14
+  findings_adjudicated: 14
   adjudication:
-    fixed: 9                          # C1..C6 + M3-1 + M4-1 + M4-2
+    fixed: 12                         # C1..C6 + M3-1 + M4-1 + M4-2 + M5-1 + M5-2 + M5-3
     fixed_doc: 1                      # M3-4
     accepted_as_t00_limitation: 1     # M3-5
     dismissed: 0
   p2_findings_dismissed: 0
   newer_threads_note: >-
-    Five P2 review threads opened by Codex on PR #30 after the pass-4 correction,
-    all still isResolved:false at the time of the pass-6 push. The first three
-    (2026-09-18T14:10:13Z) are adjudicated in `muse_findings_m3_resolution`; the
-    two newest (M4-1/M4-2) are adjudicated in `muse_findings_m4_resolution`.
-    Every one was replied to without resolving.
+    Eight P1/P2 review threads opened by Codex on PR #30 after the pass-4 correction,
+    all still isResolved:false. The first three (2026-09-18T14:10:13Z) are adjudicated
+    in `muse_findings_m3_resolution`; the next two (M4-1/M4-2) in
+    `muse_findings_m4_resolution`; the three newest (M5-1/M5-2/M5-3, opened after the
+    pass-6 push) in `codex_round3_resolution`. Every one was replied to without
+    resolving.
   pass_6_replies: >-
-    The two newest threads were replied to after the pass-6 push (fast-forward
+    The two M4 threads were replied to after the pass-6 push (fast-forward
     e17028e8..18f82998): 4048163637 -> reply 4048451412 and 4048163642 -> reply 4048451624.
     Re-checked with `gh api graphql` (PR #30 reviewThreads): 11 threads, 11 unresolved, and
     both threads carry the pass-6 reply as their last comment.
+  pass_7_replies: >-
+    The three round-3 threads were replied to after the pass-7 fix push (fast-forward
+    7ed25c12..8246f989): 4048484277 -> reply 4048610243, 4048484284 -> reply 4048610402 and
+    4048484296 -> reply 4048610600. Re-checked with `gh api graphql` (PR #30 reviewThreads):
+    14 threads, 14 unresolved, and each round-3 thread carries the pass-7 reply as its last
+    comment.
   newer_threads:
     - comment_id: 4047474342
       path: scripts/tow/negative-controls.sh
@@ -1772,7 +1847,175 @@ muse_findings_m4_resolution:
       resolved: false
   codex_threads_verify: >-
     gh api graphql (PR #30 reviewThreads): 11 threads, 11 unresolved; both new threads have 2
-    comments with the pass-6 reply as the last one.
+    comments with the pass-6 reply as the last one. (Pass-6 snapshot; superseded by
+    `codex_round3_resolution.codex_threads_verify`.)
+
+# ---------------------------------------------------------------------------
+# Pass 7 — Codex round-3 review of PR #30 (after the pass-6 push):
+# adjudication of threads 4048484277 (P1), 4048484284 (P2) and 4048484296 (P2).
+# All three are FIXED in 8246f989; no Tow business behavior changed and no T01+
+# work was started. Every thread was replied to and left unresolved.
+# ---------------------------------------------------------------------------
+codex_round3_resolution:
+  pass: 7
+  trigger: >-
+    Codex round-3 adversarial review of PR #30 opened three threads after the pass-6 push:
+    4048484277 (P1, fixed container/network names made concurrent harness runs destroy each
+    other's resources), 4048484284 (P2, root-lock evidence mixed worktree manifests with ref
+    locks) and 4048484296 (P2, a PostgreSQL startup failure could be missing from the
+    verify:tow stage list). M5-1..M5-3 below mirror that numbering.
+  fix_commit: 8246f989
+  findings:
+    - id: M5-1
+      priority: P1
+      codex_thread: 4048484277
+      path: socorre_ai_backend/scripts/tow/test-env.js
+      title: "fixed compose project names let concurrent runs destroy each other's resources"
+      decision: FIXED
+      root_cause: >-
+        docker-compose.test.yml pinned `container_name: socorre-tow-postgres-test` and
+        `networks.tow-test-net.name: socorre-tow-test-net`, and test-env.js pinned
+        `COMPOSE_PROJECT = 'socorre-tow-test'`. Two runs with different DB_PORT values (or two
+        checkouts on the same port) therefore resolved to the same container/network name:
+        `docker compose up` reused or recreated the other run's container and `down --volumes`
+        destroyed it — including its tmpfs volume — while the other gate was still running.
+      fix: >-
+        `resolveComposeProject(env)` is now the single source of the project name.
+        `TOW_TEST_PG_PROJECT` (non-empty, trimmed) overrides it and is validated against
+        `^[a-z0-9][a-z0-9_-]{0,62}$`; an invalid value throws
+        `TOW_TEST_PG_PROJECT "<x>" is not a valid Compose project name (must match ...)` before
+        any Docker call. The default is
+        `socorre-tow-test-${resolveTestTarget(env).port}-${sha256(BACKEND_DIR).slice(0,8)}`,
+        so it is unique per port AND per checkout. `compose()` passes `-p <project>`,
+        `teardownCommand()`/`down()` resolve the same name from `targetEnv()` (DB_PORT
+        included) and `targetEnv()` forwards it to child processes. docker-compose.test.yml
+        fixes no container_name and no network name, so Compose derives
+        `<project>-tow-postgres-test-1` and `<project>_tow-test-net`; the service key stays
+        `tow-postgres-test` for `compose ps`.
+      files:
+        - socorre_ai_backend/scripts/tow/test-env.js
+        - socorre_ai_backend/docker-compose.test.yml
+        - socorre_ai_backend/tests/tow/foundation/towPostgresGuard.test.js
+        - socorre_ai_backend/tests/tow/foundation/towPostgresFoundation.e2e.test.js
+        - docs/tow/T00-TEST-HARNESS.md
+      command: >-
+        npx jest tests/tow/foundation/towPostgresGuard.test.js --runInBand;
+        npx jest tests/tow/foundation/towPostgresFoundation.e2e.test.js --runInBand;
+        TOW_POSTGRES_E2E=1 npm run test:pg; DB_PORT=55999 TOW_POSTGRES_E2E=1 npm run test:pg
+      observed_result: >-
+        Offline 24/24 guard tests pass, including the new `compose project isolation` describe
+        (valid/invalid overrides, per-port + per-directory defaults, targetEnv forwarding) and
+        the compose-file assertions that reject any `container_name:`/network `name:`. Live:
+        6/6 tests pass on both ports with the derived projects
+        `socorre-tow-test-55432-cb0d0933` and `socorre-tow-test-55999-cb0d0933`; the rendered
+        configs carry no container_name, network `<project>_tow-test-net` and host_ip
+        127.0.0.1; the compose up/down logs show
+        `socorre-tow-test-55432-cb0d0933-tow-postgres-test-1` etc. No tow container, network or
+        volume remains after the runs.
+      evidence:
+        - docs/evidence/t00/m5-1-compose-project-isolation.txt
+        - docs/evidence/t00/green-postgres-gate.txt
+        - docs/evidence/t00/green-postgres-gate-custom-port.txt
+        - docs/evidence/t00/pass7-gates.txt
+    - id: M5-2
+      priority: P2
+      codex_thread: 4048484284
+      path: scripts/tow/root-lock-evidence.sh
+      title: "root-lock evidence mixed working-tree manifests with committed ref locks"
+      decision: FIXED
+      root_cause: >-
+        The script copied the three manifests from the WORKING TREE but the RED/GREEN locks
+        from `$PREFIX_REF`/`$CURRENT_REF`. With a dirty manifest or a `TOW_LOCK_CURRENT_REF`
+        different from the worktree HEAD the recorded result described neither revision, and
+        the dirty-state warning covered only package-lock.json. The `cat-file` guard checked
+        only package-lock.json, so a ref missing a manifest failed later with a raw git error.
+      fix: >-
+        `MANIFEST_PATHS` now lists all four files (root package.json, both workspace
+        package.json files and package-lock.json). Both refs must contain every path — the
+        script fails fast with `FATAL: <ref>:<path> not found` (exit 1) before writing
+        evidence. All four staged files come from `git show <ref>:<path>`: manifests and the
+        GREEN lock from `$CURRENT_REF`, the RED lock from `$PREFIX_REF`. A worktree that
+        differs from `$CURRENT_REF` for any of the four paths only prints
+        `WARNING: working tree differs from <ref> for: ...` and
+        `WARNING: evidence uses the committed refs, not the working tree`; the recorded
+        evidence is unaffected.
+      files:
+        - scripts/tow/root-lock-evidence.sh
+        - docs/evidence/t00/root-lock-sync-red.txt
+        - docs/evidence/t00/root-lock-sync-green.txt
+      command: >-
+        bash scripts/tow/root-lock-evidence.sh;
+        (dirty throwaway worktree) bash scripts/tow/root-lock-evidence.sh;
+        TOW_LOCK_CURRENT_REF=$(git hash-object -t tree /dev/null) bash scripts/tow/root-lock-evidence.sh
+      observed_result: >-
+        Clean run: exit 0, `root-lock refs: 0c5de7ed (pre-fix) -> HEAD (post-fix)`, RED exit 1 /
+        GREEN exit 0 and a non-empty ref-to-ref delta; both artifacts re-recorded with the
+        committed-manifest provenance in their headers. Dirty-worktree probe: the two warnings
+        print and the committed-ref evidence is still produced (exit 0). Missing-path probe:
+        `FATAL: 4b825dc...:package.json not found`, exit 1, no artifact written.
+      evidence:
+        - docs/evidence/t00/m5-2-root-lock-manifest-refs.txt
+        - docs/evidence/t00/root-lock-sync-red.txt
+        - docs/evidence/t00/root-lock-sync-green.txt
+    - id: M5-3
+      priority: P2
+      codex_thread: 4048484296
+      path: socorre_ai_backend/scripts/tow/verify.js
+      title: "a PostgreSQL startup failure could be absent from the verify:tow stage list"
+      decision: FIXED
+      root_cause: >-
+        verify.js added its synthetic `PostgreSQL foundation gate` failure entry only when
+        `results.some((entry) => !entry.ok)` (the `failedBefore` predicate). When every offline
+        stage passed and the PostgreSQL environment itself failed to start (dead daemon,
+        unhealthy container), the summary listed the startup failure but no stage entry
+        describing it — the same gap for a startup failure combined with a teardown failure.
+      fix: >-
+        The decision is extracted to `planPostgresFailureEntries({recordedNames, error})` in
+        scripts/tow/verify-stage-recording.js. It returns a
+        `PostgreSQL environment (startup)` FAIL entry whenever no PostgreSQL stage was
+        recorded, plus the `teardown (docker compose down)` entry when the error carries a
+        teardown failure; a recorded PostgreSQL stage is never duplicated. verify.js delegates
+        to it and the `failedBefore` predicate is gone.
+      files:
+        - socorre_ai_backend/scripts/tow/verify.js
+        - socorre_ai_backend/scripts/tow/verify-stage-recording.js   # NEW
+        - socorre_ai_backend/tests/unit/towVerifyStageRecording.test.js   # NEW
+      command: >-
+        npx jest tests/unit/towVerifyStageRecording.test.js --runInBand;
+        DOCKER_HOST=unix:///tmp/t00-dead.sock npm run verify:tow; npm run verify:tow
+      observed_result: >-
+        Offline: 7/7 unit tests pass, including "earlier offline failure + PG startup failure =>
+        both entries", "PG stage already recorded => no duplicate", "startup + teardown => both"
+        and the source assertion that verify.js delegates and has no `failedBefore`. Live with
+        a dead daemon: the four offline stages PASS, then
+        `FAIL PostgreSQL environment (startup)` and `FAIL teardown (docker compose down)`,
+        `[verify:tow] RED (2 failing stage(s))`, exit 1. Live on the real daemon: GREEN, all
+        five stages, exit 0.
+      evidence:
+        - docs/evidence/t00/m5-3-verify-pg-startup-failure.txt
+        - docs/evidence/t00/pass7-gates.txt
+  codex_threads:
+    - comment_id: 4048484277
+      node_id: PRRT_kwDOUUETdc6jzvlV
+      decision: FIXED   # by M5-1
+      reply_posted: true
+      reply_comment_id: 4048610243
+      resolved: false
+    - comment_id: 4048484284
+      node_id: PRRT_kwDOUUETdc6jzvlb
+      decision: FIXED   # by M5-2
+      reply_posted: true
+      reply_comment_id: 4048610402
+      resolved: false
+    - comment_id: 4048484296
+      node_id: PRRT_kwDOUUETdc6jzvlk
+      decision: FIXED   # by M5-3
+      reply_posted: true
+      reply_comment_id: 4048610600
+      resolved: false
+  codex_threads_verify: >-
+    gh api graphql (PR #30 reviewThreads): 14 threads, 14 unresolved; each round-3 thread has 2
+    comments with the pass-7 reply as the last one.
 
 red_evidence:
   script: scripts/tow/red-evidence.sh
@@ -1929,7 +2172,7 @@ known_limitations:
   - "M4-2: a teardown failure now fails the gate on purpose. A run whose tests all passed but whose `docker compose down` failed exits non-zero and prints a `teardown (docker compose down)` FAIL stage; this is a deliberate fail-closed behavior, not a flaky gate."
   - "M3-4: `scripts/tow/root-lock-evidence.sh` defaults to `TOW_LOCK_PREFIX_REF=0c5de7ed`, an ancestor of this branch but not of a squashed main-only history. A fresh clone containing only the merged history cannot resolve it and the script aborts in its `cat-file` check; in that scenario override `TOW_LOCK_PREFIX_REF`/`TOW_LOCK_CURRENT_REF` or vendor the pre-fix blob. On the branch/PR refs the evidence is reproducible (pass-5 re-run exit 0)."
   - "M3-5: `socorre_ai_backend/tests/helpers/tow/factories.js` inserts through the SQLite test DB (`tests/helpers/testDb.js`, `:memory:`) while the opt-in Express app connects to PostgreSQL. T00 exercises no PG business behavior (the PG gate uses raw Knex and no Tow v1 route), so this is accepted as a T00 limitation; T01+ must inject/accept the active adapter or add PG-backed factory implementations before PG route tests rely on the factories."
-  - "M3-2: all nine PR #30 review threads remain `isResolved:false` by decision. The work-result records the in-T00 adjudication (7 fixed, 1 fixed-doc, 1 accepted limitation, 0 dismissed), not a GitHub resolution and not an approval; no re-review was performed inside T00."
+  - "M3-2 (refreshed in passes 6 and 7): all fourteen PR #30 review threads remain `isResolved:false` by decision. The work-result records the in-T00 adjudication (12 fixed, 1 fixed-doc, 1 accepted limitation, 0 dismissed), not a GitHub resolution and not an approval; no re-review was performed inside T00."
 
 blockers:
   - id: B-1
