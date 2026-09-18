@@ -135,4 +135,3 @@ Rota não encontrada: DELETE /api/tow/vehicles/1/documents/1
 Probed operations: 66
 Not routed in the legacy app (404 "Rota não encontrada"): 66
 Routed in the legacy app: 0
-

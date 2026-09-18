@@ -6,13 +6,26 @@ issue: 11
 repository: reiko-dev/ja-resolve-platform
 branch: feature/t00-tow-test-harness
 execution_base: e1e7dd2d20d5da25df00d8106a904f14041654a1
-result_head: 8246f98928401f4d1dd2cabb873ccfb0480b8db9
-result_head_note: >-
-  SHA of the pass-7 fix commit (fix(t00): isolate the compose project, ref-source root-lock
-  evidence and record pg startup failures), whose parent is 7ed25c12 (the pass-6 docs tip).
-  This evidence file is committed as the following commit; no earlier commit — including the
-  reviewed 13ce8937 and the pass-4/pass-5/pass-6 series — was reset, amended or force-pushed.
-result_head_verify: "git rev-parse HEAD  # tip after the pass-7 docs commit; its parent is result_head"
+correction_base: fdecddb8697fab4393c3a111e6d24606e418d900
+correction_base_note: >-
+  Tip of the branch at the dispatch of the final Muse correction round (the pass-7 docs
+  commit), in sync with origin/feature/t00-tow-test-harness and with a clean working tree.
+implementation_head: aa320783726d6965d5e7d49dba785a77a1e1add1
+implementation_head_note: >-
+  SHA of the pass-8 functional correction commit (fix(t00): close final Muse review
+  findings). It carries every functional change of this round: the docker-compose-simple
+  revert (P1-1), the third-file $ref hardening (P2-1), the SQL identifier hardening (P2-2),
+  the TowSettingsPatch assertion fix (P2-3) and the evidence normalization (P3).
+implementation_head_verify: "git rev-parse HEAD  # after the pass-8 functional commit"
+receipt_head_strategy: >-
+  The receipt commit follows the implementation head and touches evidence/metadata only
+  (this file plus two captured evidence logs whose trailing blank line at EOF was removed).
+  `receipt_head` is `git rev-parse HEAD` taken after that commit; it is deliberately NOT
+  written into this file, because a file cannot contain the SHA of the commit that contains
+  it. Read it from the PR head instead.
+previous_result_head: 8246f98928401f4d1dd2cabb873ccfb0480b8db9   # pass-7 certified head, superseded but still reachable
+history_rewrite_performed: false   # no reset, no rebase, no amend, no force-push in this round
+force_push_performed: false
 
 result: PASS
 scope_check:
@@ -26,10 +39,16 @@ scope_check:
     - site-oficial/
   mobile_clients_touched: false
   invented_endpoints_or_dtos: 0
+  production_src_changed: false        # `git diff --name-only e1e7dd2d...HEAD -- socorre_ai_backend/src` is empty
+  production_database_changed: false   # `git diff --name-only e1e7dd2d...HEAD -- socorre_ai_backend/database` is empty
+  docs_tow_contract_unchanged: true    # `git diff --name-only e1e7dd2d...HEAD -- 'docs/tow/*.openapi.yaml'` is empty: the frozen contract is untouched
+  docs_tow_docs_changed_this_round: 0  # `git diff --name-only fdecddb8...HEAD -- docs/tow` is empty (the 3 changed docs vs the execution base are T00's own deliverables)
   merged_or_pushed: true      # pass 4: the correction commits are pushed to PR #30
   merged: false               # PR #30 stays open for review; T00 is not merged
   pushed_to_pr: 30
   pr_created: false
+  pr_body_updated: true       # pass 8 / P1-2: body carries the final heads, counters and B-6 OPEN
+  github_review_threads_resolved: 0   # §22: threads are left for the next targeted Muse re-review
 
 commits:
   - sha: 2de870ef
@@ -107,6 +126,21 @@ commits:
   - message: "docs(t00): record the pass-7 codex round-3 corrections in t00 work result"
     files: 2
     pass: 7
+  - sha: aa320783726d6965d5e7d49dba785a77a1e1add1
+    message: "fix(t00): close final Muse review findings"
+    files: 15
+    pass: 8
+    scope: >-
+      P1-1 docker-compose-simple revert, P2-1 third-file $ref hardening + its new suite,
+      P2-2 SQL identifier hardening + its tests, P2-3 assertion fix, P3 evidence
+      normalization (7 logs) and root-lock evidence refresh.
+  - message: "docs(t00): certify final Muse correction pass"
+    files: 3
+    pass: 8
+    note: >-
+      receipt commit: this file plus docs/evidence/t00/final-confirmation-sweep.txt and
+      docs/evidence/t00/legacy-surface-probe.txt (trailing blank line at EOF removed,
+      formatting only). Its SHA is the PR `receipt_head`.
 
 files_added:
   contract_harness:
@@ -195,6 +229,9 @@ files_added:
     - docs/evidence/t00/m5-2-root-lock-manifest-refs.txt
     - docs/evidence/t00/m5-3-verify-pg-startup-failure.txt
     - docs/evidence/t00/pass7-gates.txt
+  pass_8_evidence_and_scripts:   # final Muse correction round (P2-1)
+    - socorre_ai_backend/tests/contract/towRefResolution.test.js
+    - docs/evidence/t00/flake-g3-proposals-parse-error.txt
 
 files_modified:
   - path: socorre_ai_backend/package.json
@@ -308,7 +345,11 @@ files_modified:
   - path: docs/evidence/t00/green-syntax-check.txt
     change: "pass 3: re-checked all 25 T00-added .js files (checked=25 failures=0)."
   - path: docker-compose-simple.yml
-    change: "NOT staged and NOT committed (pre-existing modification present at the execution base)."
+    change: >-
+      pass 1-7: an out-of-scope modification was carried here (and an earlier revision of this
+      file wrongly described it as a pre-existing modification that was never committed).
+      pass 8 (P1-1): reverted — the file now has NO diff against the execution base. See
+      `unrelated_change_correction` above.
   # --- pass 5: Muse Sparks adversarial re-review fixes (M3-1..M3-5) ---
   - path: scripts/tow/negative-controls.sh
     change: >-
@@ -462,10 +503,105 @@ files_modified:
       pass 7: thread accounting extended to 14 threads / 0 resolved (adding 4048484277,
       4048484284, 4048484296), `codex_round3_resolution` added, `result_head`/commits updated,
       and the stale M3-2 limitation bullet refreshed.
+  # --- pass 8: final Muse correction round (P1-1, P1-2, P2-1..P2-3, P3-1) ---
+  - path: socorre_ai_backend/tests/helpers/towContract.js
+    change: >-
+      P2-1: `loadTargetDocument()` replaces the fail-open
+      `targetFile === BASE_FILE ? docs.base : docs.canonical` alias; remote refs, paths that
+      leave docs/tow, missing/unparseable files and absent pointers now fail closed with an
+      explicit reason.
+  - path: socorre_ai_backend/tests/helpers/tow/postgres.js
+    change: >-
+      P2-2: new exported `quoteIdentifier()` (doubles embedded `"`, refuses non-string/empty)
+      used by `truncateAll` and `countRows`, so an interpolated table name can never open a
+      second SQL statement.
+  - path: socorre_ai_backend/tests/contract/towSettingsPatch.test.js
+    change: >-
+      P2-3: the tautological `not.toContain('tow_max_radius_km' && undefined)` assertion is
+      replaced by `toContain('tow_max_radius_km')` plus the full required-vs-properties equality.
+  - path: socorre_ai_backend/tests/tow/foundation/towPostgresGuard.test.js
+    change: >-
+      P2-2 tests: new `SQL identifier hardening` describe (5 tests) with a quote-aware SQL
+      splitter, injected-name negative control, TypeError cases, captured SQL for both helpers
+      and a source scan proving the old interpolation shape is gone. The PG e2e file itself is
+      untouched, so the gate counter stays 6/6.
+  - path: docs/evidence/t00/env-test-present-tow-focused.txt
+    change: "P3-1: trailing whitespace removed by scripts/tow/normalize-evidence.sh (line count and content unchanged)."
+  - path: docs/evidence/t00/env-test-present-verify-tow.txt
+    change: "P3-1: trailing whitespace removed by scripts/tow/normalize-evidence.sh (line count and content unchanged)."
+  - path: docs/evidence/t00/final-confirmation-sweep.txt
+    change: "P3-1: trailing whitespace removed, then the trailing blank line at EOF dropped (formatting only)."
+  - path: docs/evidence/t00/green-verify-tow-run1.txt
+    change: "P3-1: trailing whitespace removed by scripts/tow/normalize-evidence.sh (line count and content unchanged)."
+  - path: docs/evidence/t00/green-verify-tow-run2.txt
+    change: "P3-1: trailing whitespace removed by scripts/tow/normalize-evidence.sh (line count and content unchanged)."
+  - path: docs/evidence/t00/negative-controls/nc-c4-container-down.txt
+    change: "P3-1: trailing whitespace removed by scripts/tow/normalize-evidence.sh (line count and content unchanged)."
+  - path: docs/evidence/t00/negative-controls/nc-c4-container-up.txt
+    change: "P3-1: trailing whitespace removed by scripts/tow/normalize-evidence.sh (line count and content unchanged)."
+  - path: docs/evidence/t00/legacy-surface-probe.txt
+    change: "P3-1: trailing blank line at EOF dropped (formatting only; the probe output itself is unchanged)."
+  - path: docs/evidence/t00/root-lock-sync-red.txt
+    change: "pass 8: re-recorded from the committed refs (only the npm timing differs)."
+  - path: docs/evidence/t00/root-lock-sync-green.txt
+    change: "pass 8: re-recorded from the committed refs (only the npm timing differs)."
+  - path: docs/evidence/t00/green-contract-suite.txt
+    change: "pass 8: re-captured on the corrected tree — 5 suites, 62 tests, EXIT=0 (was 4 suites / 52 tests)."
+  - path: docs/evidence/t00/green-tow-focused.txt
+    change: "pass 8: re-captured — 2 skipped / 13 passed of 15 suites, 15 skipped / 272 passed of 287 tests, EXIT=0."
+  - path: docs/evidence/t00/green-tow-focused-run2.txt
+    change: "pass 8: re-captured — identical counters to run 1, so the determinism pair stays valid."
+  - path: docs/evidence/t00/green-full-suite.txt
+    change: "pass 8: re-captured — 2 skipped / 46 passed of 48 suites, 15 skipped / 696 passed of 711 tests, EXIT=0."
+  - path: docs/evidence/t00/green-verify-tow-run1.txt
+    change: "pass 8: re-captured — 5/5 stages PASS, GREEN, PostgreSQL gate 6/6, EXIT=0 (trailing whitespace normalized)."
+  - path: docs/evidence/t00/green-verify-tow-run2.txt
+    change: "pass 8: re-captured — identical stage results and counters to run 1 (trailing whitespace normalized)."
+  - path: docs/evidence/t00/determinism-normalized-diff.txt
+    change: "pass 8: regenerated from the re-captured focused pair and the pass-7 verify:tow pair; still RESULT: IDENTICAL for both pairs."
+  - path: docs/evidence/t00-work-result.yaml
+    change: >-
+      pass 8: head block rewritten (execution_base / correction_base / implementation_head /
+      receipt_head_strategy), the false `not_committed` claim replaced by
+      `unrelated_change_correction`, `final_muse_review_correction` added, test counters
+      refreshed (5 suites / 62 contract tests; 272 focused; 696 full), and B-6 / T18
+      limitations restated.
+
+# ---------------------------------------------------------------------------
+# P1-1 — out-of-scope compose change. The reviewed HEAD (13ce8937 series) carried a
+# change to docker-compose-simple.yml that this task does not own, and an earlier
+# revision of THIS file wrongly described that change as "pre-existing" and "never
+# committed". Both statements were false. The change is reverted in the final round
+# and the false receipt is replaced by the record below.
+# ---------------------------------------------------------------------------
+unrelated_change_correction:
+  file: docker-compose-simple.yml
+  introduced_by: 74e44590
+  introduced_change: >-
+    `- SERVICE_PHOTO_STORAGE_DIR=/var/lib/service_photo_data` and
+    `- service_photo_data:/var/lib/service_photo_data` added to the
+    `backend_legacy_off` service only (old lines ~68 and ~71).
+  not_the_same_as: >-
+    the equivalent two lines on the `backend` service (lines ~41 and ~44) predate
+    execution_base e1e7dd2d and were NOT touched by this correction.
+  disposition: REVERTED_IN_FINAL_T00_CORRECTION
+  correction_commit: aa320783726d6965d5e7d49dba785a77a1e1add1
+  final_diff_vs_execution_base: none
+  verified_by:
+    - command: "git diff e1e7dd2d...HEAD -- docker-compose-simple.yml"
+      exit_code: 0
+      output: "(empty)"
+    - command: "docker compose -f docker-compose-simple.yml config"
+      exit_code: 0
+  commit_reachability: >-
+    74e44590 is NOT reset, rebased or amended. It stays reachable on the branch because
+    the negative-control fixture is pinned to it via TOW_NC_PREFIX_REF=74e44590.
+  false_receipt_removed: >-
+    the previous `not_committed: [docker-compose-simple.yml  # pre-existing modification,
+    deliberately left out]` entry was inaccurate and has been deleted from this file.
 
 not_committed:
-  - docker-compose-simple.yml   # pre-existing modification, deliberately left out
-  - socorre_ai_backend/.env.bak # untracked, ignored, contains key material — NOT read into any artifact and NOT deleted (rotation is an external action, B-6)
+  - socorre_ai_backend/.env.bak # untracked, git-ignored (.gitignore:57 `**/.env.*`), contains key material — NOT read into any artifact and NOT deleted (rotation is an external action, B-6)
   - node_modules                # not tracked
 
 # ---------------------------------------------------------------------------
@@ -553,7 +689,36 @@ openapi:
     - "duplicate operationId must be reported (tests/contract/openapi.structure.test.js)"
     - "consumer smoke must fail when a required operation is removed (tests/contract/consumerSmoke.test.js)"
     - "a shadowed base method dropped without allowlist must be detected (tests/contract/openapi.structure.test.js, pass 3 / M-3)"
+    - "missing operationId must be reported — canonical AND base (pass 8 probe, mutation-verified)"
+    - "an untyped 2xx response must be reported (pass 8 probe, mutation-verified)"
+    - "a remote (http/https) $ref must be refused (pass 8 probe + tests/contract/towRefResolution.test.js)"
+    - "a third-file $ref whose pointer collides with a canonical/base schema name must resolve in the THIRD file, not alias to the canonical one (pass 8 probe + tests/contract/towRefResolution.test.js)"
   operation_inventory: docs/evidence/t00/target-contract-operations.md
+  ref_resolution_hardening:   # pass 8 / Muse final review P2-1
+    file: socorre_ai_backend/tests/helpers/towContract.js
+    defect: >-
+      resolveRef() picked its document with
+      `targetFile === BASE_FILE ? docs.base : docs.canonical`, so any $ref pointing at a
+      THIRD file was silently resolved against the canonical document. A pointer whose name
+      collided with a canonical schema therefore returned the canonical schema instead of
+      the referenced one (fail-open alias).
+    fix: >-
+      loadTargetDocument(targetFile, docs) — the two in-memory documents win for their own
+      filenames; every other file is read from DOCS_TOW_DIR. resolveRef now rejects remote
+      refs (`remote_ref_not_allowed`), rejects any path with a separator after stripping the
+      leading `./` (`ref_path_outside_docs_tow`), and returns `target_file_missing`,
+      `target_file_unreadable` or `pointer_not_found` when the target is not resolvable.
+    suite: socorre_ai_backend/tests/contract/towRefResolution.test.js
+    tests: 10
+    result: PASS
+    negative_control: >-
+      reintroducing the old aliasing expression turns 5 of the 10 tests RED (cases 1, 2, 3,
+      7, 8); file restored byte-identically afterwards
+      (sha256 74b813a4f22b13077df7f19acfc51b5f6bd70c7c4007a34d6849b57ae8ba409f).
+    real_contract_unaffected: >-
+      the same suite asserts the real contract still validates with report.ok === true and
+      refs.unresolved === [], and that the in-memory base document still wins for its own
+      filename. No file under docs/tow/ was modified.
 
 tow_settings_patch_semantics:
   schema: TowSettingsPatch
@@ -562,6 +727,21 @@ tow_settings_patch_semantics:
   suite: socorre_ai_backend/tests/contract/towSettingsPatch.test.js
   tests: 15
   result: PASS
+  required_invariant_assertion:   # pass 8 / Muse final review P2-3
+    defect: >-
+      one assertion was tautological — `expect(full.required).not.toContain('tow_max_radius_km'
+      && undefined)` evaluates `('tow_max_radius_km' && undefined)` to `undefined`, so it
+      asserted only that `required` does not contain the string "undefined". It could never
+      fail for the property it named.
+    fix: >-
+      replaced by `expect(full.required).toContain('tow_max_radius_km')` plus
+      `expect([...full.required].sort()).toEqual(Object.keys(full.properties).sort())`, i.e.
+      every declared property is individually required in the frozen full TowSettings schema.
+    negative_control: >-
+      removing `tow_max_radius_km, ` from TowSettings.required in the base contract turns
+      exactly that test RED and nothing else; the base document was restored byte-identically
+      (sha256 08633110f05479af3dd31dcec3b5aa79b2106d1ab59c34d5942a5e339e8fc6ee) and
+      `git status --short docs/tow/` is clean.
 
 consumer_discovery_and_rehydration:
   suite: socorre_ai_backend/tests/contract/consumerDiscovery.test.js
@@ -756,15 +936,15 @@ tests:
   targeted:
     tow_focused:
       command: "npx jest tests/tow --runInBand"
-      run_1: {suites: "2 skipped, 11 passed, 13 total", tests: "14 skipped, 230 passed, 244 total", exit_code: 0}
-      run_2: {suites: "2 skipped, 11 passed, 13 total", tests: "14 skipped, 230 passed, 244 total", exit_code: 0}
+      run_1: {suites: "2 skipped, 13 passed, 15 total", tests: "15 skipped, 272 passed, 287 total", exit_code: 0}
+      run_2: {suites: "2 skipped, 13 passed, 15 total", tests: "15 skipped, 272 passed, 287 total", exit_code: 0}
       deterministic: true
       determinism_definition: "docs/tow/T00-TEST-HARNESS.md §8 (identical exit code + counters + suite outcome set)"
       determinism_evidence: docs/evidence/t00/determinism-normalized-diff.txt
       evidence: [docs/evidence/t00/green-tow-focused.txt, docs/evidence/t00/green-tow-focused-run2.txt]
     contract:
       command: "npm run test:contract"
-      result: {suites: 4, tests: 52, exit_code: 0}
+      result: {suites: 5, tests: 62, exit_code: 0}   # pass 8: +towRefResolution.test.js (10 tests)
       evidence: docs/evidence/t00/green-contract-suite.txt
     openapi_gate:
       command: "npm run validate:openapi"
@@ -809,7 +989,7 @@ tests:
       evidence: docs/evidence/t00/baseline-full.txt
     full_after:
       command: "npx jest --runInBand"
-      result: {suites: "2 skipped, 42 passed, 44 total", tests: "14 skipped, 637 passed, 651 total", exit_code: 0}
+      result: {suites: "2 skipped, 46 passed, 48 total", tests: "15 skipped, 696 passed, 711 total", exit_code: 0}
       evidence: docs/evidence/t00/green-full-suite.txt
     pass_2_reverification:
       note: >-
@@ -885,6 +1065,55 @@ tests:
     notes: >-
       The 5 new skipped tests are the opt-in PostgreSQL gate; they are skipped unless
       TOW_POSTGRES_E2E=1 and are executed by `npm run test:pg` / `npm run verify:tow`.
+    pass_8_reverification:   # final Muse correction round
+      note: >-
+        every gate was re-run on the corrected working tree before the pass-8 functional
+        commit (implementation_head aa320783). The PostgreSQL gate is still exactly 6/6 on
+        both ports: no test was added to towPostgresFoundation.e2e.test.js, because the
+        gate counts the tests in that single file.
+      commands:
+        - {command: "npx jest tests/contract/towSettingsPatch.test.js", exit_code: 0, result: "1 suite, 15 tests passed"}
+        - {command: "npx jest tests/contract/towRefResolution.test.js", exit_code: 0, result: "1 suite, 10 tests passed"}
+        - {command: "npx jest tests/tow/foundation/towPostgresGuard.test.js", exit_code: 0, result: "1 suite, 29 tests passed"}
+        - {command: "npx jest tests/tow/foundation/towPostgresFoundation.e2e.test.js", exit_code: 0, result: "1 suite, 6 skipped (offline)"}
+        - {command: "npx jest tests/unit/towVerifyStageRecording.test.js", exit_code: 0, result: "1 suite, passed"}
+        - {command: "npm run validate:openapi", exit_code: 0, result: "PASS, all counters unchanged"}
+        - {command: "npm run test:contract", exit_code: 0, result: "5 suites, 62 tests passed"}
+        - {command: "npx jest tests/tow --runInBand", exit_code: 0, result: "2 skipped, 13 passed of 15 suites; 15 skipped, 272 passed of 287 tests"}
+        - {command: "TOW_POSTGRES_E2E=1 npm run test:pg", exit_code: 0, result: "1 suite, 6 tests, GREEN (default port 55432); container and network destroyed"}
+        - {command: "DB_PORT=55999 TOW_POSTGRES_E2E=1 npm run test:pg", exit_code: 0, result: "1 suite, 6 tests, GREEN; container published 55999; container and network destroyed"}
+        - {command: "npm run verify:tow", exit_code: 0, result: "5/5 stages PASS, GREEN"}
+        - {command: "npx jest --runInBand", exit_code: 0, result: "2 skipped, 46 passed of 48 suites; 15 skipped, 696 passed of 711 tests"}
+        - {command: "bash scripts/tow/root-lock-evidence.sh", exit_code: 0, result: "RED=exit 1, GREEN=exit 0, non-empty ref-to-ref delta"}
+        - {command: "bash scripts/tow/determinism-evidence.sh", exit_code: 0, result: "DETERMINISM CONFIRMED — identical in every pair"}
+        - {command: "docker compose -f docker-compose-simple.yml config", exit_code: 0, result: "compose file valid"}
+        - {command: "docker ps -a | grep -i tow  (plus network/volume equivalents)", exit_code: 1, result: "no tow container, network or volume left behind"}
+      delta_vs_pass_7:
+        suites_added: 2       # towRefResolution.test.js (contract) + the M2-2 describe block is inside an existing suite
+        tests_added: 15       # 10 (towRefResolution) + 5 (SQL identifier hardening)
+        tests_added_passing: 15
+        tests_added_skipped: 0
+        tests_modified: 1     # the tautological assertion in towSettingsPatch.test.js
+        tests_removed: 0
+        new_failures: 0
+      evidence:
+        - docs/evidence/t00/green-contract-suite.txt
+        - docs/evidence/t00/green-tow-focused.txt
+        - docs/evidence/t00/green-tow-focused-run2.txt
+        - docs/evidence/t00/green-full-suite.txt
+        - docs/evidence/t00/green-verify-tow-run1.txt
+        - docs/evidence/t00/green-verify-tow-run2.txt
+        - docs/evidence/t00/root-lock-sync-red.txt
+        - docs/evidence/t00/root-lock-sync-green.txt
+        - docs/evidence/t00/determinism-normalized-diff.txt
+      evidence_note: >-
+        green-contract-suite.txt, green-tow-focused{,-run2}.txt, green-verify-tow-run{1,2}.txt
+        and green-full-suite.txt were re-captured on the corrected tree so that the counters in
+        `tests.targeted` / `tests.regression` above are backed by the artifacts they point at.
+        Both focused runs and both verify:tow runs are green with identical counters (focused
+        272 passed / 15 skipped; verify 5/5 stages with the PostgreSQL gate at 6/6), so both
+        determinism pairs stay valid. The two flaky focused attempts are preserved separately
+        as docs/evidence/t00/flake-g3-proposals-parse-error.txt and are NOT used as evidence.
 
 # ---------------------------------------------------------------------------
 # Muse Sparks 1.3 Free review — adjudication of findings M-1..M-7 (pass 3).
@@ -2017,6 +2246,100 @@ codex_round3_resolution:
     gh api graphql (PR #30 reviewThreads): 14 threads, 14 unresolved; each round-3 thread has 2
     comments with the pass-7 reply as the last one.
 
+# ---------------------------------------------------------------------------
+# Final Muse review (pass 8) — adjudication of the FINAL correction round.
+# Verdict was CHANGES_REQUIRED with P0 in-branch = 0, P1 = 2, P2 = 3, P3 = 2 and the
+# external security blocker B-6 OPEN. The review was delivered outside the PR review
+# threads, so no thread was created, replied to or resolved for it (§22).
+# ---------------------------------------------------------------------------
+final_muse_review_correction:
+  review: "Muse final re-review of PR #30"
+  verdict: CHANGES_REQUIRED
+  review_source: outside the PR review threads (no GitHub thread exists for it)
+  github_threads_touched: 0
+  github_threads_resolved: 0
+  production_src_changed: false
+  business_rules_changed: false
+  t01_plus_implemented: false
+  in_branch_findings:
+    p0: 0
+    p1: 2
+    p2: 3
+    p3: 2
+  adjudication:
+    - id: P1-1
+      severity: P1
+      title: "out-of-scope docker-compose-simple.yml change plus a false receipt for it"
+      decision: FIXED
+      fix: >-
+        reverted the two backend_legacy_off lines added by 74e44590 and replaced the false
+        `not_committed` claim with the `unrelated_change_correction` record above
+      verified_by: ["git diff e1e7dd2d...HEAD -- docker-compose-simple.yml  # empty", "docker compose -f docker-compose-simple.yml config  # exit 0"]
+    - id: P1-2
+      severity: P1
+      title: "PR #30 body carried stale heads, counters and an out-of-date result claim"
+      decision: FIXED
+      fix: >-
+        PR #30 body rewritten: Execution Base / Implementation Head / Receipt Head, 66/18/31/20
+        operation counters, PostgreSQL 6/6 on both ports, P0 in-branch 0, B-6 OPEN, T01+ none.
+        The stale `Result HEAD: 13ce8937` and the superseded 230/637 counters are gone.
+      verified_by: ["gh pr view 30 --json body"]
+    - id: P2-1
+      severity: P2
+      title: "third-file $ref silently aliased to the canonical document (fail-open)"
+      decision: FIXED
+      fix: "loadTargetDocument() + fail-closed reasons in socorre_ai_backend/tests/helpers/towContract.js"
+      tests: socorre_ai_backend/tests/contract/towRefResolution.test.js (10 tests)
+      negative_control: "old aliasing expression reintroduced -> 5/10 tests RED, then restored byte-identically"
+    - id: P2-2
+      severity: P2
+      title: "SQL identifiers interpolated without quoting in the PostgreSQL test helper"
+      decision: FIXED
+      fix: "quoteIdentifier() doubles embedded double quotes and refuses non-string/empty input"
+      tests: "5 tests in the `SQL identifier hardening` describe of tests/tow/foundation/towPostgresGuard.test.js"
+      negative_control: "bare \"${value}\" restored -> 4 tests RED, then restored byte-identically"
+    - id: P2-3
+      severity: P2
+      title: "tautological assertion on the frozen TowSettings.required list"
+      decision: FIXED
+      fix: "asserts tow_max_radius_km is required and that required === Object.keys(properties)"
+      negative_control: "property removed from the base contract -> exactly that test RED, then restored byte-identically"
+    - id: P3-1
+      severity: P3
+      title: "trailing whitespace inside the captured evidence logs"
+      decision: FIXED
+      fix: >-
+        scripts/tow/normalize-evidence.sh applied to 7 logs (whitespace only; line counts and
+        content unchanged); two further logs had a trailing blank line at EOF removed
+      verified_by: ["git diff --check e1e7dd2d...HEAD"]
+    - id: P3-2
+      severity: P3
+      title: "schema satisfiability is not real consumer semantic E2E coverage"
+      decision: DEFERRED
+      deferred_to: T18
+      implemented_in_t00: false
+      rationale: >-
+        T00 owns the harness and the frozen contract surface only. Building real consumer
+        semantic end-to-end coverage requires T01+ endpoints and is registered as a limitation,
+        not silently claimed as covered.
+    - id: B-6
+      severity: external_security_blocker
+      title: "committed Firebase service-account key still reachable from origin/main"
+      decision: NOT_ACTIONED_IN_T00
+      t00_code_fix_required: false
+      status: OPEN
+      operational_actions_performed: 0
+      note: >-
+        no key revocation or rotation, no production secret change, no .env.bak deletion, no
+        history rewrite, no filter-repo and no force-push were performed. B-6 remains owned by
+        operations, outside T00.
+    - id: S-12
+      severity: P1
+      title: "PCI-unsafe payment payload logging"
+      decision: UNCHANGED
+      owner: T13/T14/T18
+      note: "no production code was changed for S-12 in this round."
+
 red_evidence:
   script: scripts/tow/red-evidence.sh
   command: "bash scripts/tow/red-evidence.sh"
@@ -2056,6 +2379,12 @@ security_findings:
   evidence: docs/evidence/t00/security-review.txt
   secret_values_reproduced: false
   review_scope: "socorre_ai_backend/ current tree AND git history (history scan added in pass 2)"
+  pass_8_statement: >-
+    the final Muse correction round performed NO operational security action. S-11 / B-6 is
+    still OPEN and is the only reason the PR is not described as fully clean: the historical
+    Firebase key is still live, `.env.bak` still exists, and no history rewrite was attempted.
+    `t00_code_fix_required: false` — the remaining work is an operations decision, not a T00
+    code change.
   pass_2_correction: >-
     pass 1 reviewed only the working tree, wrongly cleared S-9 for history, missed the
     current-tree payment logging and over-classified dev placeholders as P0. All four are
@@ -2165,14 +2494,18 @@ known_limitations:
   - "The Muse Sparks 1.3 Free findings M-1..M-7 are all adjudicated FIXED in pass 3 with per-finding commands and artifacts (see `muse_findings_resolution`). `verdict: REQUEST_CHANGES` is the original review verdict; no re-review was performed inside T00, so this file records resolution evidence, not an approval."
   - "The Codex review on PR #30 (C1..C6) is adjudicated FIXED in pass 4 with per-finding commands, regression tests and eight negative controls (see `codex_review_correction`). No finding was dismissed; no re-review was performed inside this pass, so this file records correction evidence, not an approval."
   - "`socorre_ai_backend/.env.test` remains optional and git-ignored: the tracked baseline runs with the file absent, which is why 15 focused Tow tests (the opt-in PostgreSQL suites) are skipped in the committed logs. With a real `.env.test` present the guard applies 14 values, `verify:tow` stays green and the PG e2e suite executes (263 passed / 9 skipped) — see docs/evidence/t00/env-test-present-*.txt."
-  - "One pre-existing intermittent failure of tests/tow/towDocumentFlow.test.js (403 on an admin approval + two `socket hang up`) was observed once in six offline focused-Tow runs and did not reproduce in the five subsequent runs; the raw log is kept as docs/evidence/t00/flake-tow-document-flow-403.txt. The suite uses its own in-memory SQLite mock and no file changed by this pass is on its code path."
+  - "Pre-existing intermittent HTTP-layer flake in the legacy Tow suites, observed twice in the T00 lifetime and unrelated to any T00 change. (a) tests/tow/towDocumentFlow.test.js: a 403 on an admin approval plus two `socket hang up`, seen once in six offline focused-Tow runs and not reproduced in the five following runs (docs/evidence/t00/flake-tow-document-flow-403.txt). (b) tests/tow/g3TowProposals.test.js: `POST /api/emergency-requests/:id/cancel › parceiro atribuído recebe 403 e nada muda` failed with supertest `Parse Error: Expected HTTP/, RTSP/ or ICE/` in two back-to-back focused runs while the server log shows the correct `403 43` response, i.e. the assertion client failed to parse a valid response (docs/evidence/t00/flake-g3-proposals-parse-error.txt). The suite then passed 3/3 in isolation and the focused sweep returned GREEN on the next attempt, so the committed pair docs/evidence/t00/green-tow-focused{,-run2}.txt is green; the counter in this file always refers to the committed green capture, never to a flaky run. No file changed by any T00 pass is on either suite's code path (both use the in-memory SQLite mock)."
   - "M3-1: the negative controls take their pre-fix fixture from the pinned ref `TOW_NC_PREFIX_REF=74e44590`, never from HEAD. On a clone that does not contain that commit the script fails fast with a FATAL guard instead of silently running the fixed code (both negative cases captured in docs/evidence/t00/negative-controls/fixture-guard.txt); set `TOW_NC_PREFIX_REF` to any reachable pre-fix revision to reproduce."
   - "M3-3: live PostgreSQL evidence exists for the default port 55432 and the non-default port 55999 only. Every other port is covered by the offline config/guard/Knex/compose agreement assertions, not by a live container; no per-port live claim is made."
   - "M4-1: the disposable PostgreSQL container is published on IPv4 loopback only (127.0.0.1). IPv6 loopback ([::1]) is intentionally not mapped because the short-syntax bind is not portable across Docker/Compose versions and would need a second mapping; callers must use 127.0.0.1 (the guard and the harness already do)."
   - "M4-2: a teardown failure now fails the gate on purpose. A run whose tests all passed but whose `docker compose down` failed exits non-zero and prints a `teardown (docker compose down)` FAIL stage; this is a deliberate fail-closed behavior, not a flaky gate."
   - "M3-4: `scripts/tow/root-lock-evidence.sh` defaults to `TOW_LOCK_PREFIX_REF=0c5de7ed`, an ancestor of this branch but not of a squashed main-only history. A fresh clone containing only the merged history cannot resolve it and the script aborts in its `cat-file` check; in that scenario override `TOW_LOCK_PREFIX_REF`/`TOW_LOCK_CURRENT_REF` or vendor the pre-fix blob. On the branch/PR refs the evidence is reproducible (pass-5 re-run exit 0)."
   - "M3-5: `socorre_ai_backend/tests/helpers/tow/factories.js` inserts through the SQLite test DB (`tests/helpers/testDb.js`, `:memory:`) while the opt-in Express app connects to PostgreSQL. T00 exercises no PG business behavior (the PG gate uses raw Knex and no Tow v1 route), so this is accepted as a T00 limitation; T01+ must inject/accept the active adapter or add PG-backed factory implementations before PG route tests rely on the factories."
-  - "M3-2 (refreshed in passes 6 and 7): all fourteen PR #30 review threads remain `isResolved:false` by decision. The work-result records the in-T00 adjudication (12 fixed, 1 fixed-doc, 1 accepted limitation, 0 dismissed), not a GitHub resolution and not an approval; no re-review was performed inside T00."
+  - "M3-2 (refreshed in passes 6, 7 and 8): all fourteen PR #30 review threads remain `isResolved:false` by decision. The work-result records the in-T00 adjudication (12 fixed, 1 fixed-doc, 1 accepted limitation, 0 dismissed), not a GitHub resolution and not an approval; no re-review was performed inside T00. The final Muse review of pass 8 was delivered OUTSIDE the threads, so it created, replied to and resolved zero threads."
+  - "P3-2 / T18: schema satisfiability is NOT real consumer semantic end-to-end coverage. The contract suites prove that every consumer operation resolves, that the required DTO fields exist and that generated fixtures satisfy the frozen schemas; they do not execute client code or assert real business semantics. Real semantic E2E belongs to T18 and was deliberately NOT implemented in T00."
+  - "Evidence normalization (pass 8 / P3-1): `scripts/tow/normalize-evidence.sh` (trailing whitespace only) was applied to 7 captured logs and a trailing blank line at EOF was removed from 2 more. Line counts and content are otherwise unchanged; `determinism-normalized-diff.txt` is left byte-exact as the generator emits it (its last byte is a blank line), so `git diff --check e1e7dd2d...HEAD` reports exactly one remaining `new blank line at EOF` notice for that machine-generated artifact."
+  - "`docker-compose-simple.yml` carries no T00 change at all: `git diff e1e7dd2d...HEAD -- docker-compose-simple.yml` is empty after the P1-1 revert. The two SERVICE_PHOTO_STORAGE_DIR / service_photo_data lines still present on the `backend` service are pre-existing (they predate the execution base) and are intentionally left untouched."
+  - "`npm run test:pg` runs exactly ONE suite (tests/tow/foundation/towPostgresFoundation.e2e.test.js) with 6 tests. No test was added to that file in this round, precisely so the gate counter stays 6/6 and remains comparable across passes."
 
 blockers:
   - id: B-1
@@ -2190,13 +2523,20 @@ blockers:
   - id: B-5
     description: "Envelope unification ({success,message,error:{code}}) is a prerequisite for the first Tow v1 endpoint; without it a third envelope family would ship."
     owner: T01
-  - id: B-6   # added in pass 2
+  - id: B-6   # added in pass 2; re-confirmed OPEN in pass 8
+    status: OPEN
+    t00_code_fix_required: false
     description: >-
       S-11: a real Firebase service-account private key was committed in 2f9f19cf
       (socorre_ai_backend/.env) and is still reachable from origin/main and production/main.
       Until it is revoked and rotated — and the historical production DB password / JWT secret
       are evaluated for rotation — the exposure is live. T00 cannot perform this: it requires
       external action and a human decision on history purge and .env.bak deletion.
+    pass_8_note: >-
+      the final correction round deliberately performed no operational action here: no
+      revocation, no rotation, no secret edit, no .env.bak deletion, no history rewrite, no
+      force-push. This blocker therefore stays OPEN after the final round and is reported as
+      OPEN in the PR body rather than being silently dropped or claimed as resolved.
     owner: operations (outside T00 scope)
 
 ambiguities_registered: 10   # C-1..C-10 in docs/tow/T00-CURRENT-STATE-AUDIT.md §7
