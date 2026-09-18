@@ -1,0 +1,5 @@
+fake docker: refusing to start
+outcome=rejected reason=command failed (1): docker compose -p socorre-tow-test -f /private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.1D56QD/backend/docker-compose.test.yml up -d --wait --wait-timeout 90
+docker_up=true docker_down=false
+--- docker invocations ---
+compose -p socorre-tow-test -f /private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.1D56QD/backend/docker-compose.test.yml up -d --wait --wait-timeout 90

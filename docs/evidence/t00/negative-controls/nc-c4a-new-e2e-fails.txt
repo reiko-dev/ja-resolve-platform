@@ -1,0 +1,20 @@
+FAIL tests/tow/foundation/towPostgresFoundation.e2e.test.js
+  T00 PostgreSQL test foundation
+    ✓ the disposable container reports PostgreSQL 14 (2 ms)
+    ✓ migrations apply from a truly empty schema (394 ms)
+    ✓ the Tow safety guard fails closed for non-test targets (1 ms)
+    ✓ per-test isolation: truncate clears data and rollback leaves no leakage (35 ms)
+    ✓ docker compose publishes exactly the DB_PORT the guard and the client use (53 ms)
+    ✕ the Express app answers GET /health from the same PostgreSQL singleton (85 ms)
+
+  ● T00 PostgreSQL test foundation › the Express app answers GET /health from the same PostgreSQL singleton
+
+    The server does not support SSL connections
+
+      at Socket.<anonymous> (../../../../../../../../Volumes/Reiko/projects/work/socorre-system/socorre_ai_backend/node_modules/pg/lib/connection.js:75:37)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 5 passed, 6 total
+Snapshots:   0 total
+Time:        0.968 s
+Ran all test suites matching /tests\/tow\/foundation\/towPostgresFoundation.e2e.test.js/i.

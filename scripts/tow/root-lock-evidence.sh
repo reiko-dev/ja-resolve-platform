@@ -20,14 +20,25 @@
 #
 # What it does
 # ------------
-# 1. RED  — copies the ROOT manifests (root package.json + root
-#    package-lock.json + both workspace package.json files) from the pre-fix
-#    git ref into an isolated temp directory and runs `npm ci --dry-run` there.
-#    Expected: EUSAGE / exit 1.
-# 2. GREEN — replaces the lock with the current working-tree lock and runs the
-#    same command in the same isolated copy. Expected: exit 0.
-# 3. DIFF  — captures `git diff --stat` plus the added/removed lock entries so
-#    the lock delta can be audited as "new dependency graph only".
+# 1. RED  — copies the ROOT manifests (root package.json + both workspace
+#    package.json files from the working tree) plus the lock from
+#    `$PREFIX_REF` into an isolated temp directory and runs `npm ci --dry-run`
+#    there. Expected: EUSAGE / exit 1.
+# 2. GREEN — replaces the lock with `$CURRENT_REF:package-lock.json` and runs
+#    the same command in the same isolated copy. Expected: exit 0.
+# 3. DIFF  — captures `git diff $PREFIX_REF $CURRENT_REF -- package-lock.json`
+#    (plus the added/removed lock entries) so the lock delta can be audited as
+#    "new dependency graph only".
+#
+# Reproducibility (Codex finding C6)
+# ----------------------------------
+# The diff is computed between two COMMITTED refs, never against the working
+# tree: `git diff package-lock.json` (worktree vs HEAD) is empty on a clean
+# checkout, which used to overwrite the evidence with an empty delta while
+# still reporting success. Every stage therefore reads only git objects, so the
+# evidence is reproducible in a fresh clone at `$CURRENT_REF`. An empty delta
+# is a FAILURE, and the expected `ajv` / `ajv-formats` / `yaml` workspace
+# entries must be present in the added lines.
 #
 # Safety
 # ------
@@ -40,7 +51,8 @@
 #   bash scripts/tow/root-lock-evidence.sh
 #
 # Environment overrides:
-#   TOW_LOCK_PREFIX_REF   pre-fix ref holding the stale lock (default 0c5de7ed)
+#   TOW_LOCK_PREFIX_REF    pre-fix ref holding the stale lock (default 0c5de7ed)
+#   TOW_LOCK_CURRENT_REF   post-fix ref holding the synced lock (default HEAD)
 #
 # Output: docs/evidence/t00/root-lock-sync-red.txt
 #         docs/evidence/t00/root-lock-sync-green.txt
@@ -49,6 +61,7 @@
 set -uo pipefail
 
 PREFIX_REF="${TOW_LOCK_PREFIX_REF:-0c5de7ed}"
+CURRENT_REF="${TOW_LOCK_CURRENT_REF:-HEAD}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OUT_DIR="$REPO_ROOT/docs/evidence/t00"
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/t00-root-lock.XXXXXX")"
@@ -65,10 +78,20 @@ cp "$REPO_ROOT/package.json" "$TMP_DIR/package.json"
 cp "$REPO_ROOT/socorre_ai_backend/package.json" "$TMP_DIR/socorre_ai_backend/package.json"
 cp "$REPO_ROOT/socorre_ai_admin/package.json" "$TMP_DIR/socorre_ai_admin/package.json"
 
-if ! git -C "$REPO_ROOT" cat-file -e "$PREFIX_REF:package-lock.json" 2>/dev/null; then
-  echo "FATAL: $PREFIX_REF:package-lock.json not found" >&2
-  exit 1
+for ref in "$PREFIX_REF" "$CURRENT_REF"; do
+  if ! git -C "$REPO_ROOT" cat-file -e "$ref:package-lock.json" 2>/dev/null; then
+    echo "FATAL: $ref:package-lock.json not found" >&2
+    exit 1
+  fi
+done
+
+# The evidence describes committed state only. If the working tree lock differs
+# from $CURRENT_REF the script still uses the committed lock (reproducible), but
+# it says so loudly.
+if ! git -C "$REPO_ROOT" diff --quiet "$CURRENT_REF" -- package-lock.json; then
+  echo "WARNING: working-tree package-lock.json differs from $CURRENT_REF; evidence uses the committed ref" >&2
 fi
+
 git -C "$REPO_ROOT" show "$PREFIX_REF:package-lock.json" > "$TMP_DIR/package-lock.json"
 
 run_ci() {
@@ -93,14 +116,14 @@ code=$?
   status=1
 }
 
-# --- GREEN: the current working-tree lock satisfies `npm ci` -----------------
-cp "$REPO_ROOT/package-lock.json" "$TMP_DIR/package-lock.json"
+# --- GREEN: the committed post-fix lock satisfies `npm ci` -------------------
+git -C "$REPO_ROOT" show "$CURRENT_REF:package-lock.json" > "$TMP_DIR/package-lock.json"
 raw="$(run_ci)"
 code=$?
 {
   echo "# root-lock GREEN: synced root package-lock.json satisfies npm ci"
   echo "# command: npm ci --dry-run --no-audit --no-fund   (isolated temp copy, no node_modules)"
-  echo "# lock source: working tree package-lock.json (post-fix)"
+  echo "# lock source: $CURRENT_REF:package-lock.json (post-fix, committed)"
   echo "# tail only: the dry-run lists every package it would add"
   echo
   echo "$raw" | tail -12
@@ -109,31 +132,69 @@ code=$?
 } > "$OUT_DIR/root-lock-sync-green.txt"
 [ "$code" -eq 0 ] || { echo "WARNING: GREEN expectation did not hold" >&2; status=1; }
 
-# --- DIFF: the lock delta must be the new dependency graph only --------------
+# --- DIFF: the committed lock delta must be the new dependency graph only ----
+# Ref-to-ref: reproducible on a clean checkout, non-empty by construction.
+diff_text="$(git -C "$REPO_ROOT" diff "$PREFIX_REF" "$CURRENT_REF" -- package-lock.json)"
+added_entries="$(printf '%s\n' "$diff_text" | grep -E '^\+    "node_modules/' | sed 's/^+ *//' | sort)"
+removed_entries="$(printf '%s\n' "$diff_text" | grep -E '^-    "node_modules/' | sed 's/^- *//' | sort)"
+
+# The workspace devDependencies delta is extracted from the two committed locks
+# instead of the textual diff: it is exact (no false match against the nested
+# `"ajv": "^8.0.0"` entries of the hoisted packages).
+cat > "$TMP_DIR/workspace-deps.js" <<'NODE'
+const { execFileSync } = require('child_process');
+const [repoRoot, prefixRef, currentRef] = process.argv.slice(2);
+const read = (ref) => JSON.parse(execFileSync(
+  'git', ['show', `${ref}:package-lock.json`],
+  { cwd: repoRoot, encoding: 'utf8', maxBuffer: 512 * 1024 * 1024 }
+));
+const devDeps = (lock) => (lock.packages.socorre_ai_backend || {}).devDependencies || {};
+const before = devDeps(read(prefixRef));
+const after = devDeps(read(currentRef));
+const list = (keys, fmt) => (keys.length ? keys.map(fmt).join(', ') : '(none)');
+const added = Object.keys(after).filter((k) => !(k in before)).sort();
+const changed = Object.keys(after).filter((k) => k in before && before[k] !== after[k]).sort();
+const removed = Object.keys(before).filter((k) => !(k in after)).sort();
+console.log(`added:   ${list(added, (k) => `${k}@${after[k]}`)}`);
+console.log(`changed: ${list(changed, (k) => `${k}: ${before[k]} -> ${after[k]}`)}`);
+console.log(`removed: ${list(removed, (k) => k)}`);
+NODE
+workspace_deps="$(node "$TMP_DIR/workspace-deps.js" "$REPO_ROOT" "$PREFIX_REF" "$CURRENT_REF")"
+
 {
   echo "# root-lock diff: auditable delta of the sync"
-  echo "# command: git diff --stat package-lock.json"
+  echo "# command: git diff $PREFIX_REF $CURRENT_REF -- package-lock.json"
   echo
-  git -C "$REPO_ROOT" diff --stat package-lock.json
+  git -C "$REPO_ROOT" diff --stat "$PREFIX_REF" "$CURRENT_REF" -- package-lock.json
   echo
-  echo "# command: git diff package-lock.json | grep -E '^[+-]    \"node_modules/'"
-  echo "# added package entries:"
-  git -C "$REPO_ROOT" diff package-lock.json | grep -E '^\+    "node_modules/' | sed 's/^+ *//' | sort
-  echo "# removed package entries:"
-  git -C "$REPO_ROOT" diff package-lock.json | grep -E '^-    "node_modules/' | sed 's/^- *//' | sort
+  echo "# added root package entries:"
+  printf '%s\n' "$added_entries"
+  echo "# removed root package entries:"
+  printf '%s\n' "$removed_entries"
   echo
-  echo "# command: git diff package-lock.json | grep -E '^\\+ *\"(ajv|ajv-formats|yaml)\"' (workspace entry)"
-  echo "# the socorre_ai_backend workspace entry now lists the three new devDependencies:"
-  git -C "$REPO_ROOT" diff package-lock.json | grep -E '^\+ *"(ajv|ajv-formats|yaml)"' | sed 's/^+ *//' | sort
+  echo "# socorre_ai_backend workspace devDependencies delta (parsed from both committed locks):"
+  printf '%s\n' "$workspace_deps"
   echo
-  echo "# Removed entries are nested duplicates hoisted to the root by the new"
-  echo "# graph (fast-deep-equal, fast-uri, require-from-string). No unrelated"
-  echo "# dependency changed version."
+  echo "# The sync only adds the new dependency graph and hoists its nested"
+  echo "# duplicates (fast-deep-equal, fast-uri, json-schema-traverse,"
+  echo "# require-from-string); no unrelated dependency changed version."
 } > "$OUT_DIR/root-lock-sync-diff.txt"
 
+if [ -z "$diff_text" ]; then
+  echo "WARNING: empty lock delta between $PREFIX_REF and $CURRENT_REF (ref-to-ref diff must not be empty)" >&2
+  status=1
+fi
+for dep in ajv ajv-formats yaml; do
+  if ! printf '%s\n' "$workspace_deps" | grep -qE "^added:.*(^|[ ,])$dep@"; then
+    echo "WARNING: expected workspace dependency \"$dep\" missing from the lock delta" >&2
+    status=1
+  fi
+done
+
 echo "root-lock evidence captured in $OUT_DIR"
+echo "root-lock refs: $PREFIX_REF (pre-fix) -> $CURRENT_REF (post-fix)"
 if [ "$status" -eq 0 ]; then
-  echo "root-lock evidence verified (RED=exit 1, GREEN=exit 0)"
+  echo "root-lock evidence verified (RED=exit 1, GREEN=exit 0, non-empty ref-to-ref delta)"
 else
   echo "WARNING: one or more root-lock expectations did not hold" >&2
 fi

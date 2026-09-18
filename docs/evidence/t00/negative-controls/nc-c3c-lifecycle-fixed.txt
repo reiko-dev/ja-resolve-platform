@@ -1,0 +1,17 @@
+PASS tests/tow/foundation/towHarnessLifecycle.test.js
+  T00 harness lifecycle (Codex finding C3)
+    ✓ happy path: up -> wait -> workload -> down, in that order (2 ms)
+    ✓ down() runs even when up() fails part-way (the regression) (18 ms)
+    ✓ down() runs even when the healthcheck times out (1 ms)
+    ✓ down() runs when the workload fails, and the workload error wins (1 ms)
+    ✓ the guard fails closed BEFORE any startup or teardown (1 ms)
+    ✓ the canonical target is exported to the workload and to children
+    ✓ the real down() never throws when docker cannot even be spawned (1 ms)
+    ✓ the real down() resolves when docker refuses the teardown (259 ms)
+    ✓ the guard CLI needs no Docker, while docker commands fail loudly without it (135 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       9 passed, 9 total
+Snapshots:   0 total
+Time:        0.621 s, estimated 2 s
+Ran all test suites matching /tests\/tow\/foundation\/towHarnessLifecycle.test.js/i.

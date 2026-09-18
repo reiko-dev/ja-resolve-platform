@@ -1,0 +1,30 @@
+== NC-C1: .env.test was never loaded (pre-fix entrypoints) ==
+NC-C1 the env-file regression suite fails on the pre-fix loader — jest exit 1; reverted: pg-guard.js, test-env.js, postgres.js
+    failing:   ● T00 harness env file (Codex finding C1) › the real entrypoints observe .env.test (child processes) › pg-guard CLI loads .env.test and reports the resolved target
+    failing:   ● T00 harness env file (Codex finding C1) › the real entrypoints observe .env.test (child processes) › the Knex helper resolves the file target and exports it to the app
+    failing:   ● T00 harness env file (Codex finding C1) › the real entrypoints observe .env.test (child processes) › without a file the documented defaults still apply (no Docker needed)
+== NC-C2: compose port diverges from the client port ==
+NC-C2 the port regression suite fails on the pre-fix compose file — jest exit 1; reverted: docker-compose.test.yml
+    failing:   ● T00 PostgreSQL test foundation (offline mechanism) › disposable environment definition › docker-compose.test.yml is ephemeral, isolated and health-checked
+    failing:   ● T00 PostgreSQL test foundation (offline mechanism) › disposable environment definition › compose defaults, healthcheck and guard defaults cannot drift apart
+    failing:   ● T00 PostgreSQL test foundation (offline mechanism) › disposable environment definition › .env.test.example ships placeholders only and no real secrets
+    failing:   ● T00 PostgreSQL test foundation (offline mechanism) › single source of truth for the PostgreSQL target (Codex finding C2) › no harness file reintroduces a second port variable
+    failing:   ● T00 PostgreSQL test foundation (offline mechanism) › single source of truth for the PostgreSQL target (Codex finding C2) › .env.test.example documents the real loading contract
+== NC-C3: up() outside the cleanup scope ==
+NC-C3a the lifecycle regression suite fails on the pre-fix teardown scope — jest exit 1; reverted: test-env.js
+NC-C3b the pre-fix harness leaves the environment behind when up() fails — outcome=rejected reason=command failed (1): docker compose -p socorre-tow-test -f /private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.1D56QD/backend/docker-compose.test.yml up -d --wait --wait-timeout 90 docker_up=true docker_down=false 
+NC-C3c the same suite is green on the fixed harness (control of the control) — jest exit 0; fixed test-env.js, identical Docker stub
+NC-C3d the fixed harness tears the environment down after the same failure — outcome=rejected reason=command failed (1): docker compose -p socorre-tow-test -f /private/var/folders/tj/v4pyr7mx54j09ps94lqs8qyh0000gn/T/t00-negative-controls.1D56QD/backend/docker-compose.test.yml up -d --wait --wait-timeout 90 docker_up=true docker_down=true 
+== NC-C4: Express/PostgreSQL test accepted a 404 as proof of boot ==
+NC-C4a the new e2e assertion fails when the app cannot reach the database — jest exit 1; app connection forced to fail (DB_SSL=true)
+NC-C4b the pre-fix e2e assertion passes under the same failure (false positive) — jest exit 0; HEAD version of the suite, same broken app connection
+
+== summary ==
+PASS  NC-C1 the env-file regression suite fails on the pre-fix loader -> docs/evidence/t00/negative-controls/nc-c1-env-file-not-loaded.txt
+PASS  NC-C2 the port regression suite fails on the pre-fix compose file -> docs/evidence/t00/negative-controls/nc-c2-compose-port.txt
+PASS  NC-C3a the lifecycle regression suite fails on the pre-fix teardown scope -> docs/evidence/t00/negative-controls/nc-c3a-lifecycle-prefix.txt
+PASS  NC-C3b the pre-fix harness leaves the environment behind when up() fails -> docs/evidence/t00/negative-controls/nc-c3b-probe-prefix.txt
+PASS  NC-C3c the same suite is green on the fixed harness (control of the control) -> docs/evidence/t00/negative-controls/nc-c3c-lifecycle-fixed.txt
+PASS  NC-C3d the fixed harness tears the environment down after the same failure -> docs/evidence/t00/negative-controls/nc-c3d-probe-fixed.txt
+PASS  NC-C4a the new e2e assertion fails when the app cannot reach the database -> docs/evidence/t00/negative-controls/nc-c4a-new-e2e-fails.txt
+PASS  NC-C4b the pre-fix e2e assertion passes under the same failure (false positive) -> docs/evidence/t00/negative-controls/nc-c4b-old-e2e-false-positive.txt
