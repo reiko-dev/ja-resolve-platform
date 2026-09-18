@@ -132,7 +132,10 @@ async function createTowRequest(overrides = {}) {
   } = overrides;
   const next = createSequence('tow-request', sequenceStart);
   const id = next();
-  const user = customer || (await createTowCustomer({ sequenceStart }));
+  // `customerOverrides` must reach the auto-created customer; when an explicit
+  // `customer` is supplied it is used as-is (the overrides describe the
+  // customer this factory would have created).
+  const user = customer || (await createTowCustomer({ sequenceStart, ...customerOverrides }));
   const nowIso = clock.isoNow();
   const deadlineIso = new Date(clock.nowMs() + 30 * 60 * 1000).toISOString();
 

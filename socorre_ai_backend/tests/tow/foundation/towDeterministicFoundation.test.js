@@ -90,6 +90,37 @@ describe('Tow deterministic test foundation', () => {
       expect(request.vehicle_destination_address).toContain('Santo André');
     });
 
+    test('tow request factory forwards customerOverrides to the created customer', async () => {
+      // Codex finding C5: `createTowRequest` destructured `customerOverrides`
+      // and then ignored it, so callers silently got the default customer.
+      const { request, customer } = await tow.createTowRequest({
+        customerOverrides: {
+          name: 'Cliente Customizado',
+          phone: '11988887777',
+          email: 'customer-override-c5@example.test',
+        },
+      });
+
+      expect(customer.name).toBe('Cliente Customizado');
+      expect(customer.phone).toBe('11988887777');
+      expect(customer.email).toBe('customer-override-c5@example.test');
+      expect(customer.role).toBe('user');
+      // The request still belongs to the customer that was actually created.
+      expect(String(request.user_id)).toBe(String(customer.id));
+    });
+
+    test('an explicit customer still wins over customerOverrides', async () => {
+      const explicit = await tow.createTowCustomer({ name: 'Cliente Explícito' });
+      const { request, customer } = await tow.createTowRequest({
+        customer: explicit,
+        customerOverrides: { name: 'Ignorado' },
+      });
+
+      expect(String(customer.id)).toBe(String(explicit.id));
+      expect(customer.name).toBe('Cliente Explícito');
+      expect(String(request.user_id)).toBe(String(explicit.id));
+    });
+
     test('two independent scenarios produce identical values (no Date.now/random)', async () => {
       const first = await tow.createTowScenario();
       const second = await tow.createTowScenario();

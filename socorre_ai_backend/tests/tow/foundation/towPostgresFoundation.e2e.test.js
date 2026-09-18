@@ -10,21 +10,30 @@
  *   2. all migrations apply from a truly empty schema;
  *   3. the safety guard fails closed for non-test targets;
  *   4. per-test isolation works (truncate + rollback leave no leakage);
- *   5. the Express app boots against real PostgreSQL.
+ *   5. Docker Compose publishes exactly the port the guard/Knex/app use;
+ *   6. the Express app answers `GET /health` (a real `SELECT 1`) from the SAME
+ *      PostgreSQL singleton the app uses.
  *
  * No T01+ business behavior is exercised here.
  */
 'use strict';
 
+const path = require('path');
+const { execFileSync } = require('child_process');
 const request = require('supertest');
+const YAML = require('yaml');
 
 const postgres = require('../../helpers/tow/postgres');
 
 const enabled = postgres.isEnabled();
 const describePostgres = enabled ? describe : describe.skip;
 
+const BACKEND_DIR = path.resolve(__dirname, '..', '..', '..');
+const COMPOSE_FILE = path.join(BACKEND_DIR, 'docker-compose.test.yml');
+
 describePostgres('T00 PostgreSQL test foundation', () => {
   let db;
+  let appDb;
 
   beforeAll(async () => {
     db = postgres.createConnection();
@@ -32,6 +41,7 @@ describePostgres('T00 PostgreSQL test foundation', () => {
   });
 
   afterAll(async () => {
+    if (appDb) await appDb.destroy();
     if (db) await db.destroy();
   });
 
@@ -130,12 +140,52 @@ describePostgres('T00 PostgreSQL test foundation', () => {
     expect(user.id).toBeDefined();
   });
 
-  test('the Express app boots against real PostgreSQL', async () => {
+  test('docker compose publishes exactly the DB_PORT the guard and the client use', () => {
+    const target = postgres.safeTarget();
+    const rendered = execFileSync(
+      'docker',
+      ['compose', '-p', 'socorre-tow-test', '-f', COMPOSE_FILE, 'config'],
+      { cwd: BACKEND_DIR, encoding: 'utf8', env: { ...process.env } }
+    );
+    const service = YAML.parse(rendered).services['tow-postgres-test'];
+    // Compose interpolation resolves ${DB_PORT:-55432} to the canonical target
+    // port; a second port variable would make this assertion fail.
+    expect(String(service.ports[0].published)).toBe(String(target.port));
+    expect(String(service.ports[0].target)).toBe('5432');
+    // The container credentials are the same ones the guard/Knex use.
+    expect(service.environment.POSTGRES_DB).toBe(target.database);
+    expect(service.environment.POSTGRES_USER).toBe(target.user);
+    expect(service.environment.POSTGRES_PASSWORD).toBe(target.password);
+  });
+
+  test('the Express app answers GET /health from the same PostgreSQL singleton', async () => {
+    // `src/app.js` uses `src/config/database.js`; requiring the same module
+    // path here returns that exact singleton (same Jest module cache entry).
     const { createApp } = require('../../../src/app');
+    appDb = require('../../../src/config/database');
+
+    const target = postgres.safeTarget();
+
+    // 1. The singleton's configuration points at the disposable target: a 200
+    //    from some other local PostgreSQL must not be able to pass this test.
+    const connection = appDb.client.config.connection;
+    expect(connection.host).toBe(target.host);
+    expect(Number(connection.port)).toBe(target.port);
+    expect(connection.database).toBe(target.database);
+    expect(connection.user).toBe(target.user);
+
+    // 2. The server itself reports the expected database/user identity.
+    const identity = await appDb.raw('SELECT current_database() AS db, current_user AS usr');
+    expect(identity.rows[0].db).toBe(target.database);
+    expect(identity.rows[0].usr).toBe(target.user);
+
+    // 3. Only a real `SELECT 1` through the app's pool can produce this 200.
     const app = createApp();
-    const response = await request(app).get('/api/tow/module-status');
-    // Unauthenticated: the point is that routing + DB wiring work on PG.
-    expect([200, 401, 403, 404]).toContain(response.status);
+    const response = await request(app).get('/health');
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(response.body.status).toBe('ok');
+    expect(response.body.checks).toEqual({ http: 'ok', postgres: 'ok' });
   });
 });
 
