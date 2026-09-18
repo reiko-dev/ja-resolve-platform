@@ -6,12 +6,12 @@ issue: 11
 repository: reiko-dev/ja-resolve-platform
 branch: feature/t00-tow-test-harness
 execution_base: e1e7dd2d20d5da25df00d8106a904f14041654a1
-result_head: b5afcc3e4385bba5d3e8d7ea321d7ed8a70d0f31
+result_head: ae0fa572a1cc0c8845d78d893c42d48a4e78b231
 result_head_note: >-
-  SHA of the last code/docs commit (fix(t00): sync workspace root lock and complete security
-  review), i.e. the tip of the pass-2 substantive work. This evidence file is committed as the
-  following commit; use `git log --oneline -6` to see the full T00 series.
-result_head_verify: "git rev-parse HEAD  # after the 6th commit; parent of HEAD is result_head"
+  SHA of the last substantive commit (fix(t00): address Muse Sparks review findings M-1..M-7),
+  i.e. the tip of the pass-3 work. This evidence file is committed as the following commit;
+  use `git log --oneline -8` to see the full T00 series.
+result_head_verify: "git rev-parse HEAD  # after the 7th commit; parent of HEAD is result_head"
 
 result: PASS
 scope_check:
@@ -52,6 +52,13 @@ commits:
   - message: "docs(t00): refresh t00 work result evidence"
     files: 1
     pass: 2
+  - message: "fix(t00): address Muse Sparks review findings M-1..M-7"
+    sha: ae0fa572a1cc0c8845d78d893c42d48a4e78b231
+    files: 28
+    pass: 3
+  - message: "docs(t00): record Muse findings resolution in t00 work result"
+    files: 1
+    pass: 3
 
 files_added:
   contract_harness:
@@ -113,6 +120,18 @@ files_added:
     - docs/evidence/t00/root-lock-sync-green.txt
     - docs/evidence/t00/root-lock-sync-diff.txt
     - docs/evidence/t00/gitignore-env-test-example.txt
+  pass_3_evidence_and_scripts:
+    - scripts/tow/baseline-evidence.sh
+    - scripts/tow/determinism-evidence.sh
+    - docs/evidence/t00/baseline-focused.txt
+    - docs/evidence/t00/baseline-full.txt
+    - docs/evidence/t00/determinism-normalized-diff.txt
+    - docs/evidence/t00/green-postgres-gate.txt
+    - docs/evidence/t00/m1-consumer-smoke-parceiro-deletes.txt
+    - docs/evidence/t00/m2-pg-guard-bypass-refused.txt
+    - docs/evidence/t00/m3-shadowed-method-negative-control.txt
+    - docs/evidence/t00/m4-emergency-proposals-breaking.txt
+    - docs/evidence/t00/m7-count-recount.txt
 
 files_modified:
   - path: socorre_ai_backend/package.json
@@ -161,6 +180,70 @@ files_modified:
     change: >-
       pass 2: added the git-history scan (counts/lengths only, no secret value),
       the S-9 current-tree correction, S-11 and S-12 sections.
+  # --- pass 3: Muse Sparks 1.3 Free review fixes (M-1..M-7) ---
+  - path: socorre_ai_backend/tests/helpers/towConsumerFlows.js
+    change: >-
+      M-1: PARCEIRO_FLOW now includes `deleteTowVehicle` (after `activateTowVehicle`)
+      and `deleteTowVehicleDocument` (after `uploadTowVehicleDocument`), as required
+      by TOW-CONSUMER-FLOW-SPEC.md §6.2.
+  - path: socorre_ai_backend/tests/contract/consumerSmoke.test.js
+    change: >-
+      M-1: expected Parceiro counters updated to 31 operations / 10 request bodies /
+      31 responses and the header documents the two DELETEs.
+  - path: socorre_ai_backend/scripts/tow/pg-guard.js
+    change: >-
+      M-2: wildcard bind hosts (0.0.0.0, ::, [::], *) are now an explicit violation and
+      the forbidden privileged-user check is a case-insensitive substring instead of an
+      exact match, closing both bypass commands.
+  - path: socorre_ai_backend/tests/tow/foundation/towPostgresGuard.test.js
+    change: >-
+      M-2: +2 negative tests — wildcard bind host rejection and case-insensitive
+      privileged-user rejection (postgres_user, prod_admin, root2, POSTGRES, PrOd_ReadOnly).
+  - path: socorre_ai_backend/tests/helpers/towContract.js
+    change: >-
+      M-3: `SHADOWED_METHOD_ALLOWLIST` (frozen, empty), per-path `shadowedPathDetails`
+      and `unallowlistedDroppedShadowedMethods()`; `validateContract` now reports a
+      `shadowedMethods` section and fails when a shadowed base method is dropped without
+      an allowlist entry.
+  - path: socorre_ai_backend/tests/contract/openapi.structure.test.js
+    change: >-
+      M-3: replaced the tautological shadowing loop with a real superset/allowlist
+      assertion and added a negative control that deletes `patch` from
+      `/admin/tow/settings` in a mutated document and requires `ok === false`.
+  - path: socorre_ai_backend/scripts/tow/validate-openapi.js
+    change: >-
+      M-3: prints the shadowed-path list (base/composed/dropped/added), the frozen
+      allowlist and the unallowlisted-drop count.
+  - path: docs/tow/T00-LEGACY-TO-TARGET-MAPPING.md
+    change: >-
+      M-4: `GET /api/tow-proposals/emergency/:id` is now `Breaking? = yes` (dropping the
+      hardcoded `status='pending'` filter widens the response set) with the controller and
+      model evidence; M-7: corrected route/Haversine counts.
+  - path: docs/tow/T00-TEST-HARNESS.md
+    change: >-
+      M-1/M-3: consumer-smoke 29→31 note, superset+allowlist rule and new counters;
+      M-5: new §8 with the explicit determinism definition and its artifacts.
+  - path: docs/tow/T00-CURRENT-STATE-AUDIT.md
+    change: >-
+      M-6/M-7: §3.15 baseline rows now link the reproducible baseline artifacts and the
+      normalized determinism diff; corrected `router.use` route counts and the
+      Haversine census (15 SQL + 4 JS repo-wide; 6 SQL + 2 JS on the tow path).
+  - path: docs/evidence/t00/green-openapi-validation.txt
+    change: "M-3: regenerated (shadowed-path list, allowlist, exit_code=0)."
+  - path: docs/evidence/t00/green-contract-suite.txt
+    change: "pass 3: regenerated (4 suites / 52 tests, exit_code=0)."
+  - path: docs/evidence/t00/green-tow-focused.txt
+    change: "pass 3: regenerated (2 skipped/11 passed suites; 14 skipped/230 passed of 244, exit_code=0)."
+  - path: docs/evidence/t00/green-tow-focused-run2.txt
+    change: "pass 3: regenerated — determinism pair of the focused suite."
+  - path: docs/evidence/t00/green-full-suite.txt
+    change: "pass 3: regenerated (2 skipped/42 passed suites; 14 skipped/637 passed of 651, exit_code=0)."
+  - path: docs/evidence/t00/green-verify-tow-run1.txt
+    change: "pass 3: regenerated (5/5 stages PASS, GREEN, exit_code=0)."
+  - path: docs/evidence/t00/green-verify-tow-run2.txt
+    change: "pass 3: regenerated — determinism pair of verify:tow."
+  - path: docs/evidence/t00/green-syntax-check.txt
+    change: "pass 3: re-checked all 25 T00-added .js files (checked=25 failures=0)."
   - path: docker-compose-simple.yml
     change: "NOT staged and NOT committed (pre-existing modification present at the execution base)."
 
@@ -227,6 +310,10 @@ openapi:
     composed_paths: 56
     composed_operations: 66
     shadowed_base_paths: 10
+    shadowed_base_operations_preserved: 11
+    dropped_shadowed_methods: 0
+    unallowlisted_dropped_shadowed_methods: 0
+    shadowed_method_allowlist: "SHADOWED_METHOD_ALLOWLIST = {} (frozen, empty)"
     ref_occurrences_checked: 490
     external_local_file_refs: 124
     unresolved_refs: 0
@@ -249,6 +336,7 @@ openapi:
     - "broken $ref must be reported (tests/contract/openapi.structure.test.js)"
     - "duplicate operationId must be reported (tests/contract/openapi.structure.test.js)"
     - "consumer smoke must fail when a required operation is removed (tests/contract/consumerSmoke.test.js)"
+    - "a shadowed base method dropped without allowlist must be detected (tests/contract/openapi.structure.test.js, pass 3 / M-3)"
   operation_inventory: docs/evidence/t00/target-contract-operations.md
 
 tow_settings_patch_semantics:
@@ -276,12 +364,13 @@ consumer_smoke:
   flows: socorre_ai_backend/tests/helpers/towConsumerFlows.js
   counters:
     cliente:   {operations: 18, request_bodies: 8,  responses: 18}
-    parceiro:  {operations: 29, request_bodies: 10, responses: 29}
+    parceiro:  {operations: 31, request_bodies: 10, responses: 31}   # pass 3 (M-1): +deleteTowVehicle, +deleteTowVehicleDocument
     dashboard: {operations: 20, request_bodies: 6,  responses: 20}
   missing_operations: 0
   unresolved_refs: 0
   undocumented_dto_required: 0
   result: PASS
+  evidence: docs/evidence/t00/m1-consumer-smoke-parceiro-deletes.txt
 
 migration_map:
   artifact: docs/tow/T00-LEGACY-TO-TARGET-MAPPING.md
@@ -343,20 +432,23 @@ test_harness:
     guarantees:
       - "no external network in the Tow focused suite"
       - "two consecutive runs produce identical counters"
+      - "determinism is defined in docs/tow/T00-TEST-HARNESS.md §8: identical exit code + identical suite/test counters + identical suite outcome set (timestamps, morgan byte sizes, jest durations and PASS print order excluded); normalized diff: docs/evidence/t00/determinism-normalized-diff.txt"
       - "monotonic module-level sequences prevent UNIQUE(user email) collisions"
       - "fake clock default start 2026-01-15T12:00:00.000Z; does not control PostgreSQL NOW()"
       - "gateway source scan rejects Date.now()/Math.random()/setTimeout( in src/services/gateways"
   offline_guard_suite:
     suite: socorre_ai_backend/tests/tow/foundation/towPostgresGuard.test.js
+    tests: 13   # pass 3 (M-2): +2 negative tests (wildcard host, case-insensitive privileged user)
     result: PASS
     requires_docker: false
     requires_network: false
     asserts:
-      - "guard rules (opt-in, loopback host, _test suffix, no DATABASE_URL/PostgreSQL, non-prod user)"
+      - "guard rules (opt-in, loopback host, no wildcard bind host, _test suffix, no DATABASE_URL/PostgreSQL, non-prod user by case-insensitive substring)"
       - "compose file is postgres:14 with tmpfs and no named volume"
       - ".env.test.example has empty placeholders for every provider key"
       - "package.json exposes the canonical scripts"
       - "destructive helpers refuse an unsafe environment"
+    evidence: docs/evidence/t00/m2-pg-guard-bypass-refused.txt
 
 postgres_test_strategy:
   engine: "PostgreSQL 14 (docker image postgres:14, already cached locally)"
@@ -369,20 +461,23 @@ postgres_test_strategy:
   guard: socorre_ai_backend/scripts/tow/pg-guard.js
   guard_rules:
     - "TOW_POSTGRES_E2E === '1' (explicit opt-in)"
-    - "host is loopback"
+    - "host is loopback (localhost / 127.0.0.1 / ::1)"
+    - "wildcard bind hosts refused (0.0.0.0, ::, [::], *)"
     - "database name ends with _test"
     - "DATABASE_URL / PostgreSQL provider URL refused"
-    - "user is not prod/root/postgres"
+    - "user is not prod/root/postgres (case-insensitive substring: postgres_user, prod_admin, root2, POSTGRES all refused)"
     - "refuses with UNSAFE_TEST_DATABASE and never prints the password"
   gate_suite: socorre_ai_backend/tests/tow/foundation/towPostgresFoundation.e2e.test.js
   gate_skipped_by_default: true
   gate_tests: 5
   gate_evidence:
-    command: "npm run test:pg"
+    command: "TOW_POSTGRES_E2E=1 npm run test:pg"
+    tests: 5
     migrations_applied: 43
     migration_batch: 1
     tables_in_public: 29
     result: GREEN
+    artifact: docs/evidence/t00/green-postgres-gate.txt
   commands:
     up: "npm run test:pg:up"
     wait: "npm run test:pg:wait"
@@ -409,43 +504,54 @@ tests:
   targeted:
     tow_focused:
       command: "npx jest tests/tow --runInBand"
-      run_1: {suites: "2 skipped, 11 passed, 13 total", tests: "14 skipped, 228 passed, 242 total", exit_code: 0}
-      run_2: {suites: "2 skipped, 11 passed, 13 total", tests: "14 skipped, 228 passed, 242 total", exit_code: 0}
+      run_1: {suites: "2 skipped, 11 passed, 13 total", tests: "14 skipped, 230 passed, 244 total", exit_code: 0}
+      run_2: {suites: "2 skipped, 11 passed, 13 total", tests: "14 skipped, 230 passed, 244 total", exit_code: 0}
       deterministic: true
+      determinism_definition: "docs/tow/T00-TEST-HARNESS.md §8 (identical exit code + counters + suite outcome set)"
+      determinism_evidence: docs/evidence/t00/determinism-normalized-diff.txt
       evidence: [docs/evidence/t00/green-tow-focused.txt, docs/evidence/t00/green-tow-focused-run2.txt]
     contract:
       command: "npm run test:contract"
-      result: {suites: 4, tests: 51, exit_code: 0}
+      result: {suites: 4, tests: 52, exit_code: 0}
       evidence: docs/evidence/t00/green-contract-suite.txt
     openapi_gate:
       command: "npm run validate:openapi"
       exit_code: 0
       result: PASS
+      dropped_shadowed_methods: 0
+      shadowed_method_allowlist: "{}  # frozen and empty; no base method may be dropped"
       evidence: docs/evidence/t00/green-openapi-validation.txt
     postgres_gate:
       command: "TOW_POSTGRES_E2E=1 npm run test:pg"
       result: GREEN
       tests: 5
-      evidence: docs/evidence/t00/green-verify-tow-run1.txt
+      evidence: [docs/evidence/t00/green-postgres-gate.txt, docs/evidence/t00/green-verify-tow-run1.txt]
     verify_tow:
       command: "npm run verify:tow"
       run_1: {stages_passed: 5, result: GREEN, exit_code: 0}
       run_2: {stages_passed: 5, result: GREEN, exit_code: 0}
       deterministic: true
+      determinism_definition: "docs/tow/T00-TEST-HARNESS.md §8 (identical exit code + stage results + verdict)"
+      determinism_evidence: docs/evidence/t00/determinism-normalized-diff.txt
       evidence: [docs/evidence/t00/green-verify-tow-run1.txt, docs/evidence/t00/green-verify-tow-run2.txt]
   regression:
     focused_baseline:
-      command: "npx jest tests/tow --runInBand"
+      command: "node <backend>/node_modules/jest/bin/jest.js --rootDir . tests/tow --runInBand  # detached worktree @ execution_base"
       result: {suites: "2 skipped, 8 passed, 10 total", tests: "9 skipped, 195 passed, 204 total", exit_code: 0}
       captured_at: execution_base
+      verified_twice_identical: true
+      reproducible_with: scripts/tow/baseline-evidence.sh
+      evidence: docs/evidence/t00/baseline-focused.txt
     full_baseline:
-      command: "npx jest --runInBand"
+      command: "node <backend>/node_modules/jest/bin/jest.js --rootDir . --runInBand  # detached worktree @ execution_base"
       result: {suites: "2 skipped, 35 passed, 37 total", tests: "9 skipped, 550 passed, 559 total", exit_code: 0}
       captured_at: execution_base
       verified_twice_identical: true
+      reproducible_with: scripts/tow/baseline-evidence.sh
+      evidence: docs/evidence/t00/baseline-full.txt
     full_after:
       command: "npx jest --runInBand"
-      result: {suites: "2 skipped, 42 passed, 44 total", tests: "14 skipped, 634 passed, 648 total", exit_code: 0}
+      result: {suites: "2 skipped, 42 passed, 44 total", tests: "14 skipped, 637 passed, 651 total", exit_code: 0}
       evidence: docs/evidence/t00/green-full-suite.txt
     pass_2_reverification:
       note: >-
@@ -462,16 +568,218 @@ tests:
         - docs/evidence/t00/green-contract-suite.txt
         - docs/evidence/t00/green-tow-focused.txt
         - docs/evidence/t00/green-full-suite.txt
+    pass_3_reverification:
+      note: >-
+        re-run after the Muse Sparks 1.3 Free review fixes (M-1..M-7). All five gates exit 0;
+        the only counter changes are the 3 tests added by the review itself (2 PostgreSQL-guard
+        negative tests + 1 OpenAPI shadowing negative control). Determinism is verified with the
+        explicit definition in docs/tow/T00-TEST-HARNESS.md §8.
+      commands:
+        - {command: "npm run validate:openapi", exit_code: 0, result: "PASS; 0 dropped shadowed methods; allowlist empty"}
+        - {command: "npm run test:contract", exit_code: 0, result: "4 suites, 52 tests passed"}
+        - {command: "npx jest tests/tow --runInBand", exit_code: 0, result: "2 skipped, 11 passed of 13 suites; 14 skipped, 230 passed of 244 tests (twice, identical)"}
+        - {command: "npx jest --runInBand", exit_code: 0, result: "2 skipped, 42 passed of 44 suites; 14 skipped, 637 passed of 651 tests"}
+        - {command: "TOW_POSTGRES_E2E=1 npm run test:pg", exit_code: 0, result: "1 suite, 5 tests, GREEN"}
+        - {command: "npm run verify:tow", exit_code: 0, result: "5/5 stages PASS, GREEN (twice, identical)"}
+      evidence:
+        - docs/evidence/t00/green-openapi-validation.txt
+        - docs/evidence/t00/green-contract-suite.txt
+        - docs/evidence/t00/green-tow-focused.txt
+        - docs/evidence/t00/green-tow-focused-run2.txt
+        - docs/evidence/t00/green-full-suite.txt
+        - docs/evidence/t00/green-postgres-gate.txt
+        - docs/evidence/t00/green-verify-tow-run1.txt
+        - docs/evidence/t00/green-verify-tow-run2.txt
+        - docs/evidence/t00/determinism-normalized-diff.txt
     delta:
       suites_added: 7
-      tests_added: 89
-      tests_added_passing: 84
+      tests_added: 92
+      tests_added_passing: 87
       tests_added_skipped: 5
       new_failures: 0
       existing_tests_modified_or_removed: 0
     notes: >-
       The 5 new skipped tests are the opt-in PostgreSQL gate; they are skipped unless
       TOW_POSTGRES_E2E=1 and are executed by `npm run test:pg` / `npm run verify:tow`.
+
+# ---------------------------------------------------------------------------
+# Muse Sparks 1.3 Free review — adjudication of findings M-1..M-7 (pass 3).
+# Verdict was REQUEST_CHANGES: M-1 was the blocking P1; M-2..M-7 were non-blocking
+# P2/P3. Every finding is resolved below with the exact command and observed
+# result. No production `src/` behaviour was changed for any of them.
+# ---------------------------------------------------------------------------
+muse_findings_resolution:
+  review: "Muse Sparks 1.3 Free"
+  verdict: REQUEST_CHANGES
+  blocking_finding: M-1
+  resolved: 7
+  unresolved: 0
+  production_src_changed: false
+  findings:
+    - id: M-1
+      priority: P1
+      title: >-
+        The Parceiro consumer smoke did not exercise the two DELETE operations that
+        TOW-CONSUMER-FLOW-SPEC.md §6.2 requires, so the two new operation schemas were
+        never validated.
+      decision: FIXED
+      files:
+        - socorre_ai_backend/tests/helpers/towConsumerFlows.js
+        - socorre_ai_backend/tests/contract/consumerSmoke.test.js
+        - docs/tow/T00-TEST-HARNESS.md
+      command: >-
+        npx jest tests/contract/consumerSmoke.test.js --runInBand;
+        npm run test:contract
+      observed_result: >-
+        PARCEIRO_FLOW now contains `deleteTowVehicle` (DELETE /tow/vehicles/{vehicleId},
+        after activate) and `deleteTowVehicleDocument` (DELETE
+        /tow/vehicles/{vehicleId}/documents/{documentId}, after upload): parceiro is
+        31 operations / 10 request bodies / 31 responses (was 29/9/29) and the
+        step-level report shows both steps with requestValidated=false,
+        responsesValidated=1, missingOperations=0, invalidRequests=0,
+        invalidResponses=0, untypedSuccessResponses=0, schemaGenerationFailures=0.
+        Smoke: 10 tests passed, exit 0. Contract suite: 4 suites / 52 tests, exit 0.
+      evidence:
+        - docs/evidence/t00/m1-consumer-smoke-parceiro-deletes.txt
+        - docs/evidence/t00/green-contract-suite.txt
+    - id: M-2
+      title: >-
+        The PostgreSQL fail-closed guard could be bypassed with DB_USER=postgres_user
+        (substring of a privileged user) and with DB_HOST=0.0.0.0 (wildcard bind).
+      decision: FIXED
+      files:
+        - socorre_ai_backend/scripts/tow/pg-guard.js
+        - socorre_ai_backend/tests/tow/foundation/towPostgresGuard.test.js
+      command: >-
+        TOW_POSTGRES_E2E=1 DB_USER=postgres_user node scripts/tow/test-env.js guard;
+        TOW_POSTGRES_E2E=1 DB_HOST=0.0.0.0 node scripts/tow/test-env.js guard;
+        npx jest tests/tow/foundation/towPostgresGuard.test.js --runInBand
+      observed_result: >-
+        Both bypass commands exit 1 with `UNSAFE: DB_USER "postgres_user" looks like a
+        privileged production user` and `UNSAFE: DB_HOST must not be a wildcard bind
+        address, got "0.0.0.0"`. Variants prod_admin, root2 and POSTGRES also exit 1
+        (case-insensitive substring match); the safe test environment
+        (tow_test / 127.0.0.1 / _test database) prints SAFE and exits 0. Guard suite:
+        13 tests passed including the 2 new negative tests, exit 0.
+      evidence:
+        - docs/evidence/t00/m2-pg-guard-bypass-refused.txt
+        - docs/evidence/t00/green-tow-focused.txt
+    - id: M-3
+      title: >-
+        The shadowed-method assertion was tautological (it compared the composed
+        document with itself) and could never fail, so a silently dropped base method
+        would go unnoticed.
+      decision: FIXED
+      files:
+        - socorre_ai_backend/tests/helpers/towContract.js
+        - socorre_ai_backend/tests/contract/openapi.structure.test.js
+        - socorre_ai_backend/scripts/tow/validate-openapi.js
+        - docs/tow/T00-TEST-HARNESS.md
+      command: >-
+        npm run validate:openapi;
+        npx jest tests/contract/openapi.structure.test.js --runInBand
+      observed_result: >-
+        The validator now reports the 10 shadowed paths with base/composed/dropped/added
+        method lists: every path has dropped=[] (11 base operations preserved) and
+        `SHADOWED_METHOD_ALLOWLIST` is frozen and empty, so 0 dropped methods are
+        unallowlisted and the gate is PASS. The assertion is a real superset check over
+        `shadowedPathDetails`; the new negative control mutates the document by deleting
+        `patch` from `/admin/tow/settings` and requires ok=false with
+        `{path: '/admin/tow/settings', method: 'patch'}` in `shadowedMethods.dropped`.
+        Structure suite: 16 tests passed, exit 0.
+      evidence:
+        - docs/evidence/t00/m3-shadowed-method-negative-control.txt
+        - docs/evidence/t00/green-openapi-validation.txt
+    - id: M-4
+      title: >-
+        `GET /api/tow-proposals/emergency/:id` was marked as non-breaking even though
+        removing the hardcoded status='pending' filter widens the response set.
+      decision: FIXED
+      files:
+        - docs/tow/T00-LEGACY-TO-TARGET-MAPPING.md
+      command: >-
+        grep -n 'emergency/:id' docs/tow/T00-LEGACY-TO-TARGET-MAPPING.md;
+        grep -n 'findByEmergency(emergency_request_id' socorre_ai_backend/src/controllers/TowProposalController.js;
+        sed -n '53,56p;78,84p' socorre_ai_backend/src/models/TowProposal.js
+      observed_result: >-
+        Row 49 is now `Breaking? = yes` with the action "Remove hardcoded
+        `status='pending'` filter — the response set becomes a superset (all proposal
+        statuses), so consumers that assumed pending-only must adapt" and evidence
+        `TowProposalController.js:46`; `TowProposal.js:53-86`. Confirmed from source:
+        the legacy controller calls `findByEmergency(emergency_request_id, 'pending')`
+        (line 46) and the model applies `where status` only `if (status)`, so the
+        target (no filter) returns pending + accepted + rejected + expired + withdrawn
+        proposals for the same request.
+      evidence:
+        - docs/evidence/t00/m4-emergency-proposals-breaking.txt
+    - id: M-5
+      title: >-
+        The determinism claim had no explicit definition: the pass-2 green logs differ
+        in more than timestamps (morgan response byte sizes, PASS print order, test
+        durations), so "deterministic" was unverifiable as stated.
+      decision: FIXED
+      files:
+        - docs/tow/T00-TEST-HARNESS.md
+        - scripts/tow/determinism-evidence.sh
+        - docs/evidence/t00/determinism-normalized-diff.txt
+        - docs/evidence/t00-work-result.yaml
+      command: bash scripts/tow/determinism-evidence.sh
+      observed_result: >-
+        Exit 0. §8 of T00-TEST-HARNESS.md now defines determinism as identical exit
+        code + identical suite/test counters + identical suite outcome set, explicitly
+        excluding morgan timestamps and byte sizes, jest durations and PASS print order.
+        The script compares normalized fingerprints (sorted PASS/FAIL lines,
+        `Test Suites:`, `Tests:`, `Snapshots:`, verify stage lines, GREEN/RED verdict,
+        exit_code) for the focused suite pair and the verify:tow pair: both diffs are
+        empty and the artifact ends with `RESULT: IDENTICAL`.
+      evidence:
+        - docs/evidence/t00/determinism-normalized-diff.txt
+    - id: M-6
+      title: >-
+        The execution-base baseline numbers in the audit had no committed artifact and
+        were not reproducible.
+      decision: FIXED
+      files:
+        - scripts/tow/baseline-evidence.sh
+        - docs/evidence/t00/baseline-focused.txt
+        - docs/evidence/t00/baseline-full.txt
+        - docs/tow/T00-CURRENT-STATE-AUDIT.md
+      command: bash scripts/tow/baseline-evidence.sh
+      observed_result: >-
+        Exit 0. The script creates a detached worktree at the execution base
+        e1e7dd2d20d5da25df00d8106a904f14041654a1 (symlinked node_modules), runs the
+        focused and full suites twice each, and records per-run PASS lines and counters:
+        focused 2 skipped / 8 passed of 10 suites and 9 skipped / 195 passed of 204
+        tests; full 2 skipped / 35 passed of 37 suites and 9 skipped / 550 passed of 559
+        tests. Both runs are identical (same counters, same suite outcome set, exit 0),
+        reproducing the audit §3.15 baseline exactly; the audit now links these two
+        artifacts.
+      evidence:
+        - docs/evidence/t00/baseline-focused.txt
+        - docs/evidence/t00/baseline-full.txt
+    - id: M-7
+      title: >-
+        Wrong counts in the audit/mapping: system-settings route total, tow-path
+        Haversine sites and the repo-wide Haversine census.
+      decision: FIXED
+      files:
+        - docs/tow/T00-CURRENT-STATE-AUDIT.md
+        - docs/tow/T00-LEGACY-TO-TARGET-MAPPING.md
+      command: >-
+        grep -rn '6371' socorre_ai_backend/src/ | wc -l;
+        grep -rn '6371 \* acos' socorre_ai_backend/src/ | wc -l;
+        grep -rn 'static calculateDistance' socorre_ai_backend/src/;
+        grep -cE '^\s*router\.(get|post|put|patch|delete)\(' socorre_ai_backend/src/routes/{emergency-requests,towProposals,systemSettings}.js
+      observed_result: >-
+        19 `6371` occurrences in 8 files = 15 SQL `6371 * acos` sites + 4 JS radius
+        constants (Partner.js:15, DeliveryOrderModel.js:443, EmergencyRequest.js:231,
+        ProductController.js:32); 4 `calculateDistance*` definitions and 6 call sites
+        repo-wide; tow path = 6 SQL + 2 JS. Route counts: emergency-requests 16 handlers
+        / 0 `router.use`, towProposals 12 handlers + 1 `router.use(auth)`, systemSettings
+        22 handlers + 2 `router.use`. The docs now state exactly these numbers, with the
+        "(24 routes)" figure explained as 22 handlers + 2 middleware.
+      evidence:
+        - docs/evidence/t00/m7-count-recount.txt
 
 red_evidence:
   script: scripts/tow/red-evidence.sh
@@ -618,6 +926,7 @@ known_limitations:
   - "RED-1..RED-3 prove absence at the execution base and RED-4 is a deterministic grep; neither is a failing assertion. RED-5 is the executable failing assertion (mutation proof) that makes the Issue #11 RED criterion defensible — see docs/tow/T00-TEST-HARNESS.md §6."
   - "The root-lock GREEN validation uses `npm ci --dry-run` in an isolated temp copy, not a real `npm ci` (which would wipe node_modules). It proves manifest/lock agreement and full resolution of the 1955-package graph, not that every tarball downloads."
   - "No Tow v1 test could exercise the payment-payload logging path (S-12) end to end because T00 adds no payment orchestration; the finding is a static, line-referenced registration."
+  - "The Muse Sparks 1.3 Free findings M-1..M-7 are all adjudicated FIXED in pass 3 with per-finding commands and artifacts (see `muse_findings_resolution`). `verdict: REQUEST_CHANGES` is the original review verdict; no re-review was performed inside T00, so this file records resolution evidence, not an approval."
 
 blockers:
   - id: B-1
