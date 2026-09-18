@@ -5,8 +5,18 @@
  * Implements the canonical sequence of docs/tow/TOW-DOCKER-TEST-STRATEGY.md §5:
  *   up -> wait for healthcheck -> (caller runs migrations/gates) -> down
  *
- * Cleanup is guaranteed by `runWithEnvironment()` even when the suite fails:
- * the `finally` block always tears the environment down.
+ * Configuration (Codex finding C1): the harness entrypoint loads
+ * `socorre_ai_backend/.env.test` explicitly (optional, shell values always win)
+ * before anything else, and hands the resolved canonical target to every child
+ * process it spawns (`docker compose`, migrations, Jest). Compose therefore
+ * interpolates exactly the host/port/database/user that pg-guard, the Knex
+ * helper and `src/config/database.js` use (Codex finding C2).
+ *
+ * Cleanup is guaranteed by `runWithEnvironment()` even when the suite fails OR
+ * when the startup itself fails part-way: the startup attempt is inside the
+ * same `try` as the workload, so the `finally` block always tears the
+ * environment down (Codex finding C3). `down()` is safe and idempotent when
+ * nothing was created.
  *
  * Commands:
  *   node scripts/tow/test-env.js up
@@ -19,12 +29,24 @@
 
 const { spawnSync } = require('child_process');
 const path = require('path');
-const { checkTestEnvironment, describeTarget, resolveTestTarget } = require('./pg-guard');
+const { describeEnvFile, loadTestEnvFile } = require('./test-env-file');
 
 const BACKEND_DIR = path.resolve(__dirname, '..', '..');
 const COMPOSE_FILE = path.join(BACKEND_DIR, 'docker-compose.test.yml');
 const COMPOSE_PROJECT = 'socorre-tow-test';
 const HEALTH_TIMEOUT_MS = Number(process.env.TOW_TEST_PG_HEALTH_TIMEOUT_MS) || 90_000;
+
+// Explicit, optional, shell-preserving: this is the only env file the harness
+// reads. Loaded before pg-guard so the resolved target uses these values.
+const envFileInfo = loadTestEnvFile();
+
+const {
+  applyTestTargetDefaults,
+  checkTestEnvironment,
+  describeTarget,
+  resolveHarnessEnv,
+  resolveTestTarget,
+} = require('./pg-guard');
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -40,22 +62,49 @@ function run(command, args, options = {}) {
   return result;
 }
 
-function compose(args, options) {
-  return run('docker', ['compose', '-p', COMPOSE_PROJECT, '-f', COMPOSE_FILE, ...args], options);
+/**
+ * Environment forwarded to child processes (docker compose, migrations, Jest).
+ * The canonical target always wins over any stray `.env` Compose would
+ * otherwise auto-load, so the published port and the client port cannot
+ * diverge (Codex finding C2).
+ */
+function targetEnv(env = process.env) {
+  return resolveHarnessEnv(env);
+}
+
+function compose(args, options = {}) {
+  return run(
+    'docker',
+    ['compose', '-p', COMPOSE_PROJECT, '-f', COMPOSE_FILE, ...args],
+    { ...options, env: { ...targetEnv(), ...options.env } }
+  );
 }
 
 function composeAvailable() {
-  const result = run('docker', ['compose', 'version'], { capture: true, allowFailure: true });
-  return result.status === 0;
+  try {
+    return run('docker', ['compose', 'version'], { capture: true, allowFailure: true }).status === 0;
+  } catch (error) {
+    // `docker` missing from PATH is a normal "not available" answer.
+    return false;
+  }
 }
 
 function up() {
+  applyTestTargetDefaults(process.env);
   compose(['up', '-d', '--wait', '--wait-timeout', String(Math.ceil(HEALTH_TIMEOUT_MS / 1000))]);
   console.log('PostgreSQL test container is healthy');
 }
 
+/**
+ * Destroy containers, volumes and network. Safe and idempotent when nothing
+ * was created, and it never masks the failure that triggered the cleanup.
+ */
 function down() {
-  compose(['down', '--volumes', '--remove-orphans', '--timeout', '10'], { allowFailure: true });
+  try {
+    compose(['down', '--volumes', '--remove-orphans', '--timeout', '10'], { allowFailure: true });
+  } catch (error) {
+    console.error(`[test-env] teardown warning: ${error && error.message ? error.message : error}`);
+  }
   console.log('PostgreSQL test environment destroyed (containers, volumes, network)');
 }
 
@@ -107,26 +156,46 @@ function enableOptIn() {
 
 /**
  * Run `fn` with the disposable environment up, tearing it down even on failure.
+ *
+ * The safety guard runs BEFORE any startup/destructive operation, and the
+ * startup attempt lives inside the cleanup scope: a partially created
+ * container/network from a failed `up()` is still destroyed.
+ *
  * `fn` receives the resolved, guard-checked target.
+ *
+ * `options` is a minimal test seam (no mocking framework): `{ env, up,
+ * waitForHealth, down }` may be injected to prove the lifecycle deterministically
+ * without Docker.
  */
-async function runWithEnvironment(fn) {
-  const check = checkTestEnvironment();
+async function runWithEnvironment(fn, options = {}) {
+  const env = options.env || process.env;
+  const startUp = options.up || up;
+  const waitHealthy = options.waitForHealth || waitForHealth;
+  const tearDown = options.down || down;
+
+  // Fail closed BEFORE anything is started or destroyed.
+  const check = checkTestEnvironment(env);
   if (!check.safe) {
     throw new Error(`refusing to start test environment: ${check.violations.join('; ')}`);
   }
-  up();
+  applyTestTargetDefaults(env);
+
   try {
-    waitForHealth();
+    startUp();
+    waitHealthy();
     return await fn(check.target);
   } finally {
-    down();
+    tearDown();
   }
 }
+
+const DOCKER_COMMANDS = new Set(['up', 'wait', 'down', 'status']);
 
 function main() {
   const command = process.argv[2] || 'status';
   switch (command) {
     case 'up':
+      console.log(`[test-env] ${describeEnvFile(envFileInfo)}`);
       up();
       break;
     case 'wait':
@@ -139,7 +208,10 @@ function main() {
       status();
       break;
     case 'guard': {
+      // Read-only: never starts or destroys anything, so it must work without
+      // Docker being available.
       const check = checkTestEnvironment();
+      console.log(`[test-env] ${describeEnvFile(envFileInfo)}`);
       console.log(`target: ${describeTarget(check.target)}`);
       console.log(check.safe ? 'SAFE' : `UNSAFE: ${check.violations.join('; ')}`);
       process.exitCode = check.safe ? 0 : 1;
@@ -152,7 +224,8 @@ function main() {
 }
 
 if (require.main === module) {
-  if (!composeAvailable()) {
+  const command = process.argv[2] || 'status';
+  if (DOCKER_COMMANDS.has(command) && !composeAvailable()) {
     console.error('docker compose is not available: the Tow PostgreSQL gate requires Docker');
     process.exit(1);
   }
@@ -170,10 +243,12 @@ module.exports = {
   COMPOSE_FILE,
   COMPOSE_PROJECT,
   compose,
+  targetEnv,
   up,
   down,
   status,
   waitForHealth,
   runWithEnvironment,
   resolveTestTarget,
+  envFileInfo,
 };

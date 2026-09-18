@@ -12,17 +12,30 @@
  *
  * This module is mechanism only: it creates no Tow v1 schema and encodes no
  * business rule.
+ *
+ * Configuration (Codex finding C1): requiring this helper explicitly loads
+ * `socorre_ai_backend/.env.test` (optional; shell values always win) and, when
+ * the harness is opted in, makes the resolved canonical target explicit in
+ * `process.env` BEFORE `src/config/database.js` can be required by a test. That
+ * is what keeps the Knex helper and the Express app on the SAME database.
  */
 'use strict';
 
 const path = require('path');
 const knexFactory = require('knex');
+const { loadTestEnvFile } = require('../../../scripts/tow/test-env-file');
 const {
+  applyTestTargetDefaults,
   assertSafeTestEnvironment,
   checkTestEnvironment,
   describeTarget,
   resolveTestTarget,
 } = require('../../../scripts/tow/pg-guard');
+
+// Explicit, optional, shell-preserving. `.env` (dev/prod secrets) is never read.
+loadTestEnvFile();
+// No-op unless TOW_POSTGRES_E2E=1: the offline suite stays untouched.
+applyTestTargetDefaults(process.env);
 
 const MIGRATIONS_DIR = path.resolve(__dirname, '..', '..', '..', 'database', 'migrations');
 
@@ -49,7 +62,7 @@ function createConnection(env = process.env) {
       port: target.port,
       database: target.database,
       user: target.user,
-      password: env.DB_PASSWORD || 'tow_test_password',
+      password: target.password,
     },
     pool: { min: 0, max: 5 },
     acquireConnectionTimeout: 10_000,

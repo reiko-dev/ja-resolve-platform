@@ -24,6 +24,12 @@
  *
  * Env:
  *   TOW_VERIFY_SKIP_POSTGRES=1   same as --skip-postgres
+ *
+ * Configuration: `socorre_ai_backend/.env.test` is loaded explicitly when
+ * present (optional; shell/CI values always win) and the resolved canonical
+ * PostgreSQL target is forwarded to every child process. The offline stage
+ * always runs with `TOW_POSTGRES_E2E=0` so it never needs a container, even
+ * when `.env.test` opts the harness in.
  */
 'use strict';
 
@@ -87,7 +93,10 @@ async function main() {
   });
 
   stage('focused Tow suite (offline)', () => {
-    jest('tests/tow');
+    // Explicit veto: with `.env.test` present the harness is opted in, but this
+    // stage is BY DESIGN offline (no container is up yet). The PostgreSQL stage
+    // below re-enables the opt-in for its own children.
+    jest('tests/tow', { TOW_POSTGRES_E2E: '0' });
   });
 
   if (skipPostgres) {
@@ -99,11 +108,12 @@ async function main() {
         throw new Error('TOW_POSTGRES_E2E=0 explicitly disables the PostgreSQL stage');
       }
       await testEnv.runWithEnvironment(async () => {
+        const childEnv = { ...process.env, ...testEnv.targetEnv(), TOW_POSTGRES_E2E: '1' };
         stage('prepare database + migrations from zero', () => {
-          node('scripts/tow/migrate-test-db.js', { TOW_POSTGRES_E2E: '1' });
+          node('scripts/tow/migrate-test-db.js', childEnv);
         });
         stage('PostgreSQL foundation gate', () => {
-          jest('tests/tow/foundation/towPostgresFoundation.e2e.test.js', { TOW_POSTGRES_E2E: '1' });
+          jest('tests/tow/foundation/towPostgresFoundation.e2e.test.js', childEnv);
         });
       });
     } catch (error) {

@@ -14,11 +14,29 @@
  *   5. user must not contain a privileged-sounding production user hint
  *      (case-insensitive substring: `prod`, `root`, `postgres`).
  *
+ * Configuration (Codex findings C1/C2): requiring this module loads
+ * `socorre_ai_backend/.env.test` explicitly (optional, shell values always
+ * win) through `scripts/tow/test-env-file.js`, and
+ * `applyTestTargetDefaults()` makes the resolved target explicit in the
+ * environment so Compose, the Knex helper, `src/config/database.js` and the
+ * Express `/health` route all read the SAME host/port/database/user.
+ *
  * Usage:
  *   node scripts/tow/pg-guard.js            # prints the resolved target
  *   node scripts/tow/pg-guard.js --assert   # exits 1 when unsafe
  */
 'use strict';
+
+const {
+  describeEnvFile,
+  hasEffectiveValue,
+  lastLoadedEnvFileInfo,
+  loadTestEnvFile,
+} = require('./test-env-file');
+
+// Explicit, optional, shell-preserving: the harness configuration lives in
+// `.env.test` only. `.env` (dev/prod secrets) is never read here.
+loadTestEnvFile();
 
 const LOOPBACK_HOSTS = ['localhost', '127.0.0.1', '::1'];
 // Wildcard binds are explicitly refused: `0.0.0.0` / `::` listen on every
@@ -26,6 +44,7 @@ const LOOPBACK_HOSTS = ['localhost', '127.0.0.1', '::1'];
 const WILDCARD_HOSTS = ['0.0.0.0', '::', '[::]', '*'];
 const FORBIDDEN_USER_HINTS = ['prod', 'root', 'postgres'];
 const TEST_DB_SUFFIX = '_test';
+const DEFAULT_PASSWORD = 'tow_test_password';
 
 function resolveTestTarget(env = process.env) {
   return {
@@ -34,11 +53,50 @@ function resolveTestTarget(env = process.env) {
     port: Number(env.DB_PORT) || 55432,
     database: env.DB_NAME_TEST || 'socorre_ai_tow_test',
     user: env.DB_USER || 'tow_test',
+    password: env.DB_PASSWORD || DEFAULT_PASSWORD,
     hasConnectionUrl: Boolean(
       (env.DATABASE_URL && String(env.DATABASE_URL).trim())
       || (env.PostgreSQL && String(env.PostgreSQL).trim())
     ),
   };
+}
+
+/**
+ * The canonical environment of the disposable target.
+ *
+ * Every consumer of the harness (docker compose interpolation, the Knex test
+ * helper, `src/config/database.js` through the spawned Jest child) must read
+ * the same values; this is the single map that is both applied in-process and
+ * forwarded to child processes. `NODE_ENV=test` keeps production/development
+ * config from being selected; `DB_SSL=false` matches the tmpfs container.
+ */
+function resolveHarnessEnv(env = process.env) {
+  const target = resolveTestTarget(env);
+  return {
+    NODE_ENV: 'test',
+    DB_HOST: target.host,
+    DB_PORT: String(target.port),
+    DB_NAME_TEST: target.database,
+    DB_USER: target.user,
+    DB_PASSWORD: target.password,
+    DB_SSL: 'false',
+  };
+}
+
+/**
+ * Make the resolved target explicit in `env` (defaults to `process.env`).
+ *
+ * Only fills variables that are absent or empty: explicit shell/CI values keep
+ * precedence, exactly like the `.env.test` loader. No-op unless the harness was
+ * explicitly opted in (`TOW_POSTGRES_E2E=1`), so the offline suite is untouched.
+ */
+function applyTestTargetDefaults(env = process.env) {
+  const target = resolveTestTarget(env);
+  if (!target.enabled) return target;
+  for (const [key, value] of Object.entries(resolveHarnessEnv(env))) {
+    if (!hasEffectiveValue(env, key)) env[key] = value;
+  }
+  return target;
 }
 
 /** @returns {{ safe: boolean, target: object, violations: string[] }} */
@@ -87,6 +145,7 @@ function describeTarget(target) {
 
 if (require.main === module) {
   const result = checkTestEnvironment();
+  console.log(describeEnvFile(lastLoadedEnvFileInfo()));
   console.log(`Tow PostgreSQL test target: ${describeTarget(result.target)}`);
   console.log(`opt-in (TOW_POSTGRES_E2E=1): ${result.target.enabled ? 'yes' : 'no'}`);
   if (!result.safe) {
@@ -102,7 +161,10 @@ module.exports = {
   LOOPBACK_HOSTS,
   WILDCARD_HOSTS,
   TEST_DB_SUFFIX,
+  DEFAULT_PASSWORD,
   resolveTestTarget,
+  resolveHarnessEnv,
+  applyTestTargetDefaults,
   checkTestEnvironment,
   assertSafeTestEnvironment,
   describeTarget,

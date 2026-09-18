@@ -115,10 +115,45 @@ quebrado e um `operationId` duplicado devem falhar.
 - Guarda *fail closed*: `scripts/tow/pg-guard.js` recusa host não-loopback, banco
   sem sufixo `_test`, `DATABASE_URL`/`PostgreSQL` definidos ou usuário com cara de
   produção. Toda operação destrutiva passa por ela.
+- **Contrato de configuração (correção Codex C1).** O harness lê **apenas**
+  `socorre_ai_backend/.env.test`, e o faz **explicitamente** via
+  `scripts/tow/test-env-file.js` (`loadTestEnvFile`), carregado por
+  `scripts/tow/test-env.js`, `scripts/tow/run-pg-gate.js`, `scripts/tow/verify.js`,
+  `scripts/tow/pg-guard.js` e `tests/helpers/tow/postgres.js`. O arquivo é
+  **opcional**: sem ele valem os defaults do guard (127.0.0.1:55432,
+  `socorre_ai_tow_test`, `tow_test`). Variáveis do shell/CI **sempre vencem**
+  (nunca `override: true`; valor vazio conta como ausente), `TOW_TEST_ENV_FILE`
+  troca o caminho (usado pelos testes de regressão) e `socorre_ai_backend/.env`
+  **nunca** é lido pelo harness: `dotenv.config()` sem caminho — que carrega
+  `.env` — não participa do caminho de teste. `src/config/database.js` segue
+  chamando `dotenv.config()`, mas o harness já exportou o alvo canônico (e
+  `NODE_ENV=test`) para os processos filhos antes de qualquer `require`, então um
+  `.env` de desenvolvedor não consegue sequestrar a conexão de teste.
+- **Porta única (correção Codex C2).** `DB_PORT` é a única variável de porta:
+  `docker-compose.test.yml` publica `${DB_PORT:-55432}:5432`, o guard resolve a
+  mesma variável e `tests/helpers/tow/postgres.js` conecta nela. `test-env.js`
+  entrega o alvo resolvido explicitamente ao `docker compose` (`targetEnv()`),
+  então um `.env` perdido não pode mais fazer o container publicar 55432
+  enquanto o cliente disca outra porta. A cadeia inteira (porta publicada ==
+  guard == Knex == singleton do app) é verificada offline em
+  `towPostgresGuard.test.js` e, com container real, em
+  `towPostgresFoundation.e2e.test.js`.
+- **Ciclo de vida (correção Codex C3).** `runWithEnvironment(fn, { up,
+  waitForHealth, down, env })` coloca a subida **dentro** do `try` cujo `finally`
+  executa `down()`: uma subida que falha no meio (porta ocupada, timeout de
+  healthcheck) ainda derruba container, volume tmpfs e network. `down()` é
+  idempotente e nunca lança, e a guarda roda antes de qualquer operação
+  destrutiva. Provado sem Docker em `towHarnessLifecycle.test.js` (seam
+  injetável) e no CLI (docker falso no `PATH`).
 - O gate `tests/tow/foundation/towPostgresFoundation.e2e.test.js` prova:
   PostgreSQL 14 real, migrations a partir de schema vazio, isolamento
-  (truncate + rollback) e boot do app contra PostgreSQL.
-- `TOW_POSTGRES_E2E=0` veta explicitamente a etapa.
+  (truncate + rollback), porta publicada == porta do cliente e `GET /health`
+  respondendo 200 a partir do **mesmo singleton** `src/config/database`, com
+  identidade conferida por `current_database()`/`current_user`. Um 404 de rota
+  inexistente não é mais aceito como prova de boot (correção Codex C4).
+- `TOW_POSTGRES_E2E=0` veta explicitamente a etapa. O estágio offline do
+  `verify:tow` roda sempre com `TOW_POSTGRES_E2E=0`, então a presença de
+  `.env.test` não obriga esse estágio a subir container.
 
 ## 5. Fronteira Google Maps / Routes
 

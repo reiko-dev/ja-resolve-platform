@@ -16,10 +16,14 @@ async function main() {
     throw new Error('TOW_POSTGRES_E2E=0 explicitly disables the PostgreSQL gate');
   }
   await testEnv.runWithEnvironment(async () => {
+    // Children receive the canonical target explicitly (`.env.test` already
+    // loaded in this process), so migrations, Jest and the app under test all
+    // read the same host/port/database/user.
+    const childEnv = { ...process.env, ...testEnv.targetEnv(), TOW_POSTGRES_E2E: '1' };
     const migrate = spawnSync(process.execPath, [path.join(BACKEND_DIR, 'scripts/tow/migrate-test-db.js')], {
       cwd: BACKEND_DIR,
       stdio: 'inherit',
-      env: { ...process.env, TOW_POSTGRES_E2E: '1' },
+      env: childEnv,
     });
     if (migrate.status !== 0) throw new Error(`migration stage exited with ${migrate.status}`);
 
@@ -30,7 +34,7 @@ async function main() {
         'tests/tow/foundation/towPostgresFoundation.e2e.test.js',
         '--runInBand',
       ],
-      { cwd: BACKEND_DIR, stdio: 'inherit', env: { ...process.env, TOW_POSTGRES_E2E: '1' } }
+      { cwd: BACKEND_DIR, stdio: 'inherit', env: childEnv }
     );
     if (jest.status !== 0) throw new Error(`PostgreSQL foundation gate exited with ${jest.status}`);
   });
