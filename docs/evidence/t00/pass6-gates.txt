@@ -84,3 +84,8 @@ $ docker volume ls --filter name=socorre-tow --format '{{.Name}}'
 # trailing-whitespace lines in green-postgres-gate-custom-port.txt, which pass 6
 # fixed by re-recording both gate artifacts through
 # `bash scripts/tow/normalize-evidence.sh` (see m3-correction-gates.txt).
+
+## git diff --check e17028e8..25060643   (committed-range scope, after the fix commit)
+exit_code=0
+(no output — the 32 trailing-whitespace findings reported by the pass-5 range
+`git diff --check ac2e7804..e17028e8` are gone; M4-3 closed)

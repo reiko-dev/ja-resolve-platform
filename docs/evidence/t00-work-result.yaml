@@ -6,14 +6,13 @@ issue: 11
 repository: reiko-dev/ja-resolve-platform
 branch: feature/t00-tow-test-harness
 execution_base: e1e7dd2d20d5da25df00d8106a904f14041654a1
-result_head: b8c6ad5a44b78af833bdc5ce5caefe32871705aa
+result_head: 2506064308f4ec7a210af7696f3872ba77d8dfa9
 result_head_note: >-
-  SHA of the last substantive commit of the pass-5 Muse M3 correction series
-  (fix(t00): pin negative-control fixture and record the Muse M3 corrections), whose parent is
-  ac2e7804 (the pass-4 Codex correction tip). This evidence file is committed as the following
-  commit; the reviewed commit 13ce8937 and the pass-4 series were never reset, amended or
-  force-pushed.
-result_head_verify: "git rev-parse HEAD  # tip after the pass-5 docs commit; its parent is result_head"
+  SHA of the pass-6 fix commit (fix(t00): bind the pg test port to loopback and fail the gate
+  on teardown failure), whose parent is e17028e8 (the pass-5 docs tip). This evidence file is
+  committed as the following commit; no earlier commit — including the reviewed 13ce8937 and
+  the pass-4/pass-5 series — was reset, amended or force-pushed.
+result_head_verify: "git rev-parse HEAD  # tip after the pass-6 docs commit; its parent is result_head"
 
 result: PASS
 scope_check:
@@ -94,6 +93,13 @@ commits:
   - message: "docs(t00): record the pass-5 head and commit list"
     files: 1
     pass: 5
+  - message: "fix(t00): bind the pg test port to loopback and fail the gate on teardown failure"
+    sha: 2506064308f4ec7a210af7696f3872ba77d8dfa9
+    files: 14
+    pass: 6
+  - message: "docs(t00): record the pass-6 codex corrections in t00 work result"
+    files: 2
+    pass: 6
 
 files_added:
   contract_harness:
@@ -171,6 +177,10 @@ files_added:
     - docs/evidence/t00/green-postgres-gate-custom-port.txt
     - docs/evidence/t00/m3-correction-gates.txt
     - docs/evidence/t00/negative-controls/fixture-guard.txt
+  pass_6_evidence_and_scripts:   # Muse pass-5 re-review corrections (M4-1..M4-3)
+    - scripts/tow/normalize-evidence.sh
+    - docs/evidence/t00/m4-teardown-failure-negative-control.txt
+    - docs/evidence/t00/pass6-gates.txt
 
 files_modified:
   - path: socorre_ai_backend/package.json
@@ -340,6 +350,50 @@ files_modified:
       docs/evidence/t00/m3-correction-gates.txt.
   - path: docs/evidence/t00/root-lock-sync-green.txt
     change: "pass 5 (M3-4): re-run only; restored for the same npm-timing-only reason as root-lock-sync-red.txt."
+  # --- pass 6: Muse pass-5 re-review fixes (M4-1..M4-3) ---
+  - path: socorre_ai_backend/docker-compose.test.yml
+    change: >-
+      M4-1: the published port is now `127.0.0.1:${DB_PORT:-55432}:5432` (IPv4 loopback only
+      by design; `[::1]` intentionally not added) instead of the all-interfaces mapping.
+  - path: socorre_ai_backend/scripts/tow/test-env.js
+    change: >-
+      M4-2: `down()` captures the teardown output, throws `TeardownError` on a non-zero status
+      or spawn error, and `runWithEnvironment` rejects with it when there is no earlier error
+      or attaches it as `error.teardownError` when there is one; `down()` stays idempotent.
+  - path: socorre_ai_backend/scripts/tow/verify.js
+    change: >-
+      M4-2: a teardown failure is always recorded as a `teardown (docker compose down)` FAIL
+      stage (plus the `PostgreSQL foundation gate` FAIL when a startup error was not already
+      recorded), so the summary is RED even after all test stages passed.
+  - path: socorre_ai_backend/scripts/tow/run-pg-gate.js
+    change: "M4-2: prints `[test:pg] teardown also failed: ...` when an earlier error carries a teardown failure."
+  - path: socorre_ai_backend/tests/tow/foundation/towPostgresGuard.test.js
+    change: >-
+      M4-1: requires the `127.0.0.1:${DB_PORT:-55432}:5432` mapping, rejects the bare
+      `${DB_PORT...}:5432` form and adds a negative control (pre-fix compose source rejected by
+      the same predicate that approves the real file).
+  - path: socorre_ai_backend/tests/tow/foundation/towPostgresFoundation.e2e.test.js
+    change: "M4-1: asserts `service.ports[0].host_ip === '127.0.0.1'` from the real `docker compose config`."
+  - path: socorre_ai_backend/tests/tow/foundation/towHarnessLifecycle.test.js
+    change: >-
+      M4-2: header contract updated; 3 new seam tests (teardown-only failure, workload error +
+      `.teardownError`, startup error + `.teardownError`) and 3 real-CLI tests with a fake
+      docker on PATH (spawn failure never swallowed, idempotent down, down CLI exits non-zero).
+  - path: docs/tow/T00-TEST-HARNESS.md
+    change: >-
+      pass 6: §4 records the loopback bind (M4-1), the corrected 55999 mapping and the
+      teardown-failure contract (M4-2); the `down()` "never throws" wording is replaced.
+  - path: docs/evidence/t00/green-postgres-gate.txt
+    change: "pass 6: re-recorded on the loopback bind and normalized (127.0.0.1:55432->5432/tcp, 6/6 GREEN, EXIT=0, docker ps empty)."
+  - path: docs/evidence/t00/green-postgres-gate-custom-port.txt
+    change: "pass 6: re-recorded on the loopback bind and normalized (127.0.0.1:55999->5432/tcp, 6/6 GREEN, EXIT=0, docker ps empty); the 32 trailing-whitespace lines are gone."
+  - path: docs/evidence/t00/m3-correction-gates.txt
+    change: "M4-3: scope note added — `git diff --check` is the worktree check; the committed-range check is `git diff --check <base>..<head>`."
+  - path: docs/evidence/t00-work-result.yaml
+    change: >-
+      pass 6: thread accounting corrected to 11 threads / 0 resolved (adding 4048163637 and
+      4048163642), `muse_findings_m4_resolution` added, `result_head`/commits updated, and the
+      stale wildcard `0.0.0.0:55999` quotes replaced.
 
 not_committed:
   - docker-compose-simple.yml   # pre-existing modification, deliberately left out
@@ -572,16 +626,37 @@ postgres_test_strategy:
     tables_in_public: 29
     result: GREEN
     artifact: docs/evidence/t00/green-postgres-gate.txt
-  custom_port_gate:   # pass 5 (Muse M3-3): live run on a non-default port
+  custom_port_gate:   # pass 5 (Muse M3-3): live run on a non-default port; pass 6 re-recorded
     command: "DB_PORT=55999 TOW_POSTGRES_E2E=1 npm run test:pg"
     tests: 6
     published_port: 55999
-    live_mapping: "docker port socorre-tow-postgres-test -> 5432/tcp -> 0.0.0.0:55999 and [::]:55999"
+    live_mapping: "docker port socorre-tow-postgres-test -> 5432/tcp -> 127.0.0.1:55999 (IPv4 loopback only)"
     target: "postgresql://tow_test@127.0.0.1:55999/socorre_ai_tow_test"
     health: "GET /health -> 200 {success:true,status:'ok',checks:{http:'ok',postgres:'ok'}}"
     result: GREEN
     torn_down: true
     artifact: docs/evidence/t00/green-postgres-gate-custom-port.txt
+  bind_policy: >-
+    Pass 6 (Muse M4-1 / Codex 4048163637): docker-compose.test.yml publishes
+    `127.0.0.1:${DB_PORT:-55432}:5432`, so the disposable database is never exposed on a
+    non-loopback interface. The bind is IPv4-loopback by design: `[::1]` is deliberately
+    not added because the short port syntax is not portable across Docker/Compose versions
+    and would need a second mapping. Asserted offline (towPostgresGuard.test.js requires
+    the loopback mapping, rejects the bare `${DB_PORT...}:5432` mapping, and has a negative
+    control) and live (towPostgresFoundation.e2e.test.js asserts
+    `service.ports[0].host_ip === '127.0.0.1'` from `docker compose config`; the evidence
+    files record `127.0.0.1:55432->5432/tcp` and `127.0.0.1:55999->5432/tcp`).
+  teardown_contract: >-
+    Pass 6 (Muse M4-2 / Codex 4048163642): `down()` is idempotent when there is nothing to
+    remove (real `docker compose down` on an empty project exits 0) but a real teardown
+    failure is never swallowed. With no earlier workload/startup error, `runWithEnvironment`
+    rejects with the teardown error (`name: TeardownError`, `isTeardownFailure: true`), so
+    run-pg-gate exits RED even after 6/6 green tests and verify.js records a
+    `teardown (docker compose down)` FAIL stage; with an earlier error, that error stays the
+    rejection and carries the teardown failure as `error.teardownError` (run-pg-gate.js also
+    prints it). `npm run test:pg:down` exits non-zero when teardown cannot run. Messages
+    carry the command and exit status, never secrets. Empirical negative control:
+    docs/evidence/t00/m4-teardown-failure-negative-control.txt.
   port_coverage: >-
     Honest coverage: live containers on the default 55432 and on the non-default 55999;
     every other port is covered only by the offline config/guard/Knex/compose agreement
@@ -980,31 +1055,33 @@ codex_review_correction:
     d5e58796 (C6 + negative controls); this evidence file is committed as the
     following commit.
   result_head_verify: "git log --oneline -6  # e8964d6d 9454d26e d5e58796 17587c94 + this docs commit"
-  # --- counts corrected in pass 5 (Muse finding M3-2) -----------------------
+  # --- counts corrected in pass 5 (Muse finding M3-2), extended in pass 6 -----
   # The previous `findings_posted: 6 / resolved: 6 / unresolved: 0` counted only
   # the six original C1..C6 threads and reported adjudication as if the GitHub
-  # threads had been resolved. Three newer Codex P2 threads exist on PR #30 and
-  # every thread is still `isResolved:false`; the counts below separate the
-  # GitHub resolution state from the in-T00 adjudication.
-  threads_on_pr: 9                    # 6 original (C1..C6) + 3 newer P2 threads
+  # threads had been resolved. Every thread is still `isResolved:false`; the
+  # counts below separate the GitHub resolution state from the in-T00
+  # adjudication. Pass 6 added the two newer Codex threads 4048163637 (M4-1) and
+  # 4048163642 (M4-2) opened after the pass-5 push.
+  threads_on_pr: 11                   # 6 original (C1..C6) + 5 newer P2 threads
   threads_original: 6
-  threads_newer: 3
-  github_replies_posted: 9            # one objective reply per thread; no thread was resolved
+  threads_newer: 5
+  github_replies_posted: 11           # one objective reply per thread; no thread was resolved
   github_threads_resolved: 0
-  github_threads_unresolved: 9        # all nine threads stay open by decision
-  findings_posted: 9
-  findings_adjudicated: 9
+  github_threads_unresolved: 11       # all eleven threads stay open by decision
+  findings_posted: 11
+  findings_adjudicated: 11
   adjudication:
-    fixed: 7                          # C1..C6 + M3-1
+    fixed: 9                          # C1..C6 + M3-1 + M4-1 + M4-2
     fixed_doc: 1                      # M3-4
     accepted_as_t00_limitation: 1     # M3-5
     dismissed: 0
   p2_findings_dismissed: 0
   newer_threads_note: >-
-    Three P2 review threads opened by Codex on PR #30 after the pass-4 correction
-    (2026-09-18T14:10:13Z), all still isResolved:false at the time of the pass-5
-    push. They are adjudicated in `muse_findings_m3_resolution` and replied to
-    without resolving.
+    Five P2 review threads opened by Codex on PR #30 after the pass-4 correction,
+    all still isResolved:false at the time of the pass-6 push. The first three
+    (2026-09-18T14:10:13Z) are adjudicated in `muse_findings_m3_resolution`; the
+    two newest (M4-1/M4-2) are adjudicated in `muse_findings_m4_resolution`.
+    Every one was replied to without resolving.
   newer_threads:
     - comment_id: 4047474342
       path: scripts/tow/negative-controls.sh
@@ -1457,6 +1534,8 @@ muse_findings_m3_resolution:
         state (`threads_on_pr: 9`, `github_threads_resolved: 0`, `github_threads_unresolved: 9`,
         `github_replies_posted: 9`) and in-T00 adjudication (`fixed: 7`, `fixed_doc: 1`,
         `accepted_as_t00_limitation: 1`, `dismissed: 0`). No thread was resolved on GitHub.
+        Those pass-5 numbers are superseded by pass 6 (11 threads, 0 resolved, fixed: 9) —
+        see `muse_findings_m4_resolution`.
       files:
         - docs/evidence/t00-work-result.yaml
       command: >-
@@ -1477,10 +1556,12 @@ muse_findings_m3_resolution:
       fix: >-
         Ran the live gate once with `DB_PORT=55999 TOW_POSTGRES_E2E=1 npm run test:pg` and
         captured the complete command + output. A separate live probe recorded
-        `docker port socorre-tow-postgres-test` -> `5432/tcp -> 0.0.0.0:55999` (and `[::]:55999`)
-        before the environment was destroyed. Honest coverage is now documented in
-        docs/tow/T00-TEST-HARNESS.md §4 and `postgres_test_strategy.port_coverage`: live
-        containers on 55432 and 55999 only; other ports by offline agreement assertions.
+        `docker port socorre-tow-postgres-test` -> `5432/tcp -> 127.0.0.1:55999` before the
+        environment was destroyed (pass 5 observed the pre-M4-1 wildcard mapping
+        `0.0.0.0:55999`; pass 6 re-recorded the artifact after the loopback bind). Honest
+        coverage is now documented in docs/tow/T00-TEST-HARNESS.md §4 and
+        `postgres_test_strategy.port_coverage`: live containers on 55432 and 55999 only;
+        other ports by offline agreement assertions.
       files:
         - docs/evidence/t00/green-postgres-gate-custom-port.txt   # NEW
         - docs/tow/T00-TEST-HARNESS.md
@@ -1543,6 +1624,145 @@ muse_findings_m3_resolution:
       evidence:
         - docs/tow/T00-TEST-HARNESS.md
         - docs/evidence/t00-work-result.yaml
+
+muse_findings_m4_resolution:
+  pass: 6
+  trigger: >-
+    Muse Sparks pass-5 adversarial re-review of PR #30 returned APPROVE_WITH_FINDINGS
+    (P0=0, P1=0) with three actionable findings: M4-1 (compose published the disposable
+    database on every interface), M4-2 (a teardown failure was swallowed and the gate could
+    report GREEN while leaking resources) and M4-3 (trailing whitespace in committed
+    evidence plus an imprecise diff-check claim). Two of them are also Codex review threads
+    on PR #30: 4048163637 (M4-1) and 4048163642 (M4-2). Every thread on the PR was replied
+    to and left unresolved.
+  findings:
+    - id: M4-1
+      priority: P2
+      also_codex_thread: 4048163637
+      title: "compose published the disposable database on every interface"
+      decision: FIXED
+      root_cause: >-
+        docker-compose.test.yml mapped `${DB_PORT:-55432}:5432`, which Docker publishes on
+        0.0.0.0 (and [::]); the disposable PostgreSQL 14 container with weak test credentials
+        was reachable from any host interface while the gate ran.
+      fix: >-
+        The mapping is now `127.0.0.1:${DB_PORT:-55432}:5432`. The bind is IPv4-loopback by
+        design: `[::1]` was deliberately NOT added because the short port syntax is not
+        portable across Docker/Compose versions and would require a second mapping; the
+        trade-off is documented in docs/tow/T00-TEST-HARNESS.md §4 and
+        `postgres_test_strategy.bind_policy`. towPostgresGuard.test.js now requires the
+        loopback mapping, rejects the bare `${DB_PORT...}:5432` form and contains a negative
+        control (a pre-fix copy of the compose source is rejected by the same predicate that
+        approves the real file); towPostgresFoundation.e2e.test.js asserts
+        `service.ports[0].host_ip === '127.0.0.1'` from the real `docker compose config`.
+      files:
+        - socorre_ai_backend/docker-compose.test.yml
+        - socorre_ai_backend/tests/tow/foundation/towPostgresGuard.test.js
+        - socorre_ai_backend/tests/tow/foundation/towPostgresFoundation.e2e.test.js
+        - docs/tow/T00-TEST-HARNESS.md
+      command: >-
+        npx jest tests/tow/foundation/towPostgresGuard.test.js
+        tests/tow/foundation/towPostgresFoundation.e2e.test.js --runInBand;
+        TOW_POSTGRES_E2E=1 npm run test:pg;
+        DB_PORT=55999 TOW_POSTGRES_E2E=1 npm run test:pg
+      observed_result: >-
+        Offline: 2 suites / 33 tests pass, including the new negative control. Live: 6/6 tests
+        pass on both ports; `docker port socorre-tow-postgres-test` ->
+        `5432/tcp -> 127.0.0.1:55432` and `-> 127.0.0.1:55999`; `docker ps` shows
+        `127.0.0.1:55432->5432/tcp` / `127.0.0.1:55999->5432/tcp`; both evidence files were
+        re-recorded and no `0.0.0.0` mapping remains in any pass-6 artifact.
+      evidence:
+        - docs/evidence/t00/green-postgres-gate.txt
+        - docs/evidence/t00/green-postgres-gate-custom-port.txt
+        - docs/evidence/t00/pass6-gates.txt
+    - id: M4-2
+      priority: P2
+      also_codex_thread: 4048163642
+      title: "a teardown failure was swallowed and the gate could report GREEN while leaking resources"
+      decision: FIXED
+      root_cause: >-
+        `down()` ran `docker compose down` with `allowFailure: true` and discarded the exit
+        status, and `runWithEnvironment` only rejected on workload/startup errors. A Docker
+        failure during teardown after green stages therefore left the container, network and
+        tmpfs volume behind while run-pg-gate printed `[test:pg] GREEN` and exited 0 — a false
+        GREEN that also hid the resource leak.
+      fix: >-
+        `down()` now runs the teardown with `allowFailure: true, capture: true`, re-emits the
+        captured output, and throws `TeardownError` (`isTeardownFailure: true`) carrying the
+        exact command and exit status on a non-zero status or a spawn error — never secrets.
+        `runWithEnvironment` captures the workload/startup error first and the teardown error
+        second: with no earlier error it rejects with the teardown error; with an earlier
+        error it preserves that error as the rejection and attaches the teardown failure as
+        `error.teardownError`. verify.js records a `teardown (docker compose down)` FAIL stage
+        (and, when the only failure is a startup error with no failed stage, a `PostgreSQL
+        foundation gate` FAIL), so the summary is RED; run-pg-gate.js prints the attached
+        teardown error. `down()` remains idempotent when there is nothing to remove.
+      files:
+        - socorre_ai_backend/scripts/tow/test-env.js
+        - socorre_ai_backend/scripts/tow/verify.js
+        - socorre_ai_backend/scripts/tow/run-pg-gate.js
+        - socorre_ai_backend/tests/tow/foundation/towHarnessLifecycle.test.js
+        - docs/tow/T00-TEST-HARNESS.md
+      command: >-
+        PATH=/tmp/t00-fakedocker:$PATH TOW_POSTGRES_E2E=1 npm run test:pg;
+        PATH=/tmp/t00-fakedocker:$PATH TOW_POSTGRES_E2E=1 npm run verify:tow;
+        TOW_POSTGRES_E2E=1 npm run test:pg:down (real, empty project and leaked container);
+        DOCKER_HOST=unix:///tmp/t00-dead-socket.sock npm run test:pg:down
+      observed_result: >-
+        With a wrapper `docker` whose `compose ... down` exits 1: run-pg-gate printed 6/6
+        tests passed and then `[test:pg] RED: docker compose down failed (exit status 1)` with
+        exit 1; verify:tow printed all five test stages PASS plus
+        `FAIL teardown (docker compose down)` and `RED (1 failing stage(s))` with exit 1;
+        `test:pg:down` exited 1 both with the wrapper and with a dead DOCKER_HOST; the real
+        `test:pg:down` exited 0 both with a leaked container and with an empty project, and
+        the container/network/volume listings are empty afterwards. Offline proof: 3 new
+        towHarnessLifecycle.test.js tests over the existing `{ env, up, waitForHealth, down }`
+        seam plus 3 real-CLI tests using a fake docker on PATH.
+      evidence:
+        - docs/evidence/t00/m4-teardown-failure-negative-control.txt
+        - docs/evidence/t00/pass6-gates.txt
+    - id: M4-3
+      priority: P3
+      title: "trailing whitespace in committed evidence and an imprecise diff-check claim"
+      decision: FIXED
+      root_cause: >-
+        green-postgres-gate-custom-port.txt was committed raw; Docker Compose prints padded
+        progress lines ("Creating ", "Created "), so `git diff --check ac2e7804..e17028e8`
+        reported 32 trailing-whitespace findings in that file. The pass-5 evidence recorded
+        only the worktree check `git diff --check` (exit 0), which is empty on a clean tree
+        and does not cover committed content — the claim was true but narrower than it looked.
+      fix: >-
+        Added scripts/tow/normalize-evidence.sh (strips trailing whitespace per line, in
+        place) and re-recorded both PostgreSQL gate artifacts through it (default 55432 and
+        DB_PORT=55999), together with the new pass-6 evidence files. m3-correction-gates.txt
+        now states the scope precisely: `git diff --check` is the WORKTREE check and
+        `git diff --check <base>..<head>` is the committed-range check, re-run clean for
+        e17028e8..HEAD after the pass-6 commits.
+      files:
+        - scripts/tow/normalize-evidence.sh   # NEW
+        - docs/evidence/t00/green-postgres-gate.txt
+        - docs/evidence/t00/green-postgres-gate-custom-port.txt
+        - docs/evidence/t00/m3-correction-gates.txt
+        - docs/evidence/t00/pass6-gates.txt   # NEW
+      command: "git diff --check; git diff --check e17028e8..HEAD"
+      observed_result: >-
+        Both gate artifacts and all pass-6 evidence files are free of trailing whitespace;
+        `git diff --check` exits 0 with no output and `git diff --check e17028e8..HEAD` is
+        clean for the pass-6 commits (the pass-5 range reported the 32 findings above).
+      evidence:
+        - docs/evidence/t00/pass6-gates.txt
+        - docs/evidence/t00/m3-correction-gates.txt
+  codex_threads:
+    - comment_id: 4048163637
+      node_id: PRRT_kwDOUUETdc6jy8Z_
+      decision: FIXED   # by M4-1
+      reply_posted: "pass 6 — posted after the pass-6 push; reply id recorded in the pass-6 report"
+      resolved: false
+    - comment_id: 4048163642
+      node_id: PRRT_kwDOUUETdc6jy8aB
+      decision: FIXED   # by M4-2
+      reply_posted: "pass 6 — posted after the pass-6 push; reply id recorded in the pass-6 report"
+      resolved: false
 
 red_evidence:
   script: scripts/tow/red-evidence.sh
@@ -1695,6 +1915,8 @@ known_limitations:
   - "One pre-existing intermittent failure of tests/tow/towDocumentFlow.test.js (403 on an admin approval + two `socket hang up`) was observed once in six offline focused-Tow runs and did not reproduce in the five subsequent runs; the raw log is kept as docs/evidence/t00/flake-tow-document-flow-403.txt. The suite uses its own in-memory SQLite mock and no file changed by this pass is on its code path."
   - "M3-1: the negative controls take their pre-fix fixture from the pinned ref `TOW_NC_PREFIX_REF=74e44590`, never from HEAD. On a clone that does not contain that commit the script fails fast with a FATAL guard instead of silently running the fixed code (both negative cases captured in docs/evidence/t00/negative-controls/fixture-guard.txt); set `TOW_NC_PREFIX_REF` to any reachable pre-fix revision to reproduce."
   - "M3-3: live PostgreSQL evidence exists for the default port 55432 and the non-default port 55999 only. Every other port is covered by the offline config/guard/Knex/compose agreement assertions, not by a live container; no per-port live claim is made."
+  - "M4-1: the disposable PostgreSQL container is published on IPv4 loopback only (127.0.0.1). IPv6 loopback ([::1]) is intentionally not mapped because the short-syntax bind is not portable across Docker/Compose versions and would need a second mapping; callers must use 127.0.0.1 (the guard and the harness already do)."
+  - "M4-2: a teardown failure now fails the gate on purpose. A run whose tests all passed but whose `docker compose down` failed exits non-zero and prints a `teardown (docker compose down)` FAIL stage; this is a deliberate fail-closed behavior, not a flaky gate."
   - "M3-4: `scripts/tow/root-lock-evidence.sh` defaults to `TOW_LOCK_PREFIX_REF=0c5de7ed`, an ancestor of this branch but not of a squashed main-only history. A fresh clone containing only the merged history cannot resolve it and the script aborts in its `cat-file` check; in that scenario override `TOW_LOCK_PREFIX_REF`/`TOW_LOCK_CURRENT_REF` or vendor the pre-fix blob. On the branch/PR refs the evidence is reproducible (pass-5 re-run exit 0)."
   - "M3-5: `socorre_ai_backend/tests/helpers/tow/factories.js` inserts through the SQLite test DB (`tests/helpers/testDb.js`, `:memory:`) while the opt-in Express app connects to PostgreSQL. T00 exercises no PG business behavior (the PG gate uses raw Knex and no Tow v1 route), so this is accepted as a T00 limitation; T01+ must inject/accept the active adapter or add PG-backed factory implementations before PG route tests rely on the factories."
   - "M3-2: all nine PR #30 review threads remain `isResolved:false` by decision. The work-result records the in-T00 adjudication (7 fixed, 1 fixed-doc, 1 accepted limitation, 0 dismissed), not a GitHub resolution and not an approval; no re-review was performed inside T00."
