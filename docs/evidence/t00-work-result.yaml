@@ -812,10 +812,11 @@ codex_review_correction:
     test_suites: 5
     compose_and_env: 2
     shell_scripts: 2
-    docs: 1
-    evidence_artifacts: 21
-    total_tracked_files_touched: 38
-    list:
+    docs: 2
+    evidence_artifacts: 32
+    total_tracked_files_touched: 50      # git diff --name-only 74e44590 HEAD | wc -l
+    production_src_files: 0
+    list_representative:
       - socorre_ai_backend/scripts/tow/test-env-file.js            # NEW (C1)
       - socorre_ai_backend/scripts/tow/pg-guard.js                 # C1, C2
       - socorre_ai_backend/scripts/tow/test-env.js                 # C1, C2, C3
