@@ -59,7 +59,7 @@ T00, para que um teste jamais toque o banco de desenvolvimento.
 | Comando | O que faz | Destrutivo? |
 | --- | --- | --- |
 | `npm run db:guard -- --purpose test` | pré-voo: imprime o alvo e valida todas as regras de segurança | não |
-| `npm run db:migrate -- --purpose test` | aplica `001_baseline_schema.js` + `002_baseline_settings.js`; recusa banco com tabelas não gerenciadas (use `--allow-existing` para assumir) | não |
+| `npm run db:migrate -- --purpose test` | aplica `001_baseline_schema.js` + `002_baseline_settings.js`; recusa banco com tabelas não gerenciadas (sem escape hatch — ver §6) | não |
 | `npm run db:seed -- --purpose test` | cria o administrador padrão (idempotente) | não |
 | `npm run db:assert -- --purpose test` | verifica o baseline: 27 tabelas de domínio, exatamente 1 admin, nenhum dado funcional, 25 settings | não |
 | `npm run db:reset -- --purpose test` | **apaga** todas as tabelas (`--dry-run` lista sem apagar) | **SIM** |
@@ -67,8 +67,9 @@ T00, para que um teste jamais toque o banco de desenvolvimento.
 | `npm run test:db-baseline` | gate completo em container novo e descartável (ver §7) | sim, no container |
 
 Flags comuns: `--purpose dev|test` (default `test`), `--json` (saída de máquina),
-`--report <arquivo>` (`db:assert`/baseline completo), `--dry-run` (só `db:reset`),
-`--allow-existing` (só `db:migrate`).
+`--report <arquivo>` (`db:assert`/baseline completo), `--dry-run` (só `db:reset`).
+Não existe flag de bypass: `--allow-existing` foi **removido** do `db:migrate`
+(a política do T01 é `banco pré-T01 → reset autorizado → baseline limpo`).
 
 ---
 
@@ -170,6 +171,29 @@ conforme §3. Não existe caminho incremental — os dados são descartáveis po
 Issue #12 e a equivalência estrutural está provada em
 `docs/evidence/t01/schema-legacy-vs-baseline.txt`.
 
+### 6.1 Como o reset destrutivo é autorizado (correção pós-review)
+
+O único ponto de entrada destrutivo é a API pública
+`resetDatabase({ purpose, env?, confirm?, dryRun? })` (`scripts/tow/db-reset.js`).
+Não existe parâmetro de conexão:
+
+1. o alvo é **resolvido** a partir do ambiente do propósito (`--purpose dev` lê o `.env`;
+   `--purpose test` usa os defaults do harness) e do `DB_RESET_CONFIRM`;
+2. o alvo resolvido é **autorizado** pelo guarda (`db-reset-guard.js`) — token, nome do banco,
+   loopback, usuário não privilegiado, `NODE_ENV`, `DATABASE_URL`;
+3. **só então** a conexão é criada, e é criada *a partir do alvo autorizado*
+   (`createConnectionForTarget`), nunca a partir de um `Knex`/config recebido de fora;
+4. o `DROP SCHEMA public CASCADE` é um primitivo **privado** (não exportado), chamado apenas
+   depois dos passos 1–3; a conexão é sempre fechada (`destroy`) no `finally`.
+
+Consequências verificadas por teste (`RESET-DIRECT-1..8`, suíte
+`tests/tow/baseline/dbBaselineSafety.test.js`): passar um objeto `Knex` é recusado com
+`RESET_API_MISUSE`; sem token nada é apagado; alvos remotos, com nome de produção, host
+wildcard, usuário privilegiado ou `DATABASE_URL` são recusados antes de qualquer conexão; o
+`--dry-run` não exige token mas **continua exigindo alvo autorizado** e nunca emite `DROP`.
+`db:migrate`/`db:seed`/`db:assert` e o gate usam a mesma autorização (sem token, por não
+serem destrutivos).
+
 ---
 
 ## 7. Gate de banco limpo via Docker
@@ -189,7 +213,7 @@ O gate (`scripts/tow/run-db-baseline-gate.js`) usa o mesmo `docker-compose.test.
 5. `seed` e exige **exatamente 1** administrador;
 6. `assert` completo do baseline;
 7. snapshot estrutural (fingerprint 1);
-8. reset destrutivo + `migrate` + `seed` + `assert` de novo;
+8. reset destrutivo **guardado** (`resetDatabase({ purpose: 'test' })`, alvo autorizado) + `migrate` + `seed` + `assert` de novo;
 9. snapshot 2 — fingerprint **idêntico** ao snapshot 1;
 10. `docker compose down --volumes` e verificação de que nada sobrou;
 11. grava `docs/evidence/t01/db-baseline-gate.json`.
@@ -209,7 +233,7 @@ outros projetos.
 | `REFUSED: DB_RESET_CONFIRM must be exactly ...` | consentimento ausente | exporte a variável (somente se o alvo for descartável) |
 | `REFUSED: database name "..." contains the forbidden hint "prod"` | alvo não autorizado | **não** insista: confirme o alvo real |
 | `ADMIN_SEED_CONFIG: ADMIN_PASSWORD is required` | credencial não exportada | exporte `ADMIN_EMAIL`/`ADMIN_PASSWORD` |
-| `db:migrate` recusa "unmanaged tables" | banco com tabelas fora do baseline | `db:reset` autorizado (ou `--allow-existing` se souber o que está fazendo) |
+| `db:migrate` recusa "unmanaged tables" | banco com tabelas fora do baseline | `db:reset` autorizado (não há `--allow-existing`; a regra é única e vale para todo caminho público de migrate) |
 | `expected exactly 1 administrator, found 0` | `db:seed` não executado | rode `db:seed` |
 | Gate falha em "expected a brand new database with 0 tables" | volume antigo reaproveitado | o próprio gate já destrói antes de subir; verifique containers residuais do projeto Compose |
 | Fingerprint do schema diferente do baseline | migration alterada | compare com `node scripts/tow/schema-snapshot.js --compare docs/evidence/t01/schema-baseline.json <novo>.json` |
@@ -228,3 +252,6 @@ outros projetos.
 | `docs/evidence/t01/schema-baseline.json` / `schema-baseline-fresh.json` | fingerprint do baseline (idêntico em duas execuções) |
 | `docs/evidence/t01/schema-legacy-chain.json` / `schema-legacy-vs-baseline.txt` | equivalência com o schema legado (7 deltas intencionais) |
 | `docs/evidence/t01/db-baseline-gate.json` | resultado estruturado do gate |
+| `docs/evidence/t01/07-negative-control-reset-authorization.txt` | controle negativo da correção: mutações que derrubam `RESET-DIRECT-1..8` (e restauração byte-idêntica) |
+| `docs/evidence/t01/08-correction-regression.txt` | regressão completa após a correção (offline + gate + e2e + T00) |
+| `docs/evidence/t01/T01-CORRECTION-RESULT.md` | resultado da passagem de correção do review externo (P1) |

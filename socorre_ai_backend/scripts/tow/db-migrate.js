@@ -7,8 +7,15 @@
  * built by the archived chain, and the documented upgrade path for those is a
  * reset (`npm run db:reset`), not an incremental migration.
  *
+ * There is NO `--allow-existing` escape hatch (removed by the external-review
+ * correction, PR #32): the T01 policy is `pre-T01 DB -> authorized reset ->
+ * clean baseline`, and the rule lives in ONE place
+ * (`db-baseline.js#baselineEligibility`, reached through `migrateBaseline`) so
+ * no public migrate path can diverge. The flag is still recognized only to fail
+ * loudly instead of being silently ignored.
+ *
  * Usage:
- *   node scripts/tow/db-migrate.js [--purpose test|dev] [--allow-existing] [--json]
+ *   node scripts/tow/db-migrate.js [--purpose test|dev] [--json]
  */
 'use strict';
 
@@ -18,18 +25,18 @@ const { migrateBaseline, listTables } = require('./db-baseline');
 async function main() {
   const argv = process.argv.slice(2);
   const purpose = resolvePurpose(argv);
-  const allowExisting = argv.includes('--allow-existing');
+  if (argv.includes('--allow-existing')) {
+    throw new Error(
+      '--allow-existing was removed: the T01 policy is "pre-T01 DB -> authorized reset -> clean baseline", ' +
+      'so an unmanaged database is always refused. Run ' +
+      'DB_RESET_CONFIRM=I_UNDERSTAND_DESTRUCTIVE_RESET npm run db:reset -- --purpose <dev|test> instead.'
+    );
+  }
   loadPurposeEnv(purpose);
   const db = createConnection({ purpose });
   try {
-    const tables = await listTables(db);
-    const managed = tables.includes('knex_migrations');
-    if (tables.length > 0 && !managed && !allowExisting) {
-      throw new Error(
-        `database contains ${tables.length} table(s) but no "knex_migrations": it was not created by this baseline. ` +
-        'Reset it first (DB_RESET_CONFIRM=I_UNDERSTAND_DESTRUCTIVE_RESET npm run db:reset) or pass --allow-existing.'
-      );
-    }
+    // `migrateBaseline` applies the shared baseline-eligibility rule before
+    // Knex is allowed to run anything.
     const { batch, applied } = await migrateBaseline(db);
     if (applied.length === 0) {
       console.log('[db:migrate] already up to date (no migration applied)');

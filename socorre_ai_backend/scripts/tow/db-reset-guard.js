@@ -12,10 +12,14 @@
  *     `TOW_POSTGRES_E2E=1`, loopback host, `_test` database, no
  *     `DATABASE_URL`, non-privileged user) and adds the reset-specific rules;
  *   - `--purpose dev` is a deliberately separate, narrower path for the local
- *     development database: it never reads `.env` (so it cannot inherit a
- *     production URL), it requires the operator to export the target
- *     explicitly, and it only accepts a database whose name ends in `_dev` or
- *     `_test` (or is in the small allowlist below).
+ *     development database. It DOES read `socorre_ai_backend/.env` (through
+ *     `db-connection.loadPurposeEnv`, exactly like the application itself), so
+ *     it can inherit whatever that file points at — but the rules below are
+ *     applied to the RESOLVED values, so a `.env` that points at production
+ *     still cannot be used: the database name must end in `_dev` or `_test`
+ *     (or be in the small allowlist below), the host must be loopback, the user
+ *     must not look privileged, `DATABASE_URL` is refused and
+ *     `NODE_ENV=production` is refused.
  *
  * Why the confirmation token is separate from `E2E_RESET_CONFIRM`: the E2E
  * script deletes *rows* of an already-provisioned database; this gate deletes

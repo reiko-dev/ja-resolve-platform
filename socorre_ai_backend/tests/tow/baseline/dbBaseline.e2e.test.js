@@ -26,11 +26,13 @@ const {
   collectReport,
   baselineViolations,
   BaselineAssertionError,
+  UnmanagedDatabaseError,
 } = require('../../../scripts/tow/db-baseline');
-const { resetDatabase } = require('../../../scripts/tow/db-reset');
+const { resetDatabase, ResetApiMisuseError } = require('../../../scripts/tow/db-reset');
 const { checkResetAuthorization, RESET_CONFIRM_TOKEN, CONFIRM_VAR } = require('../../../scripts/tow/db-reset-guard');
 const { createConnection, checkPurpose } = require('../../../scripts/tow/db-connection');
 const { AdminSeedConfigError } = require('../../../scripts/tow/admin-seed');
+const { disposableAdminCredentials } = require('../../../scripts/tow/disposable-credentials');
 const { snapshotSchema, compareSnapshots, fingerprintOf } = require('../../../scripts/tow/schema-snapshot');
 
 const describePostgres = postgres.isEnabled() ? describe : describe.skip;
@@ -38,12 +40,18 @@ const BASELINE_MIGRATIONS = ['001_baseline_schema.js', '002_baseline_settings.js
 
 /** Disposable credentials: generated per run, never committed. */
 function disposableAdmin() {
-  const suffix = `${process.pid}${Date.now()}`.slice(-8);
-  return {
-    ADMIN_EMAIL: `baseline-e2e-${suffix}@example.test`,
-    ADMIN_PASSWORD: `E2e-${suffix}-Disposable!`,
-    ADMIN_NAME: 'Baseline E2E Admin',
-  };
+  return disposableAdminCredentials('baseline-e2e');
+}
+
+/**
+ * The destructive reset of this suite. ONLY the guarded public API is used:
+ * `resetDatabase()` resolves + authorizes the disposable harness target and
+ * builds its own connection from that authorized target. The suite IS the
+ * explicitly authorized container, so it passes the same consent token an
+ * operator would have to type.
+ */
+function guardedReset() {
+  return resetDatabase({ purpose: 'test', confirm: RESET_CONFIRM_TOKEN });
 }
 
 async function count(db, table) {
@@ -60,7 +68,10 @@ describePostgres('T01 PostgreSQL — clean baseline', () => {
   beforeAll(async () => {
     db = postgres.createConnection();
     admin = disposableAdmin();
-    const result = await postgres.migrateFromScratch(db);
+    // Destructive bootstrap goes through the SAME guarded public reset the
+    // operator command uses (never a raw drop primitive).
+    await guardedReset();
+    const result = await migrateBaseline(db);
     firstApplied = result.applied;
     firstSnapshot = await snapshotSchema(db);
   }, 60_000);
@@ -94,7 +105,7 @@ describePostgres('T01 PostgreSQL — clean baseline', () => {
     });
 
     test('a reset + migrate reproduces the same schema fingerprint', async () => {
-      const dropped = await resetDatabase(db);
+      const { dropped } = await guardedReset();
       expect(dropped.length).toBeGreaterThan(0);
       expect(await postgres.listTables(db)).toEqual([]);
 
@@ -115,6 +126,22 @@ describePostgres('T01 PostgreSQL — clean baseline', () => {
       expect(source).not.toMatch(/\.del\(\)/);
       expect(source).not.toMatch(/\.update\(/);
     });
+
+    test('an unmanaged database is refused by migrate (pre-T01 upgrade path is the guarded reset)', async () => {
+      // Reproduce the legacy signature inside the disposable container: tables
+      // but no `knex_migrations`.
+      await guardedReset();
+      await db.raw('CREATE TABLE legacy_unmanaged_fixture (id serial PRIMARY KEY)');
+      await expect(migrateBaseline(db)).rejects.toThrow(UnmanagedDatabaseError);
+      await expect(migrateBaseline(db)).rejects.toThrow(/not created by this baseline/);
+      // Nothing was migrated: the only table is still the fixture.
+      expect(await postgres.listTables(db)).toEqual(['legacy_unmanaged_fixture']);
+      // The documented recovery path (guarded reset) restores a clean state.
+      await guardedReset();
+      const { applied } = await migrateBaseline(db);
+      expect(applied.slice().sort()).toEqual(BASELINE_MIGRATIONS.slice().sort());
+      expect(await postgres.listTables(db)).not.toContain('legacy_unmanaged_fixture');
+    }, 60_000);
   });
 
   describe('DATABASE — the constraints and indexes are really applied', () => {
@@ -293,7 +320,7 @@ describePostgres('T01 PostgreSQL — clean baseline', () => {
 
   describe('SEED — exactly one administrator, no functional data', () => {
     test('a fresh migrate + seed produces the clean baseline', async () => {
-      await resetDatabase(db);
+      await guardedReset();
       await migrateBaseline(db);
       const seed = await runSeed(db, admin);
       expect(seed.created).toBe(true);
@@ -405,11 +432,57 @@ describePostgres('T01 PostgreSQL — clean baseline', () => {
       expect(compose).not.toMatch(/^\s{6,}-\s+\.\//m);
       expect(compose).not.toMatch(/volumes:\s*\n\s+-/);
     });
+
+    test('RESET-DIRECT-1 (live) the guarded reset without consent leaves the schema intact', async () => {
+      const env = { ...process.env };
+      delete env[CONFIRM_VAR];
+      const before = await postgres.listTables(db);
+      expect(before.length).toBeGreaterThan(0);
+      await expect(resetDatabase({ purpose: 'test', env })).rejects.toThrow(/DB_RESET_CONFIRM must be exactly/);
+      // Nothing was dropped: the exact same tables are still there.
+      expect(await postgres.listTables(db)).toEqual(before);
+      expect(await postgres.countRows(db, 'users')).toBe(1);
+    });
+
+    test('RESET-DIRECT-7 (live) an arbitrary Knex connection cannot be passed to the guarded reset', async () => {
+      const before = await postgres.listTables(db);
+      await expect(resetDatabase(db)).rejects.toThrow(ResetApiMisuseError);
+      await expect(resetDatabase(db)).rejects.toThrow(/does not accept a database connection/);
+      expect(await postgres.listTables(db)).toEqual(before);
+      expect(await postgres.countRows(db, 'users')).toBe(1);
+    });
+
+    test('RESET-DIRECT-7 (live) a production-like target cannot reuse the disposable authorization', async () => {
+      const before = await postgres.listTables(db);
+      // Same consent token, different target: the guard refuses before any
+      // connection is opened.
+      await expect(resetDatabase({
+        purpose: 'test',
+        confirm: RESET_CONFIRM_TOKEN,
+        env: { ...process.env, DB_NAME_TEST: 'socorre_ai_production' },
+      })).rejects.toThrow(/forbidden hint/);
+      await expect(resetDatabase({
+        purpose: 'test',
+        confirm: RESET_CONFIRM_TOKEN,
+        env: { ...process.env, DB_HOST: '10.0.0.7' },
+      })).rejects.toThrow(/DB_HOST must be loopback/);
+      expect(await postgres.listTables(db)).toEqual(before);
+    });
+
+    test('RESET-DIRECT-8 (live) the authorized disposable target resets normally', async () => {
+      const { dropped } = await guardedReset();
+      expect(dropped).toContain('users');
+      expect(await postgres.listTables(db)).toEqual([]);
+      // Restore the seeded baseline for the FRESHNESS suite.
+      await migrateBaseline(db);
+      await runSeed(db, admin);
+      expect(await postgres.countRows(db, 'users')).toBe(1);
+    }, 60_000);
   });
 
   describe('FRESHNESS — the whole lifecycle is repeatable', () => {
     test('reset + migrate + seed + assert reproduces the first run', async () => {
-      await resetDatabase(db);
+      await guardedReset();
       const { applied } = await migrateBaseline(db);
       expect(applied.slice().sort()).toEqual(BASELINE_MIGRATIONS.slice().sort());
       const seed = await runSeed(db, admin);

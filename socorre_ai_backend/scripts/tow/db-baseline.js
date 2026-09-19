@@ -3,8 +3,10 @@
  * T01 — baseline lifecycle: migrate, seed, assert, report.
  *
  * `migrate` runs `database/migrations` (the clean baseline) against a database
- * that must be empty — the whole point of the task is that a brand new
- * PostgreSQL becomes a working schema in ONE deterministic step.
+ * that must be empty or already managed by this baseline. An UNMANAGED database
+ * (tables but no `knex_migrations`) is refused by the single shared rule
+ * `baselineEligibility()` — every public migrate path reaches it through
+ * `migrateBaseline()` — and is directed to the guarded destructive reset.
  *
  * `seed` creates exactly one row: the default administrator from the
  * environment (`ADMIN_EMAIL` / `ADMIN_PASSWORD` / `ADMIN_NAME`). No demo user,
@@ -180,8 +182,52 @@ class BaselineAssertionError extends Error {
   }
 }
 
+/**
+ * An unmanaged database (tables but no `knex_migrations`) is the signature of a
+ * pre-T01 database built by the archived chain. T01 policy is
+ * `pre-T01 DB -> authorized reset -> clean baseline`, never an incremental
+ * upgrade, so every public migrate path must refuse it and point the operator at
+ * the guarded reset.
+ */
+class UnmanagedDatabaseError extends Error {
+  constructor(tables) {
+    super(
+      `database contains ${tables.length} table(s) but no "knex_migrations": it was not created by this ` +
+      'baseline. The documented T01 upgrade path is an authorized destructive reset, not an incremental ' +
+      'migration: DB_RESET_CONFIRM=I_UNDERSTAND_DESTRUCTIVE_RESET npm run db:reset -- --purpose <dev|test>'
+    );
+    this.name = 'UnmanagedDatabaseError';
+    this.code = 'UNMANAGED_DATABASE';
+    this.tables = tables;
+  }
+}
+
+/**
+ * THE baseline-eligibility rule, shared by every public migrate path
+ * (`db:migrate`, `db-baseline --migrate`, the clean-database gate and the e2e
+ * suites all reach it through `migrateBaseline`), so no command can diverge.
+ *
+ * @param {string[]} tables tables currently present in `public`
+ * @returns {{ eligible: boolean, managed: boolean, reason: 'empty'|'managed'|'unmanaged' }}
+ */
+function baselineEligibility(tables) {
+  const list = Array.isArray(tables) ? tables.filter((table) => typeof table === 'string') : [];
+  if (list.length === 0) return { eligible: true, managed: false, reason: 'empty' };
+  if (!list.includes('knex_migrations')) return { eligible: false, managed: false, reason: 'unmanaged' };
+  return { eligible: true, managed: true, reason: 'managed' };
+}
+
+/** Refuse an unmanaged database BEFORE Knex is allowed to run a migration. */
+async function assertBaselineEligible(db) {
+  const tables = await listTables(db);
+  const eligibility = baselineEligibility(tables);
+  if (!eligibility.eligible) throw new UnmanagedDatabaseError(tables);
+  return { ...eligibility, tables };
+}
+
 /** Migrate from an empty database; returns `{ batch, applied }`. */
 async function migrateBaseline(db) {
+  await assertBaselineEligible(db);
   const [batch, applied] = await db.migrate.latest({ directory: MIGRATIONS_DIR });
   return { batch, applied };
 }
@@ -277,10 +323,13 @@ module.exports = {
   EXPECTED_ADMIN_COUNT,
   EXPECTED_SETTINGS_COUNT,
   BaselineAssertionError,
+  UnmanagedDatabaseError,
   listTables,
   countAllTables,
   collectReport,
   baselineViolations,
+  baselineEligibility,
+  assertBaselineEligible,
   migrateBaseline,
   runSeed,
   assertBaseline,

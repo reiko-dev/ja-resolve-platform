@@ -244,8 +244,18 @@ Não existe flag de bypass (`--force`, `--yes`): a única forma de autorizar é 
 consentimento, e ela só é aceita se todas as outras regras passarem. `npm run db:guard`
 responde "eu posso resetar este alvo?" antes de qualquer comando.
 
-Provas: `tests/tow/baseline/dbBaselineSafety.test.js` (24 casos, incluindo mutações que
-derrubam a suíte — `docs/evidence/t01/04-negative-controls.txt`).
+**Correção pós-review externo (P1, PR #32):** as regras acima descrevem *quando* um alvo é
+autorizado; a correção garante que a autorização seja *estruturalmente inseparável* da conexão
+destruída. O primitivo `DROP SCHEMA public CASCADE` é privado (não exportado) e a única API
+pública é `resetDatabase({ purpose, env?, confirm?, dryRun? })`, que **não aceita conexão**:
+o alvo é resolvido, autorizado, e só então a conexão é criada *a partir do alvo autorizado*
+(`createConnectionForTarget`). Um objeto `Knex` passado de fora é recusado com
+`RESET_API_MISUSE`; `--dry-run` dispensa o token mas continua exigindo alvo autorizado e nunca
+emite `DROP`; o gate e a suíte e2e usam exclusivamente essa API.
+
+Provas: `tests/tow/baseline/dbBaselineSafety.test.js` (48 casos, incluindo `RESET-DIRECT-1..8`
+e as mutações que derrubam a suíte — `docs/evidence/t01/04-negative-controls.txt` e
+`docs/evidence/t01/07-negative-control-reset-authorization.txt`).
 
 ---
 
@@ -262,7 +272,8 @@ PostgreSQL real e descartável:
 5. **seed** — exige exatamente 1 administrador;
 6. **assert** — 27 tabelas de domínio presentes, nenhum dado funcional, 25 settings;
 7. **snapshot 1** — fingerprint do schema;
-8. **reset destrutivo + repetição** — reset autorizado, migrate, seed, assert novamente;
+8. **reset destrutivo + repetição** — reset guardado (`resetDatabase({ purpose: 'test' })`,
+   alvo autorizado), migrate, seed, assert novamente;
 9. **snapshot 2** — fingerprint idêntico ao snapshot 1;
 10. **destruição** — `down --volumes`; falha de teardown é RED;
 11. **verificação final** — nenhum container/volume/rede do projeto Compose permanece.
@@ -278,7 +289,7 @@ repositório. Evidência: `docs/evidence/t01/db-baseline-gate.json` e as duas ex
 
 | Risco | Mitigação |
 | --- | --- |
-| Alguém executar o reset contra um banco real | Guarda em 8 regras + ausência de bypass + `db:guard` de pré-voo + teste dedicado; `NODE_ENV=production` e nomes com `prod`/`vps` são recusados |
+| Alguém executar o reset contra um banco real | Guarda em 8 regras + ausência de bypass + `db:guard` de pré-voo + teste dedicado; `NODE_ENV=production` e nomes com `prod`/`vps` são recusados. O `DROP` é um primitivo privado e a conexão é criada **do alvo autorizado**, nunca recebida de fora (`RESET-DIRECT-1..8`) |
 | Perda de dados históricos no reset | Decisão explícita do Issue #12 (dados autorizados para reset); a cadeia legada fica arquivada e o snapshot do schema antigo está versionado em `docs/evidence/t01/schema-legacy-chain.json` |
 | Divergência futura entre `knexfile.js` e o app | Ambos passam a resolver os mesmos diretórios a partir da raiz do backend (`src/config/database.js` corrigido) |
 | Alguém rodar as migrations legadas por engano | `database/migrations-legacy/README.md` documenta que não são executadas; o gate falha se o diretório ativo tiver qualquer arquivo além dos 2 do baseline |

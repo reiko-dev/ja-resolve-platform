@@ -86,15 +86,30 @@ function unsafeError(violations) {
 }
 
 /**
- * Knex connection for the guard-checked target.
+ * Build a Knex connection FROM AN ALREADY-AUTHORIZED TARGET.
  *
- * @param {{ purpose?: 'dev'|'test', destructive?: boolean, env?: object }} [options]
+ * This is the single place where a connection object is created from a target,
+ * which is what binds the authorization decision to the connection that will
+ * execute statements: `createConnection()` authorizes the environment and
+ * passes the very target object it validated, and `db-reset` passes the target
+ * returned by `assertResetAuthorized()`. A caller can therefore never present a
+ * connection that represents a different database than the one that was
+ * authorized (external review P1, PR #32).
+ *
+ * It only opens a pool: it is NOT a destructive entry point by itself. The only
+ * `DROP` of T01 lives in a private function of `scripts/tow/db-reset.js`.
+ *
+ * @param {{ host: string, port: string|number, database: string, user: string, password?: string }} target
  */
-function createConnection(options = {}) {
-  const purpose = options.purpose || 'test';
-  const check = checkPurpose(purpose, options);
-  if (!check.safe) throw unsafeError(check.violations);
-  const target = check.target;
+function createConnectionForTarget(target) {
+  if (!target || typeof target !== 'object' || Array.isArray(target)) {
+    throw new TypeError('createConnectionForTarget requires a resolved target object');
+  }
+  for (const field of ['host', 'port', 'database', 'user']) {
+    if (target[field] === undefined || target[field] === null || String(target[field]).trim() === '') {
+      throw new TypeError(`createConnectionForTarget: target.${field} must be set explicitly`);
+    }
+  }
   return knexFactory({
     client: 'postgresql',
     connection: {
@@ -109,6 +124,18 @@ function createConnection(options = {}) {
   });
 }
 
+/**
+ * Knex connection for the guard-checked target.
+ *
+ * @param {{ purpose?: 'dev'|'test', destructive?: boolean, env?: object }} [options]
+ */
+function createConnection(options = {}) {
+  const purpose = options.purpose || 'test';
+  const check = checkPurpose(purpose, options);
+  if (!check.safe) throw unsafeError(check.violations);
+  return createConnectionForTarget(check.target);
+}
+
 module.exports = {
   BACKEND_DIR,
   ENV_FILE,
@@ -116,6 +143,7 @@ module.exports = {
   loadPurposeEnv,
   checkPurpose,
   createConnection,
+  createConnectionForTarget,
   describeResetTarget,
   unsafeError,
 };

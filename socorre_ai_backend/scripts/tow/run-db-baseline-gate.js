@@ -12,7 +12,7 @@
  *   5. seed                         -> exactly one administrator;
  *   6. assert the clean-baseline rules (no functional data);
  *   7. schema snapshot (run 1);
- *   8. DESTRUCTIVE reset, then migrate + seed + assert again;
+ *   8. GUARDED destructive reset, then migrate + seed + assert again;
  *   9. schema snapshot (run 2) and fingerprint comparison with run 1;
  *  10. destroy containers, volume and network; a teardown failure is RED;
  *  11. verify nothing is left behind for this Compose project.
@@ -45,25 +45,11 @@ const {
   listTables,
 } = require('./db-baseline');
 const { resetDatabase } = require('./db-reset');
+const { disposableAdminCredentials } = require('./disposable-credentials');
 const { describeSeedResult } = require('./admin-seed');
 const { snapshotSchema, compareSnapshots, formatComparison, fingerprintOf } = require('./schema-snapshot');
 
 const EVIDENCE_DIR = path.resolve(testEnv.BACKEND_DIR, '..', 'docs', 'evidence', 't01');
-
-/**
- * Admin credentials used ONLY inside the disposable gate container. They are
- * generated per run, never committed, and the container is destroyed at the
- * end. The gate proves the seed READS the environment; it does not ship a
- * credential.
- */
-function disposableAdminCredentials() {
-  const suffix = `${process.pid}${Date.now()}`.slice(-8);
-  return {
-    ADMIN_EMAIL: `gate-admin-${suffix}@example.test`,
-    ADMIN_PASSWORD: `GateOnly-${suffix}-Disposable!`,
-    ADMIN_NAME: 'Gate Administrator',
-  };
-}
 
 function assertEmptyDatabase(tables) {
   if (tables.length !== 0) {
@@ -125,7 +111,7 @@ async function runGate() {
     // authorizes its own destructive reset with the same token an operator
     // would have to type. No other code path sets this variable.
     process.env[CONFIRM_VAR] = RESET_CONFIRM_TOKEN;
-    const admin = disposableAdminCredentials();
+    const admin = disposableAdminCredentials('gate');
     Object.assign(process.env, admin);
 
     const db = createConnection({ purpose: 'test' });
@@ -157,9 +143,11 @@ async function runGate() {
       const fingerprintOne = fingerprintOf(snapshotOne);
       console.log(`[db-gate] run 1 fingerprint: ${fingerprintOne}`);
 
-      console.log('[db-gate] stage 7/9: destructive reset + repeat');
-      const dropped = await resetDatabase(db);
-      console.log(`[db-gate] reset dropped ${dropped.length} table(s)`);
+      console.log('[db-gate] stage 7/9: guarded destructive reset + repeat');
+      // ONLY the guarded public API: it resolves + authorizes this exact target,
+      // builds the connection FROM that authorized target and drops the schema.
+      const { dropped } = await resetDatabase({ purpose: 'test' });
+      console.log(`[db-gate] guarded reset dropped ${dropped.length} table(s)`);
       const afterReset = await listTables(db);
       assertEmptyDatabase(afterReset);
       const second = await migrateBaseline(db);
