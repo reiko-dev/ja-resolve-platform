@@ -1,48 +1,34 @@
 # Tow Service — TDD Implementation Plan
 
-> Projeto: **JaResolve**  
-> Domínio: **Guincho / Tow**  
-> PR de contrato: **#9 — Implements Tow Service**  
-> Epic: **#10**  
-> Execução backend: **Issues #11–#29 / T00–T18**
+> Contract baseline: PR #9  
+> Epic: #10  
+> Current Phase: **Tow MVP**  
+> Phase-1 issues: **#13–#18**  
+> Phase-2 hardening: **#33**
 
-## 1. Fontes de verdade
+## 1. Strategy
 
-### Regras funcionais
+The long-term target remains the PR #9 Tow contract.
 
-1. `TOW-PRICING-CONTRACT.md` — pricing congelado;
-2. `TOW-SERVICE-SPECIFICATION.md` — comportamento funcional;
-3. `TOW-BUSINESS-RULE-MATRIX.md` — invariants testáveis;
-4. `TOW-MODULE-CONTRACT.md` — módulo/feature flag/graceful drain.
-
-### Transport/consumer
-
-5. `tow-api-contract.openapi.yaml` — shape canônico;
-6. `TOW-API-CONTRACT-DRAFT4-ADDENDUM.md`;
-7. `TOW-CONSUMER-FLOW-SPEC.md`;
-8. `TOW-CONSUMER-FLOW-COVERAGE.md`;
-9. `TOW-CONSUMER-CONTRACT-SMOKE-RESULT.md`.
-
-### Execução backend
-
-10. `TOW-TASK-GRAPH.yaml`;
-11. Issues #11–#29 — especificação executável imediata da task.
-
-Precedência operacional:
+The executable implementation path is now optimized for a usable first product:
 
 ```text
-Issue da task
-→ TOW-TASK-GRAPH.yaml
-→ este plano
+T00 ACCEPTED
+→ T01 ACCEPTED
+→ MVP-01 Foundation
+→ MVP-02 Routes & Pricing
+→ MVP-03 Request & Matching
+→ MVP-04 Proposal & Assignment
+→ MVP-05 Service Execution
+→ MVP-06 CASH + Lean E2E
+→ TOW MVP BACKEND READY FOR INTEGRATION
 ```
 
-Nenhuma task pode reintroduzir regra revogada, inclusive `ceil(excess_km)`.
+Production-grade features intentionally deferred from the critical path are tracked in #33.
 
----
+## 2. Architecture constraints
 
-## 2. Arquitetura obrigatória
-
-Tow é módulo explícito:
+Tow remains an explicit module:
 
 ```text
 module_key   = tow
@@ -66,422 +52,237 @@ Tow
 ├── Adapters
 │   ├── HTTP
 │   ├── Persistence
-│   ├── Events
 │   └── Presenters
 └── Infrastructure
     ├── PostgreSQL
     ├── Google Routes
-    ├── Payment providers
     ├── File Storage
-    └── Scheduler
+    └── Payment adapters when required
 ```
 
-Payment, Wallet/Ledger, Maps, File Storage e Audit são horizontais e consumidos via ports.
+Rules:
 
-### SOLID
+- Domain/Application do not import Express, Knex/PostgreSQL, Google SDK, PSP SDK, filesystem or concrete schedulers;
+- external dependencies are ports;
+- controllers are thin;
+- DB invariants live in DB constraints where appropriate;
+- concurrency-critical invariants use real PostgreSQL;
+- consumer apps never duplicate Tow pricing or assignment rules.
 
-- **SRP:** use case/policy com responsabilidade única;
-- **OCP:** novas capabilities sem cascata de condicionais;
-- **LSP:** fake e adapter obedecem ao mesmo contract;
-- **ISP:** gateways pequenos e específicos;
-- **DIP:** Domain/Application dependem de abstrações.
+## 3. TDD cycle
 
-Domain não importa Express, Knex/PostgreSQL, Google/PSP SDK, filesystem ou scheduler concreto.
-
----
-
-## 3. Feature flag
-
-```text
-DISABLE = stop new business + drain in-flight work
-```
-
-Disabled:
-
-- bloqueia novo request;
-- bloqueia matching/radius pré-assignment;
-- bloqueia proposal/counteroffer/assignment novo;
-- encerra `SEARCHING`/`NEGOTIATING` com `SERVICE_DISABLED`;
-- preserva cadastro de partner/vehicle/doc;
-- preserva e deixa concluir `ASSIGNED+`.
-
-Re-enable não ressuscita trabalho encerrado.
-
-Availability é port/policy central.
-
----
-
-## 4. Ciclo TDD obrigatório
-
-Cada task:
+Every delivery:
 
 ```text
 RED
 → GREEN
 → REFACTOR
-→ INTEGRATION GATE
-→ ACCEPTED
+→ FOCUSED INTEGRATION GATE
+→ ADVERSARIAL REVIEW
+→ EXTERNAL REVIEW
 → MERGE
+→ POST-MERGE VERIFY
+→ ACCEPTED RECEIPT
 ```
 
-### RED
+If behavior already exists, record baseline compatibility rather than fabricating a meaningless RED.
 
-- escrever regra/teste antes do comportamento;
-- provar falha pela razão correta;
-- registrar evidência.
+No next delivery starts until the prior accepted receipt is verified.
 
-Se comportamento já existir, registrar baseline e criar teste de compatibilidade/regressão em vez de fabricar RED artificial.
+## 4. Pricing invariant
 
-### GREEN
-
-Implementar somente escopo da task.
-
-### REFACTOR
-
-- remover duplicação;
-- revisar Clean Architecture/SOLID;
-- regressão da task + dependências.
-
-### Regras não negociáveis
-
-- bug → regression test first;
-- não relaxar expectation para “passar”;
-- concorrência crítica → PostgreSQL real;
-- tempo → fake clock, sem sleep real;
-- network gateway → fake/contract na suíte padrão;
-- financeiro → idempotência obrigatória;
-- critical transition → authz + invalid-state test;
-- task só inicia com dependencies `ACCEPTED`.
-
----
-
-## 5. Test taxonomy
-
-| Código | Tipo |
-|---|---|
-| UNIT | regra pura/policy/value object |
-| DB | constraints/FK/index/transaction |
-| MIG | reset/migrate/seed |
-| API | HTTP + auth + application + DB |
-| CONTRACT | payload/error/port contract |
-| AUTHZ | role/ownership/assignment/admin |
-| CONC | concorrência/lock/idempotency |
-| TIME | expiry/timeout/scheduler |
-| MAPS | RouteProvider/Google adapter |
-| GATEWAY | card/PIX/refund/webhook |
-| LEDGER | debt/wallet/settlement/payout |
-| AUDIT | append-only/history |
-| SEC | upload/secrets/signatures |
-| PERF | focal query/batch/index |
-| E2E | backend flow |
-| UI | consumer component/widget |
-| UX | consumer user flow |
-| A11Y | accessibility |
-
----
-
-## 6. Sequência backend
+Always:
 
 ```text
-PR #9 Contract
- ↓
-T00 #11 Harness/Audit
- ↓
-T01 #12 DB Baseline
- ↓
-T02 #13 Module + Feature Flag + Settings
- ↓
-T03 #14 TowVehicle + Documents
- ↓
-T04 #15 Compatibility
- ↓
-T05 #16 Google Routes + Pricing
- ↓
-T06 #17 Matching/Radius
- ↓
-T07 #18 Proposals
- ↓
-T08 #19 Counteroffer
- ↓
-T09 #20 Atomic Assignment
- ├──────────────┐
- ↓              ↓
-T10 #21       T12 #23
-State          Payment Core
- ↓              ├────┬────┐
-T11 #22        ↓    ↓    ↓
-Cancel       T13  T14  T15
-             Card PIX Cash/Debt
-               └──┬───┘
-                  ↓
-               T16 #27
-           Wallet/Settlement/Payout
-                  ↓
-               T17 #28
-             Governance/Audit
-                  ↓
-               T18 #29
-        Contract Freeze + Full E2E
-                  ↓
-      TOW BACKEND READY FOR INTEGRATION
+total_distance_meters =
+  provider_to_pickup + pickup_to_destination
+
+excess_meters =
+  max(0, total_distance_meters - included_distance_meters)
+
+variable_charge_cents =
+  ROUND_HALF_UP(
+    excess_meters * price_per_additional_km_cents / 1000
+  )
+
+final_price_cents =
+  minimum_charge_cents + variable_charge_cents
 ```
 
-Safe parallelization:
+No `ceil(excess_km)`.
 
-- depois de T09: T10 e T12 quando sem file/contract conflict;
-- depois de T12: T13/T14/T15 conforme dependências específicas;
-- nunca duas tasks concorrentes alterando a mesma state machine/migration sem coordenação explícita.
+## 5. MVP feature-flag semantics
 
----
+Phase 1 proves the minimum useful semantics:
 
-## 7. Gates
+- disabled blocks new request;
+- disabled blocks new matching/proposal;
+- already assigned work may continue to terminal;
+- registration/administration of partner/vehicle/documents remains.
 
-| Gate | Requer | Significado |
-|---|---|---|
-| G0 | T00 | harness confiável |
-| G1 | T01 | DB baseline confiável |
-| G2 | T02–T04 | module/provider/vehicle |
-| G3 | T05–T06 | routes/pricing/matching |
-| G4 | T07–T09 | negotiation/assignment |
-| G5 | T10–T11 | operation/cancellation |
-| G6 | T12–T16 | finance |
-| G7 | T17 | governance/audit |
-| G8 | T18 | backend integration-ready |
+Deferred to #33:
 
----
+- progressive matching shutdown;
+- automatic SEARCHING/NEGOTIATING closure;
+- full disable-vs-assignment race matrix;
+- re-enable/non-resurrection certification.
 
-## 8. Tasks e outputs
+## 6. Executable deliveries
 
-| Task | Issue | Output principal |
-|---|---:|---|
-| T00 | #11 | deterministic harness + current→target audit + OpenAPI repeatable validation |
-| T01 | #12 | clean DB baseline/reset/admin seed |
-| T02 | #13 | Tow Module + feature flag + settings |
-| T03 | #14 | TowVehicle/pricing config/documents |
-| T04 | #15 | compatibility/capacity |
-| T05 | #16 | RouteProvider + proportional pricing policy |
-| T06 | #17 | matching/radius/timeout/module guard |
-| T07 | #18 | proposal lifecycle |
-| T08 | #19 | single counteroffer |
-| T09 | #20 | one-winner assignment + disable race |
-| T10 | #21 | state machine/tracking/completion |
-| T11 | #22 | cancellation/no-show |
-| T12 | #23 | payment orchestration core |
-| T13 | #24 | card |
-| T14 | #25 | PIX |
-| T15 | #26 | cash + debts |
-| T16 | #27 | ledger/settlement/payout |
-| T17 | #28 | dispute/review/admin/audit |
-| T18 | #29 | freeze + **75 mandatory E2E** + ready receipt |
+| ID | Issue | Delivery | Size | Depends on |
+|---|---:|---|---|---|
+| MVP-01 | #13 | Module + Vehicles + Documents + Compatibility | L | T01 |
+| MVP-02 | #14 | Google Routes + Authoritative Pricing | M/L | MVP-01 |
+| MVP-03 | #15 | Tow Request + Lean Matching | L | MVP-02 |
+| MVP-04 | #16 | Proposals + Atomic Assignment | L/XL | MVP-03 |
+| MVP-05 | #17 | State Execution + Tracking + Basic Cancellation | L | MVP-04 |
+| MVP-06 | #18 | CASH + Lean End-to-End Gate | L/XL | MVP-05 |
 
-A Issue da task define entregáveis completos de code/docs/tests/RED/GREEN/DoD.
+### MVP-01 gate
 
----
+Backend can determine whether a Tow partner/vehicle is operationally eligible.
 
-## 9. Pricing gate
+### MVP-02 gate
 
-T05 e regressões devem provar:
+Backend produces an authoritative road-route quote and final price.
+
+### MVP-03 gate
+
+Customer creates a request and eligible nearby partners can discover it.
+
+Matching uses one configurable radius; no progressive scheduler.
+
+### MVP-04 gate
+
+Multiple proposals may exist, but exactly one assignment wins atomically.
+
+Counteroffer is not part of Phase 1.
+
+### MVP-05 gate
 
 ```text
-total_distance_meters = leg1 + leg2
-excess_meters = max(0, total - included)
-variable cents = proportional excess with ROUND_HALF_UP
+ASSIGNED
+→ EN_ROUTE
+→ ARRIVED
+→ IN_TRANSIT
+→ COMPLETED
 ```
 
-Obrigatório:
+Tracking and basic cancellation are functional.
 
-- 1 metro acima do included boundary;
-- fractional excess (ex.: 4.350 km);
-- half-cent boundary;
-- no `ceil(excess_km)`;
-- immutable route/tariff/price snapshot.
+### MVP-06 gate
 
----
+CASH completes the first real payment path.
 
-## 10. Module gate
+The current Stripe/MercadoPago/PagSeguro adapters are simulations, therefore electronic PSP readiness is not claimed.
 
-Focused suite deve provar:
+## 7. Lean MVP E2E certification
 
-1. enabled permite novo request;
-2. disabled bloqueia request;
-3. disable encerra SEARCHING/NEGOTIATING;
-4. disable bloqueia proposal/counteroffer;
-5. disable×assignment é atomicamente determinístico;
-6. ASSIGNED pre-disable continua;
-7. partner/vehicle/doc persistem;
-8. re-enable libera novo business sem resurrection;
-9. admin-only toggle;
-10. audit completo.
+MVP-06 requires at least 20 scenarios covering:
 
----
+- module enabled/disabled;
+- TowVehicle/docs/compatibility eligibility;
+- matching;
+- Google Routes;
+- proportional pricing;
+- proposals;
+- atomic assignment;
+- operational transitions;
+- tracking isolation;
+- completion;
+- idempotent CASH receipt;
+- full happy path.
 
-## 11. Contract between tasks
+It also requires:
 
-Producer contract deve estar mergeado/accepted antes do consumer task iniciar.
+- fresh PostgreSQL migrate/seed;
+- T01 reset safety;
+- OpenAPI validation;
+- contract regression;
+- `verify:tow`;
+- full backend regression;
+- readiness report;
+- accepted receipt.
 
-Principais outputs:
+The gate emits only:
 
 ```text
-T02 → TowModuleAvailability + TowSettings
-T03 → TowVehicle/Document
-T04 → CompatibilityPolicy
-T05 → RouteProvider + RouteQuote + Pricing
-T07 → Proposal
-T08 → Counteroffer
-T09 → Assignment
-T10 → State Machine
-T12 → Payment ports/orchestrator
-T16 → Ledger/Settlement/Payout
+TOW MVP BACKEND READY FOR INTEGRATION
 ```
 
-Mudança posterior exige RED/regression + doc/Issue update.
+## 8. Phase 2
 
----
+#33 owns the deferred target:
 
-## 12. Receipt por task
+- counteroffer;
+- progressive matching scheduler;
+- timeout/no-show/rematch;
+- complex cancellation economics;
+- CARD;
+- PIX;
+- real PSP integrations/webhooks;
+- debts;
+- wallet/ledger;
+- settlement/payout;
+- disputes/reviews/admin override/audit;
+- full security/performance/reliability hardening;
+- 75+ E2E full target certification.
 
-```text
-Task ID / Issue
-Dependency receipts
-Execution base
-RED evidence
-GREEN evidence
-Tests added/executed/results
-Files/migrations/contracts changed
-Known limitations
-Reviewer findings
-Accepted/rejected
-Result SHA
-```
-
-Compilar não é DoD.
-
----
-
-## 13. T18 Ready Gate
-
-T18 não adiciona feature. T18 prova o sistema.
-
-Obrigatório:
-
-```text
-UNIT
-DB/MIG
-API/CONTRACT
-AUTHZ/SEC
-CONC
-TIME
-MAPS
-GATEWAY
-LEDGER
-AUDIT
-MODULE focused
-E2E
-full backend regression
-```
-
-A lista autoritativa possui **75 cenários E2E mínimos** na Issue #29.
-
-Somente emitir:
+Only Phase 2 may emit:
 
 ```text
 TOW BACKEND READY FOR INTEGRATION
 ```
 
-quando:
+## 9. Current foundation
 
-- T00–T17 accepted/merged;
-- 75 E2E mandatory GREEN;
-- nenhum P0/P1 crítico skip/TODO;
-- schema sobe do zero;
-- seed contém somente admin;
-- Clean Architecture/SOLID sem violação crítica;
-- pricing proportional frozen behavior provado;
-- feature flag/graceful drain provados;
-- concurrency crítica provada;
-- contrato HTTP real corresponde ao OpenAPI;
-- docs refletem comportamento real.
+T00: ACCEPTED.  
+T01: ACCEPTED.
 
-Caso contrário:
+Current base:
 
 ```text
-NOT READY
+main @ f31962fdd0175303646a34c9d170032bc6a06601
 ```
 
-com issue corretiva.
-
----
-
-## 14. Consumer implementation handoff
-
-**Mock implementation NÃO é bloqueada por T18.**
-
-Após PR #9 mergeado e contract-smoke GREEN, Mobile Cliente, Mobile Parceiro e Dashboard podem iniciar implementação contra OpenAPI/mocks.
-
-Marco 1:
+Post-T01 baseline:
 
 ```text
-TOW MOBILE CONTRACT READY FOR IMPLEMENTATION
+OpenAPI              PASS
+contract             62/62
+DB safety            48/48
+live T01 PostgreSQL  33/33
+verify:tow           GREEN
+full Jest            771 passed / 48 skipped / 0 failures
 ```
 
-Permite:
-
-- DTO/client/repository;
-- feature architecture;
-- navigation/UI;
-- state management;
-- Maps/tracking UI;
-- mock server/fakes;
-- widget/golden/component/E2E mocked.
-
-Marco 2, somente T18:
+## 10. Workhorse readiness
 
 ```text
-TOW BACKEND READY FOR INTEGRATION
+READY(MVP-01) = T01 ACCEPTED
+
+READY(MVP-n) =
+  predecessor.status == ACCEPTED
 ```
 
-Permite substituir mocks pelo backend real e fechar API/integration E2E.
+MVP-01/#13 is the only Phase-1 implementation task currently READY.
 
-Consumers não podem:
+Do not:
 
-- depender de legacy route nova;
-- inventar endpoint/DTO;
-- duplicar rule crítica;
-- considerar mock-ready como backend-ready.
+- start #14 before #13 accepted;
+- reopen #19–#29 as MVP dependencies;
+- pull #33 scope into an MVP PR;
+- touch #31 during functional work unless explicitly requested;
+- touch production/VPS as part of these implementation tasks.
 
----
+## 11. Definition of Done — Phase 1
 
-## 15. Workhorse readiness
+Phase 1 is complete when:
 
-```text
-READY(task) =
-  all(dep.status == ACCEPTED)
-  AND task.status in [PENDING, RETRY]
-```
-
-Proibido:
-
-- skip dependency;
-- accept sem tests/evidence;
-- alterar pricing/module semantics sem contract update;
-- preservar legado incompatível apenas para manter teste antigo;
-- iniciar **integração real** de consumer antes de T18.
-
----
-
-## 16. Definition of Done da iniciativa backend
-
-A iniciativa backend termina somente quando:
-
-1. PR #9 mergeado;
-2. #11–#29 fechadas por PR accepted;
-3. Tow é módulo explícito;
-4. partner type `tow` está vinculado ao módulo;
-5. feature flag/graceful drain comprovados;
-6. pricing proporcional congelado comprovado;
-7. rule matrix mapeada a tests;
-8. 75 E2E obrigatórios verdes;
-9. banco reproduzível do zero;
-10. admin-only seed;
-11. contrato HTTP/OpenAPI alinhado;
-12. `TOW BACKEND READY FOR INTEGRATION` emitido com evidence.
+- #13–#18 are closed by accepted PRs;
+- all post-merge verification gates pass;
+- the 20 mandatory MVP scenarios are green;
+- fresh DB baseline remains reproducible;
+- customer request → partner proposal → assignment → tracking → completion → CASH works end-to-end;
+- MVP subset documentation matches real HTTP behavior;
+- `TOW MVP BACKEND READY FOR INTEGRATION` has an accepted receipt.
