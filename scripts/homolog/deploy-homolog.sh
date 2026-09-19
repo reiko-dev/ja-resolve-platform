@@ -51,6 +51,7 @@ log "Release: $REV $(git log -1 --format='- %s')"
 
 mkdir -p "$RELEASES" "$STAGING/backend" "$STAGING/admin" "$STAGING/site"
 sudo install -d -o deploy -g deploy -m 700 /var/lib/socorre-ai/private/service-photos
+sudo install -d -o deploy -g deploy -m 700 /var/lib/socorre-ai/private/tow-documents
 # Autocura: qualquer deploy anterior pode ter deixado os diretórios com outro dono.
 sudo chown -R deploy:deploy "$STAGING"
 TS="$(date +%Y%m%d-%H%M%S)"

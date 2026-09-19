@@ -59,6 +59,7 @@ mkdir -p /var/log/$PROJECT_NAME
 mkdir -p $DEPLOY_DIR/backend/uploads
 mkdir -p $DEPLOY_DIR/admin
 install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 700 /var/lib/$PROJECT_NAME/private/service-photos
+install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 700 /var/lib/$PROJECT_NAME/private/tow-documents
 
 # Backup do deploy anterior
 if [ -d "$DEPLOY_DIR/backend" ]; then
