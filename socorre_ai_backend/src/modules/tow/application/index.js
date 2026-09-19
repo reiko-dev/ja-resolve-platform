@@ -1,5 +1,6 @@
 /**
  * MVP-01 — application barrel.
+ * MVP-02 — adds the route/pricing quote operation.
  */
 'use strict';
 
@@ -8,6 +9,7 @@ const { createVehicleService } = require('./vehicle-service');
 const { createDocumentService } = require('./document-service');
 const { createSettingsService } = require('./settings-service');
 const { createEligibilityService } = require('./eligibility-service');
+const { createQuoteService } = require('./quote-service');
 
 module.exports = {
   createModuleService,
@@ -15,4 +17,5 @@ module.exports = {
   createDocumentService,
   createSettingsService,
   createEligibilityService,
+  createQuoteService,
 };

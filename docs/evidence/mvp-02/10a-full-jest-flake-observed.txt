@@ -1,0 +1,13 @@
+### npx jest --runInBand — flaky observation (NOT the frozen head result)
+### One earlier full-suite run of the identical tree reported 2 failures in the PRE-EXISTING
+### tests/auth/authHttp.transport.test.js ('falha de banco na revogacao retorna 500 generico')
+### with 'Parse Error: Expected HTTP/, RTSP/ or ICE/' — the same socket flake class already
+### recorded for T00 in docs/evidence/t00/flake-g3-proposals-parse-error.txt:172.
+### Characterization: the file passes 6/6 in isolation, and the full suite passed 3/3 on re-run.
+### MVP-02 touches no auth file. Kept here for transparency, not as a gate result.
+
+Test Suites: 2 failed, 5 skipped, 65 passed, 67 of 72 total
+Tests:       2 failed, 58 skipped, 1075 passed, 1135 total
+
+  ● HTTP transport: POST /api/auth/logout e reuso de token › falha de banco na revogação retorna 500 genérico
+      Parse Error: Expected HTTP/, RTSP/ or ICE/

@@ -88,4 +88,80 @@ function createFakeMapsGateway(options) {
   return new FakeMapsGateway(options);
 }
 
-module.exports = { FakeMapsGateway, createFakeMapsGateway, DEFAULT_ROUTE };
+/**
+ * MVP-02 — deterministic fake `RouteProvider` port.
+ *
+ * Same boundary rule as `FakeMapsGateway`: it records what was requested and
+ * replays a caller-supplied payload. It contains no pricing, no meter/kilometre
+ * conversion and no straight-line fallback — a fake that "helpfully" priced the
+ * route would hide exactly the defects the real adapter must be tested for.
+ *
+ * Default legs sum to 14,350 m, the frozen TOW-PRICING-CONTRACT example.
+ */
+const DEFAULT_ROUTE_PROVIDER = Object.freeze({
+  providerToPickup: Object.freeze({ distance_meters: 7000, duration_seconds: 900 }),
+  pickupToDestination: Object.freeze({ distance_meters: 7350, duration_seconds: 1200 }),
+  encodedPolyline: 'fake-encoded-polyline',
+});
+
+class FakeRouteProvider {
+  constructor(options = {}) {
+    this.providerToPickup = options.providerToPickup === undefined
+      ? clone(DEFAULT_ROUTE_PROVIDER.providerToPickup)
+      : clone(options.providerToPickup);
+    this.pickupToDestination = options.pickupToDestination === undefined
+      ? clone(DEFAULT_ROUTE_PROVIDER.pickupToDestination)
+      : clone(options.pickupToDestination);
+    this.encodedPolyline = options.encodedPolyline === undefined
+      ? DEFAULT_ROUTE_PROVIDER.encodedPolyline
+      : clone(options.encodedPolyline);
+    this.failure = options.failure || null;
+    this.calls = [];
+    this.name = 'fake-route-provider';
+  }
+
+  /** Queue-free deterministic behaviour: every call replays the same payload. */
+  async computeRoute(request = {}) {
+    this.calls.push({ method: 'computeRoute', request: clone(request) });
+    if (this.failure) {
+      const error = new Error(this.failure.message || 'fake route provider failure');
+      error.code = this.failure.code || 'ROUTE_PROVIDER_UNAVAILABLE';
+      throw error;
+    }
+
+    const hasPickup = request.pickup !== undefined && request.pickup !== null;
+    return {
+      provider_to_pickup: hasPickup ? clone(this.providerToPickup) : null,
+      pickup_to_destination: clone(this.pickupToDestination),
+      encoded_polyline: clone(this.encodedPolyline),
+    };
+  }
+
+  callCount(method) {
+    if (!method) return this.calls.length;
+    return this.calls.filter((call) => call.method === method).length;
+  }
+
+  lastCall(method) {
+    const filtered = method ? this.calls.filter((call) => call.method === method) : this.calls;
+    return filtered.length > 0 ? filtered[filtered.length - 1] : null;
+  }
+
+  reset() {
+    this.calls = [];
+    return this;
+  }
+}
+
+function createFakeRouteProvider(options) {
+  return new FakeRouteProvider(options);
+}
+
+module.exports = {
+  FakeMapsGateway,
+  createFakeMapsGateway,
+  DEFAULT_ROUTE,
+  FakeRouteProvider,
+  createFakeRouteProvider,
+  DEFAULT_ROUTE_PROVIDER,
+};

@@ -9,8 +9,11 @@
 
 const identity = require('./identity');
 const errors = require('./errors');
+const integers = require('./integers');
 const vehicleClasses = require('./vehicle-classes');
 const pricing = require('./pricing');
+const geo = require('./geo');
+const route = require('./route');
 const towVehicle = require('./tow-vehicle');
 const documents = require('./documents');
 const availability = require('./availability');
@@ -21,8 +24,11 @@ const settings = require('./settings');
 module.exports = {
   ...identity,
   ...errors,
+  ...integers,
   ...vehicleClasses,
   ...pricing,
+  ...geo,
+  ...route,
   ...towVehicle,
   ...documents,
   ...availability,

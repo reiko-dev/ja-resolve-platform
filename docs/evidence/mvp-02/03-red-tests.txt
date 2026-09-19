@@ -1,0 +1,702 @@
+FAIL tests/tow/mvp02/towGoogleRoutesAdapter.test.js
+  ● Test suite failed to run
+
+    Cannot find module '../../../src/modules/tow/adapters/routes/google-routes-adapter' from 'tests/tow/mvp02/towGoogleRoutesAdapter.test.js'
+
+      23 | const {
+      24 |   createGoogleRoutesAdapter,
+    > 25 | } = require('../../../src/modules/tow/adapters/routes/google-routes-adapter');
+         |     ^
+      26 | const {
+      27 |   RouteProviderError,
+      28 | } = require('../../../src/modules/tow/adapters/routes/route-provider-error');
+
+      at Resolver._throwModNotFoundError (node_modules/jest-resolve/build/resolver.js:427:11)
+      at Object.require (tests/tow/mvp02/towGoogleRoutesAdapter.test.js:25:5)
+
+FAIL tests/tow/mvp02/towQuoteService.test.js
+  ● Test suite failed to run
+
+    Cannot find module '../../../src/modules/tow/application/quote-service' from 'tests/tow/mvp02/towQuoteService.test.js'
+
+      15 | 'use strict';
+      16 |
+    > 17 | const { createQuoteService } = require('../../../src/modules/tow/application/quote-service');
+         |                                ^
+      18 | const {
+      19 |   createFakeRouteProvider,
+      20 | } = require('../../helpers/tow/gateways/mapsGateway');
+
+      at Resolver._throwModNotFoundError (node_modules/jest-resolve/build/resolver.js:427:11)
+      at Object.require (tests/tow/mvp02/towQuoteService.test.js:17:32)
+
+FAIL tests/tow/mvp02/towRouteProviderBoundary.test.js
+  ● Test suite failed to run
+
+    Cannot find module '../../../src/modules/tow/adapters/routes/google-routes-adapter' from 'tests/tow/mvp02/towRouteProviderBoundary.test.js'
+
+      28 | const {
+      29 |   createGoogleRoutesAdapter,
+    > 30 | } = require('../../../src/modules/tow/adapters/routes/google-routes-adapter');
+         |     ^
+      31 |
+      32 | const TOW_SRC = path.resolve(__dirname, '../../../src/modules/tow');
+      33 | const TOW_HELPERS = path.resolve(__dirname, '../../helpers/tow');
+
+      at Resolver._throwModNotFoundError (node_modules/jest-resolve/build/resolver.js:427:11)
+      at Object.require (tests/tow/mvp02/towRouteProviderBoundary.test.js:30:5)
+
+FAIL tests/tow/mvp02/towPricingPolicy.test.js
+  ● MVP-02 UNIT — authoritative pricing policy › included distance is converted decimal-safely › included_km 0 -> 0 meters exactly
+
+    TypeError: toIncludedMeters is not a function
+
+      54 |       [9999999.999, 9999999999],
+      55 |     ])('included_km %p -> %p meters exactly', (includedKm, expectedMeters) => {
+    > 56 |       expect(toIncludedMeters(includedKm)).toBe(expectedMeters);
+         |              ^
+      57 |     });
+      58 |
+      59 |     test('accepts the DECIMAL(10,3) string form without drift', () => {
+
+      at toIncludedMeters (tests/tow/mvp02/towPricingPolicy.test.js:56:14)
+
+  ● MVP-02 UNIT — authoritative pricing policy › included distance is converted decimal-safely › included_km 0.001 -> 1 meters exactly
+
+    TypeError: toIncludedMeters is not a function
+
+      54 |       [9999999.999, 9999999999],
+      55 |     ])('included_km %p -> %p meters exactly', (includedKm, expectedMeters) => {
+    > 56 |       expect(toIncludedMeters(includedKm)).toBe(expectedMeters);
+         |              ^
+      57 |     });
+      58 |
+      59 |     test('accepts the DECIMAL(10,3) string form without drift', () => {
+
+      at toIncludedMeters (tests/tow/mvp02/towPricingPolicy.test.js:56:14)
+
+  ● MVP-02 UNIT — authoritative pricing policy › included distance is converted decimal-safely › included_km 0.1 -> 100 meters exactly
+
+    TypeError: toIncludedMeters is not a function
+
+      54 |       [9999999.999, 9999999999],
+      55 |     ])('included_km %p -> %p meters exactly', (includedKm, expectedMeters) => {
+    > 56 |       expect(toIncludedMeters(includedKm)).toBe(expectedMeters);
+         |              ^
+      57 |     });
+      58 |
+      59 |     test('accepts the DECIMAL(10,3) string form without drift', () => {
+
+      at toIncludedMeters (tests/tow/mvp02/towPricingPolicy.test.js:56:14)
+
+  ● MVP-02 UNIT — authoritative pricing policy › included distance is converted decimal-safely › included_km 0.2 -> 200 meters exactly
+
+    TypeError: toIncludedMeters is not a function
+
+      54 |       [9999999.999, 9999999999],
+      55 |     ])('included_km %p -> %p meters exactly', (includedKm, expectedMeters) => {
+    > 56 |       expect(toIncludedMeters(includedKm)).toBe(expectedMeters);
+         |              ^
+      57 |     });
+      58 |
+      59 |     test('accepts the DECIMAL(10,3) string form without drift', () => {
+
+      at toIncludedMeters (tests/tow/mvp02/towPricingPolicy.test.js:56:14)
+
+  ● MVP-02 UNIT — authoritative pricing policy › included distance is converted decimal-safely › included_km 0.3 -> 300 meters exactly
+
+    TypeError: toIncludedMeters is not a function
+
+      54 |       [9999999.999, 9999999999],
+      55 |     ])('included_km %p -> %p meters exactly', (includedKm, expectedMeters) => {
+    > 56 |       expect(toIncludedMeters(includedKm)).toBe(expectedMeters);
+         |              ^
+      57 |     });
+      58 |
+      59 |     test('accepts the DECIMAL(10,3) string form without drift', () => {
+
+      at toIncludedMeters (tests/tow/mvp02/towPricingPolicy.test.js:56:14)
+
+  ● MVP-02 UNIT — authoritative pricing policy › included distance is converted decimal-safely › included_km 1.001 -> 1001 meters exactly
+
+    TypeError: toIncludedMeters is not a function
+
+      54 |       [9999999.999, 9999999999],
+      55 |     ])('included_km %p -> %p meters exactly', (includedKm, expectedMeters) => {
+    > 56 |       expect(toIncludedMeters(includedKm)).toBe(expectedMeters);
+         |              ^
+      57 |     });
+      58 |
+      59 |     test('accepts the DECIMAL(10,3) string form without drift', () => {
+
+      at toIncludedMeters (tests/tow/mvp02/towPricingPolicy.test.js:56:14)
+
+  ● MVP-02 UNIT — authoritative pricing policy › included distance is converted decimal-safely › included_km 2.007 -> 2007 meters exactly
+
+    TypeError: toIncludedMeters is not a function
+
+      54 |       [9999999.999, 9999999999],
+      55 |     ])('included_km %p -> %p meters exactly', (includedKm, expectedMeters) => {
+    > 56 |       expect(toIncludedMeters(includedKm)).toBe(expectedMeters);
+         |              ^
+      57 |     });
+      58 |
+      59 |     test('accepts the DECIMAL(10,3) string form without drift', () => {
+
+      at toIncludedMeters (tests/tow/mvp02/towPricingPolicy.test.js:56:14)
+
+  ● MVP-02 UNIT — authoritative pricing policy › included distance is converted decimal-safely › included_km 9.999 -> 9999 meters exactly
+
+    TypeError: toIncludedMeters is not a function
+
+      54 |       [9999999.999, 9999999999],
+      55 |     ])('included_km %p -> %p meters exactly', (includedKm, expectedMeters) => {
+    > 56 |       expect(toIncludedMeters(includedKm)).toBe(expectedMeters);
+         |              ^
+      57 |     });
+      58 |
+      59 |     test('accepts the DECIMAL(10,3) string form without drift', () => {
+
+      at toIncludedMeters (tests/tow/mvp02/towPricingPolicy.test.js:56:14)
+
+  ● MVP-02 UNIT — authoritative pricing policy › included distance is converted decimal-safely › included_km 10 -> 10000 meters exactly
+
+    TypeError: toIncludedMeters is not a function
+
+      54 |       [9999999.999, 9999999999],
+      55 |     ])('included_km %p -> %p meters exactly', (includedKm, expectedMeters) => {
+    > 56 |       expect(toIncludedMeters(includedKm)).toBe(expectedMeters);
+         |              ^
+      57 |     });
+      58 |
+      59 |     test('accepts the DECIMAL(10,3) string form without drift', () => {
+
+      at toIncludedMeters (tests/tow/mvp02/towPricingPolicy.test.js:56:14)
+
+  ● MVP-02 UNIT — authoritative pricing policy › included distance is converted decimal-safely › included_km 10 -> 10000 meters exactly
+
+    TypeError: toIncludedMeters is not a function
+
+      54 |       [9999999.999, 9999999999],
+      55 |     ])('included_km %p -> %p meters exactly', (includedKm, expectedMeters) => {
+    > 56 |       expect(toIncludedMeters(includedKm)).toBe(expectedMeters);
+         |              ^
+      57 |     });
+      58 |
+      59 |     test('accepts the DECIMAL(10,3) string form without drift', () => {
+
+      at toIncludedMeters (tests/tow/mvp02/towPricingPolicy.test.js:56:14)
+
+  ● MVP-02 UNIT — authoritative pricing policy › included distance is converted decimal-safely › included_km 123.456 -> 123456 meters exactly
+
+    TypeError: toIncludedMeters is not a function
+
+      54 |       [9999999.999, 9999999999],
+      55 |     ])('included_km %p -> %p meters exactly', (includedKm, expectedMeters) => {
+    > 56 |       expect(toIncludedMeters(includedKm)).toBe(expectedMeters);
+         |              ^
+      57 |     });
+      58 |
+      59 |     test('accepts the DECIMAL(10,3) string form without drift', () => {
+
+      at toIncludedMeters (tests/tow/mvp02/towPricingPolicy.test.js:56:14)
+
+  ● MVP-02 UNIT — authoritative pricing policy › included distance is converted decimal-safely › included_km 9999999.999 -> 9999999999 meters exactly
+
+    TypeError: toIncludedMeters is not a function
+
+      54 |       [9999999.999, 9999999999],
+      55 |     ])('included_km %p -> %p meters exactly', (includedKm, expectedMeters) => {
+    > 56 |       expect(toIncludedMeters(includedKm)).toBe(expectedMeters);
+         |              ^
+      57 |     });
+      58 |
+      59 |     test('accepts the DECIMAL(10,3) string form without drift', () => {
+
+      at toIncludedMeters (tests/tow/mvp02/towPricingPolicy.test.js:56:14)
+
+  ● MVP-02 UNIT — authoritative pricing policy › included distance is converted decimal-safely › accepts the DECIMAL(10,3) string form without drift
+
+    TypeError: toIncludedMeters is not a function
+
+      58 |
+      59 |     test('accepts the DECIMAL(10,3) string form without drift', () => {
+    > 60 |       expect(toIncludedMeters('0.100')).toBe(100);
+         |              ^
+      61 |       expect(toIncludedMeters('1.001')).toBe(1001);
+      62 |       expect(toIncludedMeters('9.999')).toBe(9999);
+      63 |       expect(toIncludedMeters('10.000')).toBe(10000);
+
+      at Object.toIncludedMeters (tests/tow/mvp02/towPricingPolicy.test.js:60:14)
+
+  ● MVP-02 UNIT — authoritative pricing policy › included distance is converted decimal-safely › rejects a value that is not representable in DECIMAL(10,3) instead of guessing
+
+    expect(received).toThrow(expected)
+
+    Expected constructor: TowError
+    Received constructor: TypeError
+
+    Received message: "toIncludedMeters is not a function"
+
+          66 |     test('rejects a value that is not representable in DECIMAL(10,3) instead of guessing', () => {
+          67 |       // 0.1 + 0.2 === 0.30000000000000004 in binary floating point.
+        > 68 |       expect(() => toIncludedMeters(0.1 + 0.2)).toThrow(TowError);
+             |                    ^
+          69 |       expect(() => toIncludedMeters(0.1 + 0.2)).toThrow(/included_km/);
+          70 |       expect(() => toIncludedMeters(1.0000001)).toThrow(TowError);
+          71 |     });
+
+      at toIncludedMeters (tests/tow/mvp02/towPricingPolicy.test.js:68:20)
+      at Object.<anonymous> (node_modules/expect/build/toThrowMatchers.js:74:11)
+      at Object.throwingMatcher [as toThrow] (node_modules/expect/build/index.js:320:21)
+      at Object.toThrow (tests/tow/mvp02/towPricingPolicy.test.js:68:49)
+      at Object.toThrow (tests/tow/mvp02/towPricingPolicy.test.js:68:49)
+
+  ● MVP-02 UNIT — authoritative pricing policy › included distance is converted decimal-safely › rejects negative, non-finite and non-numeric configuration
+
+    expect(received).toThrow(expected)
+
+    Expected constructor: TowError
+    Received constructor: TypeError
+
+    Received message: "toIncludedMeters is not a function"
+
+          73 |     test('rejects negative, non-finite and non-numeric configuration', () => {
+          74 |       for (const value of [-1, -0.001, Number.NaN, Infinity, -Infinity, 'abc', '', null, undefined, {}, []]) {
+        > 75 |         expect(() => toIncludedMeters(value)).toThrow(TowError);
+             |                      ^
+          76 |       }
+          77 |     });
+          78 |   });
+
+      at toIncludedMeters (tests/tow/mvp02/towPricingPolicy.test.js:75:22)
+      at Object.<anonymous> (node_modules/expect/build/toThrowMatchers.js:74:11)
+      at Object.throwingMatcher [as toThrow] (node_modules/expect/build/index.js:320:21)
+      at Object.toThrow (tests/tow/mvp02/towPricingPolicy.test.js:75:47)
+      at Object.toThrow (tests/tow/mvp02/towPricingPolicy.test.js:75:47)
+
+  ● MVP-02 UNIT — authoritative pricing policy › excess distance boundaries › below the included distance charges the minimum only
+
+    TypeError: computeTowPrice is not a function
+
+      35 |
+      36 | function priceFor(totalDistanceMeters, tariff = contractTariff()) {
+    > 37 |   return computeTowPrice({ total_distance_meters: totalDistanceMeters, ...tariff });
+         |          ^
+      38 | }
+      39 |
+      40 | describe('MVP-02 UNIT — authoritative pricing policy', () => {
+
+      at computeTowPrice (tests/tow/mvp02/towPricingPolicy.test.js:37:10)
+      at Object.priceFor (tests/tow/mvp02/towPricingPolicy.test.js:82:22)
+
+  ● MVP-02 UNIT — authoritative pricing policy › excess distance boundaries › exactly at the included distance charges the minimum only
+
+    TypeError: computeTowPrice is not a function
+
+      35 |
+      36 | function priceFor(totalDistanceMeters, tariff = contractTariff()) {
+    > 37 |   return computeTowPrice({ total_distance_meters: totalDistanceMeters, ...tariff });
+         |          ^
+      38 | }
+      39 |
+      40 | describe('MVP-02 UNIT — authoritative pricing policy', () => {
+
+      at computeTowPrice (tests/tow/mvp02/towPricingPolicy.test.js:37:10)
+      at Object.priceFor (tests/tow/mvp02/towPricingPolicy.test.js:94:14)
+
+  ● MVP-02 UNIT — authoritative pricing policy › excess distance boundaries › one meter above the included distance is billed proportionally, not as a whole kilometre
+
+    TypeError: computeTowPrice is not a function
+
+      35 |
+      36 | function priceFor(totalDistanceMeters, tariff = contractTariff()) {
+    > 37 |   return computeTowPrice({ total_distance_meters: totalDistanceMeters, ...tariff });
+         |          ^
+      38 | }
+      39 |
+      40 | describe('MVP-02 UNIT — authoritative pricing policy', () => {
+
+      at computeTowPrice (tests/tow/mvp02/towPricingPolicy.test.js:37:10)
+      at Object.priceFor (tests/tow/mvp02/towPricingPolicy.test.js:98:22)
+
+  ● MVP-02 UNIT — authoritative pricing policy › excess distance boundaries › one meter above a zero included distance is billed proportionally
+
+    TypeError: computeTowPrice is not a function
+
+      35 |
+      36 | function priceFor(totalDistanceMeters, tariff = contractTariff()) {
+    > 37 |   return computeTowPrice({ total_distance_meters: totalDistanceMeters, ...tariff });
+         |          ^
+      38 | }
+      39 |
+      40 | describe('MVP-02 UNIT — authoritative pricing policy', () => {
+
+      at computeTowPrice (tests/tow/mvp02/towPricingPolicy.test.js:37:10)
+      at Object.priceFor (tests/tow/mvp02/towPricingPolicy.test.js:105:22)
+
+  ● MVP-02 UNIT — authoritative pricing policy › the frozen fractional-excess example › 14.350 km with 10 km included and R$8,00/km yields R$34,80 variable and R$184,80 total
+
+    TypeError: computeTowPrice is not a function
+
+      35 |
+      36 | function priceFor(totalDistanceMeters, tariff = contractTariff()) {
+    > 37 |   return computeTowPrice({ total_distance_meters: totalDistanceMeters, ...tariff });
+         |          ^
+      38 | }
+      39 |
+      40 | describe('MVP-02 UNIT — authoritative pricing policy', () => {
+
+      at computeTowPrice (tests/tow/mvp02/towPricingPolicy.test.js:37:10)
+      at Object.priceFor (tests/tow/mvp02/towPricingPolicy.test.js:112:22)
+
+  ● MVP-02 UNIT — authoritative pricing policy › ROUND_HALF_UP at the monetary boundary › below the half cent rounds down
+
+    TypeError: computeTowPrice is not a function
+
+      35 |
+      36 | function priceFor(totalDistanceMeters, tariff = contractTariff()) {
+    > 37 |   return computeTowPrice({ total_distance_meters: totalDistanceMeters, ...tariff });
+         |          ^
+      38 | }
+      39 |
+      40 | describe('MVP-02 UNIT — authoritative pricing policy', () => {
+
+      at computeTowPrice (tests/tow/mvp02/towPricingPolicy.test.js:37:10)
+      at Object.priceFor (tests/tow/mvp02/towPricingPolicy.test.js:128:14)
+
+  ● MVP-02 UNIT — authoritative pricing policy › ROUND_HALF_UP at the monetary boundary › exactly at the half cent rounds up
+
+    TypeError: computeTowPrice is not a function
+
+      35 |
+      36 | function priceFor(totalDistanceMeters, tariff = contractTariff()) {
+    > 37 |   return computeTowPrice({ total_distance_meters: totalDistanceMeters, ...tariff });
+         |          ^
+      38 | }
+      39 |
+      40 | describe('MVP-02 UNIT — authoritative pricing policy', () => {
+
+      at computeTowPrice (tests/tow/mvp02/towPricingPolicy.test.js:37:10)
+      at Object.priceFor (tests/tow/mvp02/towPricingPolicy.test.js:132:14)
+
+  ● MVP-02 UNIT — authoritative pricing policy › ROUND_HALF_UP at the monetary boundary › above the half cent rounds up
+
+    TypeError: computeTowPrice is not a function
+
+      35 |
+      36 | function priceFor(totalDistanceMeters, tariff = contractTariff()) {
+    > 37 |   return computeTowPrice({ total_distance_meters: totalDistanceMeters, ...tariff });
+         |          ^
+      38 | }
+      39 |
+      40 | describe('MVP-02 UNIT — authoritative pricing policy', () => {
+
+      at computeTowPrice (tests/tow/mvp02/towPricingPolicy.test.js:37:10)
+      at Object.priceFor (tests/tow/mvp02/towPricingPolicy.test.js:136:14)
+
+  ● MVP-02 UNIT — authoritative pricing policy › ROUND_HALF_UP at the monetary boundary › rounding is applied once, to the money value only — never to the distance
+
+    TypeError: computeTowPrice is not a function
+
+      35 |
+      36 | function priceFor(totalDistanceMeters, tariff = contractTariff()) {
+    > 37 |   return computeTowPrice({ total_distance_meters: totalDistanceMeters, ...tariff });
+         |          ^
+      38 | }
+      39 |
+      40 | describe('MVP-02 UNIT — authoritative pricing policy', () => {
+
+      at computeTowPrice (tests/tow/mvp02/towPricingPolicy.test.js:37:10)
+      at Object.priceFor (tests/tow/mvp02/towPricingPolicy.test.js:140:22)
+
+  ● MVP-02 UNIT — authoritative pricing policy › binary floating-point must never be the monetary source of truth › included_km = 2.007 with a 1 meter excess at R$15,00/km is exactly 2 cents
+
+    TypeError: computeTowPrice is not a function
+
+      35 |
+      36 | function priceFor(totalDistanceMeters, tariff = contractTariff()) {
+    > 37 |   return computeTowPrice({ total_distance_meters: totalDistanceMeters, ...tariff });
+         |          ^
+      38 | }
+      39 |
+      40 | describe('MVP-02 UNIT — authoritative pricing policy', () => {
+
+      at computeTowPrice (tests/tow/mvp02/towPricingPolicy.test.js:37:10)
+      at Object.priceFor (tests/tow/mvp02/towPricingPolicy.test.js:151:22)
+
+  ● MVP-02 UNIT — authoritative pricing policy › binary floating-point must never be the monetary source of truth › the same 2.007 km tariff stays exact across a range of excesses
+
+    TypeError: computeTowPrice is not a function
+
+      35 |
+      36 | function priceFor(totalDistanceMeters, tariff = contractTariff()) {
+    > 37 |   return computeTowPrice({ total_distance_meters: totalDistanceMeters, ...tariff });
+         |          ^
+      38 | }
+      39 |
+      40 | describe('MVP-02 UNIT — authoritative pricing policy', () => {
+
+      at computeTowPrice (tests/tow/mvp02/towPricingPolicy.test.js:37:10)
+      at Object.priceFor (tests/tow/mvp02/towPricingPolicy.test.js:159:14)
+
+  ● MVP-02 UNIT — authoritative pricing policy › binary floating-point must never be the monetary source of truth › every DECIMAL(10,3) boundary value converts to an exact integer meter count
+
+    TypeError: toIncludedMeters is not a function
+
+      165 |       for (let thousandths = 0; thousandths <= 30000; thousandths += 1) {
+      166 |         const includedKm = Number((thousandths / 1000).toFixed(3));
+    > 167 |         expect(toIncludedMeters(includedKm)).toBe(thousandths);
+          |                ^
+      168 |       }
+      169 |     });
+      170 |
+
+      at Object.toIncludedMeters (tests/tow/mvp02/towPricingPolicy.test.js:167:16)
+
+  ● MVP-02 UNIT — authoritative pricing policy › binary floating-point must never be the monetary source of truth › all returned money and distance values are integers
+
+    TypeError: computeTowPrice is not a function
+
+      35 |
+      36 | function priceFor(totalDistanceMeters, tariff = contractTariff()) {
+    > 37 |   return computeTowPrice({ total_distance_meters: totalDistanceMeters, ...tariff });
+         |          ^
+      38 | }
+      39 |
+      40 | describe('MVP-02 UNIT — authoritative pricing policy', () => {
+
+      at computeTowPrice (tests/tow/mvp02/towPricingPolicy.test.js:37:10)
+      at Object.priceFor (tests/tow/mvp02/towPricingPolicy.test.js:172:22)
+
+  ● MVP-02 UNIT — authoritative pricing policy › zero and large tariff values › a zero tariff is valid and produces zero
+
+    TypeError: computeTowPrice is not a function
+
+      35 |
+      36 | function priceFor(totalDistanceMeters, tariff = contractTariff()) {
+    > 37 |   return computeTowPrice({ total_distance_meters: totalDistanceMeters, ...tariff });
+         |          ^
+      38 | }
+      39 |
+      40 | describe('MVP-02 UNIT — authoritative pricing policy', () => {
+
+      at computeTowPrice (tests/tow/mvp02/towPricingPolicy.test.js:37:10)
+      at Object.priceFor (tests/tow/mvp02/towPricingPolicy.test.js:181:22)
+
+  ● MVP-02 UNIT — authoritative pricing policy › zero and large tariff values › a zero excess with a non-zero minimum is valid
+
+    TypeError: computeTowPrice is not a function
+
+      35 |
+      36 | function priceFor(totalDistanceMeters, tariff = contractTariff()) {
+    > 37 |   return computeTowPrice({ total_distance_meters: totalDistanceMeters, ...tariff });
+         |          ^
+      38 | }
+      39 |
+      40 | describe('MVP-02 UNIT — authoritative pricing policy', () => {
+
+      at computeTowPrice (tests/tow/mvp02/towPricingPolicy.test.js:37:10)
+      at Object.priceFor (tests/tow/mvp02/towPricingPolicy.test.js:190:14)
+
+  ● MVP-02 UNIT — authoritative pricing policy › zero and large tariff values › the largest valid DECIMAL(10,3) included distance is accepted
+
+    TypeError: computeTowPrice is not a function
+
+      35 |
+      36 | function priceFor(totalDistanceMeters, tariff = contractTariff()) {
+    > 37 |   return computeTowPrice({ total_distance_meters: totalDistanceMeters, ...tariff });
+         |          ^
+      38 | }
+      39 |
+      40 | describe('MVP-02 UNIT — authoritative pricing policy', () => {
+
+      at computeTowPrice (tests/tow/mvp02/towPricingPolicy.test.js:37:10)
+      at Object.priceFor (tests/tow/mvp02/towPricingPolicy.test.js:194:22)
+
+  ● MVP-02 UNIT — authoritative pricing policy › zero and large tariff values › large but safe money values stay exact
+
+    TypeError: computeTowPrice is not a function
+
+      35 |
+      36 | function priceFor(totalDistanceMeters, tariff = contractTariff()) {
+    > 37 |   return computeTowPrice({ total_distance_meters: totalDistanceMeters, ...tariff });
+         |          ^
+      38 | }
+      39 |
+      40 | describe('MVP-02 UNIT — authoritative pricing policy', () => {
+
+      at computeTowPrice (tests/tow/mvp02/towPricingPolicy.test.js:37:10)
+      at Object.priceFor (tests/tow/mvp02/towPricingPolicy.test.js:199:22)
+
+  ● MVP-02 UNIT — authoritative pricing policy › overflow and unsafe integers are rejected, never silently truncated › rejects an unsafe total distance
+
+    expect(received).toThrow(expected)
+
+    Expected constructor: TowError
+    Received constructor: TypeError
+
+    Received message: "computeTowPrice is not a function"
+
+          35 |
+          36 | function priceFor(totalDistanceMeters, tariff = contractTariff()) {
+        > 37 |   return computeTowPrice({ total_distance_meters: totalDistanceMeters, ...tariff });
+             |          ^
+          38 | }
+          39 |
+          40 | describe('MVP-02 UNIT — authoritative pricing policy', () => {
+
+      at computeTowPrice (tests/tow/mvp02/towPricingPolicy.test.js:37:10)
+      at priceFor (tests/tow/mvp02/towPricingPolicy.test.js:215:20)
+      at Object.<anonymous> (node_modules/expect/build/toThrowMatchers.js:74:11)
+      at Object.throwingMatcher [as toThrow] (node_modules/expect/build/index.js:320:21)
+      at Object.toThrow (tests/tow/mvp02/towPricingPolicy.test.js:215:59)
+      at Object.toThrow (tests/tow/mvp02/towPricingPolicy.test.js:215:59)
+
+  ● MVP-02 UNIT — authoritative pricing policy › overflow and unsafe integers are rejected, never silently truncated › rejects a non-integer or negative total distance
+
+    expect(received).toThrow(expected)
+
+    Expected constructor: TowError
+    Received constructor: TypeError
+
+    Received message: "computeTowPrice is not a function"
+
+          35 |
+          36 | function priceFor(totalDistanceMeters, tariff = contractTariff()) {
+        > 37 |   return computeTowPrice({ total_distance_meters: totalDistanceMeters, ...tariff });
+             |          ^
+          38 | }
+          39 |
+          40 | describe('MVP-02 UNIT — authoritative pricing policy', () => {
+
+      at computeTowPrice (tests/tow/mvp02/towPricingPolicy.test.js:37:10)
+      at priceFor (tests/tow/mvp02/towPricingPolicy.test.js:221:22)
+      at Object.<anonymous> (node_modules/expect/build/toThrowMatchers.js:74:11)
+      at Object.throwingMatcher [as toThrow] (node_modules/expect/build/index.js:320:21)
+      at Object.toThrow (tests/tow/mvp02/towPricingPolicy.test.js:221:39)
+      at Object.toThrow (tests/tow/mvp02/towPricingPolicy.test.js:221:39)
+
+  ● MVP-02 UNIT — authoritative pricing policy › overflow and unsafe integers are rejected, never silently truncated › rejects unsafe or invalid money configuration
+
+    expect(received).toThrow(expected)
+
+    Expected constructor: TowError
+    Received constructor: TypeError
+
+    Received message: "computeTowPrice is not a function"
+
+          35 |
+          36 | function priceFor(totalDistanceMeters, tariff = contractTariff()) {
+        > 37 |   return computeTowPrice({ total_distance_meters: totalDistanceMeters, ...tariff });
+             |          ^
+          38 | }
+          39 |
+          40 | describe('MVP-02 UNIT — authoritative pricing policy', () => {
+
+      at computeTowPrice (tests/tow/mvp02/towPricingPolicy.test.js:37:10)
+      at priceFor (tests/tow/mvp02/towPricingPolicy.test.js:226:20)
+      at Object.<anonymous> (node_modules/expect/build/toThrowMatchers.js:74:11)
+      at Object.throwingMatcher [as toThrow] (node_modules/expect/build/index.js:320:21)
+      at Object.toThrow (tests/tow/mvp02/towPricingPolicy.test.js:226:88)
+      at Object.toThrow (tests/tow/mvp02/towPricingPolicy.test.js:226:88)
+
+  ● MVP-02 UNIT — authoritative pricing policy › overflow and unsafe integers are rejected, never silently truncated › rejects a variable charge that would exceed the safe integer range
+
+    expect(received).toThrow(expected)
+
+    Expected constructor: TowError
+    Received constructor: TypeError
+
+    Received message: "computeTowPrice is not a function"
+
+          35 |
+          36 | function priceFor(totalDistanceMeters, tariff = contractTariff()) {
+        > 37 |   return computeTowPrice({ total_distance_meters: totalDistanceMeters, ...tariff });
+             |          ^
+          38 | }
+          39 |
+          40 | describe('MVP-02 UNIT — authoritative pricing policy', () => {
+
+      at computeTowPrice (tests/tow/mvp02/towPricingPolicy.test.js:37:10)
+      at priceFor (tests/tow/mvp02/towPricingPolicy.test.js:233:30)
+      at Object.<anonymous> (node_modules/expect/build/toThrowMatchers.js:74:11)
+      at Object.throwingMatcher [as toThrow] (node_modules/expect/build/index.js:320:21)
+      at Object.toThrow (tests/tow/mvp02/towPricingPolicy.test.js:238:24)
+      at Object.toThrow (tests/tow/mvp02/towPricingPolicy.test.js:238:24)
+
+  ● MVP-02 UNIT — authoritative pricing policy › overflow and unsafe integers are rejected, never silently truncated › rejects a final price that would exceed the safe integer range
+
+    expect(received).toThrow(expected)
+
+    Expected constructor: TowError
+    Received constructor: TypeError
+
+    Received message: "computeTowPrice is not a function"
+
+          35 |
+          36 | function priceFor(totalDistanceMeters, tariff = contractTariff()) {
+        > 37 |   return computeTowPrice({ total_distance_meters: totalDistanceMeters, ...tariff });
+             |          ^
+          38 | }
+          39 |
+          40 | describe('MVP-02 UNIT — authoritative pricing policy', () => {
+
+      at computeTowPrice (tests/tow/mvp02/towPricingPolicy.test.js:37:10)
+      at priceFor (tests/tow/mvp02/towPricingPolicy.test.js:243:20)
+      at Object.<anonymous> (node_modules/expect/build/toThrowMatchers.js:74:11)
+      at Object.throwingMatcher [as toThrow] (node_modules/expect/build/index.js:320:21)
+      at Object.toThrow (tests/tow/mvp02/towPricingPolicy.test.js:247:11)
+      at Object.toThrow (tests/tow/mvp02/towPricingPolicy.test.js:247:11)
+
+  ● MVP-02 UNIT — authoritative pricing policy › the result is an immutable value object › the returned price is frozen and serializable
+
+    TypeError: computeTowPrice is not a function
+
+      35 |
+      36 | function priceFor(totalDistanceMeters, tariff = contractTariff()) {
+    > 37 |   return computeTowPrice({ total_distance_meters: totalDistanceMeters, ...tariff });
+         |          ^
+      38 | }
+      39 |
+      40 | describe('MVP-02 UNIT — authoritative pricing policy', () => {
+
+      at computeTowPrice (tests/tow/mvp02/towPricingPolicy.test.js:37:10)
+      at Object.priceFor (tests/tow/mvp02/towPricingPolicy.test.js:253:22)
+
+  ● MVP-02 UNIT — authoritative pricing policy › the result is an immutable value object › mutating the caller tariff after the call does not change the result
+
+    TypeError: computeTowPrice is not a function
+
+      35 |
+      36 | function priceFor(totalDistanceMeters, tariff = contractTariff()) {
+    > 37 |   return computeTowPrice({ total_distance_meters: totalDistanceMeters, ...tariff });
+         |          ^
+      38 | }
+      39 |
+      40 | describe('MVP-02 UNIT — authoritative pricing policy', () => {
+
+      at computeTowPrice (tests/tow/mvp02/towPricingPolicy.test.js:37:10)
+      at Object.priceFor (tests/tow/mvp02/towPricingPolicy.test.js:260:22)
+
+FAIL tests/tow/mvp02/towRouteQuoteDomain.test.js
+  ● Test suite failed to run
+
+    Cannot find module '../../../src/modules/tow/domain/route' from 'tests/tow/mvp02/towRouteQuoteDomain.test.js'
+
+      13 | 'use strict';
+      14 |
+    > 15 | const { createRouteQuote } = require('../../../src/modules/tow/domain/route');
+         |                              ^
+      16 | const { validateGeoPoint } = require('../../../src/modules/tow/domain/geo');
+      17 | const { TowError } = require('../../../src/modules/tow/domain/errors');
+      18 |
+
+      at Resolver._throwModNotFoundError (node_modules/jest-resolve/build/resolver.js:427:11)
+      at Object.require (tests/tow/mvp02/towRouteQuoteDomain.test.js:15:30)
+
+Test Suites: 5 failed, 5 total
+Tests:       39 failed, 2 passed, 41 total
+Snapshots:   0 total
+Time:        0.941 s
+Ran all test suites matching /tests\/tow\/mvp02/i.
