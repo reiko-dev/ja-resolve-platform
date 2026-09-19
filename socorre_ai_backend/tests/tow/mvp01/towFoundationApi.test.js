@@ -185,6 +185,36 @@ describe('MVP-01 API — Tow foundation', () => {
       expect(response.status).toBe(404);
       expect(response.body.error.code).toBe('not_found');
     });
+
+    test('creating a vehicle with a duplicate plate for the same partner is a conflict (409)', async () => {
+      const first = await request(app).post('/api/tow/vehicles').set(alpha.headers).send(validVehicle('DUP1D23'));
+      expect(first.status).toBe(201);
+
+      const duplicate = await request(app).post('/api/tow/vehicles').set(alpha.headers).send(validVehicle('DUP1D23'));
+      expect(duplicate.status).toBe(409);
+      expect(duplicate.body.error.code).toBe('conflict');
+
+      const listed = await request(app).get('/api/tow/vehicles').set(alpha.headers);
+      const matching = listed.body.data.items.filter((item) => item.plate === 'DUP1D23');
+      expect(matching).toHaveLength(1);
+    });
+
+    test('patching a plate to an existing plate of the same partner is a conflict and changes nothing', async () => {
+      const first = await request(app).post('/api/tow/vehicles').set(alpha.headers).send(validVehicle('PATCHA1'));
+      const second = await request(app).post('/api/tow/vehicles').set(alpha.headers).send(validVehicle('PATCHB2'));
+      expect(first.status).toBe(201);
+      expect(second.status).toBe(201);
+
+      const conflict = await request(app)
+        .patch(`/api/tow/vehicles/${first.body.data.id}`)
+        .set(alpha.headers)
+        .send({ plate: 'PATCHB2' });
+      expect(conflict.status).toBe(409);
+      expect(conflict.body.error.code).toBe('conflict');
+
+      const unchanged = await request(app).get(`/api/tow/vehicles/${first.body.data.id}`).set(alpha.headers);
+      expect(unchanged.body.data.plate).toBe('PATCHA1');
+    });
   });
 
   describe('vehicle documents and operational eligibility', () => {
@@ -258,6 +288,72 @@ describe('MVP-01 API — Tow foundation', () => {
       expect(rejected.status).toBe(200);
       expect(rejected.body.data.status).toBe('rejected');
       expect(rejected.body.data.rejection_reason).toBe('illegible document');
+    });
+
+    test('a garbage expires_at is rejected as validation_error before persisting', async () => {
+      const created = await request(app).post('/api/tow/vehicles').set(alpha.headers).send(validVehicle('GARB1D23'));
+      const vehicleId = created.body.data.id;
+
+      const upload = await request(app)
+        .post(`/api/tow/vehicles/${vehicleId}/documents`)
+        .set(alpha.headers)
+        .field('document_type', 'vehicle_license')
+        .field('expires_at', 'garbage')
+        .attach('file', Buffer.from('bytes'), { filename: 'garbage.jpg', contentType: 'image/jpeg' });
+      expect(upload.status).toBe(422);
+      expect(upload.body.error.code).toBe('validation_error');
+
+      const listed = await request(app).get(`/api/tow/vehicles/${vehicleId}/documents`).set(alpha.headers);
+      expect(listed.body.data.items).toHaveLength(0);
+    });
+
+    test('a past expires_at is stored but is not eligible (effectively expired)', async () => {
+      const adminHeaders = { Authorization: `Bearer ${tokenFor(admin)}` };
+      const created = await request(app).post('/api/tow/vehicles').set(alpha.headers).send(validVehicle('PAST1D23'));
+      const vehicleId = created.body.data.id;
+
+      const upload = await request(app)
+        .post(`/api/tow/vehicles/${vehicleId}/documents`)
+        .set(alpha.headers)
+        .field('document_type', 'vehicle_license')
+        .field('expires_at', '2020-01-01T00:00:00.000Z')
+        .attach('file', Buffer.from('bytes'), { filename: 'past.jpg', contentType: 'image/jpeg' });
+      expect(upload.status).toBe(201);
+      const documentId = upload.body.data.id;
+
+      const approved = await request(app)
+        .post(`/api/admin/tow/vehicle-documents/${documentId}/approve`)
+        .set(adminHeaders)
+        .send({});
+      expect(approved.status).toBe(200);
+      expect(approved.body.data.status).toBe('approved');
+
+      const vehicle = await request(app).get(`/api/tow/vehicles/${vehicleId}`).set(alpha.headers);
+      expect(vehicle.body.data.document_status).toBe('expired');
+    });
+
+    test('a valid future expires_at keeps an approved document eligible', async () => {
+      const adminHeaders = { Authorization: `Bearer ${tokenFor(admin)}` };
+      const created = await request(app).post('/api/tow/vehicles').set(alpha.headers).send(validVehicle('FUTR1D23'));
+      const vehicleId = created.body.data.id;
+
+      const upload = await request(app)
+        .post(`/api/tow/vehicles/${vehicleId}/documents`)
+        .set(alpha.headers)
+        .field('document_type', 'vehicle_license')
+        .field('expires_at', '2030-01-01T00:00:00.000Z')
+        .attach('file', Buffer.from('bytes'), { filename: 'future.jpg', contentType: 'image/jpeg' });
+      expect(upload.status).toBe(201);
+      const documentId = upload.body.data.id;
+
+      const approved = await request(app)
+        .post(`/api/admin/tow/vehicle-documents/${documentId}/approve`)
+        .set(adminHeaders)
+        .send({});
+      expect(approved.status).toBe(200);
+
+      const vehicle = await request(app).get(`/api/tow/vehicles/${vehicleId}`).set(alpha.headers);
+      expect(vehicle.body.data.document_status).toBe('approved');
     });
   });
 

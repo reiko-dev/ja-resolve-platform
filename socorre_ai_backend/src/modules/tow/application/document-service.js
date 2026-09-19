@@ -17,6 +17,27 @@ const {
 const ALLOWED_MIME_TYPES = Object.freeze(['image/jpeg', 'image/jpg', 'image/png', 'application/pdf']);
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 
+/**
+ * Normalize the optional `expires_at` before persistence:
+ *   - `undefined`/`null`/`''` => no expiry (`null`);
+ *   - anything else must parse to a valid date, otherwise it is rejected as a
+ *     `validation_error` (422) so garbage is never stored and the domain never
+ *     has to guess.
+ */
+function normalizeExpiresAt(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const acceptableType = value instanceof Date
+    || typeof value === 'string'
+    || (typeof value === 'number' && Number.isFinite(value));
+  const epoch = acceptableType
+    ? (value instanceof Date ? value.getTime() : new Date(value).getTime())
+    : NaN;
+  if (!Number.isFinite(epoch)) {
+    throw validationError('expires_at must be a valid date', { field: 'expires_at' });
+  }
+  return value instanceof Date ? value : new Date(epoch);
+}
+
 function createDocumentService({ documentRepository, vehicleRepository, storage, clock }) {
   if (!documentRepository) throw new TypeError('createDocumentService requires a documentRepository port');
   if (!vehicleRepository) throw new TypeError('createDocumentService requires a vehicleRepository port');
@@ -49,6 +70,7 @@ function createDocumentService({ documentRepository, vehicleRepository, storage,
     if (Number.isFinite(file.size) && file.size > MAX_FILE_SIZE_BYTES) {
       throw validationError('file must be at most 5MB', { field: 'file' });
     }
+    const normalizedExpiresAt = normalizeExpiresAt(expiresAt);
 
     const saved = await storage.save({
       buffer: file.buffer,
@@ -68,7 +90,7 @@ function createDocumentService({ documentRepository, vehicleRepository, storage,
       mime_type: file.mimetype,
       file_size: file.size,
       status: 'pending',
-      expires_at: expiresAt || null,
+      expires_at: normalizedExpiresAt,
     });
   }
 
@@ -84,6 +106,14 @@ function createDocumentService({ documentRepository, vehicleRepository, storage,
       throw new TowError('not_found', 'TowVehicle document not found');
     }
     await documentRepository.remove(document.id);
+    // Best-effort orphan cleanup AFTER the row is gone: a storage failure must
+    // never fail the delete, and the stored path is never logged or exposed
+    // outside the storage port.
+    try {
+      await storage.remove(document.file_path);
+    } catch (error) {
+      /* best effort: the metadata row is already deleted */
+    }
     return { id: document.id, deleted: true };
   }
 

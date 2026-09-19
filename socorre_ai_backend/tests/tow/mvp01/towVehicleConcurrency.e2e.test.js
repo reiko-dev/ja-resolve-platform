@@ -66,15 +66,34 @@ describePostgres('MVP-01 CONC — real PostgreSQL concurrency', () => {
 
     const active = await db('tow_vehicles').where({ partner_id: partner.id, active: true });
     expect(active).toHaveLength(1);
-    // At least one activation succeeded; a rejected one must be a domain conflict.
+    expect(results).toHaveLength(2);
+    // At least one activation succeeded; the invariant above is asserted
+    // unconditionally. Rejections may be zero when the two activations are
+    // serialized (last write wins), so the mapping is asserted only when a
+    // rejection is actually observed HERE; the deterministic injected-failure
+    // proof lives in `towActivateConflictMapping.test.js`.
     const fulfilled = results.filter((entry) => entry.status === 'fulfilled');
     expect(fulfilled.length).toBeGreaterThanOrEqual(1);
-    for (const entry of results) {
-      if (entry.status === 'rejected') {
-        expect(entry.reason).toBeInstanceOf(TowError);
-        expect(entry.reason.code).toBe('conflict');
-      }
+    const rejected = results.filter((entry) => entry.status === 'rejected');
+    for (const entry of rejected) {
+      expect(entry.reason).toBeInstanceOf(TowError);
+      expect(entry.reason.code).toBe('conflict');
     }
+  });
+
+  test('the partial unique index rejects a second active row (real-PG direct SQL proof)', async () => {
+    const { partner } = await seedTowPartner(db, 'conc-direct-sql');
+    const first = await services.vehicleService.create({ partnerId: partner.id, input: vehicleInput('SQLP111') });
+    const second = await services.vehicleService.create({ partnerId: partner.id, input: vehicleInput('SQLP222') });
+
+    await services.vehicleService.activate({ partnerId: partner.id, vehicleId: first.id });
+    await expect(
+      db('tow_vehicles').where({ id: second.id }).update({ active: true })
+    ).rejects.toThrow();
+
+    const active = await db('tow_vehicles').where({ partner_id: partner.id, active: true });
+    expect(active).toHaveLength(1);
+    expect(String(active[0].id)).toBe(String(first.id));
   });
 
   test('repeated identical module toggles keep a single canonical row', async () => {

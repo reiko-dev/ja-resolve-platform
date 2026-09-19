@@ -36,9 +36,13 @@ const { disposableAdminCredentials } = require('../../../scripts/tow/disposable-
 const { snapshotSchema, compareSnapshots, fingerprintOf } = require('../../../scripts/tow/schema-snapshot');
 
 const describePostgres = postgres.isEnabled() ? describe : describe.skip;
-// Derived from the migrations directory (single source of truth) so a new
-// deterministic migration keeps the baseline assertion exact and green.
-const BASELINE_MIGRATIONS = fs.readdirSync(MIGRATIONS_DIR).filter((file) => file.endsWith('.js')).sort();
+// PINNED explicitly: the exact MVP-01 baseline. The directory read below is a
+// cross-check only, so a smuggled `004_*.js` cannot be absorbed silently.
+const BASELINE_MIGRATIONS = Object.freeze([
+  '001_baseline_schema.js',
+  '002_baseline_settings.js',
+  '003_mvp01_tow_foundation.js',
+]);
 
 /** Disposable credentials: generated per run, never committed. */
 function disposableAdmin() {
@@ -87,8 +91,14 @@ describePostgres('T01 PostgreSQL — clean baseline', () => {
       expect(firstApplied.slice().sort()).toEqual(BASELINE_MIGRATIONS.slice().sort());
     });
 
-    test('the migrations directory contains no legacy data migration', () => {
-      const files = fs.readdirSync(MIGRATIONS_DIR).sort();
+    test('the migrations directory matches the pinned baseline exactly (no smuggled migration)', () => {
+      const files = fs.readdirSync(MIGRATIONS_DIR).filter((file) => file.endsWith('.js')).sort();
+      const unexpected = files.filter((file) => !BASELINE_MIGRATIONS.includes(file));
+      if (unexpected.length > 0) {
+        throw new Error(
+          `unexpected migration file(s) outside the pinned MVP-01 baseline: ${unexpected.join(', ')}`
+        );
+      }
       expect(files).toEqual(BASELINE_MIGRATIONS.slice().sort());
       expect(files.some((file) => /015|migrate_existing_data/.test(file))).toBe(false);
     });

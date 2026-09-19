@@ -99,14 +99,30 @@ function createVehicleRepository(db) {
   }
 
   async function insert(record) {
-    const [created] = await db('tow_vehicles').insert(toColumns(record)).returning('*');
-    return mapVehicleRow(created);
+    try {
+      const [created] = await db('tow_vehicles').insert(toColumns(record)).returning('*');
+      return mapVehicleRow(created);
+    } catch (error) {
+      // Client-caused duplicates (`(partner_id, plate)` or the partial active
+      // unique) are a contract conflict, never an internal error.
+      if (isUniqueViolation(error)) {
+        throw new TowError('conflict', 'a TowVehicle with this plate already exists for this partner');
+      }
+      throw error;
+    }
   }
 
   async function update(id, patch) {
     const columns = toColumns(patch);
-    if (Object.keys(columns).length > 0) {
-      await db('tow_vehicles').where({ id }).update({ ...columns, updated_at: db.fn.now() });
+    try {
+      if (Object.keys(columns).length > 0) {
+        await db('tow_vehicles').where({ id }).update({ ...columns, updated_at: db.fn.now() });
+      }
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        throw new TowError('conflict', 'a TowVehicle with this plate already exists for this partner');
+      }
+      throw error;
     }
     return findById(id);
   }

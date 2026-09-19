@@ -159,6 +159,19 @@ describe('MVP-01 UNIT — Tow domain', () => {
       expect(domain.effectiveDocumentStatus(expiring, now)).toBe('expired');
     });
 
+    test('empty expires_at means no expiry (still valid)', () => {
+      expect(domain.isDocumentValid({ ...approved, expires_at: '' }, now)).toBe(true);
+      expect(domain.isDocumentValid({ ...approved, expires_at: undefined }, now)).toBe(true);
+    });
+
+    test('a non-empty unparseable expires_at is never treated as never-expiring', () => {
+      const invalid = { document_type: 'vehicle_license', status: 'approved', expires_at: 'garbage' };
+      expect(domain.effectiveDocumentStatus(invalid, now)).toBe('expired');
+      expect(domain.isDocumentValid(invalid, now)).toBe(false);
+      expect(domain.areRequiredDocumentsSatisfied([invalid], now)).toBe(false);
+      expect(domain.summarizeDocumentStatus([invalid], now)).toBe('expired');
+    });
+
     test('pending/rejected never satisfy the requirement', () => {
       expect(domain.isDocumentValid({ document_type: 'vehicle_license', status: 'pending' }, now)).toBe(false);
       expect(domain.isDocumentValid({ document_type: 'vehicle_license', status: 'rejected' }, now)).toBe(false);

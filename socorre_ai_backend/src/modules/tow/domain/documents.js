@@ -18,10 +18,17 @@ const ALLOWED_DOCUMENT_TYPES = Object.freeze([
 /** At minimum the vehicle license (CRLV) must be approved and valid. */
 const REQUIRED_DOCUMENT_TYPES = Object.freeze(['vehicle_license']);
 
+/**
+ * Pure expiry normalization:
+ *   - `null`/`undefined`/`''` mean "no expiry" and return `null`;
+ *   - an unparseable non-empty value returns `NaN`, which the policy below
+ *     treats as NOT valid (never as "never-expiring"). Silently treating a
+ *     malformed date as no expiry would keep a bad document eligible forever.
+ */
 function toEpoch(value) {
   if (value === null || value === undefined || value === '') return null;
   const epoch = value instanceof Date ? value.getTime() : new Date(value).getTime();
-  return Number.isNaN(epoch) ? null : epoch;
+  return Number.isFinite(epoch) ? epoch : NaN;
 }
 
 function referenceEpoch(now) {
@@ -35,7 +42,11 @@ function effectiveDocumentStatus(document, now) {
   if (!document) return null;
   if (document.status === 'approved') {
     const expires = toEpoch(document.expires_at);
-    if (expires !== null && expires <= referenceEpoch(now)) return 'expired';
+    if (expires === null) return document.status;
+    // A non-empty but unparseable `expires_at` (NaN) is an invalid document,
+    // not a never-expiring one.
+    if (!Number.isFinite(expires)) return 'expired';
+    if (expires <= referenceEpoch(now)) return 'expired';
   }
   return document.status;
 }
