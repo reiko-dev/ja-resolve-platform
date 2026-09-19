@@ -143,10 +143,13 @@ Real PostgreSQL 14 in the disposable T01/T00 container (always torn down):
 - `tests/setup.js` isolates Tow document uploads to the OS temp dir.
 
 ## Muse Review
-Muse Sparks 1.3 Free reviewed the frozen head `872b22ed` (implementation
-`cd509eaf`) and returned `CHANGES_REQUIRED` (P0 = 0, P1 = 1, P2 = 2, P3 = 3).
-All six findings are fixed in the correction pass below; re-review requested on
-the correction head `8bb98fc7ce70b465fe29a3dcc1e799382c8761d7`.
+- First pass: Muse Sparks 1.3 Free reviewed the frozen head `872b22ed` (implementation
+  `cd509eaf`) and returned `CHANGES_REQUIRED` (P0 = 0, P1 = 1, P2 = 2, P3 = 3).
+- Correction pass: all six findings fixed (details below and in `11-correction-pass.md`).
+- **Re-review: APPROVE** on head `35ea7302` (implementation `8bb98fc7`) — P0 = 0, P1 = 0,
+  P2 = 0, P3 = 1 (`MMVP2-1`, the pre-existing legacy `towDocumentFlow` socket flake, non-blocking;
+  recorded in T00 as `flake-tow-document-flow-403.txt`).
+- Artifact: `docs/evidence/mvp-01/12-muse-review.md`.
 
 ## Correction Pass (MMVP-1..6)
 Full detail: `11-correction-pass.md`.
