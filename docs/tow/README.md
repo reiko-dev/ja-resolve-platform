@@ -1,122 +1,147 @@
-# JaResolve Tow — Contract Index
+# JaResolve Tow — Contract & Execution Index
 
-> Status: **cross-document freeze review PASS**  
-> Final review: `TOW-CONTRACT-FREEZE-REVIEW.md`
+> Contract baseline: **PR #9 merged / freeze review PASS**  
+> Current implementation strategy: **six-delivery Tow MVP**  
+> MVP execution plan: `TOW-MVP-DELIVERY-PLAN.md`  
+> Epic: #10
 
-Este diretório é a fonte de verdade da reestruturação do módulo **Guincho / Tow**.
+Este diretório contém duas camadas diferentes e ambas devem ser preservadas:
+
+1. **Target contract** — o comportamento completo de longo prazo congelado no PR #9.
+2. **Execution plan** — o caminho incremental atual para colocar um Tow utilizável em produção de forma controlada.
+
+## Current execution strategy
+
+A implementação não segue mais T02→T18 como 17 milestones obrigatórios antes do primeiro fluxo utilizável.
+
+O caminho executável atual é:
+
+```text
+T00 ACCEPTED
+→ T01 ACCEPTED
+→ MVP-01 #13 Foundation
+→ MVP-02 #14 Routes & Pricing
+→ MVP-03 #15 Request & Matching
+→ MVP-04 #16 Proposal & Assignment
+→ MVP-05 #17 Execution & Tracking
+→ MVP-06 #18 CASH + Lean E2E
+→ TOW MVP BACKEND READY FOR INTEGRATION
+```
+
+Depois:
+
+```text
+#33 Production Hardening
+→ advanced negotiation/matching
+→ CARD/PIX
+→ debts/wallet/settlement/payout
+→ governance/audit
+→ 75+ E2E/full contract certification
+→ TOW BACKEND READY FOR INTEGRATION
+```
+
+Historical issues #19–#29 are retained as design evidence but are superseded as executable Phase-1 tasks.
 
 ## Normative documents
 
-### Domain / business
+### MVP execution
 
-1. `TOW-PRICING-CONTRACT.md`
+1. `TOW-MVP-DELIVERY-PLAN.md`
+   - current Phase-1 sequencing;
+   - six executable deliveries;
+   - CASH decision;
+   - lean 20-scenario MVP E2E gate;
+   - Phase-2 boundary;
+   - Workhorse readiness rules.
+
+2. `TOW-TDD-IMPLEMENTATION-PLAN.md`
+   - TDD lifecycle;
+   - architecture constraints;
+   - current MVP task graph and gates.
+
+3. `TOW-TASK-GRAPH.yaml`
+   - machine-readable current execution graph.
+
+4. GitHub Epic #10 + Issues #13–#18
+   - immediate executable task specifications.
+
+5. GitHub Issue #33
+   - deferred production-hardening backlog.
+
+### Domain / business target
+
+6. `TOW-PRICING-CONTRACT.md`
    - pricing autoritativo por rota real;
    - excedente proporcional por metro;
-   - `ROUND_HALF_UP` somente no boundary monetário;
-   - `ceil(excess_km)` é proibido.
+   - `ROUND_HALF_UP` no boundary monetário;
+   - `ceil(excess_km)` proibido.
 
-2. `TOW-SERVICE-SPECIFICATION.md`
-   - comportamento funcional congelado;
-   - module, vehicle, matching, negotiation, payments, debts, payout, governance.
+7. `TOW-SERVICE-SPECIFICATION.md`
+   - complete long-term functional target.
 
-3. `TOW-BUSINESS-RULE-MATRIX.md`
-   - invariants identificáveis/testáveis;
-   - prioridades/cobertura mínima.
+8. `TOW-BUSINESS-RULE-MATRIX.md`
+   - target invariants/test matrix.
 
-4. `TOW-MODULE-CONTRACT.md`
-   - `module_key=tow`, `service_key=tow`, `partner_type=tow`;
-   - feature flag;
-   - graceful drain.
+9. `TOW-MODULE-CONTRACT.md`
+   - canonical module identity and graceful drain.
 
-### Backend execution
+### Consumer target contract
 
-5. `TOW-TDD-IMPLEMENTATION-PLAN.md`
-   - RED → GREEN → REFACTOR → gate;
-   - T00–T18;
-   - Clean Architecture/SOLID;
-   - 75 mandatory E2E in T18.
+10. `tow-api-contract.openapi.yaml`
+    - canonical long-term OpenAPI 3.1 target.
 
-6. `TOW-TASK-GRAPH.yaml`
-   - dependencies machine-readable;
-   - outputs/tests/gates;
-   - separate mock-implementation and real-integration consumer gates.
+11. `TOW-API-CONTRACT.md`
 
-7. GitHub Epic #10 + Issues #11–#29
-   - task executable specification;
-   - Issue da task é a ordem operacional imediata.
+12. `TOW-API-CONTRACT-DRAFT4-ADDENDUM.md`
 
-### Consumer-first contract
+13. `TOW-CONSUMER-FLOW-SPEC.md`
 
-8. `tow-api-contract.openapi.yaml`
-   - canonical OpenAPI 3.1 entrypoint;
-   - generated client/mock/contract test source.
+14. `TOW-CONSUMER-FLOW-COVERAGE.md`
 
-9. `TOW-API-CONTRACT.md`
-   - REST semantics, DTO/error/idempotency conventions.
+15. `TOW-OPENAPI-CONTRACT-DECISIONS.md`
 
-10. `TOW-API-CONTRACT-DRAFT4-ADDENDUM.md`
-    - route geometry;
-    - partner status/location;
-    - complete opportunities;
-    - partner financial summary;
-    - Dashboard detail/payout contracts.
+16. `TOW-OPENAPI-CONSISTENCY-REVIEW.md`
 
-11. `TOW-CONSUMER-FLOW-SPEC.md`
-    - Mobile Cliente flow;
-    - Mobile Parceiro flow;
-    - Dashboard flow;
-    - mock-first implementation boundary.
+17. `TOW-CONSUMER-CONTRACT-SMOKE-RESULT.md`
 
-12. `TOW-CONSUMER-FLOW-COVERAGE.md`
-    - flow × endpoint coverage matrix.
+18. `TOW-CONTRACT-FREEZE-REVIEW.md`
 
-13. `TOW-OPENAPI-CONTRACT-DECISIONS.md`
-    - discovery/rehydration decisions;
-    - true-partial settings PATCH.
+The PR #9 OpenAPI remains a **superset target**. MVP readiness applies only to the subset explicitly implemented by #13–#18.
 
-14. `TOW-OPENAPI-CONSISTENCY-REVIEW.md`
-    - OpenAPI structural/ref/codegen smoke evidence.
+### Accepted foundation
 
-15. `TOW-CONSUMER-CONTRACT-SMOKE-RESULT.md`
-    - Cliente/Parceiro/Dashboard smoke PASS.
+19. `T00-CURRENT-STATE-AUDIT.md`
 
-16. `TOW-CONTRACT-FREEZE-REVIEW.md`
-    - final cross-document review;
-    - resolved contradictions;
-    - merge/handoff gates.
+20. `T00-TEST-HARNESS.md`
 
-`tow-api-contract.base.openapi.yaml` é artefato interno de composição. Apps usam `tow-api-contract.openapi.yaml`.
+21. `TOW-DOCKER-TEST-STRATEGY.md`
 
-### T00/T01 foundation (harness & database baseline)
+22. `T01-DATABASE-BASELINE-DECISION.md`
 
-17. `T00-CURRENT-STATE-AUDIT.md`
-    - o que existe hoje no repositório e o que T01–T18 podem reusar/adaptar/substituir;
-    - contradições registradas (não resolvidas em silêncio).
+23. `database-baseline.md`
 
-18. `T00-TEST-HARNESS.md`
-    - comandos canônicos do harness de testes T00;
-    - PostgreSQL real descartável (Docker), guarda de ambiente e evidências.
+24. `database-schema.md`
 
-19. `TOW-DOCKER-TEST-STRATEGY.md`
-    - estratégia de Docker/PostgreSQL real para os testes Tow;
-    - isolamento, volume descartável e regras de segurança.
+Current accepted implementation baseline:
 
-20. `T01-DATABASE-BASELINE-DECISION.md`
-    - decisão de baseline limpo (`001`+`002`), arquivamento da cadeia legada;
-    - disposição migration por migration, seed do admin, modelo de segurança do reset;
-    - riscos e decisões registradas.
-
-21. `database-baseline.md`
-    - runbook operacional: reset, migrate, seed, assert, ambientes permitidos,
-      recuperação e gate de banco limpo via Docker (com aviso destrutivo).
-
-22. `database-schema.md`
-    - listagem completa do schema do baseline (colunas, FKs, uniques, checks, índices);
-    - diagrama de dependências e fingerprint estrutural.
+```text
+main @ f31962fdd0175303646a34c9d170032bc6a06601
+schema fingerprint:
+0e4e8ed825fb1629a1474f590ae5dc1c779685ecb927acbae038276cdfea4926
+```
 
 ## Precedence
 
-### Pricing
+### Immediate implementation scope
+
+```text
+Issue #13–#18
+→ TOW-MVP-DELIVERY-PLAN.md
+→ TOW-TASK-GRAPH.yaml
+→ TOW-TDD-IMPLEMENTATION-PLAN.md
+```
+
+### Pricing behavior
 
 ```text
 TOW-PRICING-CONTRACT
@@ -124,54 +149,54 @@ TOW-PRICING-CONTRACT
 → TOW-BUSINESS-RULE-MATRIX
 ```
 
-### Functional/domain
-
-```text
-TOW-SERVICE-SPECIFICATION
-→ TOW-BUSINESS-RULE-MATRIX
-→ TOW-MODULE-CONTRACT
-```
-
-### Backend execution
-
-```text
-Issue da task
-→ TOW-TASK-GRAPH.yaml
-→ TOW-TDD-IMPLEMENTATION-PLAN.md
-```
+MVP re-planning does not weaken the pricing rule.
 
 ### Consumer transport
 
 ```text
-tow-api-contract.openapi.yaml
-→ TOW-API-CONTRACT-DRAFT4-ADDENDUM.md
-→ TOW-CONSUMER-FLOW-COVERAGE.md
-→ TOW-API-CONTRACT.md
-→ TOW-CONSUMER-FLOW-SPEC.md
+tow-api-contract.openapi.yaml = long-term target contract
+TOW-MVP-DELIVERY-PLAN.md       = current implemented subset boundary
 ```
 
-Se surgir conflito, não escolher silenciosamente. Corrigir contrato + tests antes da implementação dependente.
+Do not claim a deferred target endpoint is implemented merely because it exists in the frozen OpenAPI.
 
-## Consumer handoff gates
+## Readiness gates
 
-Após merge do PR de contrato e com smoke já verde:
+### Mock-first consumer work
 
 ```text
 TOW MOBILE CONTRACT READY FOR IMPLEMENTATION
 ```
 
-Permite implementação Mobile/Dashboard contra OpenAPI/mocks.
+Already available from PR #9.
 
-Somente T18 emite:
+### Real MVP backend integration
+
+After MVP-06 accepted:
+
+```text
+TOW MVP BACKEND READY FOR INTEGRATION
+```
+
+Allows consumers to replace mocks only for the explicitly completed MVP subset.
+
+### Full target integration
+
+After Phase 2/#33:
 
 ```text
 TOW BACKEND READY FOR INTEGRATION
 ```
 
-Isso libera substituição de mocks pelo backend real.
+This remains the production-hardening/full-contract milestone.
+
+## Current next task
 
 ```text
-mock-ready != backend-integration-ready
+MVP-01 — Tow Foundation
+Issue #13
+READY
+base: main @ f31962fdd0175303646a34c9d170032bc6a06601
 ```
 
-Nenhum consumer pode criar endpoint/DTO/regra crítica local para compensar backend incompleto.
+#31 remains deferred for dev/test functional work and must be resolved before production security sign-off/go-live.
