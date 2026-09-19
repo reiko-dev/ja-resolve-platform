@@ -38,6 +38,7 @@ const {
 } = require('./db-connection');
 const { RESET_CONFIRM_TOKEN, CONFIRM_VAR, describeResetTarget } = require('./db-reset-guard');
 const {
+  MIGRATIONS_DIR,
   migrateBaseline,
   runSeed,
   assertBaseline,
@@ -50,6 +51,15 @@ const { describeSeedResult } = require('./admin-seed');
 const { snapshotSchema, compareSnapshots, formatComparison, fingerprintOf } = require('./schema-snapshot');
 
 const EVIDENCE_DIR = path.resolve(testEnv.BACKEND_DIR, '..', 'docs', 'evidence', 't01');
+
+/**
+ * The expected applied migration list is DERIVED from the migrations directory
+ * (single source of truth), so adding a new deterministic migration keeps the
+ * gate green without silently weakening the "exact baseline" assertion.
+ */
+function expectedMigrations() {
+  return fs.readdirSync(MIGRATIONS_DIR).filter((file) => file.endsWith('.js')).sort();
+}
 
 function assertEmptyDatabase(tables) {
   if (tables.length !== 0) {
@@ -123,7 +133,7 @@ async function runGate() {
 
       console.log('[db-gate] stage 3/9: migrate from zero');
       const first = await migrateBaseline(db);
-      assertApplied(first.applied, ['001_baseline_schema.js', '002_baseline_settings.js']);
+      assertApplied(first.applied, expectedMigrations());
       console.log(`[db-gate] migrations applied: ${first.applied.join(', ')} (batch ${first.batch})`);
 
       console.log('[db-gate] stage 4/9: seed the default administrator');
@@ -151,7 +161,7 @@ async function runGate() {
       const afterReset = await listTables(db);
       assertEmptyDatabase(afterReset);
       const second = await migrateBaseline(db);
-      assertApplied(second.applied, ['001_baseline_schema.js', '002_baseline_settings.js']);
+      assertApplied(second.applied, expectedMigrations());
       const seedAgain = await runSeed(db, process.env);
       if (!seedAgain.created) throw new Error(`expected the administrator to be created again, got "${seedAgain.reason}"`);
       const secondReport = await assertBaseline(db, { expectedAdminEmail: admin.ADMIN_EMAIL });

@@ -36,7 +36,9 @@ const { disposableAdminCredentials } = require('../../../scripts/tow/disposable-
 const { snapshotSchema, compareSnapshots, fingerprintOf } = require('../../../scripts/tow/schema-snapshot');
 
 const describePostgres = postgres.isEnabled() ? describe : describe.skip;
-const BASELINE_MIGRATIONS = ['001_baseline_schema.js', '002_baseline_settings.js'];
+// Derived from the migrations directory (single source of truth) so a new
+// deterministic migration keeps the baseline assertion exact and green.
+const BASELINE_MIGRATIONS = fs.readdirSync(MIGRATIONS_DIR).filter((file) => file.endsWith('.js')).sort();
 
 /** Disposable credentials: generated per run, never committed. */
 function disposableAdmin() {
@@ -353,7 +355,10 @@ describePostgres('T01 PostgreSQL — clean baseline', () => {
     test('no functional table has rows', async () => {
       const report = await collectReport(db);
       for (const table of REQUIRED_TABLES) {
-        if (table === 'users' || table === 'system_settings') continue;
+        // `users` (admin), `system_settings` (structural defaults) and
+        // `service_modules` (structural module registry: exactly one row) are
+        // configuration, not functional data.
+        if (table === 'users' || table === 'system_settings' || table === 'service_modules') continue;
         expect({ table, count: report.counts[table] }).toEqual({ table, count: 0 });
       }
     });

@@ -1,0 +1,45 @@
+ Network socorre-tow-test-55432-cb0d0933_tow-test-net Creating 
+ Network socorre-tow-test-55432-cb0d0933_tow-test-net Creating 
+ Network socorre-tow-test-55432-cb0d0933_tow-test-net Created 
+ Network socorre-tow-test-55432-cb0d0933_tow-test-net Created 
+ Container socorre-tow-test-55432-cb0d0933-tow-postgres-test-1 Creating 
+ Container socorre-tow-test-55432-cb0d0933-tow-postgres-test-1 Created 
+ Container socorre-tow-test-55432-cb0d0933-tow-postgres-test-1 Starting 
+ Container socorre-tow-test-55432-cb0d0933-tow-postgres-test-1 Started 
+ Container socorre-tow-test-55432-cb0d0933-tow-postgres-test-1 Waiting 
+ Container socorre-tow-test-55432-cb0d0933-tow-postgres-test-1 Healthy 
+PostgreSQL test container is healthy
+healthcheck: healthy
+PASS tests/tow/mvp01/towPersistence.e2e.test.js
+  MVP-01 DB — PostgreSQL persistence invariants
+    ✓ migration creates the canonical MVP-01 tables (5 ms)
+    ✓ exactly one canonical tow module row exists (2 ms)
+    ✓ the module key is unique at the database level (11 ms)
+    ✓ at most one active vehicle per partner is enforced by a partial unique index (11 ms)
+    ✓ the same active plate pattern is isolated across partners (5 ms)
+    ✓ vehicle and document foreign keys are enforced and cascade (10 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       6 passed, 6 total
+Snapshots:   0 total
+Time:        0.991 s, estimated 1 s
+Ran all test suites matching /tests\/tow\/mvp01\/towPersistence.e2e.test.js/i.
+PASS tests/tow/mvp01/towVehicleConcurrency.e2e.test.js
+  MVP-01 CONC — real PostgreSQL concurrency
+    ✓ two concurrent activations leave exactly one active vehicle (21 ms)
+    ✓ repeated identical module toggles keep a single canonical row (8 ms)
+    ✓ parallel vehicle creation never creates a second active vehicle (10 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       3 passed, 3 total
+Snapshots:   0 total
+Time:        0.819 s, estimated 1 s
+Ran all test suites matching /tests\/tow\/mvp01\/towVehicleConcurrency.e2e.test.js/i.
+ Container socorre-tow-test-55432-cb0d0933-tow-postgres-test-1 Stopping 
+ Container socorre-tow-test-55432-cb0d0933-tow-postgres-test-1 Stopped 
+ Container socorre-tow-test-55432-cb0d0933-tow-postgres-test-1 Removing 
+ Container socorre-tow-test-55432-cb0d0933-tow-postgres-test-1 Removed 
+ Network socorre-tow-test-55432-cb0d0933_tow-test-net Removing 
+ Network socorre-tow-test-55432-cb0d0933_tow-test-net Removed 
+PostgreSQL test environment destroyed (containers, volumes, network)
+[mvp01-pg] DONE
