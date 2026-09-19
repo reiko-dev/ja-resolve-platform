@@ -8,8 +8,9 @@ READY_FOR_MUSE_REREVIEW
 - Base (execution): `c8e40d71dd23c32a76050c05518353b6d030753f` (post-merge main of PR #34, Tow MVP replan; T00/T01 ACCEPTED)
 - Branch: `feature/mvp-01-tow-foundation`
 - Original reviewed head: `872b22ed` (implementation `cd509eaf`)
-- **Correction implementation head: `8bb98fc7ce70b465fe29a3dcc1e799382c8761d7`**
-- Push / PR / merge: **not performed** (executor stops before Phase J; orchestrator runs Muse then opens the PR with `Closes #13`)
+- Muse correction implementation head: `8bb98fc7ce70b465fe29a3dcc1e799382c8761d7`
+- **External correction implementation head: `443ac423`** (EXT-MVP01-1 + EXT-MVP01-2)
+- Push / PR / merge: **not performed** (executor stops before Phase J; orchestrator runs Muse then updates the PR with `Closes #13`)
 
 ## Current-State Delta
 Delivered as its own required artifact before any code:
@@ -181,6 +182,46 @@ Post-correction gates: OpenAPI PASS · contract 62/62 · `verify:tow` GREEN ·
 **851 passed / 58 skipped / 0 failures** · real-PG MVP-01 10 suites / 86 tests ·
 T01 baseline e2e 33/33 · legacy PG 2/2 + 7/7.
 
+## External Correction Pass (EXT-MVP01-1 + EXT-MVP01-2)
+Full detail: `13-external-correction.md`.
+
+External review of PR #35 returned `CHANGES_REQUIRED` (P0 = 0, P1 = 1, P2 = 1).
+Implementation head `443ac423`; both findings fixed and tested.
+
+- **EXT-MVP01-1 (P1) — private documents + authorized read.** Default Tow
+  document storage moved out of the public web tree to
+  `<backend>/private/tow-documents` (git-ignored; `TOW_DOCUMENT_STORAGE_DIR`
+  override kept). The `FileStorage` port now exposes `save -> { key }`,
+  `read(key) -> Buffer` and `remove(key)`; `urlFor` was removed. New
+  authenticated byte-transport endpoints
+  (`GET /api/admin/tow/vehicle-documents/:documentId/download` and
+  `GET /api/tow/vehicles/:vehicleId/documents/:documentId/download`) resolve
+  through the application layer, read via the port, return the stored mime and a
+  sanitized `Content-Disposition`, and never expose a path. The frozen DTO keeps
+  `file_url` as the relative authenticated download path per context (never
+  `/uploads/...`, never absolute). Authz: anonymous 401, non-admin 403, other
+  partner 404, owner/admin 200, nonexistent 404; direct storage-key access is
+  404. No nginx/`/uploads` change.
+- **EXT-MVP01-2 (P2) — central eligibility requires `partner_type=tow`.** New
+  `PartnerRepository` port (`findById -> { id, type } | null`) with a Knex
+  adapter under `adapters/persistence/`, wired in `composition.js`. The pure
+  domain `evaluateEligibility` rejects a missing/non-tow partner with the stable
+  code `partner_not_operational`; module availability is still reported first
+  (`service_module_disabled`). Tests prove a mechanic partner with an active
+  vehicle and valid documents is not eligible and that a `tow -> non-tow`
+  mutation revokes eligibility without mutating the vehicle.
+
+New tests: 29 (local-file-storage 5, download security 9, partner-repository 3,
+eligibility-integration 2, plus 4+3+3 extended in the existing eligibility,
+domain and document-service suites). RED evidence:
+`13a-red-external-correction.txt` (7 suites / 20 failing before the fix).
+
+Post-external-correction gates: OpenAPI PASS · contract 62/62 · `verify:tow`
+GREEN 5/5 · `tests/tow/mvp01` 105 passed / 10 skipped · `tests/tow` 456 passed /
+58 skipped · db-baseline GREEN (fingerprint `37cee47e…` ×2) · full Jest
+**880 passed / 58 skipped / 0 failures** · real-PG MVP-01 14 suites / 115 tests ·
+T01 baseline e2e 33/33 · legacy PG 2/2 + g3 7/7. PostgreSQL torn down.
+
 ## Scope
 - MVP-02 touched: NO
 - Phase 2/#33 touched: NO
@@ -205,8 +246,14 @@ T01 baseline e2e 33/33 · legacy PG 2/2 + 7/7.
   it; the public `/tow/partner/status` route belongs to a later delivery.
 - `partner_type` and `updated_by` are returned by the admin module view in
   addition to the contract's required fields (the schema allows it).
+- The authenticated document download endpoints are additive transport not yet
+  present in the frozen OpenAPI; they are flagged as a candidate for a future
+  contract revision (the frozen contract was not silently changed).
+- `partner_not_operational` is an additive domain/application error code (409);
+  it is not part of the frozen `ErrorResponse` enum (which only requires the
+  canonical set to be present).
 - No lint/typecheck script exists in the backend package; the Jest suites and
   the architecture boundary test are the static guards.
 
 ## Final Verdict
-MVP-01 CORRECTIONS GREEN — READY FOR MUSE TARGETED REVIEW
+MVP-01 EXTERNAL CORRECTIONS GREEN — READY FOR MUSE TARGETED REVIEW

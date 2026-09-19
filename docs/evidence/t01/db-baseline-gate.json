@@ -2,23 +2,24 @@
   "project": "socorre-tow-test-55432-cb0d0933",
   "target": "postgresql://tow_test@127.0.0.1:55432/socorre_ai_tow_test (purpose: test)",
   "run1": {
-    "fingerprint": "0e4e8ed825fb1629a1474f590ae5dc1c779685ecb927acbae038276cdfea4926",
-    "tables": 29,
-    "rows": 29
+    "fingerprint": "37cee47edc8dd1084786ab5fe3c32511c71b9a4a2788f67406391916c7cc0f59",
+    "tables": 32,
+    "rows": 31
   },
   "run2": {
-    "fingerprint": "0e4e8ed825fb1629a1474f590ae5dc1c779685ecb927acbae038276cdfea4926",
-    "tables": 29,
-    "rows": 29
+    "fingerprint": "37cee47edc8dd1084786ab5fe3c32511c71b9a4a2788f67406391916c7cc0f59",
+    "tables": 32,
+    "rows": 31
   },
   "migrations": [
     "001_baseline_schema.js",
-    "002_baseline_settings.js"
+    "002_baseline_settings.js",
+    "003_mvp01_tow_foundation.js"
   ],
   "seed": {
     "created": true,
     "id": 1,
-    "email": "gate-admin-28641990@example.test"
+    "email": "gate-admin-48808865@example.test"
   },
   "report": {
     "tables": [
@@ -42,11 +43,14 @@
       "real_time_tracking",
       "reviews",
       "revoked_tokens",
+      "service_modules",
       "services",
       "subscription_history",
       "subscriptions",
       "system_settings",
       "tow_proposals",
+      "tow_vehicle_documents",
+      "tow_vehicles",
       "user_documents",
       "users",
       "wallet_transactions",
@@ -60,7 +64,7 @@
       "delivery_orders": 0,
       "disputes": 0,
       "emergency_requests": 0,
-      "knex_migrations": 2,
+      "knex_migrations": 3,
       "knex_migrations_lock": 1,
       "mechanics": 0,
       "notifications": 0,
@@ -73,11 +77,14 @@
       "real_time_tracking": 0,
       "reviews": 0,
       "revoked_tokens": 0,
+      "service_modules": 1,
       "services": 0,
       "subscription_history": 0,
       "subscriptions": 0,
       "system_settings": 25,
       "tow_proposals": 0,
+      "tow_vehicle_documents": 0,
+      "tow_vehicles": 0,
       "user_documents": 0,
       "users": 1,
       "wallet_transactions": 0,
@@ -85,7 +92,7 @@
     },
     "admin": {
       "id": 1,
-      "email": "gate-admin-28641990@example.test",
+      "email": "gate-admin-48808865@example.test",
       "role": "admin",
       "isActive": true
     },
@@ -119,6 +126,6 @@
         "tow_price_per_km"
       ]
     },
-    "totalRows": 29
+    "totalRows": 31
   }
 }
