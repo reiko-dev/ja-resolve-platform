@@ -1,0 +1,18 @@
+### FINAL CONFIRMATION on the frozen tree.
+### Code is byte-identical to the MVP-02 implementation head 827cbaf0c8e1ee4deda160543def494c432fe5eb;
+### the receipt commit on top adds documentation only (docs/evidence/mvp-02/**).
+
+### npx jest tests/tow/mvp02 --runInBand
+Test Suites: 5 passed, 5 total
+Tests:       179 passed, 179 total
+
+### npx jest tests/tow --runInBand
+Test Suites: 5 skipped, 34 passed, 34 of 39 total
+Tests:       58 skipped, 653 passed, 711 total
+
+### npx jest --runInBand
+Test Suites: 5 skipped, 67 passed, 67 of 72 total
+Tests:       58 skipped, 1077 passed, 1135 total
+
+### npm run validate:openapi
+  RESULT:                           PASS
