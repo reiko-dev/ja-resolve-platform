@@ -1,13 +1,14 @@
 # MVP-01 Work Result
 
 ## Status
-READY_FOR_EXTERNAL_REVIEW
+READY_FOR_MUSE_REREVIEW
 
 ## Base / Branch / Head
 - Repository: `socorre-system`
 - Base (execution): `c8e40d71dd23c32a76050c05518353b6d030753f` (post-merge main of PR #34, Tow MVP replan; T00/T01 ACCEPTED)
 - Branch: `feature/mvp-01-tow-foundation`
-- Implementation head: `cd509eaf283729426e5f83588fc6e07e16a3ecbf`
+- Original reviewed head: `872b22ed` (implementation `cd509eaf`)
+- **Correction implementation head: `8bb98fc7ce70b465fe29a3dcc1e799382c8761d7`**
 - Push / PR / merge: **not performed** (executor stops before Phase J; orchestrator runs Muse then opens the PR with `Closes #13`)
 
 ## Current-State Delta
@@ -86,32 +87,40 @@ persistence client; no hidden `.only`/`test.skip`).
   functional data. New fingerprint:
   `37cee47edc8dd1084786ab5fe3c32511c71b9a4a2788f67406391916c7cc0f59`
   (identical across reset+migrate runs).
-- T01 expectations updated **deterministically**: the gate and the T01 e2e
-  suite derive the applied-migration list from `database/migrations/*.js`;
+- T01 expectations **pinned explicitly** (correction pass MMVP-3): the gate and
+  the T01 e2e suite pin
+  `['001_baseline_schema.js','002_baseline_settings.js','003_mvp01_tow_foundation.js']`;
+  the directory read is only a loud cross-check that names any unexpected or
+  missing file, so migration scope creep trips the gate.
   `db-baseline.js` requires the 3 new tables and allows exactly one
   `service_modules` row (with a specific assertion), keeping the
   "no functional data / exactly one admin" guarantees intact.
 - Details: `docs/evidence/mvp-01/10-schema-migration-notes.md`.
 
 ## Tests
-New focused suites (`tests/tow/mvp01/`): UNIT (domain 25, eligibility service 5),
-API (14), AUTHZ (5), SEC/architecture (4), DB real-PG (6),
-CONC real-PG (3) = **62 tests**, no `.only`/`test.skip`/relaxed expectations.
+New focused suites (`tests/tow/mvp01/`), after the correction pass:
+UNIT (domain 27, eligibility service 5, activate-conflict mapping 3, document
+service 8, settings repository 5), API (19), AUTHZ (5), SEC/architecture (4),
+DB real-PG (6), CONC real-PG (4) = **86 tests** in `tests/tow/mvp01/`,
+no `.only`/`test.skip`/relaxed expectations. The correction pass added
+**27 tests** (API 5, domain 2, conflict mapping 3, document service 8, settings
+repository 5, baseline safety 4).
 
 | Gate | Result |
 | --- | --- |
 | `npm run validate:openapi` | PASS |
 | `npm run test:contract` | 5 suites / 62 tests PASS |
 | `npm run verify:tow` | GREEN (5/5 stages incl. PostgreSQL) |
-| `npx jest tests/tow --runInBand` | 21 passed / 5 skipped suites · 400 passed / 57 skipped · 0 failures |
+| `npx jest tests/tow --runInBand` | 24 passed / 5 skipped suites · 427 passed / 58 skipped · 0 failures |
 | `npm run test:db-baseline` | GREEN (fresh volume; reset+migrate fprints identical) |
-| `npx jest --runInBand` (full) | 54 passed / 5 skipped suites · **824 passed / 57 skipped / 0 failures** |
-| MVP-01 real-PG suites | `towPersistence.e2e` 6/6 · `towVehicleConcurrency.e2e` 3/3 |
+| `npx jest --runInBand` (full) | 57 passed / 5 skipped suites · **851 passed / 58 skipped / 0 failures** |
+| MVP-01 real-PG suites | `towPersistence.e2e` 6/6 · `towVehicleConcurrency.e2e` 4/4 |
 | T01 baseline e2e (real PG) | 33/33 |
 | Legacy PG tow e2e | `towPostgres` 2/2 · `g3TowPostgres` 7/7 |
 
 Evidence logs: `02-red-offline.txt` (RED), `06-openapi-contract.txt`,
-`07-verify-tow.txt`, `08-full-jest.txt`.
+`07-verify-tow.txt`, `08-full-jest.txt`, and the correction pass
+`11-correction-pass.md`.
 
 ## PostgreSQL Evidence
 Real PostgreSQL 14 in the disposable T01/T00 container (always torn down):
@@ -134,8 +143,40 @@ Real PostgreSQL 14 in the disposable T01/T00 container (always torn down):
 - `tests/setup.js` isolates Tow document uploads to the OS temp dir.
 
 ## Muse Review
-pending — the orchestrator runs Muse Sparks 1.3 Free on the frozen
-implementation HEAD `cd509eaf283729426e5f83588fc6e07e16a3ecbf`.
+Muse Sparks 1.3 Free reviewed the frozen head `872b22ed` (implementation
+`cd509eaf`) and returned `CHANGES_REQUIRED` (P0 = 0, P1 = 1, P2 = 2, P3 = 3).
+All six findings are fixed in the correction pass below; re-review requested on
+the correction head `8bb98fc7ce70b465fe29a3dcc1e799382c8761d7`.
+
+## Correction Pass (MMVP-1..6)
+Full detail: `11-correction-pass.md`.
+
+- **MMVP-1 (P1)** — `vehicle-repository.insert()/update()` now map unique
+  violations to `TowError('conflict')` (409) via the shared `isUniqueViolation`,
+  same as `activate()`. API tests: duplicate-plate POST → 409; PATCH to an
+  existing plate → 409 and no row change.
+- **MMVP-2 (P2)** — `document-service.upload` validates `expires_at` before
+  persisting (`undefined|null|''` → null; anything else must parse, else 422);
+  domain `toEpoch` returns `NaN` for garbage and `effectiveDocumentStatus`
+  treats it as `expired`, never as never-expiring. Domain + API + unit tests.
+- **MMVP-3 (P2)** — the T01 gate and e2e **pin** the exact three migrations; the
+  directory read is a loud cross-check that names an unexpected/missing file.
+  Offline test proves a smuggled `004_*.js` fails naming the file.
+- **MMVP-4 (P3)** — new offline `towActivateConflictMapping.test.js` forces a
+  23505 / `SQLITE_CONSTRAINT` through the real service → repository path and
+  asserts the mapped `conflict`; concurrency e2e asserts `active_count === 1`
+  unconditionally and adds a real-PG direct-SQL index proof.
+- **MMVP-5 (P3)** — `document-service.remove` calls `storage.remove(file_path)`
+  best-effort after the row delete; unit tests assert only the deleted
+  document's bytes are removed and a storage failure never fails the delete.
+- **MMVP-6 (P3)** — `settings-repository.upsertMany` wraps the whole patch in
+  one transaction; tests prove all-or-nothing rollback and a successful
+  multi-key patch.
+
+Post-correction gates: OpenAPI PASS · contract 62/62 · `verify:tow` GREEN ·
+`tests/tow` 427 passed / 58 skipped · db-baseline GREEN · full Jest
+**851 passed / 58 skipped / 0 failures** · real-PG MVP-01 10 suites / 86 tests ·
+T01 baseline e2e 33/33 · legacy PG 2/2 + 7/7.
 
 ## Scope
 - MVP-02 touched: NO
@@ -165,4 +206,4 @@ implementation HEAD `cd509eaf283729426e5f83588fc6e07e16a3ecbf`.
   the architecture boundary test are the static guards.
 
 ## Final Verdict
-MVP-01 READY FOR EXTERNAL REVIEW
+MVP-01 CORRECTIONS GREEN — READY FOR MUSE TARGETED REVIEW
