@@ -1,0 +1,9 @@
+fingerprints: DIFFERENT
+semantic diff: 7 change(s)
+  REMOVED indexes products_sku_index — CREATE INDEX products_sku_index ON public.products USING btree (sku)
+  REMOVED indexes system_settings_setting_key_index — CREATE INDEX system_settings_setting_key_index ON public.system_settings USING btree (setting_key)
+  REMOVED indexes user_documents_user_id_document_type_index — CREATE INDEX user_documents_user_id_document_type_index ON public.user_documents USING btree (user_id, document_type)
+  ADDED foreignKeys wallet_transactions_dispute_id_foreign — FOREIGN KEY (dispute_id) REFERENCES disputes(id) ON DELETE SET NULL
+  ADDED indexes wallet_transactions_dispute_id_index — CREATE INDEX wallet_transactions_dispute_id_index ON public.wallet_transactions USING btree (dispute_id)
+  REMOVED indexes wallets_partner_id_index — CREATE INDEX wallets_partner_id_index ON public.wallets USING btree (partner_id)
+  REMOVED indexes wallets_user_id_index — CREATE INDEX wallets_user_id_index ON public.wallets USING btree (user_id)

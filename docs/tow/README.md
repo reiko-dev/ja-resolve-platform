@@ -87,6 +87,33 @@ Este diretório é a fonte de verdade da reestruturação do módulo **Guincho /
 
 `tow-api-contract.base.openapi.yaml` é artefato interno de composição. Apps usam `tow-api-contract.openapi.yaml`.
 
+### T00/T01 foundation (harness & database baseline)
+
+17. `T00-CURRENT-STATE-AUDIT.md`
+    - o que existe hoje no repositório e o que T01–T18 podem reusar/adaptar/substituir;
+    - contradições registradas (não resolvidas em silêncio).
+
+18. `T00-TEST-HARNESS.md`
+    - comandos canônicos do harness de testes T00;
+    - PostgreSQL real descartável (Docker), guarda de ambiente e evidências.
+
+19. `TOW-DOCKER-TEST-STRATEGY.md`
+    - estratégia de Docker/PostgreSQL real para os testes Tow;
+    - isolamento, volume descartável e regras de segurança.
+
+20. `T01-DATABASE-BASELINE-DECISION.md`
+    - decisão de baseline limpo (`001`+`002`), arquivamento da cadeia legada;
+    - disposição migration por migration, seed do admin, modelo de segurança do reset;
+    - riscos e decisões registradas.
+
+21. `database-baseline.md`
+    - runbook operacional: reset, migrate, seed, assert, ambientes permitidos,
+      recuperação e gate de banco limpo via Docker (com aviso destrutivo).
+
+22. `database-schema.md`
+    - listagem completa do schema do baseline (colunas, FKs, uniques, checks, índices);
+    - diagrama de dependências e fingerprint estrutural.
+
 ## Precedence
 
 ### Pricing

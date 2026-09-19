@@ -1,0 +1,109 @@
+=== T01 post-change T00 regression (compare with 00-pre-change-regression.txt) ===
+=== T01 post-change T00 regression (compare with 00-pre-change-regression.txt) ===
+2026-09-19T12:33:46Z
+--- validate:openapi ---
+Tow OpenAPI contract validation
+  docs:                             /Volumes/Reiko/projects/work/socorre-system/docs/tow
+  canonical entrypoint:             tow-api-contract.openapi.yaml
+  composition artifact:             tow-api-contract.base.openapi.yaml
+  OpenAPI version:                  3.1.0
+  Contract version:                 1.0.0-draft.4
+  Canonical paths:                  56
+  Base paths:                       51
+  Composed paths:                   56
+  Composed operations:              66
+  Shadowed base paths:              10
+  Unallowlisted dropped methods:    0
+  $ref occurrences checked:         490
+  External/local-file $refs:        124
+  Unresolved refs:                  0
+  Missing operationId:              0
+  Duplicate operationId:            0
+  Path-parameter mismatches:        0
+  Request bodies checked:           24
+  Request bodies without schema:    0
+  Responses checked:                66
+  Operations without 2xx:           0
+  2xx responses without schema:     0
+  Component schemas checked:        110
+  Inline schema nodes checked:      124
+  JSON Schema definition errors:    0
+  Canonical enum mismatches:        0
+  Forbidden legacy enum values:     0
+  TowSettingsPatch errors:          0
+  RESULT:                           PASS
+
+Shadowed base paths (base methods must survive composition or be allowlisted):
+  - /tow/requests: base=[post] composed=[get,post] dropped=[] added=[get]
+  - /tow/partner/opportunities: base=[get] composed=[get] dropped=[] added=[]
+  - /admin/tow/settings: base=[get,patch] composed=[get,patch] dropped=[] added=[]
+  - /admin/tow/vehicle-documents/{documentId}: base=[get] composed=[get] dropped=[] added=[]
+  - /admin/tow/requests/{requestId}: base=[get] composed=[get] dropped=[] added=[]
+  - /admin/tow/disputes/{disputeId}: base=[get] composed=[get] dropped=[] added=[]
+  - /admin/tow/payout-batches/preview: base=[get] composed=[get] dropped=[] added=[]
+  - /admin/tow/payout-batches: base=[post] composed=[post] dropped=[] added=[]
+  - /admin/tow/payout-batches/{batchId}: base=[get] composed=[get] dropped=[] added=[]
+  - /admin/tow/payout-batches/{batchId}/process: base=[post] composed=[post] dropped=[] added=[]
+  allowlist: (empty — the frozen contract drops no base method)
+exit=0
+--- test:contract ---
+PASS tests/contract/openapi.structure.test.js
+PASS tests/contract/consumerSmoke.test.js
+PASS tests/contract/towSettingsPatch.test.js
+PASS tests/contract/towRefResolution.test.js
+PASS tests/contract/consumerDiscovery.test.js
+Test Suites: 5 passed, 5 total
+Tests:       62 passed, 62 total
+Time:        1.715 s, estimated 2 s
+exit=0
+--- jest tests/tow (offline) ---
+PASS tests/tow/baseline/adminSeed.test.js
+PASS tests/tow/g2PhotoContract.test.js
+PASS tests/tow/foundation/towHarnessLifecycle.test.js
+PASS tests/tow/towHttp.transport.test.js
+PASS tests/tow/g3TowProposals.test.js
+PASS tests/tow/g3NearbyCoordinates.test.js
+PASS tests/tow/foundation/towHarnessEnvFile.test.js
+PASS tests/tow/foundation/towDeterministicFoundation.test.js
+PASS tests/tow/towDocumentFlow.test.js
+PASS tests/tow/foundation/towPostgresFoundation.e2e.test.js
+PASS tests/tow/foundation/towPostgresGuard.test.js
+PASS tests/tow/towLifecycleController.test.js
+PASS tests/tow/baseline/dbBaselineSafety.test.js
+PASS tests/tow/baseline/schemaSnapshot.test.js
+PASS tests/tow/socketService.tow.test.js
+PASS tests/tow/towProposalIdempotency.test.js
+Test Suites: 3 skipped, 16 passed, 16 of 19 total
+Tests:       43 skipped, 323 passed, 366 total
+Time:        9.091 s, estimated 10 s
+exit=0
+--- verify:tow ---
+ Network socorre-tow-test-55432-cb0d0933_tow-test-net Removing 
+ Network socorre-tow-test-55432-cb0d0933_tow-test-net Removed 
+PostgreSQL test environment destroyed (containers, volumes, network)
+
+=== [verify:tow] summary ===
+  PASS  OpenAPI 3.1 structure gate
+  PASS  contract suite (OpenAPI + patch semantics + discovery + consumer smoke)
+  PASS  focused Tow suite (offline)
+  PASS  prepare database + migrations from zero
+  PASS  PostgreSQL foundation gate
+
+[verify:tow] GREEN
+exit=0
+--- full jest ---
+Test Suites: 3 skipped, 49 passed, 49 of 52 total
+Tests:       43 skipped, 747 passed, 790 total
+Time:        18.261 s, estimated 22 s
+exit=0
+
+=== comparison with the pre-change baseline (00-pre-change-regression.txt) ===
+command            | before                          | after                            | verdict
+-------------------|---------------------------------|----------------------------------|--------
+validate:openapi   | RESULT: PASS                    | RESULT: PASS                     | no regression
+test:contract      | 5 suites / 62 tests passed      | 5 suites / 62 tests passed       | no regression
+jest tests/tow     | 2 skipped, 13 passed suites     | 3 skipped, 16 passed suites      | +3 T01 offline suites
+                   | 15 skipped, 272 passed tests    | 43 skipped, 323 passed tests     | +51 T01 tests, +28 e2e skipped offline
+verify:tow         | GREEN (5 gates)                 | GREEN (5 gates)                  | no regression
+full jest          | 2 skipped, 46 passed suites     | 3 skipped, 49 passed suites      | +3 T01 suites
+                   | 15 skipped, 696 passed tests    | 43 skipped, 747 passed tests     | +51 passed, +28 skipped (PG e2e, opt-in)

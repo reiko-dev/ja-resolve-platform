@@ -1351,7 +1351,7 @@ describe('G2 migration 045 — contrato de fotos idempotente e reversível', () 
   });
 
   test('up adiciona as quatro colunas sem tocar em photos e é idempotente', async () => {
-    const migration = require('../../database/migrations/045_add_emergency_request_photo_contract');
+    const migration = require('../../database/migrations-legacy/045_add_emergency_request_photo_contract');
 
     await migration.up(migrationDb);
     await migration.up(migrationDb);
@@ -1364,7 +1364,7 @@ describe('G2 migration 045 — contrato de fotos idempotente e reversível', () 
   });
 
   test('down remove apenas as colunas do contrato e é idempotente', async () => {
-    const migration = require('../../database/migrations/045_add_emergency_request_photo_contract');
+    const migration = require('../../database/migrations-legacy/045_add_emergency_request_photo_contract');
 
     await migration.up(migrationDb);
     await migration.down(migrationDb);
@@ -1379,7 +1379,7 @@ describe('G2 migration 045 — contrato de fotos idempotente e reversível', () 
   });
 
   test('up depois de down volta a criar o contrato e preserva dados existentes', async () => {
-    const migration = require('../../database/migrations/045_add_emergency_request_photo_contract');
+    const migration = require('../../database/migrations-legacy/045_add_emergency_request_photo_contract');
 
     await migrationDb('emergency_requests').insert({ status: 'accepted', photos: 'legado' });
 
