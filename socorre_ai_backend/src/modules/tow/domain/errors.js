@@ -16,6 +16,7 @@ const ERROR_STATUS = Object.freeze({
   forbidden: 403,
   not_found: 404,
   conflict: 409,
+  partner_not_operational: 409,
   vehicle_not_operational: 409,
   tow_document_required: 409,
   tow_document_not_approved: 409,

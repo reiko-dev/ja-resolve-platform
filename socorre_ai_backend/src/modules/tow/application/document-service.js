@@ -79,6 +79,9 @@ function createDocumentService({ documentRepository, vehicleRepository, storage,
       keyPrefix: `tow-vehicles/${vehicleId}`,
     });
 
+    // `file_url` is persisted as the internal storage key; the public DTO
+    // computes the authenticated download path per response context. It is
+    // never a public `/uploads/...` URL or an absolute filesystem path.
     return documentRepository.insert({
       tow_vehicle_id: vehicleId,
       partner_id: partnerId,
@@ -86,7 +89,7 @@ function createDocumentService({ documentRepository, vehicleRepository, storage,
       filename: saved.key,
       original_name: file.originalname,
       file_path: saved.key,
-      file_url: saved.url,
+      file_url: saved.key,
       mime_type: file.mimetype,
       file_size: file.size,
       status: 'pending',
@@ -125,6 +128,43 @@ function createDocumentService({ documentRepository, vehicleRepository, storage,
     return requireDocument(documentId);
   }
 
+  /**
+   * Read the private bytes for an already-resolved document through the
+   * FileStorage port. A missing object is a `not_found`, never an internal
+   * error and never a filesystem path leak.
+   */
+  async function readBytes(document) {
+    let buffer;
+    try {
+      buffer = await storage.read(document.file_path);
+    } catch (error) {
+      if (error && error.code === 'ENOENT') {
+        throw new TowError('not_found', 'TowVehicle document not found');
+      }
+      throw error;
+    }
+    return {
+      buffer,
+      mimeType: document.mime_type || 'application/octet-stream',
+      filename: document.original_name || 'document',
+      document,
+    };
+  }
+
+  async function readForAdmin({ documentId }) {
+    const document = await requireDocument(documentId);
+    return readBytes(document);
+  }
+
+  async function readForVehicle({ partnerId, vehicleId, documentId }) {
+    await requireOwnedVehicle(partnerId, vehicleId);
+    const document = await requireDocument(documentId);
+    if (String(document.tow_vehicle_id) !== String(vehicleId)) {
+      throw new TowError('not_found', 'TowVehicle document not found');
+    }
+    return readBytes(document);
+  }
+
   async function approve({ documentId, adminUserId = null }) {
     const document = await requireDocument(documentId);
     if (document.status === 'approved') return document; // idempotent
@@ -149,7 +189,18 @@ function createDocumentService({ documentRepository, vehicleRepository, storage,
     });
   }
 
-  return { upload, listForVehicle, remove, listAll, getById, approve, reject, DOCUMENT_STATUSES };
+  return {
+    upload,
+    listForVehicle,
+    remove,
+    listAll,
+    getById,
+    readForAdmin,
+    readForVehicle,
+    approve,
+    reject,
+    DOCUMENT_STATUSES,
+  };
 }
 
 module.exports = { createDocumentService, ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES };

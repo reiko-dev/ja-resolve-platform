@@ -221,27 +221,54 @@ describe('MVP-01 UNIT — Tow domain', () => {
   describe('operational eligibility composition', () => {
     const now = new Date('2026-06-01T00:00:00.000Z');
     const enabled = { enabled: true };
+    const partner = { id: 1, type: 'tow' };
     const vehicle = { active: true, supported_vehicle_classes: ['light_vehicle'], max_towed_weight_kg: 3000 };
     const documents = [{ document_type: 'vehicle_license', status: 'approved', expires_at: null }];
     const requested = { class: 'light_vehicle', weight_kg: 1200 };
 
-    test('all four conditions satisfied => eligible', () => {
-      const result = domain.evaluateEligibility({ moduleStatus: enabled, vehicle, documents, requested, now });
+    test('all conditions satisfied => eligible', () => {
+      const result = domain.evaluateEligibility({ partner, moduleStatus: enabled, vehicle, documents, requested, now });
       expect(result).toMatchObject({ eligible: true, code: null });
     });
 
+    test('a non-tow partner is not eligible (partner_not_operational)', () => {
+      const result = domain.evaluateEligibility({
+        partner: { id: 1, type: 'mechanic' }, moduleStatus: enabled, vehicle, documents, requested, now,
+      });
+      expect(result).toMatchObject({ eligible: false, code: 'partner_not_operational' });
+    });
+
+    test('a missing partner is not eligible (partner_not_operational)', () => {
+      const result = domain.evaluateEligibility({
+        partner: null, moduleStatus: enabled, vehicle, documents, requested, now,
+      });
+      expect(result).toMatchObject({ eligible: false, code: 'partner_not_operational' });
+    });
+
+    test('a disabled module is reported even for a non-tow partner', () => {
+      const result = domain.evaluateEligibility({
+        partner: { id: 1, type: 'mechanic' },
+        moduleStatus: { enabled: false },
+        vehicle,
+        documents,
+        requested,
+        now,
+      });
+      expect(result).toMatchObject({ eligible: false, code: 'service_module_disabled' });
+    });
+
     test('disabled module short-circuits with service_module_disabled', () => {
-      const result = domain.evaluateEligibility({ moduleStatus: { enabled: false }, vehicle, documents, requested, now });
+      const result = domain.evaluateEligibility({ partner, moduleStatus: { enabled: false }, vehicle, documents, requested, now });
       expect(result).toMatchObject({ eligible: false, code: 'service_module_disabled' });
     });
 
     test('no active vehicle => vehicle_not_operational', () => {
-      const result = domain.evaluateEligibility({ moduleStatus: enabled, vehicle: { ...vehicle, active: false }, documents, requested, now });
+      const result = domain.evaluateEligibility({ partner, moduleStatus: enabled, vehicle: { ...vehicle, active: false }, documents, requested, now });
       expect(result).toMatchObject({ eligible: false, code: 'vehicle_not_operational' });
     });
 
     test('missing required document => tow_document_required', () => {
-      const result = domain.evaluateEligibility({ moduleStatus: enabled, vehicle, documents: [], requested, now });
+      const result = domain.evaluateEligibility({ partner, moduleStatus: enabled, vehicle, documents: [], requested, now });
       expect(result).toMatchObject({ eligible: false, code: 'tow_document_required' });
     });
 
@@ -251,14 +278,14 @@ describe('MVP-01 UNIT — Tow domain', () => {
         { document_type: 'vehicle_license', status: 'rejected' },
         { document_type: 'vehicle_license', status: 'approved', expires_at: '2026-01-01T00:00:00.000Z' },
       ]) {
-        const result = domain.evaluateEligibility({ moduleStatus: enabled, vehicle, documents: [doc], requested, now });
+        const result = domain.evaluateEligibility({ partner, moduleStatus: enabled, vehicle, documents: [doc], requested, now });
         expect(result.eligible).toBe(false);
         expect(result.code).toBe('tow_document_not_approved');
       }
     });
 
     test('incompatible vehicle => vehicle_not_compatible', () => {
-      const result = domain.evaluateEligibility({ moduleStatus: enabled, vehicle, documents, requested: { class: 'heavy_truck', weight_kg: 9000 }, now });
+      const result = domain.evaluateEligibility({ partner, moduleStatus: enabled, vehicle, documents, requested: { class: 'heavy_truck', weight_kg: 9000 }, now });
       expect(result).toMatchObject({ eligible: false, code: 'vehicle_not_compatible' });
     });
   });

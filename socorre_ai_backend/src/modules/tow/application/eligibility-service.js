@@ -9,19 +9,28 @@
 
 const { MODULE_KEY, TowError, evaluateEligibility } = require('../domain');
 
-function createEligibilityService({ moduleRepository, vehicleRepository, documentRepository, clock }) {
+function createEligibilityService({
+  moduleRepository,
+  vehicleRepository,
+  documentRepository,
+  partnerRepository,
+  clock,
+}) {
   if (!moduleRepository) throw new TypeError('createEligibilityService requires a moduleRepository port');
   if (!vehicleRepository) throw new TypeError('createEligibilityService requires a vehicleRepository port');
   if (!documentRepository) throw new TypeError('createEligibilityService requires a documentRepository port');
+  if (!partnerRepository) throw new TypeError('createEligibilityService requires a partnerRepository port');
   if (!clock) throw new TypeError('createEligibilityService requires a clock port');
 
   async function evaluate({ partnerId, requested, vehicleId = null } = {}) {
     const moduleStatus = await moduleRepository.getByKey(MODULE_KEY);
+    const partner = await partnerRepository.findById(partnerId);
     const vehicle = vehicleId
       ? await vehicleRepository.findByPartnerAndId(partnerId, vehicleId)
       : await vehicleRepository.findActiveByPartner(partnerId);
     const documents = vehicle ? await documentRepository.listByVehicle(vehicle.id) : [];
     return evaluateEligibility({
+      partner,
       moduleStatus,
       vehicle,
       documents,

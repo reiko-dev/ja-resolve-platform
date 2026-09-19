@@ -34,10 +34,13 @@
  * @property {(keys: string[]) => Promise<object[]>} getByKeys
  * @property {(rows: object[]) => Promise<number>} upsertMany
  *
+ * @typedef {Object} PartnerRepository
+ * @property {(id: number|string) => Promise<{ id: number|string, type: string }|null>} findById
+ *
  * @typedef {Object} FileStorage
- * @property {(file: { buffer: Buffer, originalName: string, mimeType: string, keyPrefix?: string }) => Promise<{ key: string, url: string }>} save
+ * @property {(file: { buffer: Buffer, originalName: string, mimeType: string, keyPrefix?: string }) => Promise<{ key: string }>} save
+ * @property {(key: string) => Promise<Buffer>} read  Reads the private bytes; rejects with `ENOENT` when absent.
  * @property {(key: string) => Promise<void>} remove
- * @property {(key: string) => string} urlFor
  *
  * @typedef {Object} Clock
  * @property {() => Date} now
@@ -49,6 +52,7 @@ const PORT_NAMES = Object.freeze([
   'VehicleRepository',
   'DocumentRepository',
   'SettingsRepository',
+  'PartnerRepository',
   'FileStorage',
   'Clock',
 ]);

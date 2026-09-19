@@ -42,7 +42,8 @@ function buildService({ documents = [] } = {}) {
     findByPartnerAndId: async (partnerId, vehicleId) => ({ id: vehicleId, partner_id: partnerId }),
   };
   const storage = {
-    save: jest.fn(async () => ({ key: 'tow-vehicles/1/stored.jpg', url: '/uploads/tow-documents/stored.jpg' })),
+    save: jest.fn(async () => ({ key: 'tow-vehicles/1/stored.jpg' })),
+    read: jest.fn(async () => Buffer.from('stored-bytes')),
     remove: jest.fn(async () => {}),
   };
   const clock = { now: () => new Date('2026-06-01T00:00:00.000Z') };
@@ -127,5 +128,45 @@ describe('MVP-01 UNIT — document removal cleans up stored bytes', () => {
     await expect(service.remove({ partnerId: 1, vehicleId: 1, documentId: 5 }))
       .resolves.toEqual({ id: 5, deleted: true });
     expect(state.removedId).toBe(5);
+  });
+});
+
+describe('MVP-01 EXT UNIT — authenticated document read through the storage port', () => {
+  const documents = [{
+    id: 5,
+    tow_vehicle_id: 1,
+    file_path: 'tow-vehicles/1/doc-five.jpg',
+    mime_type: 'image/jpeg',
+    original_name: 'crlv.jpg',
+  }];
+
+  test('admin read returns bytes, mime and original filename from the port', async () => {
+    const { service, storage } = buildService({ documents });
+    const result = await service.readForAdmin({ documentId: 5 });
+
+    expect(result.buffer.equals(Buffer.from('stored-bytes'))).toBe(true);
+    expect(result.mimeType).toBe('image/jpeg');
+    expect(result.filename).toBe('crlv.jpg');
+    expect(storage.read).toHaveBeenCalledWith('tow-vehicles/1/doc-five.jpg');
+  });
+
+  test('partner read enforces vehicle ownership and document/vehicle match', async () => {
+    const { service } = buildService({ documents });
+
+    await expect(service.readForVehicle({ partnerId: 1, vehicleId: 1, documentId: 5 }))
+      .resolves.toMatchObject({ mimeType: 'image/jpeg' });
+
+    const mismatch = await service.readForVehicle({ partnerId: 1, vehicleId: 2, documentId: 5 })
+      .catch((error) => error);
+    expect(mismatch).toMatchObject({ code: 'not_found' });
+  });
+
+  test('a missing storage object is reported as not_found', async () => {
+    const { service, storage } = buildService({ documents });
+    const enoent = new Error('missing');
+    enoent.code = 'ENOENT';
+    storage.read.mockRejectedValueOnce(enoent);
+
+    await expect(service.readForAdmin({ documentId: 5 })).rejects.toMatchObject({ code: 'not_found' });
   });
 });

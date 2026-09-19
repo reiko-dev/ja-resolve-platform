@@ -1,8 +1,16 @@
 /**
- * MVP-01 — local filesystem implementation of the FileStorage port.
+ * MVP-01 EXT — local filesystem implementation of the private FileStorage port.
  *
  * Infrastructure adapter: the only MVP-01 layer allowed to touch the
- * filesystem. The application sees only `save/remove/urlFor`.
+ * filesystem. The application sees only `save/read/remove`.
+ *
+ * Privacy guarantee (EXT-MVP01-1): the default base directory lives OUTSIDE the
+ * public web tree (`<backend>/private/tow-documents`, never `uploads/`). There is
+ * deliberately no public URL capability — bytes are only reachable through the
+ * authenticated download endpoints, which read them via this port.
+ *
+ * The `TOW_DOCUMENT_STORAGE_DIR` env override keeps working (tests point it at a
+ * temp dir).
  */
 'use strict';
 
@@ -10,12 +18,10 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const DEFAULT_PUBLIC_BASE = '/uploads/tow-documents';
-
 function defaultBaseDir() {
   if (process.env.TOW_DOCUMENT_STORAGE_DIR) return process.env.TOW_DOCUMENT_STORAGE_DIR;
   // storage -> adapters -> tow -> modules -> src -> backend
-  return path.resolve(__dirname, '..', '..', '..', '..', '..', 'uploads', 'tow-documents');
+  return path.resolve(__dirname, '..', '..', '..', '..', '..', 'private', 'tow-documents');
 }
 
 function safeExtension(originalName) {
@@ -24,31 +30,42 @@ function safeExtension(originalName) {
 }
 
 function createLocalFileStorage(options = {}) {
-  const baseDir = options.baseDir || defaultBaseDir();
-  const publicBaseUrl = options.publicBaseUrl
-    || process.env.TOW_DOCUMENT_PUBLIC_BASE
-    || DEFAULT_PUBLIC_BASE;
+  const baseDir = path.resolve(options.baseDir || defaultBaseDir());
 
   function ensureDir(dir) {
     fs.mkdirSync(dir, { recursive: true });
   }
 
-  function urlFor(key) {
-    return `${publicBaseUrl}/${key}`;
+  /**
+   * Resolve a storage key inside `baseDir`, refusing traversal outside it. Keys
+   * are generated internally, but a compromised/forged key must never read or
+   * delete arbitrary files.
+   */
+  function resolveKey(key) {
+    const normalized = String(key || '').replace(/\\/g, '/').replace(/^\/+/, '');
+    const absolute = path.resolve(baseDir, normalized);
+    if (absolute !== baseDir && !absolute.startsWith(`${baseDir}${path.sep}`)) {
+      throw new Error('storage key escapes the base directory');
+    }
+    return absolute;
   }
 
   async function save({ buffer, originalName, keyPrefix = 'tow-vehicles' }) {
     const relativeDir = String(keyPrefix).replace(/^\/+|\/+$/g, '');
     const filename = `${crypto.randomBytes(10).toString('hex')}${safeExtension(originalName)}`;
     const key = `${relativeDir}/${filename}`;
-    const absolute = path.join(baseDir, relativeDir, filename);
+    const absolute = resolveKey(key);
     ensureDir(path.dirname(absolute));
     await fs.promises.writeFile(absolute, buffer);
-    return { key, url: urlFor(key) };
+    return { key };
+  }
+
+  async function read(key) {
+    return fs.promises.readFile(resolveKey(key));
   }
 
   async function remove(key) {
-    const absolute = path.join(baseDir, key);
+    const absolute = resolveKey(key);
     try {
       await fs.promises.unlink(absolute);
     } catch (error) {
@@ -56,7 +73,7 @@ function createLocalFileStorage(options = {}) {
     }
   }
 
-  return { save, remove, urlFor, baseDir };
+  return { save, read, remove, baseDir };
 }
 
-module.exports = { createLocalFileStorage, DEFAULT_PUBLIC_BASE };
+module.exports = { createLocalFileStorage };

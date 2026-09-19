@@ -34,6 +34,9 @@ function createTowRouter({ services, uploadMiddleware }) {
   router.get('/vehicles/:vehicleId/documents', auth, requireTowPartner, documentController.listForVehicle);
   router.post('/vehicles/:vehicleId/documents', auth, requireTowPartner, uploadMiddleware, documentController.upload);
   router.delete('/vehicles/:vehicleId/documents/:documentId', auth, requireTowPartner, documentController.remove);
+  // Authenticated byte transport (EXT-MVP01-1). Documented as a candidate for a
+  // future contract revision; the frozen OpenAPI is not silently changed.
+  router.get('/vehicles/:vehicleId/documents/:documentId/download', auth, requireTowPartner, documentController.download);
 
   return router;
 }
@@ -54,6 +57,9 @@ function createAdminTowRouter({ services }) {
   router.get('/vehicle-documents/:documentId', auth, requireAdmin, documentController.adminGet);
   router.post('/vehicle-documents/:documentId/approve', auth, requireAdmin, documentController.adminApprove);
   router.post('/vehicle-documents/:documentId/reject', auth, requireAdmin, documentController.adminReject);
+  // Authenticated byte transport (EXT-MVP01-1); candidate for a future contract
+  // revision, not part of the frozen OpenAPI.
+  router.get('/vehicle-documents/:documentId/download', auth, requireAdmin, documentController.adminDownload);
 
   return router;
 }

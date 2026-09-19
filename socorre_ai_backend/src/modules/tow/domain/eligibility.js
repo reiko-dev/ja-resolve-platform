@@ -1,27 +1,40 @@
 /**
  * MVP-01 — operational eligibility composition.
  *
- *   module availability
+ *   partner identity (type = tow)
+ *   + module availability
  *   + active TowVehicle
  *   + required documents approved and valid
  *   + compatibility (class/capacity)
  *   = eligible Tow partner
  *
- * Pure function over already-loaded data. Application services load the four
- * inputs through ports and delegate here; controllers never compute this.
+ * Pure function over already-loaded data. Application services load the inputs
+ * through ports and delegate here; controllers never compute this.
+ *
+ * Check order matters: module availability is reported first (a disabled module
+ * must always surface `service_module_disabled`, even for a non-tow partner),
+ * then partner identity, then vehicle/documents/compatibility.
  */
 'use strict';
 
 const { isModuleEnabled } = require('./availability');
+const { PARTNER_TYPE } = require('./identity');
 const {
   REQUIRED_DOCUMENT_TYPES,
   areRequiredDocumentsSatisfied,
 } = require('./documents');
 const { isCompatible } = require('./compatibility');
 
-function evaluateEligibility({ moduleStatus, vehicle, documents, requested, now } = {}) {
+function evaluateEligibility({ partner, moduleStatus, vehicle, documents, requested, now } = {}) {
   if (!isModuleEnabled(moduleStatus)) {
     return { eligible: false, code: 'service_module_disabled', reasons: ['module_disabled'] };
+  }
+
+  if (!partner) {
+    return { eligible: false, code: 'partner_not_operational', reasons: ['partner_missing'] };
+  }
+  if (partner.type !== PARTNER_TYPE) {
+    return { eligible: false, code: 'partner_not_operational', reasons: ['partner_not_tow'] };
   }
 
   if (!vehicle || vehicle.active !== true) {

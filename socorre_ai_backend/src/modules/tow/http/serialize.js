@@ -53,13 +53,26 @@ function serializeVehicle(row) {
   };
 }
 
-function serializeDocument(row) {
+/**
+ * The frozen `TowVehicleDocument` contract requires `file_url`, but the bytes
+ * are private (EXT-MVP01-1). The field therefore carries the RELATIVE
+ * authenticated download path for the response context — never a public
+ * `/uploads/...` URL, an absolute URL or a filesystem path.
+ */
+function documentDownloadPath(row, scope) {
+  if (scope === 'admin') {
+    return `/api/admin/tow/vehicle-documents/${row.id}/download`;
+  }
+  return `/api/tow/vehicles/${row.vehicle_id}/documents/${row.id}/download`;
+}
+
+function serializeDocument(row, context = {}) {
   return {
     id: String(row.id),
     vehicle_id: String(row.vehicle_id),
     document_type: row.document_type,
     status: row.status,
-    file_url: row.file_url,
+    file_url: documentDownloadPath(row, context.scope),
     expires_at: toIso(row.expires_at),
     rejection_reason: row.rejection_reason ?? null,
     verified_by: row.verified_by === null || row.verified_by === undefined ? null : String(row.verified_by),

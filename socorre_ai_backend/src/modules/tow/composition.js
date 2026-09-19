@@ -18,6 +18,7 @@ const { createModuleRepository } = require('./adapters/persistence/module-reposi
 const { createVehicleRepository } = require('./adapters/persistence/vehicle-repository');
 const { createDocumentRepository } = require('./adapters/persistence/document-repository');
 const { createSettingsRepository } = require('./adapters/persistence/settings-repository');
+const { createPartnerRepository } = require('./adapters/persistence/partner-repository');
 const { createLocalFileStorage } = require('./adapters/storage/local-file-storage');
 const { createSystemClock } = require('./adapters/clock/system-clock');
 
@@ -31,6 +32,7 @@ function buildTowServices(options = {}) {
   const vehicleRepository = createVehicleRepository(db);
   const documentRepository = createDocumentRepository(db);
   const settingsRepository = createSettingsRepository(db);
+  const partnerRepository = createPartnerRepository(db);
 
   return {
     db,
@@ -40,11 +42,18 @@ function buildTowServices(options = {}) {
     vehicleRepository,
     documentRepository,
     settingsRepository,
+    partnerRepository,
     moduleService: createModuleService({ moduleRepository }),
     vehicleService: createVehicleService({ vehicleRepository, documentRepository, clock }),
     documentService: createDocumentService({ documentRepository, vehicleRepository, storage, clock }),
     settingsService: createSettingsService({ settingsRepository, clock }),
-    eligibilityService: createEligibilityService({ moduleRepository, vehicleRepository, documentRepository, clock }),
+    eligibilityService: createEligibilityService({
+      moduleRepository,
+      vehicleRepository,
+      documentRepository,
+      partnerRepository,
+      clock,
+    }),
   };
 }
 
