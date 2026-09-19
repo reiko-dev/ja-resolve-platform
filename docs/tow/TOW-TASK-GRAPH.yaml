@@ -1,400 +1,204 @@
-version: 2
+version: 3
 project: JaResolve
 domain: tow
-branch: feature/implements-tow-service
+strategy: tow_mvp_then_production_hardening
 
-source_documents:
-  - docs/tow/TOW-PRICING-CONTRACT.md
-  - docs/tow/TOW-SERVICE-SPECIFICATION.md
-  - docs/tow/TOW-BUSINESS-RULE-MATRIX.md
-  - docs/tow/TOW-MODULE-CONTRACT.md
-  - docs/tow/TOW-TDD-IMPLEMENTATION-PLAN.md
-  - docs/tow/tow-api-contract.openapi.yaml
-  - docs/tow/TOW-CONSUMER-FLOW-SPEC.md
-  - docs/tow/TOW-CONSUMER-FLOW-COVERAGE.md
-  - docs/tow/TOW-CONSUMER-CONTRACT-SMOKE-RESULT.md
+contract:
+  baseline_pr: 9
+  long_term_contract_preserved: true
+
+implementation_baseline:
+  main_sha: f31962fdd0175303646a34c9d170032bc6a06601
+  schema_fingerprint: 0e4e8ed825fb1629a1474f590ae5dc1c779685ecb927acbae038276cdfea4926
 
 execution_policy:
   method: TDD
-  cycle: [RED, GREEN, REFACTOR, INTEGRATION_GATE, ACCEPTED]
-  require_red_evidence: true
-  require_green_evidence: true
+  cycle: [RED, GREEN, REFACTOR, FOCUSED_INTEGRATION_GATE, ADVERSARIAL_REVIEW, EXTERNAL_REVIEW, MERGE, POST_MERGE_VERIFY, ACCEPTED]
   require_dependency_receipts: true
-  allow_parallel_when_no_contract_or_file_conflict: true
-  forbid_skipped_p0_tests: true
-  backend_ready_gate: T18
-  minimum_backend_e2e_scenarios: 75
+  require_real_postgres_for_db_and_concurrency: true
+  forbid_hidden_skips: true
+  phase_1_ready_gate: MVP06
+  phase_2_issue: 33
 
 pricing_contract:
-  authoritative_distance_unit: meter
+  distance_unit: meter
   total_distance: provider_to_pickup_plus_pickup_to_destination
-  round_excess_to_whole_km: false
   excess_billing: proportional_by_meter
+  ceil_excess_km: false
   monetary_rounding: ROUND_HALF_UP_TO_CENT
-  immutable_proposal_snapshot: true
   consumer_recalculates_price: false
 
 module_contract:
   module_key: tow
   service_key: tow
   partner_type: tow
-  global_feature_flag: enabled
-  disable_semantics: graceful_drain
-  when_disabled:
-    block_new_requests: true
-    stop_unassigned_matching: true
-    stop_new_proposals: true
-    stop_new_counteroffers: true
-    stop_new_assignment: true
-    close_searching_and_negotiating_with_reason: SERVICE_DISABLED
+  mvp_when_disabled:
+    block_new_request: true
+    block_new_matching: true
+    block_new_proposal: true
     allow_assigned_inflight_to_complete: true
-    preserve_partner_registration: true
-    preserve_tow_vehicles: true
-    preserve_documents: true
-    allow_admin_management: true
+    preserve_partner_vehicle_documents: true
+  phase_2_hardening:
+    progressive_shutdown: true
+    automatic_searching_negotiating_closure: true
+    disable_assignment_race_certification: true
 
-statuses:
-  allowed: [PENDING, READY, IN_PROGRESS, REVIEW, ACCEPTED, REJECTED, BLOCKED, RETRY]
+foundation:
+  T00:
+    issue: 11
+    status: ACCEPTED
+  T01:
+    issue: 12
+    status: ACCEPTED
+    accepted_main_sha: f31962fdd0175303646a34c9d170032bc6a06601
 
 tasks:
-  - id: T00
-    issue: 11
-    title: Tow Test Harness & Current-State Audit
-    depends_on: []
-    outputs:
-      - deterministic test harness
-      - factories_builders
-      - fake_clock
-      - maps_fake
-      - payment_fake
-      - current_to_target_endpoint_audit
-      - repeatable_openapi_validation
-      - consumer_contract_smoke
-    required_tests: [UNIT, DB, API, CONTRACT]
-    gate: G0
-    status: PENDING
-
-  - id: T01
-    issue: 12
-    title: Clean Database Baseline, Reset & Admin Seed
-    depends_on: [T00]
-    outputs:
-      - clean_schema_baseline
-      - destructive_reset
-      - migrations_from_empty
-      - admin_only_seed
-    required_tests: [MIG, DB, SEC]
-    gate: G1
-    status: PENDING
-
-  - id: T02
+  - id: MVP01
     issue: 13
-    title: Tow Module Registry, Global Feature Flag & System Settings Contract
+    title: Tow Foundation
+    status: READY
     depends_on: [T01]
+    size: L
     outputs:
-      - explicit_tow_module_registration
-      - service_partner_linkage
-      - global_feature_flag
-      - graceful_drain_policy
-      - validated_settings
-      - admin_module_settings_api
-    required_tests: [UNIT, DB, API, CONTRACT, AUTHZ, CONC, E2E]
-    status: PENDING
-
-  - id: T03
-    issue: 14
-    title: Tow Vehicles, Pricing Configuration & Vehicle Documents
-    depends_on: [T02]
-    outputs:
-      - tow_vehicle_crud
+      - tow_module_registry
+      - module_availability_policy
+      - typed_mvp_settings
+      - tow_vehicle
       - single_active_vehicle_invariant
-      - per_vehicle_pricing
-      - document_upload_verification
-      - operational_module_guard
-    required_tests: [UNIT, DB, API, CONTRACT, AUTHZ, SEC, CONC, E2E]
-    status: PENDING
+      - vehicle_documents
+      - admin_document_approval
+      - compatibility_policy
+    required_tests: [UNIT, DB, API, AUTHZ, CONC, SEC]
 
-  - id: T04
-    issue: 15
-    title: Vehicle Compatibility & Capacity
-    depends_on: [T03]
-    outputs:
-      - vehicle_class_model
-      - capacity_compatibility_policy
-    required_tests: [UNIT, DB, API, CONTRACT]
-    status: PENDING
-
-  - id: T05
-    issue: 16
-    title: Google Routes Adapter & Tow Pricing
-    depends_on: [T02, T03, T04]
+  - id: MVP02
+    issue: 14
+    title: Google Routes & Authoritative Tow Pricing
+    status: BLOCKED
+    depends_on: [MVP01]
+    size: M_L
     outputs:
       - route_provider
       - google_routes_adapter
-      - two_leg_route_quote
+      - deterministic_route_fake
+      - two_leg_road_distance
       - proportional_meter_pricing
-      - round_half_up_money
-      - immutable_route_tariff_price_snapshot
+      - immutable_quote_data
     required_tests: [UNIT, MAPS, API, CONTRACT]
-    status: PENDING
 
-  - id: T06
-    issue: 17
-    title: Geographic Matching & Progressive Radius Expansion
-    depends_on: [T02, T04, T05]
+  - id: MVP03
+    issue: 15
+    title: Tow Request & Lean Geographic Matching
+    status: BLOCKED
+    depends_on: [MVP02]
+    size: L
     outputs:
-      - module_availability_guard
+      - tow_request
+      - module_request_gate
+      - single_configurable_matching_radius
       - eligibility_query
-      - progressive_radius
-      - global_timeout
-      - service_disabled_closure
-    required_tests: [UNIT, DB, API, TIME, PERF, AUTHZ, CONC, E2E]
-    gate: G3
-    status: PENDING
+      - partner_opportunities
+      - customer_request_rehydration
+    required_tests: [UNIT, DB, API, AUTHZ, E2E]
 
-  - id: T07
-    issue: 18
-    title: Tow Proposal Lifecycle
-    depends_on: [T05, T06]
+  - id: MVP04
+    issue: 16
+    title: Proposal Lifecycle & Atomic Assignment
+    status: BLOCKED
+    depends_on: [MVP03]
+    size: L_XL
     outputs:
-      - proposal_creation
-      - automatic_server_price
-      - proposal_expiry
-      - withdraw
-      - module_disabled_guard
-    required_tests: [UNIT, DB, API, CONTRACT, AUTHZ, TIME, CONC]
-    status: PENDING
+      - multiple_proposals
+      - server_price_snapshot
+      - action_time_expiry
+      - atomic_single_winner_assignment
+      - remaining_proposals_closed
+    required_tests: [UNIT, DB, API, AUTHZ, CONC, E2E]
 
-  - id: T08
-    issue: 19
-    title: Single Counteroffer
-    depends_on: [T07]
-    outputs:
-      - one_customer_counteroffer
-      - accept_reject_counteroffer
-      - counteroffer_timeout
-      - module_disabled_guard
-    required_tests: [UNIT, DB, API, CONTRACT, AUTHZ, TIME]
-    status: PENDING
-
-  - id: T09
-    issue: 20
-    title: Atomic Assignment & Concurrency Control
-    depends_on: [T07, T08]
-    outputs:
-      - atomic_proposal_selection
-      - frozen_assignment_contract
-      - close_remaining_negotiations
-      - busy_partner_vehicle_state
-      - deterministic_disable_vs_assignment
-    required_tests: [DB, API, CONTRACT, CONC, AUTHZ]
-    gate: G4
-    status: PENDING
-
-  - id: T10
-    issue: 21
-    title: Operational State Machine & Tracking
-    depends_on: [T09]
+  - id: MVP05
+    issue: 17
+    title: Service Execution, Live Tracking & Basic Cancellation
+    status: BLOCKED
+    depends_on: [MVP04]
+    size: L
     outputs:
       - operational_state_machine
-      - tracking_points
-      - completion_pending
-      - completion_timeout
-      - in_flight_graceful_drain
-    required_tests: [UNIT, DB, API, CONTRACT, AUTHZ, TIME, E2E]
-    status: PENDING
+      - current_tracking
+      - tracking_isolation
+      - basic_pre_in_transit_cancellation
+      - assigned_work_graceful_drain
+    required_tests: [UNIT, DB, API, AUTHZ, E2E]
 
-  - id: T11
-    issue: 22
-    title: Cancellation, Customer No-show & Partner No-show
-    depends_on: [T02, T10]
+  - id: MVP06
+    issue: 18
+    title: CASH Payment & Lean End-to-End Ready Gate
+    status: BLOCKED
+    depends_on: [MVP05]
+    size: L_XL
     outputs:
-      - customer_cancellation
-      - partner_cancellation
-      - customer_no_show
-      - partner_no_show
-      - cancellation_fee_split
-    required_tests: [UNIT, DB, API, CONTRACT, AUTHZ, TIME]
-    gate: G5
-    status: PENDING
+      - cash_payment_record
+      - idempotent_cash_received
+      - tow_financial_rehydration
+      - twenty_mandatory_mvp_e2e
+      - TOW_MVP_BACKEND_READY_FOR_INTEGRATION_receipt
+    required_tests: [UNIT, DB, API, AUTHZ, MIG, CONTRACT, MAPS, CONC, E2E, FULL_REGRESSION]
 
-  - id: T12
-    issue: 23
-    title: Payment Orchestration Core
-    depends_on: [T02, T09]
-    outputs:
-      - payment_strategy_contract
-      - immutable_final_price
-      - fixed_platform_fee_contract
-      - method_switch_before_en_route
-    required_tests: [UNIT, DB, API, CONTRACT, GATEWAY]
-    status: PENDING
+phase_1_gate:
+  requires: [MVP01, MVP02, MVP03, MVP04, MVP05, MVP06]
+  minimum_e2e_scenarios: 20
+  emits: TOW_MVP_BACKEND_READY_FOR_INTEGRATION
 
-  - id: T13
-    issue: 24
-    title: Card Authorization/Capture/Refund
-    depends_on: [T12]
-    outputs:
-      - card_authorization
-      - capture_on_completion
-      - release_refund
-      - idempotent_webhook
-    required_tests: [UNIT, DB, API, GATEWAY, CONTRACT, E2E]
-    status: PENDING
+phase_2:
+  issue: 33
+  status: DEFERRED
+  includes:
+    - counteroffer
+    - progressive_matching_scheduler
+    - search_timeouts
+    - advanced_module_races
+    - no_show_and_rematch
+    - cancellation_economics
+    - card
+    - pix
+    - real_psp_webhooks
+    - partner_and_customer_debts
+    - wallet_ledger
+    - settlement
+    - payout
+    - disputes
+    - reviews
+    - admin_override
+    - immutable_audit
+    - full_contract_certification
+    - seventy_five_plus_e2e
+  emits: TOW_BACKEND_READY_FOR_INTEGRATION
 
-  - id: T14
-    issue: 25
-    title: PIX Payment & Refund
-    depends_on: [T12]
-    outputs:
-      - pix_charge
-      - confirmed_before_en_route
-      - pix_refund
-      - cancellation_fee_retention
-      - idempotent_webhook
-    required_tests: [UNIT, DB, API, GATEWAY, CONTRACT, E2E]
-    status: PENDING
-
-  - id: T15
-    issue: 26
-    title: Cash, Partner Platform Fee Debt & Customer Cancellation Debt
-    depends_on: [T12, T11]
-    outputs:
-      - cash_received
-      - partner_platform_fee_debt
-      - automatic_electronic_offset
-      - customer_cancellation_debt
-      - debt_based_request_block
-    required_tests: [UNIT, DB, API, CONTRACT, AUTHZ, E2E]
-    status: PENDING
-
-  - id: T16
-    issue: 27
-    title: Wallet, Settlement Eligibility & Daily Payout Batch
-    depends_on: [T13, T14, T15]
-    outputs:
-      - settlement_states
-      - partner_wallet_eligibility
-      - debt_offset
-      - manual_daily_payout_batch
-      - idempotent_payout
-      - partner_financial_summary
-    required_tests: [UNIT, DB, API, CONTRACT, CONC, E2E]
-    gate: G6
-    status: PENDING
-
-  - id: T17
-    issue: 28
-    title: Disputes, Reviews, Admin Override & Immutable Audit
-    depends_on: [T10, T11, T16]
-    outputs:
-      - dispute_payout_hold
-      - customer_review
-      - admin_override
-      - immutable_audit
-      - module_toggle_audit
-    required_tests: [UNIT, DB, API, CONTRACT, AUTHZ, SEC, E2E]
-    gate: G7
-    status: PENDING
-
-  - id: T18
-    issue: 29
-    title: Contract Freeze, Full E2E, Regression & Ready Gate
-    depends_on: [T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17]
-    outputs:
-      - frozen_http_contract
-      - frozen_module_contract
-      - frozen_pricing_contract
-      - seventy_five_e2e_evidence
-      - full_regression_evidence
-      - reset_migrate_seed_evidence
-      - TOW_BACKEND_READY_FOR_INTEGRATION_receipt
-    required_tests: [UNIT, DB, MIG, API, CONTRACT, AUTHZ, CONC, TIME, MAPS, GATEWAY, LEDGER, AUDIT, SEC, E2E]
-    gate: G8
-    status: PENDING
-
-gates:
-  G0: { requires: [T00] }
-  G1: { requires: [T01] }
-  G2: { requires: [T02, T03, T04] }
-  G3: { requires: [T05, T06] }
-  G4: { requires: [T07, T08, T09] }
-  G5: { requires: [T10, T11] }
-  G6: { requires: [T12, T13, T14, T15, T16] }
-  G7: { requires: [T17] }
-  G8:
-    requires: [T18]
-    emits: TOW_BACKEND_READY_FOR_INTEGRATION
+historical_superseded_issues:
+  - 19
+  - 20
+  - 21
+  - 22
+  - 23
+  - 24
+  - 25
+  - 26
+  - 27
+  - 28
+  - 29
 
 consumer_handoff:
-  mock_implementation_gate:
-    requires:
-      - PR_9_MERGED
-      - OPENAPI_PARSE_PASS
-      - EXTERNAL_REF_RESOLUTION_PASS
-      - UNIQUE_OPERATION_IDS_PASS
-      - MOBILE_CLIENT_SMOKE_PASS
-      - MOBILE_PARTNER_SMOKE_PASS
-      - DASHBOARD_SMOKE_PASS
-      - NO_UNDOCUMENTED_TOW_DTO_OR_ENDPOINT
+  mock_first:
     emits: TOW_MOBILE_CONTRACT_READY_FOR_IMPLEMENTATION
-    allows:
-      - generated_clients
-      - repositories
-      - feature_scaffolding
-      - state_management
-      - UI_navigation
-      - maps_tracking_UI
-      - mocks_fakes
-      - widget_golden_component_tests
-      - mocked_consumer_E2E
+    source: PR_9
+  mvp_real_backend:
+    blocked_until: MVP06
+    emits: TOW_MVP_BACKEND_READY_FOR_INTEGRATION
+    scope: explicitly_implemented_mvp_subset_only
+  full_real_backend:
+    blocked_until: phase_2
+    emits: TOW_BACKEND_READY_FOR_INTEGRATION
 
-  real_backend_integration_gate:
-    blocked_until: T18
-    requires: [TOW_BACKEND_READY_FOR_INTEGRATION]
-    allows:
-      - replace_mocks_with_backend
-      - real_API_contract_tests
-      - real_mobile_backend_E2E
-      - integration_signoff
-
-consumers:
-  dashboard:
-    mock_implementation_allowed_after: TOW_MOBILE_CONTRACT_READY_FOR_IMPLEMENTATION
-    real_integration_blocked_until: T18
-    required_tests: [UI, API, A11Y, E2E]
-    scope:
-      - module_toggle
-      - settings
-      - vehicle_document_verification
-      - request_dispute_detail
-      - payout_batch
-      - audit_admin_override
-
-  mobile_partner:
-    mock_implementation_allowed_after: TOW_MOBILE_CONTRACT_READY_FOR_IMPLEMENTATION
-    real_integration_blocked_until: T18
-    required_tests: [UNIT, UI, UX, API, MAPS, E2E]
-    scope:
-      - module_status
-      - operational_status_location
-      - tow_vehicle_documents
-      - opportunities_proposals
-      - counteroffer
-      - jobs_rehydration
-      - operational_tracking
-      - cash_financial_summary
-
-  mobile_client:
-    mock_implementation_allowed_after: TOW_MOBILE_CONTRACT_READY_FOR_IMPLEMENTATION
-    real_integration_blocked_until: T18
-    required_tests: [UNIT, UI, UX, API, MAPS, E2E]
-    scope:
-      - module_status
-      - request_rehydration
-      - create_request
-      - proposals_counteroffer
-      - payment
-      - route_tracking
-      - completion_dispute_review
-      - debt_repayment
+security:
+  issue_31:
+    status: DEFERRED
+    blocks_dev_test_functional_work: false
+    blocks_production_security_signoff: true
