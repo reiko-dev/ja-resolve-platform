@@ -151,6 +151,12 @@ Real PostgreSQL 14 in the disposable T01/T00 container (always torn down):
   P2 = 0, P3 = 1 (`MMVP2-1`, the pre-existing legacy `towDocumentFlow` socket flake, non-blocking;
   recorded in T00 as `flake-tow-document-flow-403.txt`).
 - Artifact: `docs/evidence/mvp-01/12-muse-review.md`.
+- External review: `CHANGES_REQUIRED` (P0 = 0, P1 = 1 / EXT-MVP01-1 private documents, P2 = 1 /
+  EXT-MVP01-2 partner-type eligibility) on head `0d52d797`.
+- External correction pass: both findings fixed in implementation `443ac423`
+  (private storage + authenticated downloads; `PartnerRepository` port + `partner_not_operational`).
+- **External re-review: APPROVE** on head `b7f86d49` — P0 = P1 = P2 = P3 = 0, `findings: []`.
+- Artifact: `docs/evidence/mvp-01/14-muse-external-review.md`.
 
 ## Correction Pass (MMVP-1..6)
 Full detail: `11-correction-pass.md`.
