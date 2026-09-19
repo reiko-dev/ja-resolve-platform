@@ -1,0 +1,1042 @@
+LEGACY CHAIN FINAL SCHEMA (generated from docs/evidence/t01/schema-legacy-chain.json)
+fingerprint: a7a741d38f952a1ddf62eca7c965d1fc0d16ab8b8e430a3398d58e5f78470a73
+
+TABLE appointments
+  col id :: integer(32,0) NOT NULL DEFAULT nextval('appointments_id_seq'::regclass)
+  col user_id :: integer(32,0) NULL
+  col mechanic_id :: integer(32,0) NULL
+  col service_id :: integer(32,0) NULL
+  col scheduled_date :: timestamp with time zone NOT NULL
+  col status :: character varying(255) NOT NULL DEFAULT 'pending'::character varying
+  col description :: text NULL
+  col vehicle_info :: text NULL
+  col location_type :: character varying(255) NOT NULL
+  col latitude :: numeric(10,8) NULL
+  col longitude :: numeric(11,8) NULL
+  col address :: text NULL
+  col estimated_price :: numeric(10,2) NULL
+  col final_price :: numeric(10,2) NULL
+  col notes :: text NULL
+  col completed_at :: timestamp with time zone NULL
+  col created_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  col updated_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  pk (id)
+  fk (mechanic_id) -> mechanics.id ON DELETE CASCADE
+  fk (service_id) -> services.id ON DELETE SET NULL
+  fk (user_id) -> users.id ON DELETE CASCADE
+  index CREATE INDEX appointments_mechanic_id_index ON public.appointments USING btree (mechanic_id)
+  index CREATE INDEX appointments_scheduled_date_index ON public.appointments USING btree (scheduled_date)
+  index CREATE INDEX appointments_status_index ON public.appointments USING btree (status)
+  index CREATE INDEX appointments_user_id_index ON public.appointments USING btree (user_id)
+
+TABLE categories
+  col id :: integer(32,0) NOT NULL DEFAULT nextval('categories_id_seq'::regclass)
+  col name :: character varying(100) NOT NULL
+  col description :: text NULL
+  col icon :: character varying(50) NULL
+  col color :: character varying(7) NULL
+  col is_active :: boolean NULL DEFAULT true
+  col sort_order :: integer(32,0) NULL DEFAULT 0
+  col created_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  col updated_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  pk (id)
+
+TABLE chat_messages
+  col id :: integer(32,0) NOT NULL DEFAULT nextval('chat_messages_id_seq'::regclass)
+  col sender_id :: integer(32,0) NULL
+  col receiver_id :: integer(32,0) NULL
+  col appointment_id :: integer(32,0) NULL
+  col message :: text NOT NULL
+  col message_type :: character varying(255) NULL DEFAULT 'text'::character varying
+  col file_url :: text NULL
+  col file_name :: character varying(255) NULL
+  col file_size :: character varying(255) NULL
+  col is_read :: boolean NULL DEFAULT false
+  col read_at :: timestamp with time zone NULL
+  col created_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  col updated_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  pk (id)
+  fk (appointment_id) -> appointments.id ON DELETE SET NULL
+  fk (receiver_id) -> users.id ON DELETE CASCADE
+  fk (sender_id) -> users.id ON DELETE CASCADE
+  index CREATE INDEX chat_messages_appointment_id_index ON public.chat_messages USING btree (appointment_id)
+  index CREATE INDEX chat_messages_created_at_index ON public.chat_messages USING btree (created_at)
+  index CREATE INDEX chat_messages_sender_id_receiver_id_index ON public.chat_messages USING btree (sender_id, receiver_id)
+
+TABLE commissions
+  col id :: integer(32,0) NOT NULL DEFAULT nextval('commissions_id_seq'::regclass)
+  col payment_id :: integer(32,0) NOT NULL
+  col partner_id :: integer(32,0) NOT NULL
+  col emergency_request_id :: integer(32,0) NULL
+  col delivery_order_id :: integer(32,0) NULL
+  col purchase_order_id :: integer(32,0) NULL
+  col total_amount :: numeric(10,2) NOT NULL
+  col platform_commission :: numeric(10,2) NOT NULL
+  col partner_earnings :: numeric(10,2) NOT NULL
+  col commission_rate :: numeric(5,2) NOT NULL
+  col gateway_fee :: numeric(10,2) NULL DEFAULT '0'::numeric
+  col processing_fee :: numeric(10,2) NULL DEFAULT '0'::numeric
+  col status :: text NULL DEFAULT 'pending'::text
+  col paid_at :: timestamp with time zone NULL
+  col withdrawal_transaction_id :: integer(32,0) NULL
+  col created_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  col updated_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  pk (id)
+  fk (delivery_order_id) -> delivery_orders.id ON DELETE SET NULL
+  fk (emergency_request_id) -> emergency_requests.id ON DELETE SET NULL
+  fk (partner_id) -> partners.id ON DELETE CASCADE
+  fk (payment_id) -> payments.id ON DELETE CASCADE
+  fk (purchase_order_id) -> purchase_orders.id ON DELETE SET NULL
+  fk (withdrawal_transaction_id) -> wallet_transactions.id ON DELETE SET NULL
+  check CHECK ((status = ANY (ARRAY['pending'::text, 'processed'::text, 'paid'::text, 'cancelled'::text])))
+  index CREATE INDEX commissions_created_at_index ON public.commissions USING btree (created_at)
+  index CREATE INDEX commissions_partner_id_index ON public.commissions USING btree (partner_id)
+  index CREATE INDEX commissions_payment_id_index ON public.commissions USING btree (payment_id)
+  index CREATE INDEX commissions_status_index ON public.commissions USING btree (status)
+
+TABLE delivery_orders
+  col id :: integer(32,0) NOT NULL DEFAULT nextval('delivery_orders_id_seq'::regclass)
+  col user_id :: integer(32,0) NULL
+  col motoboy_id :: integer(32,0) NULL
+  col type :: text NOT NULL
+  col items :: text NULL
+  col items_description :: text NULL
+  col pickup_location :: text NULL
+  col pickup_latitude :: numeric(10,8) NULL
+  col pickup_longitude :: numeric(11,8) NULL
+  col pickup_address :: text NULL
+  col pickup_instructions :: text NULL
+  col delivery_location :: text NULL
+  col delivery_latitude :: numeric(10,8) NULL
+  col delivery_longitude :: numeric(11,8) NULL
+  col delivery_address :: text NULL
+  col delivery_instructions :: text NULL
+  col status :: text NULL DEFAULT 'pending'::text
+  col delivery_fee :: numeric(10,2) NULL
+  col items_price :: numeric(10,2) NULL
+  col total_price :: numeric(10,2) NULL
+  col price_breakdown :: text NULL
+  col accepted_at :: timestamp with time zone NULL
+  col picked_up_at :: timestamp with time zone NULL
+  col delivered_at :: timestamp with time zone NULL
+  col estimated_delivery_minutes :: integer(32,0) NULL
+  col actual_delivery_minutes :: integer(32,0) NULL
+  col fuel_info :: text NULL
+  col parts_info :: text NULL
+  col store_info :: text NULL
+  col urgency :: text NULL DEFAULT 'medium'::text
+  col is_urgent :: boolean NULL DEFAULT false
+  col payment_method :: text NULL DEFAULT 'cash'::text
+  col payment_status :: text NULL DEFAULT 'pending'::text
+  col paid_at :: timestamp with time zone NULL
+  col rating :: integer(32,0) NULL
+  col review_comment :: text NULL
+  col reviewed_at :: timestamp with time zone NULL
+  col notes :: text NULL
+  col delivery_proof :: text NULL
+  col tracking_info :: text NULL
+  col distance_km :: numeric(8,2) NULL
+  col view_count :: integer(32,0) NULL DEFAULT 0
+  col response_count :: integer(32,0) NULL DEFAULT 0
+  col created_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  col updated_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  pk (id)
+  fk (motoboy_id) -> partners.id ON DELETE SET NULL
+  fk (user_id) -> users.id ON DELETE CASCADE
+  check CHECK ((payment_method = ANY (ARRAY['cash'::text, 'card'::text, 'pix'::text, 'app'::text])))
+  check CHECK ((payment_status = ANY (ARRAY['pending'::text, 'paid'::text, 'refunded'::text])))
+  check CHECK ((status = ANY (ARRAY['pending'::text, 'accepted'::text, 'picked_up'::text, 'in_transit'::text, 'delivered'::text, 'cancelled'::text])))
+  check CHECK ((type = ANY (ARRAY['fuel'::text, 'parts'::text, 'food'::text, 'other'::text])))
+  check CHECK ((urgency = ANY (ARRAY['low'::text, 'medium'::text, 'high'::text, 'urgent'::text])))
+  index CREATE INDEX delivery_orders_delivery_latitude_delivery_longitude_index ON public.delivery_orders USING btree (delivery_latitude, delivery_longitude)
+  index CREATE INDEX delivery_orders_motoboy_id_index ON public.delivery_orders USING btree (motoboy_id)
+  index CREATE INDEX delivery_orders_status_created_at_index ON public.delivery_orders USING btree (status, created_at)
+  index CREATE INDEX delivery_orders_type_status_index ON public.delivery_orders USING btree (type, status)
+  index CREATE INDEX delivery_orders_urgency_is_urgent_index ON public.delivery_orders USING btree (urgency, is_urgent)
+  index CREATE INDEX delivery_orders_user_id_index ON public.delivery_orders USING btree (user_id)
+
+TABLE disputes
+  col id :: integer(32,0) NOT NULL DEFAULT nextval('disputes_id_seq'::regclass)
+  col payment_id :: integer(32,0) NOT NULL
+  col user_id :: integer(32,0) NOT NULL
+  col partner_id :: integer(32,0) NOT NULL
+  col emergency_request_id :: integer(32,0) NULL
+  col delivery_order_id :: integer(32,0) NULL
+  col purchase_order_id :: integer(32,0) NULL
+  col type :: text NOT NULL
+  col initiated_by :: text NOT NULL
+  col reason :: text NOT NULL
+  col description :: text NULL
+  col status :: text NULL DEFAULT 'open'::text
+  col resolution :: text NULL
+  col disputed_amount :: numeric(10,2) NOT NULL
+  col refund_amount :: numeric(10,2) NULL
+  col evidence :: text NULL
+  col partner_response :: text NULL
+  col platform_notes :: text NULL
+  col resolved_by :: integer(32,0) NULL
+  col resolution_notes :: text NULL
+  col resolved_at :: timestamp with time zone NULL
+  col priority :: text NULL DEFAULT 'medium'::text
+  col created_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  col updated_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  pk (id)
+  fk (delivery_order_id) -> delivery_orders.id ON DELETE SET NULL
+  fk (emergency_request_id) -> emergency_requests.id ON DELETE SET NULL
+  fk (partner_id) -> partners.id ON DELETE CASCADE
+  fk (payment_id) -> payments.id ON DELETE CASCADE
+  fk (purchase_order_id) -> purchase_orders.id ON DELETE SET NULL
+  fk (resolved_by) -> users.id ON DELETE SET NULL
+  fk (user_id) -> users.id ON DELETE CASCADE
+  check CHECK ((initiated_by = ANY (ARRAY['user'::text, 'partner'::text, 'platform'::text])))
+  check CHECK ((priority = ANY (ARRAY['low'::text, 'medium'::text, 'high'::text, 'urgent'::text])))
+  check CHECK ((resolution = ANY (ARRAY['refund_full'::text, 'refund_partial'::text, 'no_action'::text, 'service_redelivery'::text])))
+  check CHECK ((status = ANY (ARRAY['open'::text, 'under_review'::text, 'resolved'::text, 'rejected'::text, 'cancelled'::text])))
+  check CHECK ((type = ANY (ARRAY['refund_request'::text, 'quality_issue'::text, 'service_not_delivered'::text, 'fraud'::text, 'other'::text])))
+  index CREATE INDEX disputes_created_at_index ON public.disputes USING btree (created_at)
+  index CREATE INDEX disputes_partner_id_index ON public.disputes USING btree (partner_id)
+  index CREATE INDEX disputes_payment_id_index ON public.disputes USING btree (payment_id)
+  index CREATE INDEX disputes_priority_index ON public.disputes USING btree (priority)
+  index CREATE INDEX disputes_status_index ON public.disputes USING btree (status)
+  index CREATE INDEX disputes_user_id_index ON public.disputes USING btree (user_id)
+
+TABLE emergency_requests
+  col id :: integer(32,0) NOT NULL DEFAULT nextval('emergency_requests_id_seq'::regclass)
+  col user_id :: integer(32,0) NULL
+  col type :: text NOT NULL
+  col description :: text NOT NULL
+  col photos :: text NULL
+  col vehicle_info :: text NULL
+  col vehicle_plate :: character varying(255) NULL
+  col vehicle_model :: character varying(255) NULL
+  col vehicle_year :: character varying(255) NULL
+  col vehicle_color :: character varying(255) NULL
+  col location_type :: text NOT NULL
+  col latitude :: numeric(10,8) NOT NULL
+  col longitude :: numeric(11,8) NOT NULL
+  col address :: text NOT NULL
+  col landmarks :: text NULL
+  col status :: text NULL DEFAULT 'pending'::text
+  col partner_id :: integer(32,0) NULL
+  col accepted_by :: integer(32,0) NULL
+  col estimated_price :: numeric(10,2) NULL
+  col final_price :: numeric(10,2) NULL
+  col price_breakdown :: text NULL
+  col accepted_at :: timestamp with time zone NULL
+  col started_at :: timestamp with time zone NULL
+  col completed_at :: timestamp with time zone NULL
+  col estimated_duration_minutes :: integer(32,0) NULL
+  col actual_duration_minutes :: integer(32,0) NULL
+  col notes :: text NULL
+  col solution_description :: text NULL
+  col parts_used :: text NULL
+  col warranty_info :: text NULL
+  col urgency :: text NULL DEFAULT 'medium'::text
+  col is_urgent :: boolean NULL DEFAULT false
+  col rating :: integer(32,0) NULL
+  col review_comment :: text NULL
+  col reviewed_at :: timestamp with time zone NULL
+  col view_count :: integer(32,0) NULL DEFAULT 0
+  col response_count :: integer(32,0) NULL DEFAULT 0
+  col created_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  col updated_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  col request_type :: text NULL
+  col proposal_status :: text NULL
+  col proposal_selection_deadline :: timestamp with time zone NULL
+  col max_proposals :: integer(32,0) NULL DEFAULT 0
+  col proposals_received :: integer(32,0) NULL DEFAULT 0
+  col first_proposal_at :: timestamp with time zone NULL
+  col last_proposal_at :: timestamp with time zone NULL
+  col search_radius_km :: numeric(8,2) NULL
+  col selected_proposal_id :: integer(32,0) NULL
+  col cancellation_reason :: text NULL
+  col cancellation_by :: text NULL
+  col cancelled_at :: timestamp with time zone NULL
+  col vehicle_origin_address :: text NULL
+  col vehicle_origin_latitude :: numeric(10,8) NULL
+  col vehicle_origin_longitude :: numeric(11,8) NULL
+  col vehicle_destination_address :: text NULL
+  col vehicle_destination_latitude :: numeric(10,8) NULL
+  col vehicle_destination_longitude :: numeric(11,8) NULL
+  col vehicle_type :: character varying(255) NULL
+  col vehicle_notes :: text NULL
+  col pickup_photo_url :: text NULL
+  col delivery_photo_url :: text NULL
+  col pickup_photo_metadata :: text NULL
+  col delivery_photo_metadata :: text NULL
+  pk (id)
+  fk (accepted_by) -> users.id ON DELETE SET NULL
+  fk (partner_id) -> partners.id ON DELETE SET NULL
+  fk (selected_proposal_id) -> tow_proposals.id ON DELETE SET NULL
+  fk (user_id) -> users.id ON DELETE CASCADE
+  check CHECK ((location_type = ANY (ARRAY['roadside'::text, 'parking'::text, 'home'::text, 'other'::text])))
+  check CHECK ((status = ANY (ARRAY['pending'::text, 'accepted'::text, 'in_progress'::text, 'completed'::text, 'cancelled'::text, 'expired'::text])))
+  check CHECK ((type = ANY (ARRAY['mechanical'::text, 'fuel'::text, 'tire'::text, 'battery'::text, 'other'::text])))
+  check CHECK ((urgency = ANY (ARRAY['low'::text, 'medium'::text, 'high'::text, 'critical'::text])))
+  index CREATE INDEX emergency_requests_latitude_longitude_index ON public.emergency_requests USING btree (latitude, longitude)
+  index CREATE INDEX emergency_requests_partner_id_index ON public.emergency_requests USING btree (partner_id)
+  index CREATE INDEX emergency_requests_status_created_at_index ON public.emergency_requests USING btree (status, created_at)
+  index CREATE INDEX emergency_requests_type_status_index ON public.emergency_requests USING btree (type, status)
+  index CREATE INDEX emergency_requests_urgency_is_urgent_index ON public.emergency_requests USING btree (urgency, is_urgent)
+  index CREATE INDEX emergency_requests_user_id_index ON public.emergency_requests USING btree (user_id)
+
+TABLE knex_migrations
+  col id :: integer(32,0) NOT NULL DEFAULT nextval('knex_migrations_id_seq'::regclass)
+  col name :: character varying(255) NULL
+  col batch :: integer(32,0) NULL
+  col migration_time :: timestamp with time zone NULL
+  pk (id)
+
+TABLE knex_migrations_lock
+  col index :: integer(32,0) NOT NULL DEFAULT nextval('knex_migrations_lock_index_seq'::regclass)
+  col is_locked :: integer(32,0) NULL
+  pk (index)
+
+TABLE mechanics
+  col id :: integer(32,0) NOT NULL DEFAULT nextval('mechanics_id_seq'::regclass)
+  col user_id :: integer(32,0) NULL
+  col business_name :: character varying(255) NOT NULL
+  col description :: text NULL
+  col specialties :: text NOT NULL
+  col address :: text NOT NULL
+  col latitude :: numeric(10,8) NULL
+  col longitude :: numeric(11,8) NULL
+  col phone :: character varying(255) NOT NULL
+  col whatsapp :: character varying(255) NULL
+  col website :: character varying(255) NULL
+  col instagram :: character varying(255) NULL
+  col facebook :: character varying(255) NULL
+  col hourly_rate :: numeric(10,2) NULL
+  col service_fee :: numeric(10,2) NULL
+  col is_verified :: boolean NULL DEFAULT false
+  col is_available :: boolean NULL DEFAULT true
+  col working_hours :: text NULL
+  col payment_methods :: text NULL
+  col service_areas :: text NULL
+  col experience_years :: integer(32,0) NULL
+  col certifications :: text NULL
+  col insurance_info :: text NULL
+  col warranty_info :: text NULL
+  col emergency_service :: boolean NULL DEFAULT false
+  col home_service :: boolean NULL DEFAULT false
+  col workshop_service :: boolean NULL DEFAULT true
+  col rating :: numeric(3,2) NULL DEFAULT '0'::numeric
+  col total_reviews :: integer(32,0) NULL DEFAULT 0
+  col created_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  col updated_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  pk (id)
+  fk (user_id) -> users.id ON DELETE CASCADE
+  index CREATE INDEX mechanics_is_available_is_verified_index ON public.mechanics USING btree (is_available, is_verified)
+  index CREATE INDEX mechanics_latitude_longitude_index ON public.mechanics USING btree (latitude, longitude)
+  index CREATE INDEX mechanics_rating_index ON public.mechanics USING btree (rating)
+  index CREATE INDEX mechanics_specialties_index ON public.mechanics USING btree (specialties)
+
+TABLE notifications
+  col id :: integer(32,0) NOT NULL DEFAULT nextval('notifications_id_seq'::regclass)
+  col user_id :: integer(32,0) NULL
+  col type :: text NOT NULL
+  col title :: character varying(255) NOT NULL
+  col message :: text NOT NULL
+  col detailed_message :: text NULL
+  col related_emergency_request_id :: integer(32,0) NULL
+  col related_delivery_order_id :: integer(32,0) NULL
+  col related_purchase_order_id :: integer(32,0) NULL
+  col related_partner_id :: integer(32,0) NULL
+  col is_read :: boolean NULL DEFAULT false
+  col is_sent :: boolean NULL DEFAULT false
+  col is_delivered :: boolean NULL DEFAULT false
+  col push_enabled :: boolean NULL DEFAULT true
+  col sms_enabled :: boolean NULL DEFAULT false
+  col email_enabled :: boolean NULL DEFAULT false
+  col in_app_enabled :: boolean NULL DEFAULT true
+  col priority :: text NULL DEFAULT 'medium'::text
+  col is_urgent :: boolean NULL DEFAULT false
+  col scheduled_at :: timestamp with time zone NULL
+  col sent_at :: timestamp with time zone NULL
+  col delivered_at :: timestamp with time zone NULL
+  col read_at :: timestamp with time zone NULL
+  col action_data :: text NULL
+  col metadata :: text NULL
+  col image_url :: character varying(255) NULL
+  col sound :: character varying(255) NULL
+  col retry_count :: integer(32,0) NULL DEFAULT 0
+  col error_message :: text NULL
+  col created_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  col updated_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  pk (id)
+  fk (related_delivery_order_id) -> delivery_orders.id ON DELETE CASCADE
+  fk (related_emergency_request_id) -> emergency_requests.id ON DELETE CASCADE
+  fk (related_partner_id) -> partners.id ON DELETE CASCADE
+  fk (related_purchase_order_id) -> purchase_orders.id ON DELETE CASCADE
+  fk (user_id) -> users.id ON DELETE CASCADE
+  check CHECK ((priority = ANY (ARRAY['low'::text, 'medium'::text, 'high'::text, 'urgent'::text])))
+  check CHECK ((type = ANY (ARRAY['emergency_request_created'::text, 'emergency_request_accepted'::text, 'emergency_request_completed'::text, 'delivery_order_created'::text, 'delivery_order_accepted'::text, 'delivery_order_delivered'::text, 'purchase_order_created'::text, 'purchase_order_confirmed'::text, 'purchase_order_delivered'::text, 'partner_location_update'::text, 'payment_confirmed'::text, 'rating_received'::text, 'system_announcement'::text, 'promotion'::text, 'reminder'::text])))
+  index CREATE INDEX notifications_created_at_index ON public.notifications USING btree (created_at)
+  index CREATE INDEX notifications_is_sent_scheduled_at_index ON public.notifications USING btree (is_sent, scheduled_at)
+  index CREATE INDEX notifications_related_delivery_order_id_index ON public.notifications USING btree (related_delivery_order_id)
+  index CREATE INDEX notifications_related_emergency_request_id_index ON public.notifications USING btree (related_emergency_request_id)
+  index CREATE INDEX notifications_related_purchase_order_id_index ON public.notifications USING btree (related_purchase_order_id)
+  index CREATE INDEX notifications_type_priority_index ON public.notifications USING btree (type, priority)
+  index CREATE INDEX notifications_user_id_is_read_index ON public.notifications USING btree (user_id, is_read)
+
+TABLE partner_documents
+  col id :: integer(32,0) NOT NULL DEFAULT nextval('partner_documents_id_seq'::regclass)
+  col partner_id :: integer(32,0) NOT NULL
+  col document_type :: character varying(255) NOT NULL
+  col filename :: character varying(255) NOT NULL
+  col original_name :: character varying(255) NOT NULL
+  col file_path :: character varying(255) NOT NULL
+  col mime_type :: character varying(255) NOT NULL
+  col file_size :: integer(32,0) NOT NULL
+  col status :: character varying(255) NULL DEFAULT 'pending'::character varying
+  col rejection_reason :: text NULL
+  col verification_metadata :: json NULL
+  col uploaded_at :: timestamp with time zone NULL DEFAULT CURRENT_TIMESTAMP
+  col verified_at :: timestamp with time zone NULL
+  col verified_by :: integer(32,0) NULL
+  col created_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  col updated_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  pk (id)
+  fk (partner_id) -> partners.id ON DELETE CASCADE
+  fk (verified_by) -> users.id ON DELETE SET NULL
+  index CREATE INDEX partner_documents_partner_id_document_type_index ON public.partner_documents USING btree (partner_id, document_type)
+  index CREATE INDEX partner_documents_status_index ON public.partner_documents USING btree (status)
+
+TABLE partner_services
+  col id :: integer(32,0) NOT NULL DEFAULT nextval('partner_services_id_seq'::regclass)
+  col partner_id :: integer(32,0) NULL
+  col name :: character varying(255) NOT NULL
+  col description :: text NULL
+  col detailed_description :: text NULL
+  col price :: numeric(10,2) NULL
+  col price_type :: text NULL DEFAULT 'fixed'::text
+  col min_price :: numeric(10,2) NULL
+  col max_price :: numeric(10,2) NULL
+  col estimated_duration_minutes :: integer(32,0) NULL
+  col is_available :: boolean NULL DEFAULT true
+  col emergency_service :: boolean NULL DEFAULT false
+  col home_service :: boolean NULL DEFAULT false
+  col workshop_service :: boolean NULL DEFAULT true
+  col category :: character varying(255) NOT NULL
+  col subcategory :: character varying(255) NULL
+  col tags :: text NULL
+  col specialties :: text NULL
+  col required_tools :: text NULL
+  col required_parts :: text NULL
+  col technical_requirements :: text NULL
+  col warranty_info :: text NULL
+  col warranty_days :: integer(32,0) NULL
+  col total_orders :: integer(32,0) NULL DEFAULT 0
+  col completed_orders :: integer(32,0) NULL DEFAULT 0
+  col cancelled_orders :: integer(32,0) NULL DEFAULT 0
+  col average_rating :: numeric(3,2) NULL DEFAULT '0'::numeric
+  col total_reviews :: integer(32,0) NULL DEFAULT 0
+  col requires_approval :: boolean NULL DEFAULT false
+  col is_featured :: boolean NULL DEFAULT false
+  col sort_order :: integer(32,0) NULL DEFAULT 0
+  col service_hours :: text NULL
+  col unavailable_dates :: text NULL
+  col images :: text NULL
+  col before_after_images :: text NULL
+  col created_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  col updated_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  pk (id)
+  fk (partner_id) -> partners.id ON DELETE CASCADE
+  check CHECK ((price_type = ANY (ARRAY['fixed'::text, 'hourly'::text, 'per_item'::text, 'negotiable'::text])))
+  index CREATE INDEX partner_services_average_rating_index ON public.partner_services USING btree (average_rating)
+  index CREATE INDEX partner_services_category_subcategory_index ON public.partner_services USING btree (category, subcategory)
+  index CREATE INDEX partner_services_is_available_emergency_service_index ON public.partner_services USING btree (is_available, emergency_service)
+  index CREATE INDEX partner_services_is_featured_sort_order_index ON public.partner_services USING btree (is_featured, sort_order)
+  index CREATE INDEX partner_services_partner_id_index ON public.partner_services USING btree (partner_id)
+  index CREATE INDEX partner_services_price_type_price_index ON public.partner_services USING btree (price_type, price)
+
+TABLE partners
+  col id :: integer(32,0) NOT NULL DEFAULT nextval('partners_id_seq'::regclass)
+  col user_id :: integer(32,0) NULL
+  col type :: text NOT NULL
+  col business_name :: character varying(255) NOT NULL
+  col description :: text NULL
+  col specialties :: text NULL
+  col address :: text NOT NULL
+  col latitude :: numeric(10,8) NULL
+  col longitude :: numeric(11,8) NULL
+  col phone :: character varying(255) NOT NULL
+  col whatsapp :: character varying(255) NULL
+  col website :: character varying(255) NULL
+  col instagram :: character varying(255) NULL
+  col facebook :: character varying(255) NULL
+  col hourly_rate :: numeric(10,2) NULL
+  col service_fee :: numeric(10,2) NULL
+  col delivery_fee :: numeric(10,2) NULL
+  col is_verified :: boolean NULL DEFAULT false
+  col is_available :: boolean NULL DEFAULT true
+  col is_online :: boolean NULL DEFAULT false
+  col working_hours :: text NULL
+  col payment_methods :: text NULL
+  col service_areas :: text NULL
+  col experience_years :: integer(32,0) NULL
+  col certifications :: text NULL
+  col insurance_info :: text NULL
+  col warranty_info :: text NULL
+  col emergency_service :: boolean NULL DEFAULT false
+  col home_service :: boolean NULL DEFAULT false
+  col workshop_service :: boolean NULL DEFAULT true
+  col delivery_service :: boolean NULL DEFAULT false
+  col service_radius :: numeric(5,2) NULL DEFAULT '10'::numeric
+  col delivery_radius :: numeric(5,2) NULL DEFAULT '15'::numeric
+  col vehicle_type :: character varying(255) NULL
+  col license_plate :: character varying(255) NULL
+  col cnh_number :: character varying(255) NULL
+  col cnh_category :: character varying(255) NULL
+  col store_categories :: text NULL
+  col has_delivery :: boolean NULL DEFAULT false
+  col min_order_value :: numeric(10,2) NULL
+  col delivery_time_minutes :: integer(32,0) NULL
+  col rating :: numeric(3,2) NULL DEFAULT '0'::numeric
+  col total_reviews :: integer(32,0) NULL DEFAULT 0
+  col total_services :: integer(32,0) NULL DEFAULT 0
+  col total_emergencies :: integer(32,0) NULL DEFAULT 0
+  col total_deliveries :: integer(32,0) NULL DEFAULT 0
+  col total_sales :: integer(32,0) NULL DEFAULT 0
+  col created_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  col updated_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  col approval_status :: character varying(255) NULL DEFAULT 'pending'::character varying
+  col approved_at :: timestamp with time zone NULL
+  col approved_by :: integer(32,0) NULL
+  col rejection_reason :: text NULL
+  pk (id)
+  fk (approved_by) -> users.id ON DELETE SET NULL
+  fk (user_id) -> users.id ON DELETE CASCADE
+  check CHECK ((type = ANY (ARRAY['mechanic'::text, 'motoboy'::text, 'store'::text, 'gas_station'::text, 'auto_parts'::text, 'tow'::text])))
+  index CREATE INDEX partners_is_online_index ON public.partners USING btree (is_online)
+  index CREATE INDEX partners_latitude_longitude_index ON public.partners USING btree (latitude, longitude)
+  index CREATE INDEX partners_rating_index ON public.partners USING btree (rating)
+  index CREATE INDEX partners_type_is_available_is_verified_index ON public.partners USING btree (type, is_available, is_verified)
+  index CREATE INDEX partners_type_specialties_index ON public.partners USING btree (type, specialties)
+
+TABLE payments
+  col id :: integer(32,0) NOT NULL DEFAULT nextval('payments_id_seq'::regclass)
+  col user_id :: integer(32,0) NOT NULL
+  col partner_id :: integer(32,0) NULL
+  col emergency_request_id :: integer(32,0) NULL
+  col delivery_order_id :: integer(32,0) NULL
+  col purchase_order_id :: integer(32,0) NULL
+  col amount :: numeric(10,2) NOT NULL
+  col currency :: character varying(3) NULL DEFAULT 'BRL'::character varying
+  col status :: text NULL DEFAULT 'pending'::text
+  col method :: text NOT NULL
+  col gateway :: character varying(255) NOT NULL
+  col gateway_transaction_id :: character varying(255) NULL
+  col gateway_payment_id :: character varying(255) NULL
+  col gateway_response :: json NULL
+  col description :: text NULL
+  col reference_id :: character varying(255) NULL
+  col fee_amount :: numeric(10,2) NULL DEFAULT '0'::numeric
+  col net_amount :: numeric(10,2) NULL
+  col card_last_four :: character varying(255) NULL
+  col card_brand :: character varying(255) NULL
+  col card_exp_month :: character varying(255) NULL
+  col card_exp_year :: character varying(255) NULL
+  col pix_code :: character varying(255) NULL
+  col pix_qr_code :: character varying(255) NULL
+  col pix_expires_at :: timestamp with time zone NULL
+  col bank_slip_code :: character varying(255) NULL
+  col bank_slip_url :: character varying(255) NULL
+  col bank_slip_expires_at :: timestamp with time zone NULL
+  col processed_at :: timestamp with time zone NULL
+  col completed_at :: timestamp with time zone NULL
+  col cancelled_at :: timestamp with time zone NULL
+  col refunded_at :: timestamp with time zone NULL
+  col created_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  col updated_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  col payment_type :: text NULL DEFAULT 'emergency_service'::text
+  col subscription_id :: integer(32,0) NULL
+  col tow_proposal_id :: integer(32,0) NULL
+  pk (id)
+  fk (delivery_order_id) -> delivery_orders.id ON DELETE SET NULL
+  fk (emergency_request_id) -> emergency_requests.id ON DELETE SET NULL
+  fk (partner_id) -> partners.id ON DELETE SET NULL
+  fk (purchase_order_id) -> purchase_orders.id ON DELETE SET NULL
+  fk (subscription_id) -> subscriptions.id ON DELETE SET NULL
+  fk (tow_proposal_id) -> tow_proposals.id ON DELETE SET NULL
+  fk (user_id) -> users.id ON DELETE CASCADE
+  check CHECK ((method = ANY (ARRAY['credit_card'::text, 'debit_card'::text, 'pix'::text, 'bank_slip'::text, 'cash'::text, 'bank_transfer'::text])))
+  check CHECK ((status = ANY (ARRAY['pending'::text, 'processing'::text, 'completed'::text, 'failed'::text, 'cancelled'::text, 'refunded'::text])))
+  index CREATE INDEX payments_created_at_index ON public.payments USING btree (created_at)
+  index CREATE INDEX payments_gateway_transaction_id_index ON public.payments USING btree (gateway_transaction_id)
+  index CREATE INDEX payments_method_index ON public.payments USING btree (method)
+  index CREATE INDEX payments_partner_id_index ON public.payments USING btree (partner_id)
+  index CREATE INDEX payments_payment_type_index ON public.payments USING btree (payment_type)
+  index CREATE INDEX payments_status_index ON public.payments USING btree (status)
+  index CREATE INDEX payments_subscription_id_index ON public.payments USING btree (subscription_id)
+  index CREATE INDEX payments_tow_proposal_id_index ON public.payments USING btree (tow_proposal_id)
+  index CREATE INDEX payments_user_id_index ON public.payments USING btree (user_id)
+
+TABLE products
+  col id :: integer(32,0) NOT NULL DEFAULT nextval('products_id_seq'::regclass)
+  col store_id :: integer(32,0) NULL
+  col name :: character varying(255) NOT NULL
+  col description :: text NULL
+  col sku :: character varying(100) NULL
+  col barcode :: character varying(100) NULL
+  col category :: character varying(100) NULL
+  col subcategory :: character varying(100) NULL
+  col product_type :: text NULL DEFAULT 'simple'::text
+  col price :: numeric(10,2) NOT NULL
+  col cost_price :: numeric(10,2) NULL
+  col sale_price :: numeric(10,2) NULL
+  col wholesale_price :: numeric(10,2) NULL
+  col stock :: integer(32,0) NULL DEFAULT 0
+  col min_stock :: integer(32,0) NULL DEFAULT 0
+  col max_stock :: integer(32,0) NULL
+  col track_stock :: boolean NULL DEFAULT true
+  col allow_backorder :: boolean NULL DEFAULT false
+  col weight :: numeric(8,3) NULL
+  col length :: numeric(8,2) NULL
+  col width :: numeric(8,2) NULL
+  col height :: numeric(8,2) NULL
+  col images :: json NULL
+  col featured_image :: character varying(500) NULL
+  col attributes :: json NULL
+  col specifications :: json NULL
+  col compatibility :: json NULL
+  col slug :: character varying(255) NULL
+  col meta_title :: text NULL
+  col meta_description :: text NULL
+  col tags :: json NULL
+  col is_active :: boolean NULL DEFAULT true
+  col is_featured :: boolean NULL DEFAULT false
+  col is_digital :: boolean NULL DEFAULT false
+  col view_count :: integer(32,0) NULL DEFAULT 0
+  col sales_count :: integer(32,0) NULL DEFAULT 0
+  col rating_average :: numeric(3,2) NULL DEFAULT '0'::numeric
+  col rating_count :: integer(32,0) NULL DEFAULT 0
+  col fuel_type :: character varying(255) NULL
+  col fuel_liters :: numeric(8,3) NULL
+  col created_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  col updated_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  pk (id)
+  fk (store_id) -> partners.id ON DELETE CASCADE
+  unique (sku)
+  check CHECK ((product_type = ANY (ARRAY['simple'::text, 'variable'::text, 'bundle'::text])))
+  index CREATE INDEX products_barcode_index ON public.products USING btree (barcode)
+  index CREATE INDEX products_category_index ON public.products USING btree (category)
+  index CREATE INDEX products_description_index ON public.products USING btree (description)
+  index CREATE INDEX products_is_active_index ON public.products USING btree (is_active)
+  index CREATE INDEX products_is_featured_index ON public.products USING btree (is_featured)
+  index CREATE INDEX products_name_index ON public.products USING btree (name)
+  index CREATE INDEX products_price_index ON public.products USING btree (price)
+  index CREATE INDEX products_search_index ON public.products USING btree (name, description)
+  index CREATE INDEX products_sku_index ON public.products USING btree (sku)
+  index CREATE UNIQUE INDEX products_sku_unique ON public.products USING btree (sku)
+  index CREATE INDEX products_slug_index ON public.products USING btree (slug)
+  index CREATE INDEX products_stock_index ON public.products USING btree (stock)
+  index CREATE INDEX products_store_id_index ON public.products USING btree (store_id)
+
+TABLE purchase_orders
+  col id :: integer(32,0) NOT NULL DEFAULT nextval('purchase_orders_id_seq'::regclass)
+  col user_id :: integer(32,0) NULL
+  col store_id :: integer(32,0) NULL
+  col type :: text NOT NULL
+  col items :: text NULL
+  col items_description :: text NULL
+  col total_items_quantity :: integer(32,0) NULL
+  col subtotal :: numeric(10,2) NULL
+  col delivery_fee :: numeric(10,2) NULL
+  col taxes :: numeric(10,2) NULL
+  col discount :: numeric(10,2) NULL
+  col total_price :: numeric(10,2) NULL
+  col price_breakdown :: text NULL
+  col status :: text NULL DEFAULT 'pending'::text
+  col delivery_address :: text NULL
+  col delivery_latitude :: numeric(10,8) NULL
+  col delivery_longitude :: numeric(11,8) NULL
+  col delivery_instructions :: text NULL
+  col delivery_contact_name :: character varying(255) NULL
+  col delivery_contact_phone :: character varying(255) NULL
+  col has_delivery :: boolean NULL DEFAULT true
+  col estimated_delivery_minutes :: integer(32,0) NULL
+  col scheduled_delivery_at :: timestamp with time zone NULL
+  col delivered_at :: timestamp with time zone NULL
+  col actual_delivery_minutes :: integer(32,0) NULL
+  col delivery_motoboy_id :: integer(32,0) NULL
+  col payment_method :: text NULL DEFAULT 'cash'::text
+  col payment_status :: text NULL DEFAULT 'pending'::text
+  col paid_at :: timestamp with time zone NULL
+  col payment_info :: text NULL
+  col urgency :: text NULL DEFAULT 'medium'::text
+  col is_urgent :: boolean NULL DEFAULT false
+  col rating :: integer(32,0) NULL
+  col review_comment :: text NULL
+  col reviewed_at :: timestamp with time zone NULL
+  col notes :: text NULL
+  col special_instructions :: text NULL
+  col delivery_proof :: text NULL
+  col invoice_info :: text NULL
+  col view_count :: integer(32,0) NULL DEFAULT 0
+  col response_count :: integer(32,0) NULL DEFAULT 0
+  col emergency_request_id :: integer(32,0) NULL
+  col created_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  col updated_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  pk (id)
+  fk (delivery_motoboy_id) -> partners.id ON DELETE SET NULL
+  fk (emergency_request_id) -> emergency_requests.id ON DELETE SET NULL
+  fk (store_id) -> partners.id ON DELETE SET NULL
+  fk (user_id) -> users.id ON DELETE CASCADE
+  check CHECK ((payment_method = ANY (ARRAY['cash'::text, 'card'::text, 'pix'::text, 'app'::text])))
+  check CHECK ((payment_status = ANY (ARRAY['pending'::text, 'paid'::text, 'refunded'::text])))
+  check CHECK ((status = ANY (ARRAY['pending'::text, 'confirmed'::text, 'preparing'::text, 'ready'::text, 'delivered'::text, 'cancelled'::text, 'refunded'::text])))
+  check CHECK ((type = ANY (ARRAY['emergency'::text, 'regular'::text, 'scheduled'::text])))
+  check CHECK ((urgency = ANY (ARRAY['low'::text, 'medium'::text, 'high'::text, 'urgent'::text])))
+  index CREATE INDEX purchase_orders_delivery_latitude_delivery_longitude_index ON public.purchase_orders USING btree (delivery_latitude, delivery_longitude)
+  index CREATE INDEX purchase_orders_delivery_motoboy_id_index ON public.purchase_orders USING btree (delivery_motoboy_id)
+  index CREATE INDEX purchase_orders_emergency_request_id_index ON public.purchase_orders USING btree (emergency_request_id)
+  index CREATE INDEX purchase_orders_status_created_at_index ON public.purchase_orders USING btree (status, created_at)
+  index CREATE INDEX purchase_orders_store_id_index ON public.purchase_orders USING btree (store_id)
+  index CREATE INDEX purchase_orders_type_status_index ON public.purchase_orders USING btree (type, status)
+  index CREATE INDEX purchase_orders_urgency_is_urgent_index ON public.purchase_orders USING btree (urgency, is_urgent)
+  index CREATE INDEX purchase_orders_user_id_index ON public.purchase_orders USING btree (user_id)
+
+TABLE real_time_tracking
+  col id :: integer(32,0) NOT NULL DEFAULT nextval('real_time_tracking_id_seq'::regclass)
+  col emergency_request_id :: integer(32,0) NULL
+  col delivery_order_id :: integer(32,0) NULL
+  col purchase_order_id :: integer(32,0) NULL
+  col user_id :: integer(32,0) NULL
+  col partner_id :: integer(32,0) NULL
+  col latitude :: numeric(10,8) NOT NULL
+  col longitude :: numeric(11,8) NOT NULL
+  col address :: text NULL
+  col accuracy :: numeric(8,2) NULL
+  col speed :: numeric(8,2) NULL
+  col heading :: numeric(5,2) NULL
+  col status :: text NULL DEFAULT 'waiting'::text
+  col status_message :: text NULL
+  col last_updated :: timestamp with time zone NOT NULL
+  col update_interval_seconds :: integer(32,0) NULL DEFAULT 30
+  col estimated_arrival_minutes :: integer(32,0) NULL
+  col estimated_distance_km :: numeric(8,2) NULL
+  col route_info :: text NULL
+  col location_history :: text NULL
+  col is_active :: boolean NULL DEFAULT true
+  col user_notifications_enabled :: boolean NULL DEFAULT true
+  col partner_notifications_enabled :: boolean NULL DEFAULT true
+  col notes :: text NULL
+  col metadata :: text NULL
+  col created_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  col updated_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  pk (id)
+  fk (delivery_order_id) -> delivery_orders.id ON DELETE CASCADE
+  fk (emergency_request_id) -> emergency_requests.id ON DELETE CASCADE
+  fk (partner_id) -> partners.id ON DELETE CASCADE
+  fk (purchase_order_id) -> purchase_orders.id ON DELETE CASCADE
+  fk (user_id) -> users.id ON DELETE CASCADE
+  check CHECK ((status = ANY (ARRAY['waiting'::text, 'en_route'::text, 'arrived'::text, 'working'::text, 'completed'::text])))
+  index CREATE INDEX real_time_tracking_delivery_order_id_index ON public.real_time_tracking USING btree (delivery_order_id)
+  index CREATE INDEX real_time_tracking_emergency_request_id_index ON public.real_time_tracking USING btree (emergency_request_id)
+  index CREATE INDEX real_time_tracking_last_updated_index ON public.real_time_tracking USING btree (last_updated)
+  index CREATE INDEX real_time_tracking_latitude_longitude_index ON public.real_time_tracking USING btree (latitude, longitude)
+  index CREATE INDEX real_time_tracking_purchase_order_id_index ON public.real_time_tracking USING btree (purchase_order_id)
+  index CREATE INDEX real_time_tracking_status_is_active_index ON public.real_time_tracking USING btree (status, is_active)
+  index CREATE INDEX real_time_tracking_user_id_partner_id_index ON public.real_time_tracking USING btree (user_id, partner_id)
+
+TABLE reviews
+  col id :: integer(32,0) NOT NULL DEFAULT nextval('reviews_id_seq'::regclass)
+  col user_id :: integer(32,0) NULL
+  col mechanic_id :: integer(32,0) NULL
+  col appointment_id :: integer(32,0) NULL
+  col rating :: integer(32,0) NOT NULL
+  col comment :: text NULL
+  col is_verified :: boolean NULL DEFAULT false
+  col is_public :: boolean NULL DEFAULT true
+  col created_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  col updated_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  col partner_id :: integer(32,0) NULL
+  col entity_type :: character varying(50) NULL
+  col entity_id :: integer(32,0) NULL
+  pk (id)
+  fk (appointment_id) -> appointments.id ON DELETE SET NULL
+  fk (mechanic_id) -> mechanics.id ON DELETE CASCADE
+  fk (partner_id) -> partners.id ON DELETE SET NULL
+  fk (user_id) -> users.id ON DELETE CASCADE
+  index CREATE INDEX reviews_created_at_index ON public.reviews USING btree (created_at)
+  index CREATE INDEX reviews_entity_type_entity_id_index ON public.reviews USING btree (entity_type, entity_id)
+  index CREATE INDEX reviews_mechanic_id_index ON public.reviews USING btree (mechanic_id)
+  index CREATE INDEX reviews_partner_id_index ON public.reviews USING btree (partner_id)
+  index CREATE INDEX reviews_rating_index ON public.reviews USING btree (rating)
+  index CREATE UNIQUE INDEX reviews_user_entity_unique ON public.reviews USING btree (user_id, entity_type, entity_id) WHERE ((entity_type IS NOT NULL) AND (entity_id IS NOT NULL))
+
+TABLE revoked_tokens
+  col token_hash :: character varying(64) NOT NULL
+  col user_id :: integer(32,0) NOT NULL
+  col expires_at :: timestamp with time zone NOT NULL
+  col created_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  col updated_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  pk (token_hash)
+  fk (user_id) -> users.id ON DELETE CASCADE
+  index CREATE INDEX revoked_tokens_expires_at_index ON public.revoked_tokens USING btree (expires_at)
+
+TABLE services
+  col id :: integer(32,0) NOT NULL DEFAULT nextval('services_id_seq'::regclass)
+  col mechanic_id :: integer(32,0) NULL
+  col name :: character varying(255) NOT NULL
+  col description :: text NULL
+  col price :: numeric(10,2) NOT NULL
+  col price_type :: character varying(255) NOT NULL
+  col estimated_duration :: integer(32,0) NULL
+  col is_available :: boolean NULL DEFAULT true
+  col category :: character varying(255) NOT NULL
+  col subcategory :: character varying(255) NULL
+  col warranty_included :: boolean NULL DEFAULT false
+  col warranty_days :: integer(32,0) NULL
+  col created_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  col updated_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  pk (id)
+  fk (mechanic_id) -> mechanics.id ON DELETE CASCADE
+  index CREATE INDEX services_category_index ON public.services USING btree (category)
+  index CREATE INDEX services_is_available_index ON public.services USING btree (is_available)
+  index CREATE INDEX services_mechanic_id_index ON public.services USING btree (mechanic_id)
+
+TABLE subscription_history
+  col id :: integer(32,0) NOT NULL DEFAULT nextval('subscription_history_id_seq'::regclass)
+  col subscription_id :: integer(32,0) NULL
+  col partner_id :: integer(32,0) NULL
+  col action :: text NOT NULL
+  col amount :: numeric(10,2) NULL
+  col previous_amount :: numeric(10,2) NULL
+  col currency :: character varying(3) NULL DEFAULT 'BRL'::character varying
+  col payment_id :: integer(32,0) NULL
+  col gateway_transaction_id :: character varying(255) NULL
+  col payment_method :: character varying(255) NULL
+  col billing_period_start :: date NULL
+  col billing_period_end :: date NULL
+  col next_billing_date :: date NULL
+  col reason :: text NULL
+  col admin_notes :: text NULL
+  col system_notes :: text NULL
+  col previous_status :: character varying(255) NULL
+  col new_status :: character varying(255) NULL
+  col performed_by :: integer(32,0) NULL
+  col performed_by_role :: character varying(255) NULL
+  col ip_address :: character varying(255) NULL
+  col user_agent :: character varying(255) NULL
+  col metadata :: json NULL
+  col created_at :: timestamp with time zone NULL DEFAULT CURRENT_TIMESTAMP
+  pk (id)
+  fk (partner_id) -> partners.id ON DELETE CASCADE
+  fk (payment_id) -> payments.id ON DELETE SET NULL
+  fk (performed_by) -> users.id ON DELETE SET NULL
+  fk (subscription_id) -> subscriptions.id ON DELETE CASCADE
+  check CHECK ((action = ANY (ARRAY['created'::text, 'paid'::text, 'expired'::text, 'cancelled'::text, 'renewed'::text, 'suspended'::text, 'reactivated'::text, 'payment_failed'::text, 'method_changed'::text])))
+  index CREATE INDEX subscription_history_action_index ON public.subscription_history USING btree (action)
+  index CREATE INDEX subscription_history_created_at_index ON public.subscription_history USING btree (created_at)
+  index CREATE INDEX subscription_history_partner_id_created_at_index ON public.subscription_history USING btree (partner_id, created_at)
+  index CREATE INDEX subscription_history_partner_id_index ON public.subscription_history USING btree (partner_id)
+  index CREATE INDEX subscription_history_payment_id_index ON public.subscription_history USING btree (payment_id)
+  index CREATE INDEX subscription_history_performed_by_index ON public.subscription_history USING btree (performed_by)
+  index CREATE INDEX subscription_history_subscription_id_index ON public.subscription_history USING btree (subscription_id)
+
+TABLE subscriptions
+  col id :: integer(32,0) NOT NULL DEFAULT nextval('subscriptions_id_seq'::regclass)
+  col partner_id :: integer(32,0) NULL
+  col type :: text NOT NULL
+  col monthly_fee :: numeric(10,2) NOT NULL
+  col due_date :: date NOT NULL
+  col next_billing_date :: date NOT NULL
+  col status :: text NULL DEFAULT 'pending_payment'::text
+  col payment_method :: character varying(255) NULL
+  col payment_gateway :: character varying(255) NULL
+  col gateway_subscription_id :: character varying(255) NULL
+  col auto_renew :: boolean NULL DEFAULT true
+  col billing_address :: json NULL
+  col notes :: text NULL
+  col failed_attempts :: integer(32,0) NULL DEFAULT 0
+  col last_payment_attempt :: timestamp with time zone NULL
+  col last_successful_payment :: timestamp with time zone NULL
+  col created_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  col updated_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  pk (id)
+  fk (partner_id) -> partners.id ON DELETE CASCADE
+  check CHECK ((status = ANY (ARRAY['active'::text, 'expired'::text, 'cancelled'::text, 'pending_payment'::text, 'suspended'::text])))
+  check CHECK ((type = ANY (ARRAY['mecanico'::text, 'posto_combustivel'::text, 'auto_pecas'::text])))
+  index CREATE INDEX subscriptions_due_date_index ON public.subscriptions USING btree (due_date)
+  index CREATE INDEX subscriptions_next_billing_date_index ON public.subscriptions USING btree (next_billing_date)
+  index CREATE INDEX subscriptions_partner_id_index ON public.subscriptions USING btree (partner_id)
+  index CREATE INDEX subscriptions_status_index ON public.subscriptions USING btree (status)
+  index CREATE INDEX subscriptions_type_index ON public.subscriptions USING btree (type)
+
+TABLE system_settings
+  col id :: integer(32,0) NOT NULL DEFAULT nextval('system_settings_id_seq'::regclass)
+  col setting_key :: character varying(100) NOT NULL
+  col setting_value :: text NULL
+  col data_type :: character varying(255) NULL DEFAULT 'string'::character varying
+  col description :: text NULL
+  col category :: text NULL DEFAULT 'general'::text
+  col is_public :: boolean NULL DEFAULT false
+  col is_editable :: boolean NULL DEFAULT true
+  col validation_rules :: character varying(255) NULL
+  col default_value :: text NULL
+  col min_value :: text NULL
+  col max_value :: text NULL
+  col updated_by :: integer(32,0) NULL
+  col updated_by_role :: character varying(255) NULL
+  col created_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  col updated_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  pk (id)
+  fk (updated_by) -> users.id ON DELETE SET NULL
+  unique (setting_key)
+  check CHECK ((category = ANY (ARRAY['general'::text, 'guincho'::text, 'assinatura'::text, 'delivery'::text, 'pagamentos'::text, 'notificacoes'::text, 'mapa'::text])))
+  index CREATE INDEX system_settings_category_index ON public.system_settings USING btree (category)
+  index CREATE INDEX system_settings_is_public_index ON public.system_settings USING btree (is_public)
+  index CREATE INDEX system_settings_setting_key_index ON public.system_settings USING btree (setting_key)
+  index CREATE UNIQUE INDEX system_settings_setting_key_unique ON public.system_settings USING btree (setting_key)
+
+TABLE tow_proposals
+  col id :: integer(32,0) NOT NULL DEFAULT nextval('tow_proposals_id_seq'::regclass)
+  col emergency_request_id :: integer(32,0) NULL
+  col partner_id :: integer(32,0) NULL
+  col proposed_price :: numeric(10,2) NOT NULL
+  col estimated_time_minutes :: integer(32,0) NOT NULL
+  col message :: text NULL
+  col tow_truck_type :: character varying(255) NULL
+  col tow_capacity_kg :: integer(32,0) NULL
+  col has_winch :: boolean NULL DEFAULT false
+  col equipment_details :: character varying(255) NULL
+  col status :: text NULL DEFAULT 'pending'::text
+  col expires_at :: timestamp with time zone NOT NULL
+  col accepted_at :: timestamp with time zone NULL
+  col responded_at :: timestamp with time zone NULL
+  col view_count :: integer(32,0) NULL DEFAULT 0
+  col last_viewed_at :: timestamp with time zone NULL
+  col partner_distance_km :: numeric(5,2) NULL
+  col partner_eta_minutes :: integer(32,0) NULL
+  col created_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  col updated_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  pk (id)
+  fk (emergency_request_id) -> emergency_requests.id ON DELETE CASCADE
+  fk (partner_id) -> partners.id ON DELETE CASCADE
+  check CHECK ((status = ANY (ARRAY['pending'::text, 'accepted'::text, 'rejected'::text, 'expired'::text, 'withdrawn'::text])))
+  index CREATE INDEX tow_proposals_created_at_index ON public.tow_proposals USING btree (created_at)
+  index CREATE INDEX tow_proposals_emergency_request_id_index ON public.tow_proposals USING btree (emergency_request_id)
+  index CREATE INDEX tow_proposals_emergency_request_id_status_index ON public.tow_proposals USING btree (emergency_request_id, status)
+  index CREATE INDEX tow_proposals_expires_at_index ON public.tow_proposals USING btree (expires_at)
+  index CREATE UNIQUE INDEX tow_proposals_one_pending_per_partner ON public.tow_proposals USING btree (emergency_request_id, partner_id) WHERE (status = 'pending'::text)
+  index CREATE INDEX tow_proposals_partner_id_index ON public.tow_proposals USING btree (partner_id)
+  index CREATE INDEX tow_proposals_status_index ON public.tow_proposals USING btree (status)
+
+TABLE user_documents
+  col id :: integer(32,0) NOT NULL DEFAULT nextval('user_documents_id_seq'::regclass)
+  col user_id :: integer(32,0) NOT NULL
+  col document_type :: character varying(255) NOT NULL
+  col filename :: character varying(255) NOT NULL
+  col original_name :: character varying(255) NOT NULL
+  col file_path :: character varying(255) NOT NULL
+  col mime_type :: character varying(255) NOT NULL
+  col file_size :: integer(32,0) NOT NULL
+  col status :: text NOT NULL DEFAULT 'pending'::text
+  col rejection_reason :: text NULL
+  col verified_by :: integer(32,0) NULL
+  col uploaded_at :: timestamp with time zone NULL DEFAULT CURRENT_TIMESTAMP
+  col verified_at :: timestamp with time zone NULL
+  col created_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  col updated_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  pk (id)
+  fk (user_id) -> users.id ON DELETE CASCADE
+  fk (verified_by) -> users.id ON DELETE SET NULL
+  unique (user_id,document_type)
+  check CHECK ((status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text])))
+  index CREATE INDEX user_documents_user_id_document_type_index ON public.user_documents USING btree (user_id, document_type)
+  index CREATE UNIQUE INDEX user_documents_user_id_document_type_unique ON public.user_documents USING btree (user_id, document_type)
+
+TABLE users
+  col id :: integer(32,0) NOT NULL DEFAULT nextval('users_id_seq'::regclass)
+  col name :: character varying(100) NOT NULL
+  col email :: character varying(100) NOT NULL
+  col password :: character varying(255) NOT NULL
+  col phone :: character varying(20) NULL
+  col role :: text NULL DEFAULT 'user'::text
+  col cpf :: character varying(14) NULL
+  col cnpj :: character varying(18) NULL
+  col address :: jsonb NULL
+  col is_active :: boolean NULL DEFAULT true
+  col email_verified :: boolean NULL DEFAULT false
+  col firebase_token :: character varying(255) NULL
+  col created_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  col updated_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  col fcm_token :: character varying(255) NULL
+  col onboarding_partner_type :: character varying(50) NULL
+  col onboarding_stage :: character varying(255) NULL
+  pk (id)
+  unique (email)
+  check CHECK ((role = ANY (ARRAY['user'::text, 'partner'::text, 'admin'::text])))
+  index CREATE UNIQUE INDEX users_email_lower_unique ON public.users USING btree (lower((email)::text))
+  index CREATE UNIQUE INDEX users_email_unique ON public.users USING btree (email)
+  index CREATE INDEX users_fcm_token_index ON public.users USING btree (fcm_token)
+
+TABLE wallet_transactions
+  col id :: integer(32,0) NOT NULL DEFAULT nextval('wallet_transactions_id_seq'::regclass)
+  col wallet_id :: integer(32,0) NOT NULL
+  col type :: text NOT NULL
+  col direction :: text NOT NULL
+  col amount :: numeric(10,2) NOT NULL
+  col balance_before :: numeric(10,2) NOT NULL
+  col balance_after :: numeric(10,2) NOT NULL
+  col payment_id :: integer(32,0) NULL
+  col emergency_request_id :: integer(32,0) NULL
+  col delivery_order_id :: integer(32,0) NULL
+  col purchase_order_id :: integer(32,0) NULL
+  col dispute_id :: integer(32,0) NULL
+  col description :: text NULL
+  col metadata :: text NULL
+  col status :: text NULL DEFAULT 'pending'::text
+  col processed_at :: timestamp with time zone NULL
+  col created_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  col updated_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  pk (id)
+  fk (delivery_order_id) -> delivery_orders.id ON DELETE SET NULL
+  fk (emergency_request_id) -> emergency_requests.id ON DELETE SET NULL
+  fk (payment_id) -> payments.id ON DELETE SET NULL
+  fk (purchase_order_id) -> purchase_orders.id ON DELETE SET NULL
+  fk (wallet_id) -> wallets.id ON DELETE CASCADE
+  check CHECK ((direction = ANY (ARRAY['credit'::text, 'debit'::text])))
+  check CHECK ((status = ANY (ARRAY['pending'::text, 'completed'::text, 'failed'::text, 'cancelled'::text])))
+  check CHECK ((type = ANY (ARRAY['deposit'::text, 'withdrawal'::text, 'refund'::text, 'commission'::text, 'adjustment'::text, 'fee'::text])))
+  index CREATE INDEX wallet_transactions_created_at_index ON public.wallet_transactions USING btree (created_at)
+  index CREATE INDEX wallet_transactions_payment_id_index ON public.wallet_transactions USING btree (payment_id)
+  index CREATE INDEX wallet_transactions_status_index ON public.wallet_transactions USING btree (status)
+  index CREATE INDEX wallet_transactions_type_index ON public.wallet_transactions USING btree (type)
+  index CREATE INDEX wallet_transactions_wallet_id_index ON public.wallet_transactions USING btree (wallet_id)
+
+TABLE wallets
+  col id :: integer(32,0) NOT NULL DEFAULT nextval('wallets_id_seq'::regclass)
+  col user_id :: integer(32,0) NOT NULL
+  col partner_id :: integer(32,0) NULL
+  col available_balance :: numeric(10,2) NULL DEFAULT '0'::numeric
+  col pending_balance :: numeric(10,2) NULL DEFAULT '0'::numeric
+  col total_earned :: numeric(10,2) NULL DEFAULT '0'::numeric
+  col total_withdrawn :: numeric(10,2) NULL DEFAULT '0'::numeric
+  col pix_key :: character varying(255) NULL
+  col bank_name :: character varying(255) NULL
+  col bank_agency :: character varying(255) NULL
+  col bank_account :: character varying(255) NULL
+  col account_type :: text NULL
+  col account_holder_name :: character varying(255) NULL
+  col account_holder_document :: character varying(255) NULL
+  col platform_commission_rate :: numeric(5,2) NULL DEFAULT '25'::numeric
+  col is_active :: boolean NULL DEFAULT true
+  col withdrawal_enabled :: boolean NULL DEFAULT false
+  col created_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  col updated_at :: timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+  pk (id)
+  fk (partner_id) -> partners.id ON DELETE CASCADE
+  fk (user_id) -> users.id ON DELETE CASCADE
+  unique (partner_id)
+  unique (user_id)
+  check CHECK ((account_type = ANY (ARRAY['checking'::text, 'savings'::text])))
+  index CREATE INDEX wallets_is_active_index ON public.wallets USING btree (is_active)
+  index CREATE INDEX wallets_partner_id_index ON public.wallets USING btree (partner_id)
+  index CREATE UNIQUE INDEX wallets_partner_id_unique ON public.wallets USING btree (partner_id)
+  index CREATE INDEX wallets_user_id_index ON public.wallets USING btree (user_id)
+  index CREATE UNIQUE INDEX wallets_user_id_unique ON public.wallets USING btree (user_id)
+
+SEQUENCES: appointments_id_seq, categories_id_seq, chat_messages_id_seq, commissions_id_seq, delivery_orders_id_seq, disputes_id_seq, emergency_requests_id_seq, knex_migrations_id_seq, knex_migrations_lock_index_seq, mechanics_id_seq, notifications_id_seq, partner_documents_id_seq, partner_services_id_seq, partners_id_seq, payments_id_seq, products_id_seq, purchase_orders_id_seq, real_time_tracking_id_seq, reviews_id_seq, services_id_seq, subscription_history_id_seq, subscriptions_id_seq, system_settings_id_seq, tow_proposals_id_seq, user_documents_id_seq, users_id_seq, wallet_transactions_id_seq, wallets_id_seq

@@ -1,0 +1,115 @@
+=== T01 pre-change T00 regression baseline ===
+2026-09-19T11:55:05Z
+--- validate:openapi ---
+Tow OpenAPI contract validation
+  docs:                             /Volumes/Reiko/projects/work/socorre-system/docs/tow
+  canonical entrypoint:             tow-api-contract.openapi.yaml
+  composition artifact:             tow-api-contract.base.openapi.yaml
+  OpenAPI version:                  3.1.0
+  Contract version:                 1.0.0-draft.4
+  Canonical paths:                  56
+  Base paths:                       51
+  Composed paths:                   56
+  Composed operations:              66
+  Shadowed base paths:              10
+  Unallowlisted dropped methods:    0
+  $ref occurrences checked:         490
+  External/local-file $refs:        124
+  Unresolved refs:                  0
+  Missing operationId:              0
+  Duplicate operationId:            0
+  Path-parameter mismatches:        0
+  Request bodies checked:           24
+  Request bodies without schema:    0
+  Responses checked:                66
+  Operations without 2xx:           0
+  2xx responses without schema:     0
+  Component schemas checked:        110
+  Inline schema nodes checked:      124
+  JSON Schema definition errors:    0
+  Canonical enum mismatches:        0
+  Forbidden legacy enum values:     0
+  TowSettingsPatch errors:          0
+  RESULT:                           PASS
+
+Shadowed base paths (base methods must survive composition or be allowlisted):
+  - /tow/requests: base=[post] composed=[get,post] dropped=[] added=[get]
+  - /tow/partner/opportunities: base=[get] composed=[get] dropped=[] added=[]
+  - /admin/tow/settings: base=[get,patch] composed=[get,patch] dropped=[] added=[]
+  - /admin/tow/vehicle-documents/{documentId}: base=[get] composed=[get] dropped=[] added=[]
+  - /admin/tow/requests/{requestId}: base=[get] composed=[get] dropped=[] added=[]
+  - /admin/tow/disputes/{disputeId}: base=[get] composed=[get] dropped=[] added=[]
+  - /admin/tow/payout-batches/preview: base=[get] composed=[get] dropped=[] added=[]
+  - /admin/tow/payout-batches: base=[post] composed=[post] dropped=[] added=[]
+  - /admin/tow/payout-batches/{batchId}: base=[get] composed=[get] dropped=[] added=[]
+  - /admin/tow/payout-batches/{batchId}/process: base=[post] composed=[post] dropped=[] added=[]
+  allowlist: (empty — the frozen contract drops no base method)
+exit=0
+--- test:contract ---
+PASS tests/contract/consumerDiscovery.test.js
+PASS tests/contract/towRefResolution.test.js
+PASS tests/contract/openapi.structure.test.js
+PASS tests/contract/towSettingsPatch.test.js
+PASS tests/contract/consumerSmoke.test.js
+
+Test Suites: 5 passed, 5 total
+Tests:       62 passed, 62 total
+Snapshots:   0 total
+Time:        1.865 s
+Ran all test suites matching /tests\/contract/i.
+exit=0
+--- jest tests/tow (offline) ---
+PASS tests/tow/foundation/towDeterministicFoundation.test.js
+PASS tests/tow/foundation/towHarnessLifecycle.test.js
+PASS tests/tow/foundation/towHarnessEnvFile.test.js
+PASS tests/tow/foundation/towPostgresFoundation.e2e.test.js
+PASS tests/tow/towProposalIdempotency.test.js
+PASS tests/tow/socketService.tow.test.js
+
+Test Suites: 2 skipped, 13 passed, 13 of 15 total
+Tests:       15 skipped, 272 passed, 287 total
+Snapshots:   0 total
+Time:        7.258 s
+Ran all test suites matching /tests\/tow/i.
+exit=0
+--- verify:tow ---
+    ✓ per-test isolation: truncate clears data and rollback leaves no leakage (50 ms)
+    ✓ docker compose publishes exactly the DB_PORT the guard and the client use (55 ms)
+    ✓ the Express app answers GET /health from the same PostgreSQL singleton (311 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       6 passed, 6 total
+Snapshots:   0 total
+Time:        1.286 s
+Ran all test suites matching /tests\/tow\/foundation\/towPostgresFoundation.e2e.test.js/i.
+ Container socorre-tow-test-55432-cb0d0933-tow-postgres-test-1 Stopping 
+ Container socorre-tow-test-55432-cb0d0933-tow-postgres-test-1 Stopped 
+ Container socorre-tow-test-55432-cb0d0933-tow-postgres-test-1 Removing 
+ Container socorre-tow-test-55432-cb0d0933-tow-postgres-test-1 Removed 
+ Network socorre-tow-test-55432-cb0d0933_tow-test-net Removing 
+ Network socorre-tow-test-55432-cb0d0933_tow-test-net Removed 
+PostgreSQL test environment destroyed (containers, volumes, network)
+
+=== [verify:tow] summary ===
+  PASS  OpenAPI 3.1 structure gate
+  PASS  contract suite (OpenAPI + patch semantics + discovery + consumer smoke)
+  PASS  focused Tow suite (offline)
+  PASS  prepare database + migrations from zero
+  PASS  PostgreSQL foundation gate
+
+[verify:tow] GREEN
+exit=0
+--- full jest ---
+PASS tests/contract/towRefResolution.test.js
+PASS tests/contract/towSettingsPatch.test.js
+PASS tests/tow/foundation/towPostgresGuard.test.js
+PASS tests/tow/towLifecycleController.test.js
+PASS tests/tow/socketService.tow.test.js
+PASS tests/tow/towProposalIdempotency.test.js
+
+Test Suites: 2 skipped, 46 passed, 46 of 48 total
+Tests:       15 skipped, 696 passed, 711 total
+Snapshots:   0 total
+Time:        15.252 s
+Ran all test suites.
+exit=0

@@ -22,6 +22,12 @@ Todos os comandos abaixo são executados a partir de `socorre_ai_backend/`.
 | `npm run test:pg` | Sobe PostgreSQL descartável → healthcheck → migrations do zero → gate PostgreSQL → destrói | sim | não |
 | `npm run verify:tow` | Sequência completa acima (offline + PostgreSQL) e derruba o ambiente mesmo em falha | sim | não |
 | `npm run verify:tow:offline` | `verify:tow` sem a etapa PostgreSQL (CI sem Docker) | não | não |
+| `npm run test:db-baseline` | **T01**: cria um PostgreSQL novo de verdade (destrói o anterior), exige 0 tabelas, roda migrate+seed+assert, repete com reset e compara o fingerprint do schema, destrói e verifica que nada sobrou | sim | não |
+| `npm run db:guard` | **T01**: pré-voo de segurança — imprime o alvo (sem senha) e recusa qualquer alvo que não seja dev/test descartável | não | não |
+
+Os comandos `db:migrate`, `db:seed`, `db:reset`, `db:assert` e `db:snapshot` (T01) estão
+documentados em `docs/tow/database-baseline.md`, junto com o aviso destrutivo e as variáveis do
+seed do administrador.
 
 Evidência RED reproduzível (por que o harness existe):
 

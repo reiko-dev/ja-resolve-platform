@@ -1,0 +1,94 @@
+T01 — NEGATIVE CONTROLS (falsifiability of the new suites)
+==========================================================
+Method: for each guarantee, a minimal mutation is applied to the production
+source, the targeted suite is executed, the file is restored byte-identically
+(sha256 compared before/after) and the suite is re-run GREEN. A mutation that
+does not turn the suite RED means the suite does not actually prove the rule.
+
+Cases:
+  M1 SAFETY   : remove the NODE_ENV=production refusal
+  M2 SAFETY   : accept any database name (drop the allowlist/suffix rule)
+  M3 SEED     : hardcoded fallback password ('admin123') in resolveAdminCredentials
+  M4 SEED     : drop the idempotency guard (always insert the administrator)
+  M5 MIGRATION: remove the users_email_lower_unique index from the baseline
+  M6 SEED     : drop the "exactly one user" rule from the baseline assertion
+
+### M1
+file: scripts/tow/db-reset-guard.js
+mutation: if (String(target.nodeEnv || '').trim().toLowerCase() === 'production') { -> if (false) {
+command:  npx jest tests/tow/baseline/dbBaselineSafety.test.js --runInBand
+exit=1
+FAIL tests/tow/baseline/dbBaselineSafety.test.js
+  ● T01 SAFETY — destructive reset guard › production can never be reached › refuses NODE_ENV=production even with the token
+  ● T01 SAFETY — destructive reset guard › production can never be reached › the dev path also refuses production hints and remote hosts
+  ● T01 SAFETY — destructive reset guard › non-destructive commands (migrate/seed/assert) › checkPurpose exposes the same decision used by the CLI commands
+Test Suites: 1 failed, 1 total
+Tests:       3 failed, 21 passed, 24 total
+restored byte-identically: sha256=b678a42a59365bb5ef9ba8728d96c0b11f70b8e5b15ef65dc1379afdd8f100a2
+[M1] RED as expected
+
+### M2
+file: scripts/tow/db-reset-guard.js
+mutation: } else if (!isAllowedDatabaseName(database)) { -> } else if (false) {
+command:  npx jest tests/tow/baseline/dbBaselineSafety.test.js --runInBand
+exit=1
+FAIL tests/tow/baseline/dbBaselineSafety.test.js
+  ● T01 SAFETY — destructive reset guard › production can never be reached › refuses a database without the _dev/_test suffix
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 23 passed, 24 total
+restored byte-identically: sha256=b678a42a59365bb5ef9ba8728d96c0b11f70b8e5b15ef65dc1379afdd8f100a2
+[M2] RED as expected
+
+### M3
+file: scripts/tow/admin-seed.js
+mutation: const password = env.ADMIN_PASSWORD === undefined ? '' : String(env.ADMIN_PASSWORD); -> const password = env.ADMIN_PASSWORD === undefined ? 'admin123' : String(env.ADMIN_PASSWORD);
+command:  npx jest tests/tow/baseline/adminSeed.test.js --runInBand
+exit=1
+FAIL tests/tow/baseline/adminSeed.test.js
+  ● T01 SEED — administrator credentials come from the environment › requires ADMIN_PASSWORD with no fallback value
+  ● T01 SEED — no secret in the source or in the logs › no seed source file contains a hardcoded credential
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 14 passed, 16 total
+restored byte-identically: sha256=a22bad16f0c45aee238901435cf2071fba7da6baa0a93724442f980ddde40017
+[M3] RED as expected
+
+### M4
+file: scripts/tow/admin-seed.js
+mutation: if (existing) { -> if (false && existing) {
+command:  npx jest tests/tow/baseline/adminSeed.test.js --runInBand
+exit=1
+FAIL tests/tow/baseline/adminSeed.test.js
+  ● T01 SEED — idempotency and conflicts (SQLite harness) › a second run creates no duplicate and does not rotate the password
+  ● T01 SEED — idempotency and conflicts (SQLite harness) › finds an existing administrator regardless of e-mail case
+  ● T01 SEED — idempotency and conflicts (SQLite harness) › refuses to promote an existing non-admin account
+  ● T01 SEED — idempotency and conflicts (SQLite harness) › the knex seed entry point (database/seeds/001_admin.js) is the same idempotent seed
+Test Suites: 1 failed, 1 total
+Tests:       4 failed, 12 passed, 16 total
+restored byte-identically: sha256=a22bad16f0c45aee238901435cf2071fba7da6baa0a93724442f980ddde40017
+[M4] RED as expected
+
+### M5
+file: database/migrations/001_baseline_schema.js
+mutation: await knex.raw('CREATE UNIQUE INDEX users_email_lower_unique ON users (LOWER(email))'); -> // mutation: unique index removed
+command: TOW_POSTGRES_E2E=1 npx jest tests/tow/baseline/dbBaseline.e2e.test.js --runInBand
+exit=1
+FAIL tests/tow/baseline/dbBaseline.e2e.test.js
+  ● T01 PostgreSQL — clean baseline › DATABASE — the constraints and indexes are really applied › unique constraints are really applied
+  ● T01 PostgreSQL — clean baseline › DATABASE — the constraints and indexes are really applied › the case-insensitive e-mail index really blocks a duplicate
+  ● T01 PostgreSQL — clean baseline › DATABASE — the constraints and indexes are really applied › the expected indexes exist
+Test Suites: 1 failed, 1 total
+Tests:       3 failed, 24 passed, 27 total
+restored byte-identically: sha256=3974f647d6dd75670ced9ba3ee78145a578c537a2c04d165b7291c4eda450afe
+[M5] RED as expected
+
+### M6
+file: scripts/tow/db-baseline.js
+mutation: if (userCount !== expectedAdminCount) { -> if (false) {
+command: TOW_POSTGRES_E2E=1 npx jest tests/tow/baseline/dbBaseline.e2e.test.js --runInBand
+exit=1
+FAIL tests/tow/baseline/dbBaseline.e2e.test.js
+  ● T01 PostgreSQL — clean baseline › SEED — exactly one administrator, no functional data › the assertion rejects any second user, even a non-admin one
+Tests:       1 failed, 27 passed, 28 total
+restored byte-identically: sha256=e02ad778760617684b6a6f1538b44bdff9f8ccb028d9f225b702365fb8d3f5ab
+[M6] RED as expected (after strengthening the SEED suite with the second-user case)
+

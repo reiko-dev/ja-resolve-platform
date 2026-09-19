@@ -1,0 +1,138 @@
+T01 CORRECTION — NEGATIVE CONTROL (reset authorization / P1 of the external review)
+==================================================================================
+Finding (external review, PR #32, P1): `scripts/tow/db-reset.js` exported
+`resetDatabase(db)`, which ran `DROP SCHEMA IF EXISTS public CASCADE` on an
+arbitrary Knex object with no authorization bound to that connection. The gate
+and the e2e suite called that raw function.
+
+Correction under test: the destructive primitive is private (not exported); the
+only public entry point is `resetDatabase({ purpose, env?, confirm?, dryRun? })`,
+which resolves the target, authorizes it, and only then creates the connection
+FROM THE AUTHORIZED TARGET.
+
+Method: for each bypass, a minimal mutation is applied to the source, the
+targeted suite is executed, the file is restored byte-identically (sha256
+compared before/after) and the suite is re-run GREEN. A mutation that does not
+turn the suite RED means the suite does not actually prove the rule.
+
+Targeted suite: tests/tow/baseline/dbBaselineSafety.test.js (48 cases; the
+RESET-DIRECT-1..8 block is the one that proves this finding).
+Script: /tmp/nc-reset-authorization.sh (raw logs: /tmp/nc-nc1-red.log,
+/tmp/nc-nc2-red.log, /tmp/nc-nc3-red.log, /tmp/nc-nc-green.log).
+Re-run note: this control was executed twice — once on the first version of the
+correction and again after the live e2e suite caught a real bug in the misuse
+check (a real Knex instance is CALLABLE, so the generic "received function"
+branch fired before the connection branch). The hashes and counts below are from
+the final run; an offline regression test for the callable shape was added
+(`RESET-DIRECT-7 › a CALLABLE Knex double (the real shape) gets the connection
+diagnosis`).
+
+Pristine hashes (before any mutation):
+  d69fed7822fde33c9cb7c48e8f56b25adcdcfc9c6e17111ec935265bbcb4077b  scripts/tow/db-reset.js
+  db408cf93ef627bd87358a73299ed64f730f14e86e47d70f7feb5efec8186458  scripts/tow/db-reset-guard.js
+
+Cases:
+  NC-1 db-reset.js : drop the confirmation requirement (requireConfirmation: false)
+  NC-2 db-reset-guard.js : accept every target once the token is present
+  NC-3 db-reset.js : re-export the private dropPublicSchema primitive
+
+--------------------------------------------------------------------------------
+### NC-1 — bypass the human consent (no token, still destroys)
+file:     scripts/tow/db-reset.js
+mutation: `    requireConfirmation: !dryRun,` -> `    requireConfirmation: false, // MUTATION NC-1`
+mutated sha256: 1f9fdd1bf13091ce7adb39d3ca68d487494b937743e62b268e4ad487862dce69
+command:  npx jest tests/tow/baseline/dbBaselineSafety.test.js --runInBand
+exit=1
+FAIL tests/tow/baseline/dbBaselineSafety.test.js
+  ● T01 SAFETY — RESET-DIRECT: the guarded public reset › RESET-DIRECT-1 — no destructive consent, no DROP › refuses without DB_RESET_CONFIRM and never opens a connection
+  ● T01 SAFETY — RESET-DIRECT: the guarded public reset › RESET-DIRECT-1 — no destructive consent, no DROP › refuses every near-miss consent value
+  ● T01 SAFETY — RESET-DIRECT: the guarded public reset › RESET-DIRECT-1 — no destructive consent, no DROP › the schema/tables are still intact after the refusal
+Test Suites: 1 failed, 1 total
+Tests:       3 failed, 45 passed, 48 total
+why RED (verbatim from the log):
+  expect(received).rejects.toThrow()
+  Received promise resolved instead of rejected
+  > 357 |   await expect(resetDatabase({ purpose: 'test', env, ...options })).rejects.toThrow(matcher);
+restored byte-identically: sha256=d69fed7822fde33c9cb7c48e8f56b25adcdcfc9c6e17111ec935265bbcb4077b
+[NC-1] RED as expected
+
+--------------------------------------------------------------------------------
+### NC-2 — bypass every target rule (production/remote/wildcard/privileged/URL)
+file:     scripts/tow/db-reset-guard.js
+mutation: insert `if (target.confirmed) return { safe: true, target, violations: [] };`
+          immediately after the consent check (before rule 2, NODE_ENV=production)
+mutated sha256: 4ab062b7bfe518128703436c037a31937d977475b92d77856305e1257b93f052
+command:  npx jest tests/tow/baseline/dbBaselineSafety.test.js --runInBand
+exit=1
+FAIL tests/tow/baseline/dbBaselineSafety.test.js
+  ● T01 SAFETY — RESET-DIRECT-2 — production-like targets are refused › refuses NODE_ENV=production even with the token
+  ● T01 SAFETY — RESET-DIRECT-2 — production-like targets are refused › refuses every production-sounding database name
+  ● T01 SAFETY — RESET-DIRECT-2 — production-like targets are refused › the dev path refuses production-like targets too
+  ● T01 SAFETY — RESET-DIRECT-3 — remote hosts are refused › refuses every non-loopback host
+  ● T01 SAFETY — RESET-DIRECT-4 — wildcard bind addresses are refused › refuses 0.0.0.0, :: and *
+  ● T01 SAFETY — RESET-DIRECT-5 — privileged users are refused › refuses postgres, root, admin, superuser and production-looking users
+  ● T01 SAFETY — RESET-DIRECT-6 — connection URLs are refused › refuses DATABASE_URL and PostgreSQL, which may point anywhere
+  ● T01 SAFETY — destructive reset guard › production can never be reached › refuses NODE_ENV=production even with the token
+  ● T01 SAFETY — destructive reset guard › production can never be reached › refuses a production-sounding database name
+  ● T01 SAFETY — destructive reset guard › production can never be reached › refuses a database without the _dev/_test suffix
+  ● T01 SAFETY — destructive reset guard › production can never be reached › refuses DATABASE_URL, which may point anywhere
+  ● T01 SAFETY — destructive reset guard › production can never be reached › refuses the PostgreSQL service variable as well
+  ● T01 SAFETY — destructive reset guard › production can never be reached › refuses an implicit target (no explicit host/port/database/user)
+  ● T01 SAFETY — destructive reset guard › production can never be reached › refuses remote and wildcard hosts
+  ● T01 SAFETY — destructive reset guard › production can never be reached › refuses privileged users
+  ● T01 SAFETY — destructive reset guard › production can never be reached › the dev path also refuses production hints and remote hosts
+  ● T01 SAFETY — destructive reset guard › harness rules still apply to the test purpose › refuses without the explicit TOW_POSTGRES_E2E opt-in
+  ● T01 SAFETY — destructive reset guard › harness rules still apply to the test purpose › refuses a test database without the _test suffix even when allowlisted elsewhere
+Test Suites: 1 failed, 1 total
+Tests:       18 failed, 30 passed, 48 total
+why RED (verbatim from the log):
+  expect(received).toBe(expected) // Object.is equality
+  Expected: false
+  Received: true
+  > 84 |   expect(result.safe).toBe(false);
+restored byte-identically: sha256=db408cf93ef627bd87358a73299ed64f730f14e86e47d70f7feb5efec8186458
+[NC-2] RED as expected
+
+--------------------------------------------------------------------------------
+### NC-3 — re-export the private destructive primitive
+file:     scripts/tow/db-reset.js
+mutation: append `module.exports.dropPublicSchema = dropPublicSchema; // MUTATION NC-3`
+mutated sha256: c4e3b3a166bf169f679a76b4245a4eaa70221cf9149696ec499a9cbf710b026f
+command:  npx jest tests/tow/baseline/dbBaselineSafety.test.js --runInBand
+exit=1
+FAIL tests/tow/baseline/dbBaselineSafety.test.js
+  ● T01 SAFETY — RESET-DIRECT: the guarded public reset › RESET-DIRECT-7 — authorization is bound to the destroyed target › the destructive primitive is NOT exported and no export reaches it
+  ● T01 SAFETY — RESET-DIRECT: the guarded public reset › RESET-DIRECT-7 — authorization is bound to the destroyed target › the only DROP SCHEMA of scripts/tow lives in the private db-reset primitive
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 46 passed, 48 total
+why RED (verbatim from the log):
+  expect(received).toEqual(expected) // deep equality
+  - Expected  - 0
+  + Received  + 1
+  expect(received).not.toMatch(expected)
+  Expected pattern: not /module\.exports[\s\S]*dropPublicSchema/
+restored byte-identically: sha256=d69fed7822fde33c9cb7c48e8f56b25adcdcfc9c6e17111ec935265bbcb4077b
+[NC-3] RED as expected
+
+--------------------------------------------------------------------------------
+### Restore proof (STATE 2 — byte-identical)
+  d69fed7822fde33c9cb7c48e8f56b25adcdcfc9c6e17111ec935265bbcb4077b  scripts/tow/db-reset.js
+  db408cf93ef627bd87358a73299ed64f730f14e86e47d70f7feb5efec8186458  scripts/tow/db-reset-guard.js
+diff -q backup scripts/tow/db-reset.js        -> identical
+diff -q backup scripts/tow/db-reset-guard.js  -> identical
+grep -c MUTATION scripts/tow/db-reset.js scripts/tow/db-reset-guard.js -> 0 and 0
+Hashes equal the pristine values recorded before the first mutation.
+
+### STATE 3 — GREEN again on the restored tree
+command:  npx jest tests/tow/baseline/dbBaselineSafety.test.js --runInBand
+exit=0
+Test Suites: 1 passed, 1 total
+Tests:       48 passed, 48 total
+
+--------------------------------------------------------------------------------
+Conclusion: the authorization of the destructive reset is falsifiable — removing
+the consent check, the target rules, or the privacy of the DROP primitive each
+turns the targeted SAFETY suite RED, and the restored tree is byte-identical and
+GREEN. The pre-correction API (`resetDatabase(db)`) is covered separately by
+RESET-DIRECT-7 (`ResetApiMisuseError`, no connection parameter exists), both
+offline and live against real PostgreSQL.
