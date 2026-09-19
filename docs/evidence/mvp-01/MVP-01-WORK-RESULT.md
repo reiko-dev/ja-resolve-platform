@@ -1,7 +1,7 @@
 # MVP-01 Work Result
 
 ## Status
-READY_FOR_MUSE_REREVIEW
+READY_FOR_MUSE_FINAL_REVIEW
 
 ## Base / Branch / Head
 - Repository: `socorre-system`
@@ -9,7 +9,8 @@ READY_FOR_MUSE_REREVIEW
 - Branch: `feature/mvp-01-tow-foundation`
 - Original reviewed head: `872b22ed` (implementation `cd509eaf`)
 - Muse correction implementation head: `8bb98fc7ce70b465fe29a3dcc1e799382c8761d7`
-- **External correction implementation head: `443ac423`** (EXT-MVP01-1 + EXT-MVP01-2)
+- External correction implementation head: `443ac423` (EXT-MVP01-1 + EXT-MVP01-2)
+- **Storage durability correction implementation head: `825742ae`** (EXT-MVP01-3)
 - Push / PR / merge: **not performed** (executor stops before Phase J; orchestrator runs Muse then updates the PR with `Closes #13`)
 
 ## Current-State Delta
@@ -228,6 +229,45 @@ GREEN 5/5 · `tests/tow/mvp01` 105 passed / 10 skipped · `tests/tow` 456 passed
 **880 passed / 58 skipped / 0 failures** · real-PG MVP-01 14 suites / 115 tests ·
 T01 baseline e2e 33/33 · legacy PG 2/2 + g3 7/7. PostgreSQL torn down.
 
+## Storage Durability Correction Pass (EXT-MVP01-3)
+Full detail: `15-storage-durability.md`.
+
+External re-review of PR #35 returned `CHANGES_REQUIRED` with EXT-MVP01-3 (P1):
+private Tow documents were HTTP-private but not deployment-durable (the default
+`<backend>/private/tow-documents` sits in the replaceable release tree hit by the
+homolog `rsync -a --delete`; no `TOW_DOCUMENT_STORAGE_DIR` in deployments).
+Implementation head `825742ae`.
+
+- **Location + fail-fast.** `TOW_DOCUMENT_STORAGE_DIR` is authoritative when set
+  (resolved absolute). With `NODE_ENV=production` and the var missing/empty the
+  adapter **throws** a `TowStorageConfigError` (no release-local fallback); a
+  resolved path inside the running backend tree, matching `staging/backend` or a
+  `releases` segment, or containing an `uploads` segment throws naming the path.
+  Dev/test keep the git-ignored `<backend>/private/tow-documents` fallback.
+- **Permissions.** created directories `0700`, files `0600`, enforced with an
+  explicit `chmod` after `mkdir`/`write` so a permissive umask cannot widen them
+  (best-effort on non-POSIX). No deploy script broadens permissions.
+- **Deployment config (repository only, not executed).** prod + homolog PM2
+  ecosystems export `/var/lib/socorre-ai/private/tow-documents`; the production
+  and homolog deploy scripts create it with `install -d ... -m 700`; both Compose
+  backends (never `backend_legacy_off`) define the env + the `tow_document_data`
+  named volume; `env.production.example` documents it. `bootstrap-vps.sh` does not
+  provision the private service-photo dir, so it was left untouched.
+- **Durability proof.** the homolog rsync source `$REPO/socorre_ai_backend/`
+  (fully replaced each release) is disjoint from `/var/lib/...`; the durability
+  suite asserts both.
+- **Port surface unchanged.** `save -> { key }`, `read -> Buffer`, `remove`, no
+  `urlFor`, traversal-contained `resolveKey`; authenticated admin/owning-partner
+  downloads and relative per-context `file_url` preserved.
+
+New tests: 18 (storage location/fail-fast + POSIX modes in
+`towLocalFileStorage.test.js`; new static `towStorageDurability.test.js`).
+Post-durability gates: OpenAPI PASS · contract 62/62 · `verify:tow` GREEN 5/5 ·
+`tests/tow/mvp01` 123 passed / 10 skipped · `tests/tow` 474 passed / 58 skipped ·
+db-baseline GREEN (fingerprint `37cee47e…` ×2) · full Jest **898 passed / 58
+skipped / 0 failures** · real-PG MVP-01 15 suites / 133 tests. PostgreSQL torn
+down. Evidence logs `15a`–`15j`; T01 historical evidence untouched.
+
 ## Scope
 - MVP-02 touched: NO
 - Phase 2/#33 touched: NO
@@ -262,4 +302,4 @@ T01 baseline e2e 33/33 · legacy PG 2/2 + g3 7/7. PostgreSQL torn down.
   the architecture boundary test are the static guards.
 
 ## Final Verdict
-MVP-01 EXTERNAL CORRECTIONS GREEN — READY FOR MUSE TARGETED REVIEW
+MVP-01 STORAGE DURABILITY GREEN — READY FOR MUSE FINAL REVIEW

@@ -1,0 +1,21 @@
+
+> socorre-ai-backend@1.0.0 test:pg:up
+> node scripts/tow/test-env.js up
+
+[test-env] env file: /Volumes/Reiko/projects/work/socorre-system/socorre_ai_backend/.env.test not present (optional: safe defaults apply)
+ Network socorre-tow-test-55432-cb0d0933_tow-test-net Creating 
+ Network socorre-tow-test-55432-cb0d0933_tow-test-net Creating 
+ Network socorre-tow-test-55432-cb0d0933_tow-test-net Created 
+ Network socorre-tow-test-55432-cb0d0933_tow-test-net Created 
+ Container socorre-tow-test-55432-cb0d0933-tow-postgres-test-1 Creating 
+ Container socorre-tow-test-55432-cb0d0933-tow-postgres-test-1 Created 
+ Container socorre-tow-test-55432-cb0d0933-tow-postgres-test-1 Starting 
+ Container socorre-tow-test-55432-cb0d0933-tow-postgres-test-1 Started 
+ Container socorre-tow-test-55432-cb0d0933-tow-postgres-test-1 Waiting 
+ Container socorre-tow-test-55432-cb0d0933-tow-postgres-test-1 Healthy 
+PostgreSQL test container is healthy
+
+> socorre-ai-backend@1.0.0 test:pg:wait
+> node scripts/tow/test-env.js wait
+
+healthcheck: healthy

@@ -1,0 +1,11 @@
+
+> socorre-ai-backend@1.0.0 test:pg:down
+> node scripts/tow/test-env.js down
+
+ Container socorre-tow-test-55432-cb0d0933-tow-postgres-test-1 Stopping 
+ Container socorre-tow-test-55432-cb0d0933-tow-postgres-test-1 Stopped 
+ Container socorre-tow-test-55432-cb0d0933-tow-postgres-test-1 Removing 
+ Container socorre-tow-test-55432-cb0d0933-tow-postgres-test-1 Removed 
+ Network socorre-tow-test-55432-cb0d0933_tow-test-net Removing 
+ Network socorre-tow-test-55432-cb0d0933_tow-test-net Removed 
+PostgreSQL test environment destroyed (containers, volumes, network)
