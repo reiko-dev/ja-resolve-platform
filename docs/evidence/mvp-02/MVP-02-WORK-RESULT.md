@@ -1,7 +1,7 @@
 # MVP-02 Work Result
 
 ## Status
-READY_FOR_MUSE_REVIEW
+READY_FOR_EXTERNAL_REVIEW
 
 ## Base / Branch / Head
 - Repository: `socorre-system`
@@ -339,5 +339,13 @@ guarantee, all **detected** (suite RED) and all restored byte-for-byte:
 - The pre-existing `authHttp.transport` socket flake described above is
   **not** fixed here: it is outside MVP-02 scope and predates this branch.
 
+## Muse Review
+- reviewed head: `2062953c` (implementation `827cbaf0`)
+- verdict: **APPROVE** — P0 = 0, P1 = 0, P2 = 0, P3 = 0, `findings: none`
+- 19/19 adversarial checks pass (BigInt-exact HALF_UP with live half-cent probes; decimal-exact
+  `included_km`; snapshot immutability; Routes v2 shape/mask/non-`via` pickup/timeout/error sanitization;
+  no Haversine fallback; domain/application purity; no HTTP endpoint/migration/OpenAPI change).
+- artifact: `docs/evidence/mvp-02/13-muse-review.md`.
+
 ## Final Verdict
-MVP-02 IMPLEMENTATION GREEN — READY FOR MUSE REVIEW
+MVP-02 READY FOR EXTERNAL REVIEW
