@@ -4,7 +4,7 @@
 > Domain: Tow / Guincho  
 > Contract baseline: PR #9  
 > Epic: #10  
-> Current implementation baseline: `main @ c03e2d06d6680eef1f3f961c877985033da0d89f`  
+> Current implementation baseline: `main @ 7ad3e56bab9bfc839dca88dc2832e425383b7741` (MVP-03 accepted; MVP-04 dispatch base)  
 > Phase 1 executable issues: #13–#18  
 > Phase 2 hardening backlog: #33
 
@@ -521,14 +521,15 @@ Accepted implementation baseline:
 
 ```text
 main @ f100bea9b79536dbe06e5032c451271b5f614f9c   # MVP-03 accepted (PR #37, receipt #5752423773)
+main @ 7ad3e56bab9bfc839dca88dc2832e425383b7741   # MVP-03 acceptance bookkeeping = MVP-04 dispatch base
 ```
 
-Next executable work:
+Next executable work (dispatched):
 
 ```text
 MVP-04 — Proposal Lifecycle & Atomic Assignment
 Issue #16
-base: main @ f100bea9b79536dbe06e5032c451271b5f614f9c (MVP-03 accepted main;
-      the bookkeeping commit that carries this line is the effective dispatch base)
-branch: (to be created when MVP-04 is dispatched)
+base: main @ 7ad3e56bab9bfc839dca88dc2832e425383b7741 (MVP-03 acceptance bookkeeping
+      commit that carries this release line; historical MVP-03 merge stays f100bea9b79536dbe06e5032c451271b5f614f9c)
+branch: feature/mvp-04-proposals-assignment
 ```

@@ -116,6 +116,12 @@ tasks:
     status: READY
     delivery_state: CURRENT
     depends_on: [MVP03]
+    # Dispatch base recorded by MVP-04 PHASE B bookkeeping (docs-only commit).
+    # `f100bea9b79536dbe06e5032c451271b5f614f9c` remains the MVP-03 ACCEPTED merge;
+    # `7ad3e56bab9bfc839dca88dc2832e425383b7741` is the MVP-03 acceptance
+    # bookkeeping commit that carries the MVP-04 release line and is therefore the
+    # effective execution base (same convention as MVP02/MVP03 `execution_base`).
+    execution_base: 7ad3e56bab9bfc839dca88dc2832e425383b7741
     size: L_XL
     outputs:
       - multiple_proposals
