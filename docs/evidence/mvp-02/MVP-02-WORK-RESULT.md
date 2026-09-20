@@ -366,6 +366,9 @@ guarantee, all **detected** (suite RED) and all restored byte-for-byte:
 - correction implementation head: **`e04e9b94d2ca5f8534ce3d42644621dc2799bf88`**
 - artifact: `docs/evidence/mvp-02/14-external-correction.md` (findings, fix design, RED tests,
   negative control, gate re-run)
+- **External re-review: APPROVE** on head `c94ea702` (implementation `e04e9b94`) — P0 = P1 = P2 = 0,
+  P3 = 1 (`MP2X-1`, harness-only default-port collision on a shared host; accepted, no code impact).
+  Artifact: `docs/evidence/mvp-02/15-muse-external-review.md`.
 
 | Finding | Sev | Fix |
 | --- | --- | --- |
