@@ -190,7 +190,11 @@ describe('MVP-04 DOMAIN — record and DTO shapes', () => {
     expect(row.vehicle_document_status).toBe('approved');
     expect(row.vehicle_active).toBe(true);
     expect(row.decided_at).toBeNull();
-    expect(row.idempotency_fingerprint).toMatch(/^[0-9a-f]{64}$/);
+    // The DIGEST is the adapter's: `node:crypto` must never enter Domain, so the
+    // record carries only the transient idempotency key. The adapter hashes
+    // `canonicalProposalFingerprintSource` and persists the 64-hex digest.
+    expect(row.idempotency_key).toBe('idem-mvp04-prop-000001');
+    expect(row).not.toHaveProperty('idempotency_fingerprint');
   });
 
   test('the fingerprint is stable for the same snapshot and changes with the price', () => {
@@ -256,7 +260,7 @@ describe('MVP-04 DOMAIN — record and DTO shapes', () => {
     }
   });
 
-  test('a proposal without a joined partner name omits the optional partner member', () => {
+  test('a proposal without a stored partner name omits the optional partner member', () => {
     const dto = buildTowProposalDto({ ...record(), id: 1 });
     expect(dto.partner).toBeUndefined();
   });
@@ -278,20 +282,7 @@ describe('MVP-04 DOMAIN — assignment record and occupancy', () => {
       partner_id: 2,
       tow_vehicle_id: 9,
       final_price: { amount_cents: 15000, currency: 'BRL' },
-      route_total_distance_meters: 8400,
-      route_total_duration_seconds: 1320,
-      pricing_snapshot: {
-        minimum_charge_cents: 15000,
-        included_meters: 10000,
-        price_per_additional_km_cents: 800,
-      },
-      vehicle_snapshot: {
-        plate: 'PLT0001',
-        make: 'Ford',
-        model: 'F-4000',
-        year: 2020,
-        equipment_type: 'flatbed',
-      },
+      vehicle_snapshot: { plate: 'PLT0001' },
       assigned_at: NOW,
       created_at: NOW,
       updated_at: NOW,
@@ -306,6 +297,21 @@ describe('MVP-04 DOMAIN — assignment record and occupancy', () => {
     expect(row.release_reason).toBeNull();
     expect(row.vehicle_plate).toBe('PLT0001');
     expect(isAssignmentOccupied(row)).toBe(true);
+  });
+
+  test('the assignment never duplicates the proposal snapshot it points at', () => {
+    // `proposal_id` is the provenance link (and the UNIQUE idempotency key of
+    // the accept). The route, the tariff and the vehicle description stay on the
+    // proposal row: one snapshot, one authority, no chance of divergence.
+    const row = assignmentRecord();
+    expect(row.proposal_id).toBe(77);
+    for (const forbidden of [
+      'route_total_distance_meters', 'route_total_duration_seconds',
+      'route_quote', 'pricing_snapshot', 'pricing_minimum_charge_cents',
+      'pricing_included_meters', 'vehicle_make', 'vehicle_equipment_type',
+    ]) {
+      expect(row).not.toHaveProperty(forbidden);
+    }
   });
 
   test('a released assignment no longer occupies', () => {

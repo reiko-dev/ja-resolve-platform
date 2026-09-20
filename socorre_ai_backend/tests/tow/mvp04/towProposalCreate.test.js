@@ -377,6 +377,17 @@ describe('MVP-04 — server-priced proposal creation', () => {
       // The replay must not re-price: the provider is called once.
       expect(routeProvider.callCount('computeRoute')).toBe(1);
     });
+
+    test('the adapter persists the digest of the canonical fingerprint source', async () => {
+      const { request: towRequest, auths } = await scenario({ partnerCount: 1 });
+      await createProposal(auths[0], towRequest.id);
+
+      // The domain owns the deterministic SOURCE (no `node:crypto` in Domain);
+      // the adapter owns the SHA-256 digest, and only the digest is stored.
+      const rows = await testDb.db('tow_request_proposals').select('*');
+      expect(rows[0].idempotency_fingerprint).toMatch(/^[0-9a-f]{64}$/);
+      expect(rows[0].idempotency_key).toBe(PROPOSAL_IDEMPOTENCY_KEY);
+    });
   });
 
   describe('partner proposal list', () => {
