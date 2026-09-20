@@ -22,7 +22,7 @@ const { createApp } = require('../../../src/app');
 const { createTowCustomerAuth, createTowPartnerAuth, createTowAdminAuth } = require('../../helpers/tow/auth');
 const { createFakeClock } = require('../../helpers/tow/clock');
 const { createFakeRouteProvider } = require('../../helpers/tow/gateways/mapsGateway');
-const { createTowRequestInput } = require('../../helpers/tow/mvp03');
+const { createTowRequestInput, createCanonicalRequest } = require('../../helpers/tow/mvp03');
 const {
   PROPOSAL_IDEMPOTENCY_KEY,
   createMvp04Services,
@@ -378,6 +378,27 @@ describe('MVP-04 — server-priced proposal creation', () => {
       expect(await testDb.db('tow_request_proposals').select('*')).toHaveLength(1);
       // The replay must not re-price: the provider is called once.
       expect(routeProvider.callCount('computeRoute')).toBe(1);
+    });
+
+    test('the same key with a different payload is a 409 idempotency_conflict', async () => {
+      const { request: first, customer, auths } = await scenario({ partnerCount: 1 });
+      const created = await createProposal(auths[0], first.id, { key: 'idem-mvp04-idem-000002' });
+      expect(created.status).toBe(201);
+
+      // Same partner, same key, DIFFERENT request: the fingerprint source is
+      // (partner, request, vehicle), so this is a different payload and the
+      // adapter must refuse the replay instead of returning the first proposal.
+      const { request: second } = await createCanonicalRequest({
+        services,
+        customer,
+        clock,
+        idempotencyKey: 'idem-mvp04-req-000002',
+      });
+
+      const conflict = await createProposal(auths[0], second.id, { key: 'idem-mvp04-idem-000002' });
+      expect(conflict.status).toBe(409);
+      expect(conflict.body.error.code).toBe('idempotency_conflict');
+      expect(await testDb.db('tow_request_proposals').select('*')).toHaveLength(1);
     });
 
     test('the adapter persists the digest of the canonical fingerprint source', async () => {

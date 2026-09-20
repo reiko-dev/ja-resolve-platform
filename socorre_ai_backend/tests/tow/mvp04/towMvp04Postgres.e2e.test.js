@@ -13,6 +13,7 @@
  *   C5  disable x accept is deterministically serialized (assignment XOR disabled)
  *   C6  migration 005 applies from an empty schema and pins the vocabulary
  *   C7  a referenced vehicle is protected by RESTRICT, and the delete is a 409
+ *   C8  concurrent same-key different-payload creates: one proposal, one 409
  *
  * No Google call: the RouteProvider is the deterministic fake.
  */
@@ -448,6 +449,30 @@ describePostgres('MVP-04 PostgreSQL — atomic assignment and concurrency', () =
     expect(stillPinned.status).toBe(409);
     expect(stillPinned.body.error.code).toBe('conflict');
     expect(await db('tow_vehicles').where({ id: partner.vehicle.id }).first()).toBeDefined();
+  });
+
+  test('C8 — concurrent same-key different-payload creates: one proposal, one 409', async () => {
+    const customer = await createCustomer('C8 Customer');
+    const partner = await createTowPartner('C8 Partner');
+    const firstRequest = await createRequest(customer, 'pg-c8-request-000001');
+    const secondRequest = await createRequest(customer, 'pg-c8-request-000002');
+
+    // Same partner, same key, two DIFFERENT requests. Both creates pass the
+    // pre-read before either inserts, so the loser can only be decided by the
+    // UNIQUE(partner_id, idempotency_key) index — and must then compare digests
+    // and refuse instead of returning the winner's proposal as a replay.
+    const responses = await Promise.all([firstRequest, secondRequest].map(
+      (towRequest) => request(app)
+        .post(`/api/tow/requests/${towRequest.id}/proposals`)
+        .set(partner.headers)
+        .set('Idempotency-Key', 'pg-c8-prop-shared-0001')
+        .send({})
+    ));
+
+    expect(responses.map((response) => response.status).sort()).toEqual([201, 409]);
+    const loser = responses.find((response) => response.status === 409);
+    expect(loser.body.error.code).toBe('idempotency_conflict');
+    expect(await db('tow_request_proposals').select('*')).toHaveLength(1);
   });
 });
 
