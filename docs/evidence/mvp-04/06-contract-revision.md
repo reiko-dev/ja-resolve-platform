@@ -56,9 +56,11 @@ declaration, now specified by the canonical document:
 | `/tow/proposals/{proposalId}/withdraw` | `post` | the partner's own exit, `409 proposal_not_actionable` once decided |
 | `/tow/partner/proposals` | `get` | the partner's own book, status filter |
 
-`TowAssignment` is **not** a public schema: the accept response returns the
-assigned `TowProposal` and the request, so the assignment stays an internal fact
-of the transaction.
+`TowAssignment` is **not** a public schema: the accept response is the
+`TowRequestResponse` — the request in its new `ASSIGNED` state, with the
+`assignment` member it already declares populated for the first time — so the
+assignment stays an internal fact of the transaction rather than a new public
+resource.
 
 ## Why the base document took the same one line
 
