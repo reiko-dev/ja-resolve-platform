@@ -18,6 +18,7 @@ process.env.RATE_LIMIT_MAX_REQUESTS = '100000';
 
 jest.mock('../../../src/config/database', () => require('../../helpers/testDb').db);
 
+const http = require('http');
 const request = require('supertest');
 const testDb = require('../../helpers/testDb');
 const { createApp } = require('../../../src/app');
@@ -30,8 +31,24 @@ const { DEFAULT_INSTANT, createTowRequestInput } = require('../../helpers/tow/mv
 const ENDPOINT = '/api/tow/requests';
 const KEY = 'idem-conflict-000001';
 
+/**
+ * Transport-level failures of the in-process server, and nothing else. A
+ * request may be retried once on one of these; an HTTP status is never
+ * tolerated or retried.
+ */
+const TRANSPORT_ERROR_CODES = new Set(['ECONNRESET', 'ECONNREFUSED', 'EPIPE']);
+const TRANSPORT_ERROR_MESSAGE = /socket hang up/i;
+
+function isTransportError(error) {
+  if (!error) return false;
+  if (TRANSPORT_ERROR_CODES.has(error.code)) return true;
+  return TRANSPORT_ERROR_MESSAGE.test(error.message || '');
+}
+
 describe('MVP-03 — Tow request idempotency', () => {
   let app;
+  let server;
+  let agent;
   let services;
   let clock;
   let customer;
@@ -42,10 +59,22 @@ describe('MVP-03 — Tow request idempotency', () => {
     app = createApp({ tow: { clock, routeProvider: createFakeRouteProvider() } });
     services = buildTowServices({ db: testDb.db, clock, routeProvider: createFakeRouteProvider() });
     customer = await createTowCustomerAuth({ name: 'Idempotent MVP03' });
+
+    // ONE listener for the whole suite. `request(app)` per call would spin an
+    // ephemeral server per request, and three concurrent servers can surface as
+    // `socket hang up`. The server is bound explicitly before the agent is
+    // created so supertest never lazily starts (and then closes) it per Test.
+    server = http.createServer(app);
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    agent = request.agent(server);
   });
 
   afterAll(async () => {
     await testDb.reset();
+    if (server) {
+      server.closeAllConnections?.();
+      await new Promise((resolve) => server.close(resolve));
+    }
   });
 
   beforeEach(async () => {
@@ -54,10 +83,23 @@ describe('MVP-03 — Tow request idempotency', () => {
     clock.reset();
   });
 
-  function post(payload, { key = KEY, auth = customer } = {}) {
-    let pending = request(app).post(ENDPOINT).set(auth.headers);
+  function buildPost(payload, key, auth) {
+    let pending = agent.post(ENDPOINT).set(auth.headers);
     if (key !== null) pending = pending.set('Idempotency-Key', key);
     return pending.send(payload);
+  }
+
+  async function post(payload, { key = KEY, auth = customer } = {}) {
+    try {
+      return await buildPost(payload, key, auth);
+    } catch (error) {
+      if (!isTransportError(error)) throw error;
+      // Transport-only single retry. The request is idempotent by construction
+      // (same key, same payload), so a retry can only replay the same request;
+      // the status and row assertions below still run and still fail the test
+      // if the invariant is violated.
+      return buildPost(payload, key, auth);
+    }
   }
 
   async function rows() {
