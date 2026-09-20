@@ -656,11 +656,12 @@ describe('T01 SAFETY — baseline eligibility is centralized', () => {
  * ------------------------------------------------------------------------- */
 
 describe('T01 SAFETY — the migration scope is pinned (no silent drift)', () => {
-  test('the exact 3 MVP-01 migrations are pinned', () => {
+  test('the exact pinned migration list is 001-004', () => {
     expect(PINNED_MIGRATIONS).toEqual([
       '001_baseline_schema.js',
       '002_baseline_settings.js',
       '003_mvp01_tow_foundation.js',
+      '004_mvp03_tow_requests.js',
     ]);
   });
 
@@ -670,13 +671,14 @@ describe('T01 SAFETY — the migration scope is pinned (no silent drift)', () =>
   });
 
   test('an extra migration file FAILS LOUDLY and names the unexpected file', () => {
-    const smuggled = [...PINNED_MIGRATIONS, '004_smuggled_scope.js'].sort();
+    const smuggled = [...PINNED_MIGRATIONS, '005_smuggled_scope.js'].sort();
     expect(() => assertPinnedMigrations(PINNED_MIGRATIONS, smuggled)).toThrow(/unexpected/);
-    expect(() => assertPinnedMigrations(PINNED_MIGRATIONS, smuggled)).toThrow(/004_smuggled_scope\.js/);
+    expect(() => assertPinnedMigrations(PINNED_MIGRATIONS, smuggled)).toThrow(/005_smuggled_scope\.js/);
   });
 
   test('a missing migration file also fails loudly', () => {
-    expect(() => assertPinnedMigrations(PINNED_MIGRATIONS, PINNED_MIGRATIONS.slice(0, -1)))
+    const missing = PINNED_MIGRATIONS.filter((file) => file !== '003_mvp01_tow_foundation.js');
+    expect(() => assertPinnedMigrations(PINNED_MIGRATIONS, missing))
       .toThrow(/missing: 003_mvp01_tow_foundation\.js/);
   });
 });

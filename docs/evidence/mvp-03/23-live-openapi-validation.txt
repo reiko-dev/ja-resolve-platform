@@ -1,0 +1,145 @@
+================================================================================
+EXT-MVP03-1 — LIVE OpenAPI validation at the correction HEAD
+================================================================================
+Branch:            feature/mvp-03-tow-request-matching
+Correction base:   2edf03068d4c739cd4874ba4f4deddee31c3e5ef (PR #37 HEAD)
+Capture (UTC):     2026-09-20T19:31:25Z
+
+This file records the two INDEPENDENT gates that now cover the opportunity DTO:
+  (A) static:  `npm run validate:openapi` over the composed canonical document;
+  (B) live:    the real HTTP 200 body validated against the composed canonical
+               `TowOpportunityListResponse` by ajv (see file 22, section [3]).
+
+Neither gate replaces the other: (A) proves the document is well-formed and the
+base/canonical composition has no unresolved refs or enum drift; (B) proves the
+RUNTIME actually emits a body that document accepts.
+
+================================================================================
+(A) npm run validate:openapi
+================================================================================
+
+> socorre-ai-backend@1.0.0 validate:openapi
+> node scripts/tow/validate-openapi.js
+
+Tow OpenAPI contract validation
+  docs:                             /Volumes/Reiko/projects/work/socorre-system/docs/tow
+  canonical entrypoint:             tow-api-contract.openapi.yaml
+  composition artifact:             tow-api-contract.base.openapi.yaml
+  OpenAPI version:                  3.1.0
+  Contract version:                 1.0.0-draft.5
+  Canonical paths:                  56
+  Base paths:                       51
+  Composed paths:                   56
+  Composed operations:              66
+  Shadowed base paths:              10
+  Unallowlisted dropped methods:    0
+  $ref occurrences checked:         492
+  External/local-file $refs:        124
+  Unresolved refs:                  0
+  Missing operationId:              0
+  Duplicate operationId:            0
+  Path-parameter mismatches:        0
+  Request bodies checked:           24
+  Request bodies without schema:    0
+  Responses checked:                66
+  Operations without 2xx:           0
+  2xx responses without schema:     0
+  Component schemas checked:        110
+  Inline schema nodes checked:      124
+  JSON Schema definition errors:    0
+  Canonical enum mismatches:        0
+  Forbidden legacy enum values:     0
+  TowSettingsPatch errors:          0
+  RESULT:                           PASS
+
+Shadowed base paths (base methods must survive composition or be allowlisted):
+  - /tow/requests: base=[post] composed=[get,post] dropped=[] added=[get]
+  - /tow/partner/opportunities: base=[get] composed=[get] dropped=[] added=[]
+  - /admin/tow/settings: base=[get,patch] composed=[get,patch] dropped=[] added=[]
+  - /admin/tow/vehicle-documents/{documentId}: base=[get] composed=[get] dropped=[] added=[]
+  - /admin/tow/requests/{requestId}: base=[get] composed=[get] dropped=[] added=[]
+  - /admin/tow/disputes/{disputeId}: base=[get] composed=[get] dropped=[] added=[]
+  - /admin/tow/payout-batches/preview: base=[get] composed=[get] dropped=[] added=[]
+  - /admin/tow/payout-batches: base=[post] composed=[post] dropped=[] added=[]
+  - /admin/tow/payout-batches/{batchId}: base=[get] composed=[get] dropped=[] added=[]
+  - /admin/tow/payout-batches/{batchId}/process: base=[post] composed=[post] dropped=[] added=[]
+  allowlist: (empty — the frozen contract drops no base method)
+
+================================================================================
+(B) LIVE BODY vs COMPOSED TowOpportunityListResponse
+================================================================================
+Command:
+  npx jest tests/tow/mvp03/towPartnerOpportunitiesContract.test.js --runInBand
+
+The suite compiles the validators from the COMPOSED document
+(`tests/helpers/towContract.js` -> `buildAjv` over `composeDocument`), asserts the
+validator is not vacuously absent, then feeds it the REAL response body:
+
+PASS tests/tow/mvp03/towPartnerOpportunitiesContract.test.js
+  MVP-03 — live partner opportunities conform to the canonical OpenAPI contract
+    ✓ the canonical validators are compiled from the composed contract (not vacuously absent) (1 ms)
+    ✓ the ACTUAL HTTP 200 response of the live endpoint validates against TowOpportunityListResponse (32 ms)
+    ✓ the live item carries exactly the contract members (no invented, no missing) (7 ms)
+    ✓ the contract validator rejects a live payload missing active_tow_vehicle (in-suite negative control) (9 ms)
+    ✓ the contract validator rejects a live payload missing compatibility (in-suite negative control) (6 ms)
+    ✓ opportunity_expires_at is nullable and optional in the frozen contract (9 ms)
+    ✓ base and canonical opportunity schemas do not diverge silently (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       7 passed, 7 total
+Snapshots:   0 total
+Time:        1.148 s, estimated 2 s
+Ran all test suites matching /tests\/tow\/mvp03\/towPartnerOpportunitiesContract.test.js/i.
+
+================================================================================
+(C) COMPOSED SCHEMA FACTS (resolved from the composition artifact)
+================================================================================
+Command (run from socorre_ai_backend/):
+  node -e "<probe over tests/helpers/towContract.js>"
+
+composed info.version   : 1.0.0-draft.5
+composed paths          : 56
+canonical-only schemas present in composed: TowOpportunity=true OpportunityCompatibility=true
+
+TowOpportunity.required : ["request","active_tow_vehicle","route_quote","proposed_price","compatibility"]
+TowOpportunity.properties:
+  request                  {"$ref":"#/components/schemas/TowRequest"}
+  active_tow_vehicle       {"$ref":"#/components/schemas/TowVehicleSummary"}
+  route_quote              {"$ref":"#/components/schemas/RouteQuote"}
+  proposed_price           {"$ref":"#/components/schemas/Money"}
+  compatibility            {"$ref":"#/components/schemas/OpportunityCompatibility"}
+  opportunity_expires_at   {"type":["string","null"],"format":"date-time","description":"When the opportunity stops being offered, or `null` while nothing expires it. MVP-03 opportunities do not expire by scheduler: this delivery has no search timeout and no opportunity/proposal expiry owner (proposal lifecycle is a later delivery), so the backend emits `null`. The field is therefore OPTIONAL: consumers must treat `null` and an absent value identically. It becomes a non-null instant only in the delivery that owns expiry semantics; it is never derived from the proposal-expiry setting."}
+
+OpportunityCompatibility: {"type":"object","required":["compatible","vehicle_class_supported","weight_within_capacity"],"properties":{"compatible":{"const":true},"vehicle_class_supported":{"const":true},"weight_within_capacity":{"const":true}}}
+
+BASE inline item required    : ["request","active_tow_vehicle","route_quote","proposed_price","compatibility"]
+BASE inline item properties  : request, active_tow_vehicle, proposed_price, route_quote, compatibility, opportunity_expires_at
+BASE inline item refs        :
+   request                  -> #/components/schemas/TowRequest
+   active_tow_vehicle       -> #/components/schemas/TowVehicleSummary
+   proposed_price           -> #/components/schemas/Money
+   route_quote              -> #/components/schemas/RouteQuote
+   compatibility            -> #/components/schemas/OpportunityCompatibility
+BASE OpportunityCompatibility: {"type":"object","required":["compatible","vehicle_class_supported","weight_within_capacity"],"properties":{"compatible":{"const":true},"vehicle_class_supported":{"const":true},"weight_within_capacity":{"const":true}}}
+base vs canonical OpportunityCompatibility deep-equal: true
+canonical required == base required: true
+
+expiry in canonical required?  false
+expiry in base required?       false
+expiry schema (canonical)     : {"type":["string","null"],"format":"date-time","description":"When the opportunity stops being offered, or `null` while nothing expires it. MVP-03 opportunities do not expire by scheduler: this delivery has no search timeout and no opportunity/proposal expiry owner (proposal lifecycle is a later delivery), so the backend emits `null`. The field is therefore OPTIONAL: consumers must treat `null` and an absent value identically. It becomes a non-null instant only in the delivery that owns expiry semantics; it is never derived from the proposal-expiry setting."}
+expiry schema (base)          : {"type":["string","null"],"format":"date-time","description":"When the opportunity stops being offered, or `null` while nothing expires it. MVP-03 opportunities do not expire by scheduler: this delivery has no search timeout and no opportunity/proposal expiry owner (proposal lifecycle is a later delivery), so the backend emits `null`. The field is therefore OPTIONAL: consumers must treat `null` and an absent value identically. It becomes a non-null instant only in the delivery that owns expiry semantics; it is never derived from the proposal-expiry setting."}
+
+canonical list item $ref      : {"type":"array","items":{"$ref":"#/components/schemas/TowOpportunity"}}
+
+INTERPRETATION
+--------------
+- `TowOpportunity.required` no longer contains `opportunity_expires_at`, and the
+  property accepts `null` in BOTH documents (canonical + base inline item), so a
+  runtime that emits `null` is contract-valid and a consumer that omits it is
+  still valid.
+- Base and canonical do not diverge: identical `required` list, identical
+  `$ref` targets, deep-equal `OpportunityCompatibility`.
+- The canonical `TowOpportunityListResponse` item is a `$ref` to
+  `TowOpportunity`; the base keeps an inline item (base is the pre-composition
+  artifact) and now references a real `OpportunityCompatibility` component
+  instead of re-declaring the verdict inline.

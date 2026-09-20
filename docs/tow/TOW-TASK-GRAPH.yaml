@@ -9,7 +9,7 @@ contract:
 
 implementation_baseline:
   main_sha: 1f589d60b8f8020cc6162ebf2c5200c0d2cfa632   # MVP-02 accepted (PR #36, receipt #5749173315)
-  schema_fingerprint: 37cee47edc8dd1084786ab5fe3c32511c71b9a4a2788f67406391916c7cc0f59
+  schema_fingerprint: f2771dcf6a253951c1d4a596e681c52a759ed0c4bcd70ecdcbe971505e8ed2bf   # 33 tables (MVP-03 adds tow_requests via migration 004). Previous value 37cee47edc8dd1084786ab5fe3c32511c71b9a4a2788f67406391916c7cc0f59 was the MVP-01/02 baseline (32 tables); updated by MVP-03 bookkeeping, not silently.
 
 execution_policy:
   method: TDD
@@ -97,7 +97,7 @@ tasks:
     status: READY
     delivery_state: CURRENT
     depends_on: [MVP02]
-    execution_base: 1f589d60b8f8020cc6162ebf2c5200c0d2cfa632   # MVP-02 accepted main; the bookkeeping commit carrying this line is the effective dispatch base (see PR #36 receipt #5749173315)
+    execution_base: c0ae3c01774dbaaf162113cef574cb728ec8db61   # actual MVP-03 dispatch base: post-bookkeeping main. Historical fact: MVP-02 accepted main = 1f589d60b8f8020cc6162ebf2c5200c0d2cfa632 (PR #36 merged; receipt #5749173315)
     size: L
     outputs:
       - tow_request

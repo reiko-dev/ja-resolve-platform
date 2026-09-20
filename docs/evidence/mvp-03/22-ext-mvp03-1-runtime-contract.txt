@@ -1,0 +1,469 @@
+================================================================================
+EXT-MVP03-1 (P1) — runtime `TowOpportunity` now matches the canonical contract
+================================================================================
+Branch:            feature/mvp-03-tow-request-matching
+Correction base:   2edf03068d4c739cd4874ba4f4deddee31c3e5ef (PR #37 HEAD)
+Capture (UTC):     2026-09-20T19:31:25Z
+Review finding:    PR #37 review comment 5752012874 — CHANGES_REQUIRED, P1=1
+
+SYMPTOM (before this correction)
+--------------------------------
+`GET /api/tow/partner/opportunities` returned items of exactly
+`{request, route_quote, proposed_price}` while the canonical entrypoint
+`docs/tow/tow-api-contract.openapi.yaml` declared
+`TowOpportunity.required =
+ [request, active_tow_vehicle, route_quote, proposed_price, compatibility,
+  opportunity_expires_at]`.
+The runtime was therefore NOT conformant to its own frozen contract, and
+`tests/tow/mvp03/towPartnerOpportunities.test.js` had LOCKED the reduced shape.
+
+The reduced shape was never a contract decision: it was an implementation gap.
+No schema was edited to excuse it; the runtime was made truthful instead.
+
+================================================================================
+[1] RUNTIME DELTA — src/modules/tow (git diff)
+================================================================================
+diff --git a/socorre_ai_backend/src/modules/tow/application/matching-service.js b/socorre_ai_backend/src/modules/tow/application/matching-service.js
+index d8fb00a0..268b4bb7 100644
+--- a/socorre_ai_backend/src/modules/tow/application/matching-service.js
++++ b/socorre_ai_backend/src/modules/tow/application/matching-service.js
+@@ -24,7 +24,12 @@
+  *     straight-line estimate. A provider failure is a 503 and produces no feed
+  *     at all (a partially quoted feed would be worse than none);
+  *   - ordering is deterministic (distance ascending, then request id), and
+- *     pagination slices that ordered list.
++ *     pagination slices that ordered list;
++ *   - each item describes the opportunity TRUTHFULLY: the request, the actual
++ *     active TowVehicle used for eligibility/quote, the authoritative route
++ *     quote and price, and the MVP-01 compatibility verdict (carried through,
++ *     never recomputed). `opportunity_expires_at` is `null` because MVP-03 owns
++ *     no expiry.
+  *
+  * Deliberately deferred (documented, not silently dropped): a bounding-box
+  * pre-filter in SQL. The radius is per-request (a frozen column), so an
+@@ -89,7 +94,12 @@ function createMatchingService({
+         now,
+       });
+       if (evaluation.matched) {
+-        matches.push({ request, distance_meters: evaluation.distance_meters });
++        matches.push({
++          request,
++          distance_meters: evaluation.distance_meters,
++          // MVP-01 verdict, carried through verbatim for the DTO.
++          compatibility: evaluation.compatibility,
++        });
+       }
+     }
+ 
+@@ -109,8 +119,19 @@ function createMatchingService({
+       });
+       items.push({
+         request: buildTowRequestDto(match.request, { max_radius_km: settings.tow_max_radius_km }),
++        // The ACTUAL active vehicle used for eligibility and for the quote. The
++        // transport projects it to `TowVehicleSummary` (no tariff, no
++        // persistence-only columns).
++        active_tow_vehicle: vehicle,
+         route_quote: quote.route_quote,
+         proposed_price: quote.calculated_price,
++        compatibility: match.compatibility,
++        // MVP-03 owns no expiry: there is no scheduler, no search timeout and no
++        // opportunity/proposal lifecycle, so nothing can truthfully expire an
++        // opportunity. The field is emitted as `null` (nullable/optional in the
++        // contract) until the delivery that owns expiry semantics exists — it is
++        // never fabricated from the proposal-expiry setting (MVP-04).
++        opportunity_expires_at: null,
+       });
+     }
+ 
+diff --git a/socorre_ai_backend/src/modules/tow/domain/compatibility.js b/socorre_ai_backend/src/modules/tow/domain/compatibility.js
+index 463693f0..2198ec65 100644
+--- a/socorre_ai_backend/src/modules/tow/domain/compatibility.js
++++ b/socorre_ai_backend/src/modules/tow/domain/compatibility.js
+@@ -18,35 +18,70 @@ function isFinitePositive(value) {
+   return typeof value === 'number' && Number.isFinite(value) && value > 0;
+ }
+ 
++/**
++ * The policy result is also the source of the per-dimension verdicts the
++ * consumer contract publishes (`OpportunityCompatibility`). Both flags are
++ * DERIVED from the same checks above — never recomputed, never a second policy:
++ *
++ *   vehicle_class_supported   the requested class is a valid vocabulary value
++ *                             AND the vehicle declares it;
++ *   weight_within_capacity    no weight reason was raised: the weight is present
++ *                             when the class requires it, and it does not exceed
++ *                             the vehicle capacity. A class that does not require
++ *                             a weight (e.g. motorcycle) is vacuously within
++ *                             capacity.
++ *
++ * A non-operational vehicle short-circuits before any dimension is evaluated, so
++ * both flags are reported as `false` ("not established"), which is truthful and
++ * unreachable for an emitted opportunity: only `eligible` vehicles are emitted.
++ */
+ function isCompatible(vehicle, requested) {
+   if (!vehicle || vehicle.active !== true) {
+-    return { compatible: false, code: 'vehicle_not_operational', reasons: ['vehicle_not_active'] };
++    return {
++      compatible: false,
++      code: 'vehicle_not_operational',
++      reasons: ['vehicle_not_active'],
++      vehicle_class_supported: false,
++      weight_within_capacity: false,
++    };
+   }
+ 
+   const request = requested || {};
+   const reasons = [];
+ 
++  const classSupported = isVehicleClass(request.class)
++    && Array.isArray(vehicle.supported_vehicle_classes)
++    && vehicle.supported_vehicle_classes.includes(request.class);
++
+   if (!isVehicleClass(request.class)) {
+     reasons.push('invalid_requested_class');
+-  } else if (!Array.isArray(vehicle.supported_vehicle_classes)
+-    || !vehicle.supported_vehicle_classes.includes(request.class)) {
++  } else if (!classSupported) {
+     reasons.push('class_not_supported');
+   }
+ 
+-  if (requiresWeight(request.class) && !isFinitePositive(request.weight_kg)) {
++  const weightMissing = requiresWeight(request.class) && !isFinitePositive(request.weight_kg);
++  const weightExceeds = isFinitePositive(request.weight_kg)
++    && Number.isFinite(vehicle.max_towed_weight_kg)
++    && request.weight_kg > vehicle.max_towed_weight_kg;
++
++  if (weightMissing) {
+     reasons.push('weight_required');
+   }
+-
+-  if (isFinitePositive(request.weight_kg)
+-    && Number.isFinite(vehicle.max_towed_weight_kg)
+-    && request.weight_kg > vehicle.max_towed_weight_kg) {
++  if (weightExceeds) {
+     reasons.push('weight_exceeds_capacity');
+   }
+ 
++  const weightWithinCapacity = !weightMissing && !weightExceeds;
++
++  const dimensions = {
++    vehicle_class_supported: classSupported,
++    weight_within_capacity: weightWithinCapacity,
++  };
++
+   if (reasons.length > 0) {
+-    return { compatible: false, code: 'vehicle_not_compatible', reasons };
++    return { compatible: false, code: 'vehicle_not_compatible', reasons, ...dimensions };
+   }
+-  return { compatible: true, code: null, reasons: [] };
++  return { compatible: true, code: null, reasons: [], ...dimensions };
+ }
+ 
+ module.exports = { isCompatible };
+diff --git a/socorre_ai_backend/src/modules/tow/domain/eligibility.js b/socorre_ai_backend/src/modules/tow/domain/eligibility.js
+index 0f0a5399..ab18c5bf 100644
+--- a/socorre_ai_backend/src/modules/tow/domain/eligibility.js
++++ b/socorre_ai_backend/src/modules/tow/domain/eligibility.js
+@@ -52,10 +52,15 @@ function evaluateEligibility({ partner, moduleStatus, vehicle, documents, reques
+ 
+   const compatibility = isCompatible(vehicle, requested);
+   if (!compatibility.compatible) {
+-    return { eligible: false, code: compatibility.code, reasons: compatibility.reasons };
++    return {
++      eligible: false,
++      code: compatibility.code,
++      reasons: compatibility.reasons,
++      compatibility,
++    };
+   }
+ 
+-  return { eligible: true, code: null, reasons: [] };
++  return { eligible: true, code: null, reasons: [], compatibility };
+ }
+ 
+ module.exports = { evaluateEligibility };
+diff --git a/socorre_ai_backend/src/modules/tow/domain/matching.js b/socorre_ai_backend/src/modules/tow/domain/matching.js
+index b729e24e..a57ba157 100644
+--- a/socorre_ai_backend/src/modules/tow/domain/matching.js
++++ b/socorre_ai_backend/src/modules/tow/domain/matching.js
+@@ -61,7 +61,9 @@ function operationalLocation(partner) {
+  * radius. Cheap and absolute checks come first; the radius last, because it is
+  * the only one that needs the distance computation.
+  *
+- * @returns {{matched: boolean, code: string|null, reasons: readonly string[], distance_meters: number|null}}
++ * @returns {{matched: boolean, code: string|null, reasons: readonly string[], distance_meters: number|null,
++ *   compatibility?: {compatible: boolean, code: string|null, reasons: readonly string[],
++ *   vehicle_class_supported: boolean, weight_within_capacity: boolean}}}
+  */
+ function evaluateTowMatch({ request, partner, moduleStatus, vehicle, documents, now } = {}) {
+   if (!isModuleEnabled(moduleStatus)) {
+@@ -117,6 +119,11 @@ function evaluateTowMatch({ request, partner, moduleStatus, vehicle, documents,
+     code: null,
+     reasons: Object.freeze([]),
+     distance_meters: distanceMeters,
++    // The MVP-01 compatibility verdict is carried through untouched — matching
++    // never re-derives class/capacity. The consumer contract publishes it as
++    // `OpportunityCompatibility`; only `matched` results carry it because an
++    // excluded candidate has no opportunity to describe.
++    compatibility: eligibility.compatibility,
+   });
+ }
+ 
+diff --git a/socorre_ai_backend/src/modules/tow/http/serialize.js b/socorre_ai_backend/src/modules/tow/http/serialize.js
+index 01fd761a..894c6fdc 100644
+--- a/socorre_ai_backend/src/modules/tow/http/serialize.js
++++ b/socorre_ai_backend/src/modules/tow/http/serialize.js
+@@ -31,7 +31,12 @@ function serializeAdminModule(row) {
+   };
+ }
+ 
+-function serializeVehicle(row) {
++/**
++ * The contract `TowVehicleSummary` projection: exactly the ten properties the
++ * frozen schema requires, with no tariff and no persistence-only column.
++ * `serializeVehicle` (the full `TowVehicle`) is this projection plus `pricing`.
++ */
++function serializeVehicleSummary(row) {
+   return {
+     id: String(row.id),
+     plate: row.plate,
+@@ -45,6 +50,12 @@ function serializeVehicle(row) {
+     max_towed_weight_kg: Number(row.max_towed_weight_kg),
+     document_status: row.document_status || 'pending',
+     active: row.active === true,
++  };
++}
++
++function serializeVehicle(row) {
++  return {
++    ...serializeVehicleSummary(row),
+     pricing: {
+       minimum_charge_cents: Number(row.pricing.minimum_charge_cents),
+       included_km: Number(row.pricing.included_km),
+@@ -84,15 +95,28 @@ function serializeDocument(row, context = {}) {
+ /**
+  * MVP-03 — partner opportunity item.
+  *
+- * The item is exactly `{request, proposed_price, route_quote}`. The distance and
+- * duration live inside `route_quote` (the authoritative provider numbers), never
+- * duplicated at the top level, and the geodesic distance used for filtering is
+- * deliberately NOT serialized: it is a matching mechanism, not a commercial
+- * number, and exposing it would invite a client to price from it.
++ * The item is exactly the frozen `TowOpportunity` shape:
++ * `{request, active_tow_vehicle, route_quote, proposed_price, compatibility,
++ * opportunity_expires_at}`.
++ *
++ *   - the distance and duration live inside `route_quote` (the authoritative
++ *     provider numbers), never duplicated at the top level, and the geodesic
++ *     distance used for filtering is deliberately NOT serialized: it is a
++ *     matching mechanism, not a commercial number, and exposing it would invite
++ *     a client to price from it;
++ *   - `active_tow_vehicle` is the actual vehicle that was evaluated and quoted,
++ *     projected to `TowVehicleSummary` — the tariff is deliberately absent from
++ *     the partner feed;
++ *   - `compatibility` is the MVP-01 verdict carried through by the matching
++ *     service, projected to exactly the three contract properties;
++ *   - `opportunity_expires_at` is passed through as `null`: MVP-03 has no
++ *     expiry owner (no scheduler, no search timeout, no proposal lifecycle), so
++ *     nothing may be fabricated here.
+  */
+ function serializeOpportunity(opportunity) {
+   return {
+     request: opportunity.request,
++    active_tow_vehicle: serializeVehicleSummary(opportunity.active_tow_vehicle),
+     proposed_price: {
+       amount_cents: Number(opportunity.proposed_price.amount_cents),
+       currency: opportunity.proposed_price.currency,
+@@ -101,6 +125,12 @@ function serializeOpportunity(opportunity) {
+       total_distance_meters: Number(opportunity.route_quote.total_distance_meters),
+       total_duration_seconds: Number(opportunity.route_quote.total_duration_seconds),
+     },
++    compatibility: {
++      compatible: opportunity.compatibility.compatible === true,
++      vehicle_class_supported: opportunity.compatibility.vehicle_class_supported === true,
++      weight_within_capacity: opportunity.compatibility.weight_within_capacity === true,
++    },
++    opportunity_expires_at: toIso(opportunity.opportunity_expires_at),
+   };
+ }
+ 
+@@ -108,6 +138,7 @@ module.exports = {
+   serializeModule,
+   serializeAdminModule,
+   serializeVehicle,
++  serializeVehicleSummary,
+   serializeDocument,
+   serializeOpportunity,
+   toIso,
+
+================================================================================
+[2] LIVE WIRE BODY — GET /api/tow/partner/opportunities -> HTTP 200
+================================================================================
+Captured with a throwaway dumper test using the same real app harness as the
+committed suite (sqlite test DB, fake clock at 2026-01-15T12:00:00.000Z,
+recording fake route provider). The dumper file was deleted immediately after
+capture and is not part of the commit.
+
+=== LIVE GET /api/tow/partner/opportunities -> HTTP 200 ===
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "request": {
+          "id": "1",
+          "module_key": "tow",
+          "state": "SEARCHING",
+          "terminal_reason": null,
+          "customer_id": "1",
+          "pickup": {
+            "latitude": -23.561684,
+            "longitude": -46.655981,
+            "formatted_address": "Av. Paulista, 1578 - São Paulo - SP"
+          },
+          "destination": {
+            "latitude": -23.6639,
+            "longitude": -46.531,
+            "formatted_address": "Rua das Figueiras, 100 - Santo André - SP"
+          },
+          "vehicle": {
+            "class": "light_vehicle",
+            "make": "Fiat",
+            "model": "Argo",
+            "year": 2021,
+            "weight_kg": 1200,
+            "plate": "ABC1D23"
+          },
+          "problem_description": "Carro não liga na garagem do prédio",
+          "observations": "Portão B, avisar na portaria",
+          "matching": {
+            "current_radius_km": 15,
+            "max_radius_km": 50,
+            "search_expires_at": null
+          },
+          "payment": {
+            "request_id": "1",
+            "method": null,
+            "status": "NOT_SELECTED",
+            "amount_cents": null,
+            "currency": null,
+            "can_start_service": false,
+            "pix": null
+          },
+          "assignment": null,
+          "allowed_actions": [],
+          "created_at": "2026-01-15T12:00:00.000Z",
+          "updated_at": "2026-01-15T12:00:00.000Z"
+        },
+        "active_tow_vehicle": {
+          "id": "1",
+          "plate": "PLT0001",
+          "make": "Ford",
+          "model": "F-4000",
+          "year": 2020,
+          "equipment_type": "flatbed",
+          "supported_vehicle_classes": [
+            "light_vehicle",
+            "motorcycle"
+          ],
+          "max_towed_weight_kg": 4000,
+          "document_status": "pending",
+          "active": true
+        },
+        "proposed_price": {
+          "amount_cents": 18480,
+          "currency": "BRL"
+        },
+        "route_quote": {
+          "total_distance_meters": 14350,
+          "total_duration_seconds": 2100
+        },
+        "compatibility": {
+          "compatible": true,
+          "vehicle_class_supported": true,
+          "weight_within_capacity": true
+        },
+        "opportunity_expires_at": null
+      }
+    ],
+    "meta": {
+      "page": 1,
+      "limit": 20,
+      "total": 1
+    }
+  }
+}
+=== END LIVE BODY ===
+
+Every required canonical member is present and truthful:
+  request               -> the created TowRequest (state SEARCHING)
+  active_tow_vehicle    -> the ACTUAL vehicle evaluated and quoted
+                           (id "1", plate PLT0001, Ford F-4000, flatbed,
+                            ["light_vehicle","motorcycle"], 4000 kg,
+                            document_status "pending", active true)
+                           NOTE: no `pricing`/tariff member is exposed.
+  proposed_price        -> 18480 BRL, the authoritative MVP-02 quote
+  route_quote           -> 14350 m / 2100 s, the authoritative Google Routes quote
+  compatibility         -> MVP-01 verdict, all three members true
+  opportunity_expires_at-> null (nothing expires MVP-03 opportunities)
+
+================================================================================
+[3] LIVE CONTRACT REGRESSION SUITE (new, committed)
+================================================================================
+File: socorre_ai_backend/tests/tow/mvp03/towPartnerOpportunitiesContract.test.js
+It drives the REAL HTTP endpoint and validates the REAL 200 body against the
+composed canonical `TowOpportunityListResponse` (ajv over the composed document,
+schema id https://socorre.ai/contracts/tow/openapi-composed.json).
+
+--- whole MVP-03 suite (GREEN, includes the new suite) ---
+Test Suites: 8 passed, 8 total
+Tests:       7 skipped, 177 passed, 184 total
+Snapshots:   0 total
+Time:        1.605 s, estimated 2 s
+Ran all test suites matching /tests\/tow\/mvp03/i.
+
+--- focused run of the new suite (GREEN) ---
+PASS tests/tow/mvp03/towPartnerOpportunitiesContract.test.js
+  MVP-03 — live partner opportunities conform to the canonical OpenAPI contract
+    ✓ the canonical validators are compiled from the composed contract (not vacuously absent) (1 ms)
+    ✓ the ACTUAL HTTP 200 response of the live endpoint validates against TowOpportunityListResponse (32 ms)
+    ✓ the live item carries exactly the contract members (no invented, no missing) (7 ms)
+    ✓ the contract validator rejects a live payload missing active_tow_vehicle (in-suite negative control) (9 ms)
+    ✓ the contract validator rejects a live payload missing compatibility (in-suite negative control) (6 ms)
+    ✓ opportunity_expires_at is nullable and optional in the frozen contract (9 ms)
+    ✓ base and canonical opportunity schemas do not diverge silently (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       7 passed, 7 total
+Snapshots:   0 total
+Time:        1.148 s, estimated 2 s
+
+================================================================================
+[4] WHY THE OLD TEST DID NOT CATCH THIS (root cause, disclosed)
+================================================================================
+The pre-existing consumer smoke test generated a fixture through the contract's
+own `generateFixture` helper, and arrays generate as `[]`:
+    {"success":true,"data":{"items":[],"meta":{"page":1,"limit":2}}}
+so `data.items[0]` never existed and the ITEM schema was never exercised.
+That is exactly the hole this new live-endpoint test closes: it asserts a REAL
+non-empty item produced by the REAL endpoint.
+
+================================================================================
+[5] SCOPE OF THE FIX
+================================================================================
+- `active_tow_vehicle` is the ACTUAL vehicle used for eligibility and quoting
+  (`matching-service.js` carries the `vehicle` it evaluated), projected to
+  `TowVehicleSummary` (10 fields, no tariff) by reusing the new
+  `serializeVehicleSummary`, which `serializeVehicle` also composes — so the
+  summary and the full vehicle cannot drift.
+- `compatibility` is the MVP-01 verdict CARRIED THROUGH (compatibility.js ->
+  eligibility.js -> matching.js -> matching-service.js). No second policy, no
+  recomputation in the HTTP layer: the serializer only narrows the object to the
+  three contract members and coerces to boolean.
+- `opportunity_expires_at` is emitted as `null` and declared nullable/optional.
+  It is NEVER derived from `tow_proposal_expiry_minutes`: MVP-03 has no
+  scheduler, no search timeout and no proposal lifecycle, so no truthful instant
+  exists to emit.
+- The geodesic (Haversine) distance used for radius filtering is still NOT
+  serialized. The only distance on the wire remains the authoritative
+  Google Routes `route_quote.total_distance_meters`.

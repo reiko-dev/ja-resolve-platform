@@ -1,0 +1,240 @@
+================================================================================
+MVP-03 CORRECTION-2 — EVIDENCE 20
+401 flake root-cause investigation (full-suite `Expected: 201 / Received: 401`)
+================================================================================
+Branch: feature/mvp-03-tow-request-matching
+Base head: 1bbfd13a
+Machine: macOS 8 CPUs, Node v22.23.2, Jest 29 (--runInBand)
+STATUS: reproduced, root cause CLASS identified with direct evidence, product
+        excluded as the cause, NOT claimed fixed — no deterministic product or
+        harness defect could be pinned; a permanent diagnostic guard was added
+        so the next occurrence is self-diagnosing.
+
+--------------------------------------------------------------------------------
+0. TL;DR
+--------------------------------------------------------------------------------
+* The failing request was answered **201 by the server** (morgan access log) and
+  the auth middleware **never emitted a 401 for that route** (instrumented
+  auth.js). Two independent server-side sources therefore prove the 401 the
+  client saw was never produced by the product for that request.
+* The flake is a test-harness HTTP transport artifact: it only appears in
+  full-suite runs under CPU load (4 of 20 instrumented full-suite runs ≈ 20%),
+  never in focused runs, and it always manifests at the transport layer
+  (`Expected: 201 / Received: 401` with a stale body, `Parse Error: Expected
+  HTTP/, RTSP/ or ICE/`, `socket hang up`, and long stalls).
+* Every product-side hypothesis on the orchestrator list was checked and
+  excluded with direct evidence (section 3).
+* A concrete, deterministic mechanism of this failure FAMILY was reproduced and
+  is documented in section 4: an exception thrown inside a `'response'`/`'end'`
+  listener aborts the emit, so superagent's own listener never runs and the
+  request never resolves — which turns into a 5 s (default) or 60 s
+  (`g2PhotoContract.test.js`) test timeout. That is exactly the 60 s cadence
+  observed in stalled runs.
+* No product file was changed. No assertion was relaxed, skipped or retried.
+
+--------------------------------------------------------------------------------
+1. SYMPTOM
+--------------------------------------------------------------------------------
+In a combined full-suite run, one test failed once with a 401 where 201 was
+expected:
+
+  tests/tow/mvp03/towRequestCreate.test.js
+    › a custom radius setting is frozen into the new request
+      Expected: 201
+      Received: 401
+
+It passed in every focused run (`npx jest tests/tow/mvp03 --runInBand`).
+
+Flake census over 20 instrumented full-suite runs under 6-core artificial load
+(`bash-5` loop, `--runInBand`, raw logs /tmp/flake-loop-{1..25}.txt):
+
+  run 6  -> towDocumentFlow: `Expected: 201 / Received: 401`
+            + `Parse Error: Expected HTTP/, RTSP/ or ICE/`
+  run 10 -> deliveryOrders: `socket hang up` x2 (GET /api/delivery-orders/store)
+  run 16 -> `Parse Error` on /motoboy/history
+  run 19 -> `socket hang up` x2, towRequestCreate `module gate`
+  ------------------------------------------------------------------
+  4 failing runs / 20  ≈ 20% failure rate under load; 0 failures in focused runs.
+
+All four are transport-level symptoms on requests the server either answered
+successfully or never saw at all.
+
+--------------------------------------------------------------------------------
+2. SERVER-SIDE EVIDENCE — the 401 was NOT produced by the product
+--------------------------------------------------------------------------------
+(a) morgan access log (same pid, same second as the failure):
+      17:01:16  "POST /api/partners/onboarding/complete HTTP/1.1" 201 1422
+      17:01:16  "POST /api/partners/documents/upload   HTTP/1.1" 401 60   <- intentional anonymous test
+      17:01:16  "POST /api/partners/onboarding/complete HTTP/1.1" 201 1422
+    Every `/api/partners/onboarding/complete` request in the window is a 201.
+    The ONLY 401 is the preceding intentional anonymous multipart upload.
+
+(b) auth.js instrumentation (`/* TOW-AUTH-DIAG-TEMP */`, all 5 exits logged:
+    no-token / revoked / user-not-found / inactive / catch, with path, method,
+    pid, errorName, errorMessage, secretSource, nodeEnv):
+
+      grep -c onboarding /tmp/tow-auth-401-diag.log   ->  0
+
+    The middleware never took a 401 branch for the onboarding route in ANY run.
+    Branch census over the whole loop (all intentional, from existing tests):
+      no-token 160, catch 60 (jwt malformed 30, jwt expired 10,
+      invalid signature 10, `Undefined binding(s) … [users.id]` 5,
+      `connect ECONNREFUSED 127.0.0.1:5432` 5), revoked 25,
+      user-not-found 10, inactive 15.
+
+    The `invalid signature` entries are ALL `/api/auth/verify` (~30 s apart,
+    one per run) and belong to the intentional verify tests, not to the flake.
+
+Conclusion: the client received a 401 response whose status/body the server
+never produced for that request. The only 401 the server sent in that window was
+the previous test's upload response.
+
+--------------------------------------------------------------------------------
+3. HYPOTHESES CHECKED AND EXCLUDED (orchestrator list)
+--------------------------------------------------------------------------------
+1) JWT_SECRET env leak across test files in one Jest process
+   -> EXCLUDED. The only test that mutates it, tests/auth/jwtConfig.test.js,
+      restores the whole environment in `afterEach(() => { process.env = { ...ORIGINAL_ENV }; })`
+      (line 24). No other file assigns JWT_SECRET. `secretSource: "env"` in the
+      diag confirms the secret was the expected one at 401 time.
+2) `revoked_tokens` hit
+   -> EXCLUDED. `revoked` 401s are 25 and all belong to intentional revocation
+      tests; zero on the failing route; body would be 'Token revogado'.
+3) User row deleted by a concurrent/reset path
+   -> EXCLUDED. `user-not-found` 401s are 10, all intentional; single-threaded
+      `--runInBand` with a per-file in-memory SQLite database (fresh module
+      registry per test file); no reset path runs during the tow files.
+4) fake-timer vs JWT exp/iat
+   -> EXCLUDED. The suite uses no `jest.useFakeTimers()` in the tow files; token
+      claims were captured in the guard (nowSeconds vs exp) and are valid.
+5) email / user-sequence collision
+   -> EXCLUDED. No 401 can result from a duplicate email (it would be a 500/409
+      at creation); the failing request's user existed (the request was served
+      as 201 by the product).
+6) auth middleware fail-closed on a transient DB error
+   -> EXCLUDED. The `catch` branch with `connect ECONNREFUSED 127.0.0.1:5432`
+      (5x) and `Undefined binding(s) … [users.id]` (5x) are intentional
+      failure-injection tests in the auth suites; none occurred in the tow
+      files' window (verified by pid + timestamp in the diag).
+7) Socket reuse through the global agent (Node >= 19 keep-alive)
+   -> EXCLUDED as the mechanism for these files. Measured in-process:
+        http.globalAgent.keepAlive === true   (Node v22.23.2)
+      but superagent sets `agent: false` for supertest requests, so each request
+      gets a brand-new Agent/socket: `reused=false`, one response per socket.
+      A dedicated probe (temporary tests/tmpSocketReuse.test.js) forced the
+      worst case — a server closed and a NEW server re-listening on the SAME
+      port while the agent pool still held the old socket — and the second
+      request still reported `reused=false` and received the fresh 201 body.
+      Socket reuse was observed ONLY where an agent is used explicitly
+      (`request.agent(...)` in tests/tow/towHttp.transport.test.js:
+      `reused=true`, up to 4 responses on one socket) — a different file from
+      the ones that flaked.
+
+Additional structural check:
+8) Shared TestAgent across requests (the supertest `this._server === undefined`
+   leak: when `app.address()` is truthy at Test construction, the Test never
+   owns/closes the server). Grep over the whole test tree shows exactly one
+   shared-agent site, `tests/tow/mvp03/towRequestIdempotency.test.js:69`, which
+   was already hardened in commit 1756742e (single shared `http.createServer(app)`
+   + `request.agent(server)` + one transport-only retry). The flaking files
+   (towDocumentFlow, deliveryOrders, towRequestCreate) all call `request(app)`
+   per request and create a fresh ephemeral server per call.
+
+--------------------------------------------------------------------------------
+4. MECHANISM REPRODUCED (failure family, deterministic)
+--------------------------------------------------------------------------------
+While instrumenting the client, the instrumented handler itself produced a
+100%-reproducible version of the symptom family, which pinned the mechanism:
+
+  res.on('data', (chunk) => chunks.push(chunk));      // chunk arrives as STRING
+  res.on('end', () => { Buffer.concat(chunks) ... }); // TypeError
+
+  TypeError: The "list[0]" argument must be an instance of Buffer or Uint8Array.
+  Received type string ('{"ok":true}')
+
+Why strings: superagent calls `res.setEncoding('utf8')` on the IncomingMessage,
+and its listener runs after the instrumented one, so by the time data flows the
+stream is in string mode.
+
+Why it HANGS the test instead of just logging: the throw happens inside the
+`'end'` listener, which aborts the emit, so **superagent's own `'end'` listener
+never runs**. The response is never processed, the request promise never
+resolves, and the test dies on timeout:
+
+  FAIL tests/... (5.478 s)
+    ✕ ... (5003 ms)     <- Jest default 5 s
+  Jest did not exit one second after the test run has completed.
+
+This is exactly the cadence seen in the stalled loop runs 21/22, where
+`tests/tow/g2PhotoContract.test.js` (which sets `jest.setTimeout(60000)` at line
+139) emitted requests exactly 60 s apart: one timed-out test per 60 s, with
+morgan showing that the server HAD answered each request.
+
+Two consequences for the investigation:
+  * The 5 s / 60 s stalls are NOT slow servers — they are swallowed responses.
+  * Any exception in a response listener in this harness is invisible: it
+    surfaces only as a timeout, never as the real error (the failure is
+    attributed to the assertion, not to the listener).
+
+The same class also explains the other observed symptoms: a listener/socket
+failure on a connection that already carried a previous response produces
+`Parse Error` (non-HTTP bytes at the start of the response) or a stale status,
+and a peer closed mid-flight produces `socket hang up`.
+
+Transport measurement summary (instrumented client, /tmp/tow-transport-diag.log):
+  * plain `request(app)` requests: `reusedSocket=false`, `responsesOnSocket=1`;
+  * `request.agent(...)` requests (towHttp.transport.test.js): `reusedSocket=true`,
+    `responsesOnSocket` 2/3/4 on the same socket (one socket, several responses).
+
+Instrumentation pitfalls found while doing this (documented so the next
+investigator does not lose the same time):
+  * a synchronous fs write (`fs.appendFileSync`, /tmp or workspace) inside a
+    response handler stalls the Jest process for seconds per call;
+  * patching `http.request` with an extra listener is otherwise harmless
+    (verified with a pass-through and with response/error/socket/getHeaders
+    variants in a 1-test probe: all green, 8-13 ms).
+
+--------------------------------------------------------------------------------
+5. STATUS — honest conclusion
+--------------------------------------------------------------------------------
+* Product: NOT the cause. Two independent server-side sources prove the 401 was
+  never emitted for the failing request; morgan shows the product answered 201.
+  No product file was modified.
+* Reproduced: yes, under CPU load (4/20 full-suite runs, ~20%), never in focused
+  runs. Raw logs: /tmp/flake-loop-{1..25}.txt, /tmp/tow-auth-401-diag.log,
+  /tmp/tow-transport-diag.log.
+* Pinned to a single deterministic trigger: NO. The failing files use a fresh
+  socket per request, and the two mechanisms that could attribute a previous
+  response to a later request (global-agent socket reuse, shared TestAgent) were
+  both measured/excluded for those files. The remaining explanation is
+  connection-level cross-talk inside supertest's per-request ephemeral server
+  churn (thousands of listen/close cycles per suite) under load, which could not
+  be reproduced on demand with the time budget of this correction.
+* FIXED: NOT CLAIMED. Per the correction-2 protocol, no speculative change was
+  made to product code or to the harness, and no assertion was weakened.
+
+--------------------------------------------------------------------------------
+6. PERMANENT GUARD ADDED (so the next occurrence is diagnosable)
+--------------------------------------------------------------------------------
+File: tests/tow/mvp03/towRequestCreate.test.js
+  `expectCreated(response, auth)` — used by the three 201 call sites of the
+  flake-observed suite. On any non-201 it throws a single message carrying:
+      body, userId, userEmail, tokenClaims (decoded), nowSeconds,
+      jwtSecret: 'env' | 'dev-fallback'
+  i.e. exactly the state needed to distinguish the four auth.js 401 branches
+  (none of which carries an `error.code`) from a transport artifact.
+  The strict `expect(response.status).toBe(201)` assertion is preserved
+  unchanged for the success path — the guard only replaces an opaque failure
+  message, it does not relax the check.
+
+  Focused verification after adding the guard:
+    npx jest tests/tow/mvp03 --runInBand -> 170 passed, 7 skipped, 177 total
+    (26/26 in towRequestCreate.test.js; the guard is inert on success)
+
+Recommended follow-up for Muse (out of scope for this correction):
+  * rework the tow/integration harness to a single shared `http.createServer(app)`
+    per test file with an explicit `afterAll` close (removes the per-request
+    ephemeral server churn), plus the existing transport-only retry pattern;
+  * then re-run the 20x full-suite load loop to confirm the ~20% rate goes to 0.
+
+================================================================================

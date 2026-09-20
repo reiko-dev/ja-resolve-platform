@@ -1,0 +1,206 @@
+================================================================================
+EXT-MVP03-2 — EXACT OpenAPI delta in this correction
+================================================================================
+Branch:            feature/mvp-03-tow-request-matching
+Correction base:   2edf03068d4c739cd4874ba4f4deddee31c3e5ef (PR #37 HEAD)
+Capture (UTC):     2026-09-20T19:31:25Z
+
+Purpose: the PR body claimed "Contract: OpenAPI updated and validated". That
+claim was NOT true of the runtime before this correction (the runtime emitted a
+reduced opportunity item) and was imprecise about WHAT changed in the document.
+This file records the exact, reviewable delta so no claim exceeds what happened.
+
+================================================================================
+[1] WHAT CHANGED IN THE DOCUMENTS (git diff -- docs/tow)
+================================================================================
+diff --git a/docs/tow/tow-api-contract.base.openapi.yaml b/docs/tow/tow-api-contract.base.openapi.yaml
+index 44769d6b..221c20bf 100644
+--- a/docs/tow/tow-api-contract.base.openapi.yaml
++++ b/docs/tow/tow-api-contract.base.openapi.yaml
+@@ -1674,6 +1674,16 @@ components:
+           properties:
+             items: { type: array, items: { $ref: '#/components/schemas/TowVehicleDocument' } }
+             meta: { $ref: '#/components/schemas/PaginationMeta' }
++    # Published per-opportunity compatibility verdict (MVP-03). The canonical
++    # entrypoint declares the identical component; the inline opportunity item
++    # below references this one so base and canonical cannot diverge silently.
++    OpportunityCompatibility:
++      type: object
++      required: [compatible, vehicle_class_supported, weight_within_capacity]
++      properties:
++        compatible: { const: true }
++        vehicle_class_supported: { const: true }
++        weight_within_capacity: { const: true }
+     TowOpportunityListResponse:
+       type: object
+       required: [success, data]
+@@ -1687,11 +1697,26 @@ components:
+               type: array
+               items:
+                 type: object
+-                required: [request, proposed_price, route_quote]
++                required: [request, active_tow_vehicle, route_quote, proposed_price, compatibility]
+                 properties:
+                   request: { $ref: '#/components/schemas/TowRequest' }
++                  active_tow_vehicle: { $ref: '#/components/schemas/TowVehicleSummary' }
+                   proposed_price: { $ref: '#/components/schemas/Money' }
+                   route_quote: { $ref: '#/components/schemas/RouteQuote' }
++                  compatibility: { $ref: '#/components/schemas/OpportunityCompatibility' }
++                  opportunity_expires_at:
++                    type: [string, 'null']
++                    format: date-time
++                    description: >-
++                      When the opportunity stops being offered, or `null` while
++                      nothing expires it. MVP-03 opportunities do not expire by
++                      scheduler: this delivery has no search timeout and no
++                      opportunity/proposal expiry owner (proposal lifecycle is a
++                      later delivery), so the backend emits `null`. The field is
++                      therefore OPTIONAL: consumers must treat `null` and an
++                      absent value identically. It becomes a non-null instant
++                      only in the delivery that owns expiry semantics; it is
++                      never derived from the proposal-expiry setting.
+             meta: { $ref: '#/components/schemas/PaginationMeta' }
+     CustomerDebtListResponse:
+       type: object
+diff --git a/docs/tow/tow-api-contract.openapi.yaml b/docs/tow/tow-api-contract.openapi.yaml
+index 379fb2e1..33ac88a6 100644
+--- a/docs/tow/tow-api-contract.openapi.yaml
++++ b/docs/tow/tow-api-contract.openapi.yaml
+@@ -1,7 +1,7 @@
+ openapi: 3.1.0
+ info:
+   title: JaResolve Tow Consumer API
+-  version: 1.0.0-draft.4
++  version: 1.0.0-draft.5
+   description: >-
+     Normative consumer contract for Mobile Cliente, Mobile Parceiro and Dashboard.
+     This entrypoint composes the reviewed draft.2 base contract with the frozen
+@@ -10,6 +10,12 @@ info:
+     contracts required to implement the complete consumer flows without inventing
+     undocumented endpoints or DTOs. Backend T00-T18 must converge to this contract
+     or explicitly revise it with contract tests and matching documentation updates.
++    Revision draft.5 (MVP-03 external contract correction EXT-MVP03-1): the partner
++    opportunity item now carries the truthful `active_tow_vehicle` and
++    `compatibility` members required by this document, and
++    `opportunity_expires_at` is nullable/optional because MVP-03 owns no expiry
++    semantics (no scheduler, no search timeout, no proposal lifecycle). No other
++    consumer contract changed in this revision.
+ servers:
+   - url: /api
+ security: []
+@@ -545,14 +551,25 @@ components:
+         weight_within_capacity: { const: true }
+     TowOpportunity:
+       type: object
+-      required: [request, active_tow_vehicle, route_quote, proposed_price, compatibility, opportunity_expires_at]
++      required: [request, active_tow_vehicle, route_quote, proposed_price, compatibility]
+       properties:
+         request: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TowRequest' }
+         active_tow_vehicle: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TowVehicleSummary' }
+         route_quote: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/RouteQuote' }
+         proposed_price: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/Money' }
+         compatibility: { $ref: '#/components/schemas/OpportunityCompatibility' }
+-        opportunity_expires_at: { type: string, format: date-time }
++        opportunity_expires_at:
++          type: [string, 'null']
++          format: date-time
++          description: >-
++            When the opportunity stops being offered, or `null` while nothing
++            expires it. MVP-03 opportunities do not expire by scheduler: this
++            delivery has no search timeout and no opportunity/proposal expiry
++            owner (proposal lifecycle is a later delivery), so the backend emits
++            `null`. The field is therefore OPTIONAL: consumers must treat `null`
++            and an absent value identically. It becomes a non-null instant only
++            in the delivery that owns expiry semantics; it is never derived from
++            the proposal-expiry setting.
+     TowOpportunityListResponse:
+       type: object
+       required: [success, data]
+
+================================================================================
+[2] DELTA SUMMARY (exact, member by member)
+================================================================================
+FILE docs/tow/tow-api-contract.openapi.yaml (canonical entrypoint)
+  1. info.version            1.0.0-draft.4  ->  1.0.0-draft.5
+  2. info.description        + revision note naming EXT-MVP03-1 and stating that
+                             no other consumer contract changed in draft.5
+  3. TowOpportunity.required [request, active_tow_vehicle, route_quote,
+                              proposed_price, compatibility,
+                              opportunity_expires_at]
+                          -> [request, active_tow_vehicle, route_quote,
+                              proposed_price, compatibility]
+                             (opportunity_expires_at becomes OPTIONAL)
+  4. TowOpportunity.properties.opportunity_expires_at
+                             {type: string, format: date-time}
+                          -> {type: [string, 'null'], format: date-time,
+                              description: <why null / why optional / never
+                              derived from the proposal-expiry setting>}
+  5. NO change to TowOpportunity's other members, to
+     OpportunityCompatibility (still const true x3), or to
+     TowOpportunityListResponse (whose item remains $ref TowOpportunity).
+
+FILE docs/tow/tow-api-contract.base.openapi.yaml (composition artifact)
+  6. + components.schemas.OpportunityCompatibility
+       type: object
+       required: [compatible, vehicle_class_supported, weight_within_capacity]
+       properties: all three { const: true }
+     (byte-for-byte the same schema the canonical entrypoint already declared,
+      so the two documents cannot diverge silently)
+  7. TowOpportunityListResponse.data.properties.items.items
+       required: [request, proposed_price, route_quote]
+              -> [request, active_tow_vehicle, route_quote, proposed_price,
+                  compatibility]
+       properties:
+         request              -> $ref #/components/schemas/TowRequest
+         active_tow_vehicle   -> $ref #/components/schemas/TowVehicleSummary  (NEW)
+         proposed_price       -> $ref #/components/schemas/Money
+         route_quote          -> $ref #/components/schemas/RouteQuote
+         compatibility        -> $ref #/components/schemas/OpportunityCompatibility (NEW)
+         opportunity_expires_at: { type: [string, 'null'], format: date-time,
+                                   description: <same text as canonical> }     (NEW)
+
+NO OTHER OpenAPI FILE WAS TOUCHED. No path, operation, security scheme, error
+response or enum was changed. The delta is exactly items 1-7 above.
+
+================================================================================
+[3] VALIDATION OF THE DELTA
+================================================================================
+Static (npm run validate:openapi) — see docs/evidence/mvp-03/23-live-openapi-validation.txt
+  Contract version: 1.0.0-draft.5 / Composed paths: 56 / Composed operations: 66
+  Unresolved refs: 0 / JSON Schema definition errors: 0 / Canonical enum
+  mismatches: 0 / Unallowlisted dropped methods: 0 / RESULT: PASS
+
+Live (real HTTP body vs composed TowOpportunityListResponse) — file 23 section (B)
+  7/7 passed; negative control RED then byte-identical restore then GREEN —
+  see docs/evidence/mvp-03/24-negative-control-live-contract.txt
+
+Pinned version test
+  socorre_ai_backend/tests/contract/openapi.structure.test.js pins the contract
+  version. It was updated draft.4 -> draft.5 so the pin keeps FAILING if the
+  document version is bumped without the test being revisited. This was an
+  EXISTING pin; it is not a new gate.
+
+================================================================================
+[4] CORRECTED STATEMENT FOR THE PR BODY (use this wording)
+================================================================================
+OLD (imprecise / not true of the runtime at 2edf0306):
+  "Contract: OpenAPI updated and validated."
+
+NEW (accurate):
+  "Contract: the canonical `TowOpportunity` already required
+   `active_tow_vehicle`, `compatibility` and `opportunity_expires_at`, but the
+   MVP-03 runtime returned only `{request, route_quote, proposed_price}`. This
+   correction makes the RUNTIME truthful instead of weakening the contract:
+   `GET /api/tow/partner/opportunities` now returns the active vehicle used for
+   eligibility/quoting (projected to `TowVehicleSummary`, no tariff), the MVP-01
+   compatibility verdict carried through unchanged, and
+   `opportunity_expires_at: null` because MVP-03 owns no expiry semantics. The
+   contract document changed only to make `opportunity_expires_at`
+   nullable/optional (draft.4 -> draft.5) and to add the base
+   `OpportunityCompatibility` component plus the missing members to the base
+   inline list item, so base and canonical converge. Validated by
+   `npm run validate:openapi` (PASS, draft.5, 0 unresolved refs) and by a new
+   live-endpoint contract test that validates the real HTTP 200 body against the
+   composed canonical `TowOpportunityListResponse` (7/7), with a negative
+   control proving the test goes RED when `active_tow_vehicle` is removed from
+   the runtime serializer."

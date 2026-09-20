@@ -16,6 +16,10 @@ const ERROR_STATUS = Object.freeze({
   forbidden: 403,
   not_found: 404,
   conflict: 409,
+  // MVP-03 — the frozen `Idempotency-Key` replay conflict ("same key, different
+  // payload") and the owner-only read guard of `GET /tow/requests/{requestId}`.
+  idempotency_conflict: 409,
+  not_request_owner: 403,
   partner_not_operational: 409,
   vehicle_not_operational: 409,
   tow_document_required: 409,

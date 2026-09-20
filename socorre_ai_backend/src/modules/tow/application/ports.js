@@ -35,7 +35,21 @@
  * @property {(rows: object[]) => Promise<number>} upsertMany
  *
  * @typedef {Object} PartnerRepository
- * @property {(id: number|string) => Promise<{ id: number|string, type: string }|null>} findById
+ * @property {(id: number|string) => Promise<{ id: number|string, type: string, is_available: boolean, is_online: boolean, is_verified: boolean, latitude: number|null, longitude: number|null }|null>} findById
+ *
+ * MVP-03 — the canonical tow request store.
+ *
+ * `createIdempotent` is the ONLY creation path and it owns the atomicity: the
+ * adapter hashes `fingerprintSource` (Domain/Application never touch
+ * `node:crypto`) and resolves `(customer_id, idempotency_key)` through the
+ * database constraint, not through a read-then-write race.
+ *
+ * @typedef {Object} TowRequestRepository
+ * @property {(record: object, options: { fingerprintSource: string }) => Promise<{ row: object, created: boolean, same_payload: boolean }>} createIdempotent
+ * @property {(id: number|string) => Promise<object|null>} findById
+ * @property {(id: number|string, customerId: number|string) => Promise<object|null>} findByIdForCustomer
+ * @property {(customerId: number|string, filters: { limit: number, offset: number, state?: string|null, from?: Date|null, to?: Date|null }) => Promise<{ rows: object[], total: number }>} listForCustomer
+ * @property {(options: { limit: number }) => Promise<object[]>} listSearchingCandidates
  *
  * @typedef {Object} FileStorage
  * @property {(file: { buffer: Buffer, originalName: string, mimeType: string, keyPrefix?: string }) => Promise<{ key: string }>} save
@@ -63,6 +77,7 @@ const PORT_NAMES = Object.freeze([
   'DocumentRepository',
   'SettingsRepository',
   'PartnerRepository',
+  'TowRequestRepository',
   'FileStorage',
   'Clock',
   'RouteProvider',

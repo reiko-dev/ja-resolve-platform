@@ -60,6 +60,7 @@ const REQUIRED_TABLES = [
   'subscriptions',
   'system_settings',
   'tow_proposals',
+  'tow_requests',
   'tow_vehicle_documents',
   'tow_vehicles',
   'user_documents',

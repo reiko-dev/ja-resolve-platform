@@ -9,19 +9,33 @@
 
 const express = require('express');
 const { auth } = require('../../../middleware/auth');
-const { requireAdmin, requireTowPartner } = require('./middleware');
+const { requireAdmin, requireTowPartner, requireCustomer } = require('./middleware');
 const { createModuleController } = require('./module-controller');
 const { createVehicleController } = require('./vehicle-controller');
 const { createDocumentController } = require('./document-controller');
 const { createSettingsController } = require('./settings-controller');
+const {
+  createTowRequestController,
+  createMatchingController,
+} = require('./tow-request-controller');
 
 function createTowRouter({ services, uploadMiddleware }) {
   const router = express.Router();
   const moduleController = createModuleController({ moduleService: services.moduleService });
   const vehicleController = createVehicleController({ vehicleService: services.vehicleService });
   const documentController = createDocumentController({ documentService: services.documentService });
+  const towRequestController = createTowRequestController({ towRequestService: services.towRequestService });
+  const matchingController = createMatchingController({ matchingService: services.matchingService });
 
   router.get('/module-status', moduleController.getPublicStatus);
+
+  // MVP-03 — canonical tow requests (customer side).
+  router.post('/requests', auth, requireCustomer, towRequestController.create);
+  router.get('/requests', auth, requireCustomer, towRequestController.list);
+  router.get('/requests/:requestId', auth, requireCustomer, towRequestController.get);
+
+  // MVP-03 — partner opportunity feed (geographic matching).
+  router.get('/partner/opportunities', auth, requireTowPartner, matchingController.listOpportunities);
 
   router.get('/vehicles', auth, requireTowPartner, vehicleController.list);
   router.post('/vehicles', auth, requireTowPartner, vehicleController.create);

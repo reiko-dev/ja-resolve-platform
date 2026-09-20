@@ -114,6 +114,7 @@ const TABLES = [
   'service_modules',
   'tow_vehicles',
   'tow_vehicle_documents',
+  'tow_requests',
 ];
 
 const SCHEMA = [
@@ -738,6 +739,38 @@ const SCHEMA = [
     uploaded_at TEXT DEFAULT CURRENT_TIMESTAMP,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )`,
+
+  // MVP-03 — the canonical TowRequest store (mirrors
+  // database/migrations/004_mvp03_tow_requests.js). Coordinates are TEXT to
+  // keep the harness's lexicographic/numeric affinity predictable; the adapter
+  // coerces them back to numbers on read, exactly as it does for the strings
+  // node-postgres returns for `numeric`.
+  `CREATE TABLE IF NOT EXISTS tow_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL,
+    state VARCHAR(30) NOT NULL DEFAULT 'SEARCHING',
+    terminal_reason VARCHAR(40),
+    pickup_latitude DECIMAL(10, 8) NOT NULL,
+    pickup_longitude DECIMAL(11, 8) NOT NULL,
+    pickup_formatted_address VARCHAR(500),
+    destination_latitude DECIMAL(10, 8) NOT NULL,
+    destination_longitude DECIMAL(11, 8) NOT NULL,
+    destination_formatted_address VARCHAR(500),
+    vehicle_class VARCHAR(30) NOT NULL,
+    vehicle_make VARCHAR(100) NOT NULL,
+    vehicle_model VARCHAR(100) NOT NULL,
+    vehicle_year INTEGER,
+    vehicle_weight_kg INTEGER,
+    vehicle_plate VARCHAR(10),
+    problem_description TEXT NOT NULL,
+    observations TEXT,
+    matching_radius_km DECIMAL(8, 2) NOT NULL,
+    idempotency_key VARCHAR(128) NOT NULL,
+    idempotency_fingerprint VARCHAR(64) NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (customer_id, idempotency_key)
   )`,
 ];
 

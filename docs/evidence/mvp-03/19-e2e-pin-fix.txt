@@ -1,0 +1,137 @@
+================================================================================
+MVP-03 CORRECTION-2 — EVIDENCE 19
+T01 e2e pin fix: dbBaseline.e2e.test.js pinned a stale MVP-01 baseline
+================================================================================
+Branch: feature/mvp-03-tow-request-matching
+Base head: 1bbfd13a
+Machine: macOS, Node v22.23.2, Jest 29 (--runInBand)
+Disposable PostgreSQL: docker container on 127.0.0.1:55434 (tmpfs), torn down at
+the end of this evidence run (`npm run test:pg:down`).
+
+--------------------------------------------------------------------------------
+1. DEFECT (hard failure, orchestrator-reported)
+--------------------------------------------------------------------------------
+`tests/tow/baseline/dbBaseline.e2e.test.js` pinned the baseline to the MVP-01
+triplet while migration `004_mvp03_tow_requests.js` is part of this delivery, so
+every PostgreSQL assertion that compares applied migrations against the pin
+failed.
+
+Pre-fix raw output (/tmp/e2e-before-55434.txt):
+
+    ● T01 PostgreSQL — clean baseline › reset + migrate reproduces the pinned baseline
+      expect(received).toEqual(expected)
+      Array [
+        "001_baseline_schema.js",
+        "002_baseline_settings.js",
+        "003_mvp01_tow_foundation.js",
+    +   "004_mvp03_tow_requests.js",
+      ]
+      at Object.toEqual (tests/tow/baseline/dbBaseline.e2e.test.js:502:38)
+
+    unexpected migration file(s) outside the pinned MVP-01 baseline: 004_mvp03_tow_requests.js
+
+    Test Suites: 1 failed, 1 total
+    Tests:       5 failed, 28 passed, 33 total
+
+The offline guard in the same file (`unexpected migration file(s) outside the
+pinned MVP-01 baseline`) is the loud cross-check that caught the 004 file — it
+behaved exactly as designed; what was stale was the pin itself.
+
+--------------------------------------------------------------------------------
+2. FIX (test-infrastructure pin only, no product change)
+--------------------------------------------------------------------------------
+File: tests/tow/baseline/dbBaseline.e2e.test.js
+
+  BASELINE_MIGRATIONS = Object.freeze([
+    '001_baseline_schema.js',
+    '002_baseline_settings.js',
+    '003_mvp01_tow_foundation.js',
+    '004_mvp03_tow_requests.js',   // <- added
+  ]);
+
+* The pin now mirrors the two other canonical pins of this delivery:
+    - scripts/tow/run-db-baseline-gate.js  -> PINNED_MIGRATIONS (001..004)
+    - tests/tow/baseline/dbBaselineSafety.test.js -> offline pin (001..004)
+  and the comment in the file states that relationship explicitly.
+* The loud cross-check semantics were preserved, not weakened:
+    - the directory read is still only a cross-check (`unexpected = files - pin`);
+    - the error message now prints the whole pin, so the next stale pin is
+      self-diagnosing:
+        `unexpected migration file(s) outside the pinned baseline [001..., 004...]: 005_*.js`
+    - `expect(files).toEqual(BASELINE_MIGRATIONS.slice().sort())` is unchanged, so
+      a smuggled `005_*.js` still fails loudly (negative control exists in
+      dbBaselineSafety.test.js).
+* No fingerprint was hardcoded: the test still compares run1-vs-run2
+  `fingerprintOf(snapshotSchema(...))`, so the fingerprint follows the schema
+  instead of being frozen to the old `37cee47e…` value.
+* No `.skip` / `.only` / relaxed assertion was introduced; the assertion count
+  of the suite is unchanged (33 tests before and after).
+
+--------------------------------------------------------------------------------
+3. PROOF — PostgreSQL e2e on the disposable target (port 55434)
+--------------------------------------------------------------------------------
+Command:
+  TOW_POSTGRES_E2E=1 DB_HOST=127.0.0.1 DB_PORT=55434 \
+  DB_NAME_TEST=socorre_ai_tow_test DB_USER=tow_test \
+  DB_PASSWORD=tow_test_password DB_SSL=false \
+  npx jest tests/tow/baseline/dbBaseline.e2e.test.js --runInBand
+
+Result (raw tail):
+
+      ✓ the seeded administrator can log in with the configured password (bcrypt cost 12)
+      ✓ re-running the seed creates no duplicate and changes nothing
+      ✓ no functional table has rows
+      ✓ the seed refuses to run without credentials, before touching the database
+      ✓ the assertion catches a dirty baseline (negative control)
+      ✓ the assertion rejects any second user, even a non-admin one
+    SAFETY — the commands refuse anything but the disposable target
+      ✓ the harness target passes every rule
+      ✓ the destructive reset is refused without the consent token
+      ✓ the consent token authorizes only the disposable target
+      ✓ an incompatible DATABASE_URL is rejected by the runner
+      ✓ a production-sounding database name is rejected
+      ✓ the gate compose file mounts no host volume (data lives in tmpfs)
+      ✓ RESET-DIRECT-1 (live) the guarded reset without consent leaves the schema intact
+      ✓ RESET-DIRECT-7 (live) an arbitrary Knex connection cannot be passed to the guarded reset
+      ✓ RESET-DIRECT-7 (live) a production-like target cannot reuse the disposable authorization
+      ✓ RESET-DIRECT-8 (live) the authorized disposable target resets normally
+    FRESHNESS — the whole lifecycle is repeatable
+      ✓ reset + migrate + seed + assert reproduces the first run
+
+    Test Suites: 1 passed, 1 total
+    Tests:       33 passed, 33 total          <- was 5 failed / 28 passed
+    Time:        6.12 s
+
+Legacy PostgreSQL suites (no regression):
+
+  npx jest tests/tow/towPostgres.e2e.test.js tests/tow/g3TowPostgres.e2e.test.js --runInBand
+    Test Suites: 2 passed, 2 total
+    Tests:       9 passed, 9 total
+
+Offline pin guard (unchanged, still green):
+
+  npx jest tests/tow/baseline/dbBaselineSafety.test.js --runInBand
+    -> covered in evidence 19b / gate log (offline pin 001..004 + smuggled
+       `005_smuggled_scope.js` rejection)
+
+--------------------------------------------------------------------------------
+4. STALE MVP-01/002 EXPECTATIONS AUDITED
+--------------------------------------------------------------------------------
+A deterministic sweep of the delivery was made for other pins/expectations that
+still assumed a 001..003 baseline:
+
+  grep -rn "MVP-01 baseline\|003_mvp01_tow_foundation\|BASELINE_MIGRATIONS\|PINNED_MIGRATIONS" \
+       tests scripts docs
+
+Findings and decisions:
+  * scripts/tow/run-db-baseline-gate.js:61-66  -> already 001..004 (canonical). OK.
+  * tests/tow/baseline/dbBaselineSafety.test.js:49,660-681 -> already 001..004
+    plus the smuggled-005 negative control. OK.
+  * tests/tow/baseline/dbBaseline.e2e.test.js -> THE ONLY stale pin. FIXED here.
+  * Any other `003` mention is a migration filename in a list that is a subset
+    assertion (e.g. "contains 003"), which stays valid with 004 present.
+
+No other stale MVP-01/002 expectation required a change: the remaining suites
+assert on their own pinned subsets and were green before and after.
+
+================================================================================

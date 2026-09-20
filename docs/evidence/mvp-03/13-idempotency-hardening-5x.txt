@@ -1,0 +1,196 @@
+===== RUN 1 =====
+127.0.0.1 - - [20/Sep/2026:16:30:19 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:19 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:19 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:19 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:19 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:19 +0000] "POST /api/tow/requests HTTP/1.1" 409 127 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:19 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:19 +0000] "POST /api/tow/requests HTTP/1.1" 409 127 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:19 +0000] "POST /api/tow/requests HTTP/1.1" 409 127 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:19 +0000] "POST /api/tow/requests HTTP/1.1" 409 127 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:19 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:19 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:19 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:19 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:19 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:19 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:19 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:19 +0000] "POST /api/tow/requests HTTP/1.1" 201 912 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:19 +0000] "POST /api/tow/requests HTTP/1.1" 409 126 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:19 +0000] "POST /api/tow/requests HTTP/1.1" 201 912 "-" "-"
+PASS tests/tow/mvp03/towRequestIdempotency.test.js
+  MVP-03 — Tow request idempotency
+    ✓ a retry with the same key and payload returns the same request (32 ms)
+    ✓ a retry after a zero-match search returns the same SEARCHING request (11 ms)
+    ✓ the same key with a different payload is a 409 idempotency_conflict (11 ms)
+    ✓ a change in the pickup, vehicle or observations is also a conflict (21 ms)
+    ✓ the key is scoped per customer and never global (9 ms)
+    ✓ a new key always creates a new request (8 ms)
+    ✓ concurrent retries of the same key create exactly one request (13 ms)
+    ✓ the module gate is evaluated before the idempotent replay (6 ms)
+    ✓ the persisted fingerprint is a hash, never the raw payload (5 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       9 passed, 9 total
+Snapshots:   0 total
+Time:        1.165 s, estimated 2 s
+Ran all test suites matching /tests\/tow\/mvp03\/towRequestIdempotency.test.js/i.
+RUN 1 EXIT=0
+===== RUN 2 =====
+127.0.0.1 - - [20/Sep/2026:16:30:21 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:21 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:21 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:21 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:21 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:21 +0000] "POST /api/tow/requests HTTP/1.1" 409 127 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:21 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:21 +0000] "POST /api/tow/requests HTTP/1.1" 409 127 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:21 +0000] "POST /api/tow/requests HTTP/1.1" 409 127 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:21 +0000] "POST /api/tow/requests HTTP/1.1" 409 127 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:21 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:21 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:21 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:21 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:21 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:21 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:21 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:21 +0000] "POST /api/tow/requests HTTP/1.1" 201 912 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:21 +0000] "POST /api/tow/requests HTTP/1.1" 409 126 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:21 +0000] "POST /api/tow/requests HTTP/1.1" 201 912 "-" "-"
+PASS tests/tow/mvp03/towRequestIdempotency.test.js
+  MVP-03 — Tow request idempotency
+    ✓ a retry with the same key and payload returns the same request (27 ms)
+    ✓ a retry after a zero-match search returns the same SEARCHING request (12 ms)
+    ✓ the same key with a different payload is a 409 idempotency_conflict (5 ms)
+    ✓ a change in the pickup, vehicle or observations is also a conflict (11 ms)
+    ✓ the key is scoped per customer and never global (5 ms)
+    ✓ a new key always creates a new request (4 ms)
+    ✓ concurrent retries of the same key create exactly one request (7 ms)
+    ✓ the module gate is evaluated before the idempotent replay (4 ms)
+    ✓ the persisted fingerprint is a hash, never the raw payload (2 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       9 passed, 9 total
+Snapshots:   0 total
+Time:        1.48 s, estimated 2 s
+Ran all test suites matching /tests\/tow\/mvp03\/towRequestIdempotency.test.js/i.
+RUN 2 EXIT=0
+===== RUN 3 =====
+127.0.0.1 - - [20/Sep/2026:16:30:23 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:23 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:23 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:23 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:23 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:23 +0000] "POST /api/tow/requests HTTP/1.1" 409 127 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:23 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:23 +0000] "POST /api/tow/requests HTTP/1.1" 409 127 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:23 +0000] "POST /api/tow/requests HTTP/1.1" 409 127 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:23 +0000] "POST /api/tow/requests HTTP/1.1" 409 127 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:23 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:23 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:23 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:23 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:23 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:23 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:23 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:23 +0000] "POST /api/tow/requests HTTP/1.1" 201 912 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:23 +0000] "POST /api/tow/requests HTTP/1.1" 409 126 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:23 +0000] "POST /api/tow/requests HTTP/1.1" 201 912 "-" "-"
+PASS tests/tow/mvp03/towRequestIdempotency.test.js
+  MVP-03 — Tow request idempotency
+    ✓ a retry with the same key and payload returns the same request (23 ms)
+    ✓ a retry after a zero-match search returns the same SEARCHING request (6 ms)
+    ✓ the same key with a different payload is a 409 idempotency_conflict (5 ms)
+    ✓ a change in the pickup, vehicle or observations is also a conflict (11 ms)
+    ✓ the key is scoped per customer and never global (5 ms)
+    ✓ a new key always creates a new request (4 ms)
+    ✓ concurrent retries of the same key create exactly one request (6 ms)
+    ✓ the module gate is evaluated before the idempotent replay (4 ms)
+    ✓ the persisted fingerprint is a hash, never the raw payload (2 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       9 passed, 9 total
+Snapshots:   0 total
+Time:        0.947 s, estimated 2 s
+Ran all test suites matching /tests\/tow\/mvp03\/towRequestIdempotency.test.js/i.
+RUN 3 EXIT=0
+===== RUN 4 =====
+127.0.0.1 - - [20/Sep/2026:16:30:24 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:24 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:24 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:24 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:24 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:24 +0000] "POST /api/tow/requests HTTP/1.1" 409 127 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:24 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:24 +0000] "POST /api/tow/requests HTTP/1.1" 409 127 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:24 +0000] "POST /api/tow/requests HTTP/1.1" 409 127 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:24 +0000] "POST /api/tow/requests HTTP/1.1" 409 127 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:24 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:24 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:24 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:24 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:24 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:24 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:24 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:24 +0000] "POST /api/tow/requests HTTP/1.1" 201 912 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:24 +0000] "POST /api/tow/requests HTTP/1.1" 409 126 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:24 +0000] "POST /api/tow/requests HTTP/1.1" 201 912 "-" "-"
+PASS tests/tow/mvp03/towRequestIdempotency.test.js
+  MVP-03 — Tow request idempotency
+    ✓ a retry with the same key and payload returns the same request (25 ms)
+    ✓ a retry after a zero-match search returns the same SEARCHING request (6 ms)
+    ✓ the same key with a different payload is a 409 idempotency_conflict (5 ms)
+    ✓ a change in the pickup, vehicle or observations is also a conflict (11 ms)
+    ✓ the key is scoped per customer and never global (4 ms)
+    ✓ a new key always creates a new request (5 ms)
+    ✓ concurrent retries of the same key create exactly one request (6 ms)
+    ✓ the module gate is evaluated before the idempotent replay (4 ms)
+    ✓ the persisted fingerprint is a hash, never the raw payload (2 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       9 passed, 9 total
+Snapshots:   0 total
+Time:        0.64 s, estimated 1 s
+Ran all test suites matching /tests\/tow\/mvp03\/towRequestIdempotency.test.js/i.
+RUN 4 EXIT=0
+===== RUN 5 =====
+127.0.0.1 - - [20/Sep/2026:16:30:25 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:25 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:25 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:25 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:25 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:25 +0000] "POST /api/tow/requests HTTP/1.1" 409 127 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:25 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:25 +0000] "POST /api/tow/requests HTTP/1.1" 409 127 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:25 +0000] "POST /api/tow/requests HTTP/1.1" 409 127 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:25 +0000] "POST /api/tow/requests HTTP/1.1" 409 127 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:25 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:25 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:25 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:25 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:25 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:25 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:25 +0000] "POST /api/tow/requests HTTP/1.1" 201 910 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:25 +0000] "POST /api/tow/requests HTTP/1.1" 201 912 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:25 +0000] "POST /api/tow/requests HTTP/1.1" 409 126 "-" "-"
+127.0.0.1 - - [20/Sep/2026:16:30:25 +0000] "POST /api/tow/requests HTTP/1.1" 201 912 "-" "-"
+PASS tests/tow/mvp03/towRequestIdempotency.test.js
+  MVP-03 — Tow request idempotency
+    ✓ a retry with the same key and payload returns the same request (42 ms)
+    ✓ a retry after a zero-match search returns the same SEARCHING request (13 ms)
+    ✓ the same key with a different payload is a 409 idempotency_conflict (11 ms)
+    ✓ a change in the pickup, vehicle or observations is also a conflict (14 ms)
+    ✓ the key is scoped per customer and never global (6 ms)
+    ✓ a new key always creates a new request (6 ms)
+    ✓ concurrent retries of the same key create exactly one request (6 ms)
+    ✓ the module gate is evaluated before the idempotent replay (5 ms)
+    ✓ the persisted fingerprint is a hash, never the raw payload (2 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       9 passed, 9 total
+Snapshots:   0 total
+Time:        0.697 s, estimated 1 s
+Ran all test suites matching /tests\/tow\/mvp03\/towRequestIdempotency.test.js/i.
+RUN 5 EXIT=0
+FIVE_RUN_EXIT=0

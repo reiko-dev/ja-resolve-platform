@@ -18,35 +18,70 @@ function isFinitePositive(value) {
   return typeof value === 'number' && Number.isFinite(value) && value > 0;
 }
 
+/**
+ * The policy result is also the source of the per-dimension verdicts the
+ * consumer contract publishes (`OpportunityCompatibility`). Both flags are
+ * DERIVED from the same checks above — never recomputed, never a second policy:
+ *
+ *   vehicle_class_supported   the requested class is a valid vocabulary value
+ *                             AND the vehicle declares it;
+ *   weight_within_capacity    no weight reason was raised: the weight is present
+ *                             when the class requires it, and it does not exceed
+ *                             the vehicle capacity. A class that does not require
+ *                             a weight (e.g. motorcycle) is vacuously within
+ *                             capacity.
+ *
+ * A non-operational vehicle short-circuits before any dimension is evaluated, so
+ * both flags are reported as `false` ("not established"), which is truthful and
+ * unreachable for an emitted opportunity: only `eligible` vehicles are emitted.
+ */
 function isCompatible(vehicle, requested) {
   if (!vehicle || vehicle.active !== true) {
-    return { compatible: false, code: 'vehicle_not_operational', reasons: ['vehicle_not_active'] };
+    return {
+      compatible: false,
+      code: 'vehicle_not_operational',
+      reasons: ['vehicle_not_active'],
+      vehicle_class_supported: false,
+      weight_within_capacity: false,
+    };
   }
 
   const request = requested || {};
   const reasons = [];
 
+  const classSupported = isVehicleClass(request.class)
+    && Array.isArray(vehicle.supported_vehicle_classes)
+    && vehicle.supported_vehicle_classes.includes(request.class);
+
   if (!isVehicleClass(request.class)) {
     reasons.push('invalid_requested_class');
-  } else if (!Array.isArray(vehicle.supported_vehicle_classes)
-    || !vehicle.supported_vehicle_classes.includes(request.class)) {
+  } else if (!classSupported) {
     reasons.push('class_not_supported');
   }
 
-  if (requiresWeight(request.class) && !isFinitePositive(request.weight_kg)) {
+  const weightMissing = requiresWeight(request.class) && !isFinitePositive(request.weight_kg);
+  const weightExceeds = isFinitePositive(request.weight_kg)
+    && Number.isFinite(vehicle.max_towed_weight_kg)
+    && request.weight_kg > vehicle.max_towed_weight_kg;
+
+  if (weightMissing) {
     reasons.push('weight_required');
   }
-
-  if (isFinitePositive(request.weight_kg)
-    && Number.isFinite(vehicle.max_towed_weight_kg)
-    && request.weight_kg > vehicle.max_towed_weight_kg) {
+  if (weightExceeds) {
     reasons.push('weight_exceeds_capacity');
   }
 
+  const weightWithinCapacity = !weightMissing && !weightExceeds;
+
+  const dimensions = {
+    vehicle_class_supported: classSupported,
+    weight_within_capacity: weightWithinCapacity,
+  };
+
   if (reasons.length > 0) {
-    return { compatible: false, code: 'vehicle_not_compatible', reasons };
+    return { compatible: false, code: 'vehicle_not_compatible', reasons, ...dimensions };
   }
-  return { compatible: true, code: null, reasons: [] };
+  return { compatible: true, code: null, reasons: [], ...dimensions };
 }
 
 module.exports = { isCompatible };
