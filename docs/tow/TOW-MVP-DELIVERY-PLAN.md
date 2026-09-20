@@ -4,7 +4,7 @@
 > Domain: Tow / Guincho  
 > Contract baseline: PR #9  
 > Epic: #10  
-> Current implementation baseline: `main @ f31962fdd0175303646a34c9d170032bc6a06601`  
+> Current implementation baseline: `main @ c03e2d06d6680eef1f3f961c877985033da0d89f`  
 > Phase 1 executable issues: #13–#18  
 > Phase 2 hardening backlog: #33
 
@@ -145,7 +145,30 @@ This commit is the starting point for MVP-01.
 
 Issue: #13  
 Depends on: T01 accepted  
-Size: L
+Size: L  
+Status: **ACCEPTED**
+
+Merge:
+
+```text
+PR #35
+merge commit:
+c03e2d06d6680eef1f3f961c877985033da0d89f
+accepted receipt:
+PR #35 comment #5745811538
+```
+
+Post-merge baseline (accepted implementation baseline):
+
+```text
+validate:openapi     PASS
+contract             62/62 PASS
+verify:tow           GREEN
+db baseline          GREEN
+schema fingerprint   37cee47edc8dd1084786ab5fe3c32511c71b9a4a2788f67406391916c7cc0f59
+real PostgreSQL      15 suites / 133 passed
+full Jest            898 passed / 58 skipped / 0 failures
+```
 
 Unifies the essential scope of the old T02 + T03 + T04.
 
@@ -181,7 +204,11 @@ backend can answer:
 
 Issue: #14  
 Depends on: MVP-01 accepted  
-Size: M/L
+Size: M/L  
+Status: **READY / current delivery**
+
+Execution base: `c03e2d06d6680eef1f3f961c877985033da0d89f`  
+Branch: `feature/mvp-02-routes-pricing`
 
 Delivers:
 
@@ -481,8 +508,8 @@ PR #9 contract                         MERGED ✅
 T00                                    ACCEPTED ✅
 T01                                    ACCEPTED ✅
 #31 security                           DEFERRED
-MVP-01 / #13                           READY
-MVP-02 / #14                           BLOCKED by MVP-01
+MVP-01 / #13                           ACCEPTED ✅
+MVP-02 / #14                           READY / current delivery
 MVP-03 / #15                           BLOCKED by MVP-02
 MVP-04 / #16                           BLOCKED by MVP-03
 MVP-05 / #17                           BLOCKED by MVP-04
@@ -490,10 +517,17 @@ MVP-06 / #18                           BLOCKED by MVP-05
 Phase 2 / #33                          DEFERRED
 ```
 
+Accepted implementation baseline:
+
+```text
+main @ c03e2d06d6680eef1f3f961c877985033da0d89f
+```
+
 Next executable work:
 
 ```text
-MVP-01 — Tow Foundation
-Issue #13
-base: main @ f31962fdd0175303646a34c9d170032bc6a06601
+MVP-02 — Google Routes & Authoritative Pricing
+Issue #14
+base: main @ c03e2d06d6680eef1f3f961c877985033da0d89f
+branch: feature/mvp-02-routes-pricing
 ```

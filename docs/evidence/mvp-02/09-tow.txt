@@ -1,0 +1,13 @@
+### npx jest tests/tow --runInBand
+PASS tests/tow/mvp01/towArchitectureBoundary.test.js
+PASS tests/tow/mvp01/towDocumentService.test.js
+PASS tests/tow/socketService.tow.test.js
+PASS tests/tow/mvp01/towEligibilityService.test.js
+PASS tests/tow/towProposalIdempotency.test.js
+PASS tests/tow/mvp01/towActivateConflictMapping.test.js
+
+Test Suites: 5 skipped, 34 passed, 34 of 39 total
+Tests:       58 skipped, 653 passed, 711 total
+Snapshots:   0 total
+Time:        9.525 s, estimated 18 s
+Ran all test suites matching /tests\/tow/i.

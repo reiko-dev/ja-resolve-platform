@@ -29,6 +29,8 @@ module.exports = {
     return {
       maps: mapsGateway.createFakeMapsGateway(options.maps),
       payments: paymentGateway.createFakePaymentGateway(options.payments),
+      // MVP-02 — the authoritative RouteProvider port double.
+      routes: mapsGateway.createFakeRouteProvider(options.routes),
     };
   },
 };

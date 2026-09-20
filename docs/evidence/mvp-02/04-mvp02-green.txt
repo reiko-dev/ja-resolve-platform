@@ -1,0 +1,12 @@
+### npx jest tests/tow/mvp02 --runInBand
+PASS tests/tow/mvp02/towPricingPolicy.test.js
+PASS tests/tow/mvp02/towRouteProviderBoundary.test.js
+PASS tests/tow/mvp02/towGoogleRoutesAdapter.test.js
+PASS tests/tow/mvp02/towQuoteService.test.js
+PASS tests/tow/mvp02/towRouteQuoteDomain.test.js
+
+Test Suites: 5 passed, 5 total
+Tests:       179 passed, 179 total
+Snapshots:   0 total
+Time:        1.212 s
+Ran all test suites matching /tests\/tow\/mvp02/i.

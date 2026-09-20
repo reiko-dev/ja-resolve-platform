@@ -1,0 +1,185 @@
+# EXT-MVP02-1 / EXT-MVP02-2 — RED before the fix (working tree at the reviewed head fd55ffd7)
+#
+# Captured with the new tests in place but the fixes NOT yet applied: quote-service still
+# used the coarse MVP-01 validatePricing before the provider call and the adapter still
+# accepted ten fractional digits.
+#
+# Command: npx jest tests/tow/mvp02/towQuoteService.test.js tests/tow/mvp02/towGoogleRoutesAdapter.test.js --runInBand
+# Observed: Test Suites: 2 failed, 2 total | Tests: 10 failed, 104 passed, 114 total
+#   - 6 quote-service failures, including all three required provider-call-count cases
+#     (included_km = 1.0001, minimum_charge_cents = 2 ** 53, price_per_additional_km_cents = 2 ** 53)
+#     failing with "Expected: 0 / Received: 1" — the provider had already been called;
+#   - 4 adapter failures for the >9-fractional-digit duration forms.
+# After the fixes the same two suites are 204 passed / 204 (see 14-mvp02.txt).
+#
+FAIL tests/tow/mvp02/towGoogleRoutesAdapter.test.js
+  ● MVP-02 UNIT — Google Routes adapter › EXT-MVP02-2 — duration accepts at most nine fractional digits › rejects the string form (ten fractional digits) as malformed_response
+
+    expected the call to reject
+
+      89 |     return error;
+      90 |   }
+    > 91 |   throw new Error('expected the call to reject');
+         |         ^
+      92 | }
+      93 |
+      94 | describe('MVP-02 UNIT — Google Routes adapter', () => {
+
+      at captureError (tests/tow/mvp02/towGoogleRoutesAdapter.test.js:91:9)
+      at tests/tow/mvp02/towGoogleRoutesAdapter.test.js:305:21
+
+  ● MVP-02 UNIT — Google Routes adapter › EXT-MVP02-2 — duration accepts at most nine fractional digits › rejects the string form (ten fractional digits above the half) as malformed_response
+
+    expected the call to reject
+
+      89 |     return error;
+      90 |   }
+    > 91 |   throw new Error('expected the call to reject');
+         |         ^
+      92 | }
+      93 |
+      94 | describe('MVP-02 UNIT — Google Routes adapter', () => {
+
+      at captureError (tests/tow/mvp02/towGoogleRoutesAdapter.test.js:91:9)
+      at tests/tow/mvp02/towGoogleRoutesAdapter.test.js:305:21
+
+  ● MVP-02 UNIT — Google Routes adapter › EXT-MVP02-2 — duration accepts at most nine fractional digits › rejects the numeric form (more than nine fractional digits) as malformed_response
+
+    expected the call to reject
+
+      89 |     return error;
+      90 |   }
+    > 91 |   throw new Error('expected the call to reject');
+         |         ^
+      92 | }
+      93 |
+      94 | describe('MVP-02 UNIT — Google Routes adapter', () => {
+
+      at captureError (tests/tow/mvp02/towGoogleRoutesAdapter.test.js:91:9)
+      at tests/tow/mvp02/towGoogleRoutesAdapter.test.js:333:21
+
+  ● MVP-02 UNIT — Google Routes adapter › EXT-MVP02-2 — duration accepts at most nine fractional digits › rejects the numeric form (a binary float artifact) as malformed_response
+
+    expected the call to reject
+
+      89 |     return error;
+      90 |   }
+    > 91 |   throw new Error('expected the call to reject');
+         |         ^
+      92 | }
+      93 |
+      94 | describe('MVP-02 UNIT — Google Routes adapter', () => {
+
+      at captureError (tests/tow/mvp02/towGoogleRoutesAdapter.test.js:91:9)
+      at tests/tow/mvp02/towGoogleRoutesAdapter.test.js:333:21
+
+FAIL tests/tow/mvp02/towQuoteService.test.js
+  ● MVP-02 UNIT — quoteTow application operation › EXT-MVP02-1 — strict tariff normalization happens before the provider is called › included_km with more than three decimals is a validation_error and the provider call count stays 0
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 0
+    Received: 1
+
+      286 |
+      287 |       await expect(quote(service, { tariff })).rejects.toMatchObject({ code: 'validation_error' });
+    > 288 |       expect(routeProvider.callCount('computeRoute')).toBe(0);
+          |                                                       ^
+      289 |     });
+      290 |
+      291 |     test('a valid tariff calls the provider exactly once', async () => {
+
+      at toBe (tests/tow/mvp02/towQuoteService.test.js:288:55)
+
+  ● MVP-02 UNIT — quoteTow application operation › EXT-MVP02-1 — strict tariff normalization happens before the provider is called › minimum_charge_cents = 2 ** 53 is a validation_error and the provider call count stays 0
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 0
+    Received: 1
+
+      286 |
+      287 |       await expect(quote(service, { tariff })).rejects.toMatchObject({ code: 'validation_error' });
+    > 288 |       expect(routeProvider.callCount('computeRoute')).toBe(0);
+          |                                                       ^
+      289 |     });
+      290 |
+      291 |     test('a valid tariff calls the provider exactly once', async () => {
+
+      at toBe (tests/tow/mvp02/towQuoteService.test.js:288:55)
+
+  ● MVP-02 UNIT — quoteTow application operation › EXT-MVP02-1 — strict tariff normalization happens before the provider is called › price_per_additional_km_cents = 2 ** 53 is a validation_error and the provider call count stays 0
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 0
+    Received: 1
+
+      286 |
+      287 |       await expect(quote(service, { tariff })).rejects.toMatchObject({ code: 'validation_error' });
+    > 288 |       expect(routeProvider.callCount('computeRoute')).toBe(0);
+          |                                                       ^
+      289 |     });
+      290 |
+      291 |     test('a valid tariff calls the provider exactly once', async () => {
+
+      at toBe (tests/tow/mvp02/towQuoteService.test.js:288:55)
+
+  ● MVP-02 UNIT — quoteTow application operation › EXT-MVP02-1 — strict tariff normalization happens before the provider is called › a DECIMAL(10,3) string tariff is normalized to exact meters before the single provider call
+
+    TowError: included_km must be a non-negative number
+
+      47 |
+      48 | function validationError(message, details) {
+    > 49 |   return new TowError('validation_error', message, { details });
+         |          ^
+      50 | }
+      51 |
+      52 | /**
+
+      at validationError (src/modules/tow/domain/errors.js:49:10)
+      at validationError (src/modules/tow/domain/pricing.js:41:11)
+      at validatePricing (src/modules/tow/application/quote-service.js:48:14)
+      at Object.resolveTariff [as quoteTow] (src/modules/tow/application/quote-service.js:66:26)
+      at quoteTow (tests/tow/mvp02/towQuoteService.test.js:47:18)
+      at Object.quote (tests/tow/mvp02/towQuoteService.test.js:305:28)
+
+  ● MVP-02 UNIT — quoteTow application operation › EXT-MVP02-1 — strict tariff normalization happens before the provider is called › repository-resolved vehicle pricing is strictly normalized before the provider call
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 0
+    Received: 1
+
+      329 |         provider: PROVIDER, pickup: PICKUP, destination: DESTINATION, partnerId: 1, vehicleId: 7,
+      330 |       })).rejects.toMatchObject({ code: 'validation_error' });
+    > 331 |       expect(routeProvider.callCount('computeRoute')).toBe(0);
+          |                                                       ^
+      332 |     });
+      333 |
+      334 |     test('an unsafe repository-resolved money value is rejected before the provider call', async () => {
+
+      at Object.toBe (tests/tow/mvp02/towQuoteService.test.js:331:55)
+
+  ● MVP-02 UNIT — quoteTow application operation › EXT-MVP02-1 — strict tariff normalization happens before the provider is called › an unsafe repository-resolved money value is rejected before the provider call
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 0
+    Received: 1
+
+      345 |         provider: PROVIDER, pickup: PICKUP, destination: DESTINATION, partnerId: 1, vehicleId: 7,
+      346 |       })).rejects.toMatchObject({ code: 'validation_error' });
+    > 347 |       expect(routeProvider.callCount('computeRoute')).toBe(0);
+          |                                                       ^
+      348 |     });
+      349 |   });
+      350 |
+
+      at Object.toBe (tests/tow/mvp02/towQuoteService.test.js:347:55)
+
+Test Suites: 2 failed, 2 total
+Tests:       10 failed, 104 passed, 114 total
+Snapshots:   0 total
+Time:        0.735 s
+Ran all test suites matching /tests\/tow\/mvp02\/towQuoteService.test.js|tests\/tow\/mvp02\/towGoogleRoutesAdapter.test.js/i.

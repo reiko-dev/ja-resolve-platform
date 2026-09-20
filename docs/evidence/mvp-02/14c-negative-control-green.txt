@@ -1,0 +1,66 @@
+# NC-7 — negative control: bypass the strict pre-provider tariff normalization (EXT-MVP02-1)
+# State 3 of 3 — RESTORED byte-identically from /tmp/quote-service.fixed.js
+#
+#   sha256 before mutation (state 1/3): d05c27418e8b1e4ecca67636864ef785bfc98ab040a99c5c887978fcb9fec1c9
+#   sha256 after  restore  (state 3/3): d05c27418e8b1e4ecca67636864ef785bfc98ab040a99c5c887978fcb9fec1c9
+#   -> byte-identical restore (the two captures are equal; the committed file still has this sha256)
+#
+# Command: npx jest tests/tow/mvp02/towQuoteService.test.js --runInBand -t "EXT-MVP02-1"
+# Expected: GREEN — strict normalization restored.
+# Observed: Test Suites: 1 passed, 1 total | Tests: 31 skipped, 7 passed, 38 total
+#
+PASS tests/tow/mvp02/towQuoteService.test.js
+  MVP-02 UNIT — quoteTow application operation
+    authoritative route snapshot
+      ○ skipped produces both legs, their exact totals and the encoded polyline
+      ○ skipped total meters is exactly the sum of the two provider legs
+      ○ skipped asks the provider for provider -> pickup -> destination, with the pickup in the middle
+      ○ skipped preserves a null polyline when the provider returns no geometry
+    authoritative pricing over the summed route
+      ○ skipped prices the summed distance with the frozen contract result
+      ○ skipped the two legs are summed BEFORE pricing, not priced separately
+      ○ skipped a route inside the included distance charges the minimum only
+      ○ skipped one meter above the included distance is billed proportionally
+    the quote is a snapshot, not a live reference
+      ○ skipped mutating the caller tariff after the quote does not change the snapshot
+      ○ skipped a later tariff change on the vehicle does not mutate an existing quote
+      ○ skipped the whole quote is deeply frozen and JSON-serializable
+      ○ skipped stamps generated_at from the injected clock port
+    tariff resolution through the VehicleRepository port
+      ○ skipped resolves the tariff from the vehicle when no tariff is supplied
+      ○ skipped an unknown vehicle is a not_found error and the provider is never called
+      ○ skipped a missing tariff with no repository is a validation_error
+    validation happens before the provider is called
+      ○ skipped a malformed provider coordinate is a validation_error and no Google call is attempted
+      ○ skipped a malformed pickup coordinate is rejected without a provider call
+      ○ skipped a malformed destination coordinate is rejected without a provider call
+      ○ skipped a malformed provider coordinate is rejected without a provider call
+      ○ skipped a malformed tariff is rejected without a provider call
+    EXT-MVP02-1 — strict tariff normalization happens before the provider is called
+      ✓ included_km with more than three decimals is a validation_error and the provider call count stays 0 (1 ms)
+      ✓ minimum_charge_cents = 2 ** 53 is a validation_error and the provider call count stays 0
+      ✓ price_per_additional_km_cents = 2 ** 53 is a validation_error and the provider call count stays 0
+      ✓ a valid tariff calls the provider exactly once (1 ms)
+      ✓ a DECIMAL(10,3) string tariff is normalized to exact meters before the single provider call
+      ✓ repository-resolved vehicle pricing is strictly normalized before the provider call
+      ✓ an unsafe repository-resolved money value is rejected before the provider call (1 ms)
+    client input can never override distance or price
+      ○ skipped client-supplied distance, legs, totals and price are ignored
+      ○ skipped an explicit backend tariff takes precedence and skips the repository lookup
+    no Haversine, no estimate, no fallback
+      ○ skipped a provider failure becomes external_dependency_unavailable with no price
+      ○ skipped the canonical error carries the contract http status and leaks no provider internals
+      ○ skipped a failing provider never produces an estimated or Haversine-derived price
+      ○ skipped a provider returning a malformed route (negative distance) is external_dependency_unavailable
+      ○ skipped a provider returning a malformed route (fractional distance) is external_dependency_unavailable
+      ○ skipped a provider returning a malformed route (missing leg) is external_dependency_unavailable
+      ○ skipped a provider returning a malformed route (non-object payload) is external_dependency_unavailable
+    construction contract
+      ○ skipped requires a route provider port
+      ○ skipped requires a clock port
+
+Test Suites: 1 passed, 1 total
+Tests:       31 skipped, 7 passed, 38 total
+Snapshots:   0 total
+Time:        0.369 s, estimated 1 s
+Ran all test suites matching /tests\/tow\/mvp02\/towQuoteService.test.js/i with tests matching "EXT-MVP02-1".

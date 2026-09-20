@@ -21,6 +21,7 @@ const ERROR_STATUS = Object.freeze({
   tow_document_required: 409,
   tow_document_not_approved: 409,
   vehicle_not_compatible: 409,
+  external_dependency_unavailable: 503,
 });
 
 const TOW_ERROR_CODES = Object.freeze(Object.keys(ERROR_STATUS));
@@ -48,11 +49,22 @@ function validationError(message, details) {
   return new TowError('validation_error', message, { details });
 }
 
+/**
+ * MVP-02 — the canonical failure for an external provider the module depends on
+ * (the route provider today). The message is deliberately generic and carries no
+ * `details`: a provider failure must never leak a key, a raw payload or an
+ * internal stack to the caller. Callers must never substitute an estimate.
+ */
+function externalDependencyError(message) {
+  return new TowError('external_dependency_unavailable', message || 'External dependency is unavailable');
+}
+
 module.exports = {
   ERROR_STATUS,
   TOW_ERROR_CODES,
   TowError,
   isTowError,
   validationError,
+  externalDependencyError,
   MODULE_KEY,
 };

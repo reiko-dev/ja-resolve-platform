@@ -44,6 +44,16 @@
  *
  * @typedef {Object} Clock
  * @property {() => Date} now
+ *
+ * MVP-02 — authoritative route distance.
+ *
+ * The application asks for the trip `origin -> pickup -> destination` and gets
+ * back the legs Google returned, unchanged. Implementations must never estimate,
+ * scale or interpolate a distance: an unavailable provider is an error, not a
+ * fallback.
+ *
+ * @typedef {Object} RouteProvider
+ * @property {(request: { origin: { latitude: number, longitude: number }, destination: { latitude: number, longitude: number }, pickup?: { latitude: number, longitude: number } }) => Promise<{ provider_to_pickup: { distance_meters: number, duration_seconds: number }|null, pickup_to_destination: { distance_meters: number, duration_seconds: number }|null, encoded_polyline: string|null }>} computeRoute
  */
 'use strict';
 
@@ -55,6 +65,7 @@ const PORT_NAMES = Object.freeze([
   'PartnerRepository',
   'FileStorage',
   'Clock',
+  'RouteProvider',
 ]);
 
 module.exports = { PORT_NAMES };
