@@ -1,0 +1,158 @@
+================================================================================
+EXT-MVP03-1 — NEGATIVE CONTROL for the live OpenAPI contract test
+================================================================================
+Branch:            feature/mvp-03-tow-request-matching
+Correction base:   2edf03068d4c739cd4874ba4f4deddee31c3e5ef (PR #37 HEAD)
+Capture (UTC):     2026-09-20T19:31:25Z
+Target file:       socorre_ai_backend/src/modules/tow/http/serialize.js
+Test file:         socorre_ai_backend/tests/tow/mvp03/towPartnerOpportunitiesContract.test.js
+
+WHY THIS CONTROL EXISTS
+-----------------------
+A contract test that can never fail is worthless. The live test must be proven
+to actually depend on the runtime shape. This control removes ONE required member
+(`active_tow_vehicle`) from the runtime serializer, shows the live test goes RED
+with the schema validator naming the exact missing member, then restores the file
+BYTE-IDENTICALLY (sha256 + `diff -q`) and shows the same test goes GREEN again.
+
+================================================================================
+STEP 1 — baseline hash of the runtime serializer
+================================================================================
+$ shasum -a 256 src/modules/tow/http/serialize.js
+648d0a0d316909d53c67d9380baed8e3dc0d0dfc5b0d692a7d702a7394301976  src/modules/tow/http/serialize.js
+
+================================================================================
+STEP 2 — apply the mutation (remove the active_tow_vehicle member)
+================================================================================
+$ diff -u .nc-tmp/serialize.js.orig src/modules/tow/http/serialize.js
+--- .nc-tmp/serialize.js.orig
++++ src/modules/tow/http/serialize.js (mutated)
+@@ -116,7 +116,6 @@
+ function serializeOpportunity(opportunity) {
+   return {
+     request: opportunity.request,
+-    active_tow_vehicle: serializeVehicleSummary(opportunity.active_tow_vehicle),
+     proposed_price: {
+       amount_cents: Number(opportunity.proposed_price.amount_cents),
+       currency: opportunity.proposed_price.currency,
+
+================================================================================
+STEP 3 — RED: npx jest tests/tow/mvp03/towPartnerOpportunitiesContract.test.js --runInBand
+================================================================================
+FAIL tests/tow/mvp03/towPartnerOpportunitiesContract.test.js
+  MVP-03 — live partner opportunities conform to the canonical OpenAPI contract
+    ✓ the canonical validators are compiled from the composed contract (not vacuously absent) (2 ms)
+    ✕ the ACTUAL HTTP 200 response of the live endpoint validates against TowOpportunityListResponse (28 ms)
+    ✕ the live item carries exactly the contract members (no invented, no missing) (7 ms)
+    ✓ the contract validator rejects a live payload missing active_tow_vehicle (in-suite negative control) (6 ms)
+    ✓ the contract validator rejects a live payload missing compatibility (in-suite negative control) (6 ms)
+    ✕ opportunity_expires_at is nullable and optional in the frozen contract (7 ms)
+    ✓ base and canonical opportunity schemas do not diverge silently (1 ms)
+
+  ● MVP-03 — live partner opportunities conform to the canonical OpenAPI contract › the ACTUAL HTTP 200 response of the live endpoint validates against TowOpportunityListResponse
+
+    expect(received).toBeNull()
+
+    Received: [{"instancePath": "/data/items/0", "keyword": "required", "message": "must have required property 'active_tow_vehicle'", "params": {"missingProperty": "active_tow_vehicle"}, "schemaPath": "#/required"}]
+
+      131 |     // The contract gate comes FIRST: the actual wire body must be schema-valid.
+      132 |     const valid = validateOpportunityList(response.body);
+    > 133 |     expect(validateOpportunityList.errors).toBeNull();
+          |                                            ^
+      134 |     expect(valid).toBe(true);
+      135 |
+      136 |     const opportunity = response.body.data.items[0];
+
+      at Object.toBeNull (tests/tow/mvp03/towPartnerOpportunitiesContract.test.js:133:44)
+
+  ● MVP-03 — live partner opportunities conform to the canonical OpenAPI contract › the live item carries exactly the contract members (no invented, no missing)
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 0
+
+    @@ -1,7 +1,6 @@
+      Array [
+    -   "active_tow_vehicle",
+        "compatibility",
+        "opportunity_expires_at",
+        "proposed_price",
+        "request",
+
+The FIRST failure is the contract gate itself (schema validation runs before the
+field spot-checks), and it names the exact missing member:
+
+  Received: [{"instancePath": "/data/items/0", "keyword": "required",
+              "message": "must have required property 'active_tow_vehicle'",
+              "params": {"missingProperty": "active_tow_vehicle"},
+              "schemaPath": "#/required"}]
+
+So the RED is caused by the CONTRACT, not by an incidental TypeError. The other
+two failures are the exact-member lock and the expiry/optionality check, both of
+which also depend on the real body.
+
+================================================================================
+STEP 4 — restore the original file and prove the restore is byte-identical
+================================================================================
+$ cp .nc-tmp/serialize.js.orig src/modules/tow/http/serialize.js
+$ diff -q .nc-tmp/serialize.js.orig src/modules/tow/http/serialize.js
+diff -q: BYTE-IDENTICAL (exit 0)
+
+$ shasum -a 256 src/modules/tow/http/serialize.js   # after restore
+648d0a0d316909d53c67d9380baed8e3dc0d0dfc5b0d692a7d702a7394301976  socorre_ai_backend/src/modules/tow/http/serialize.js
+$ cat .nc-tmp/before.sha                            # before mutation
+648d0a0d316909d53c67d9380baed8e3dc0d0dfc5b0d692a7d702a7394301976  src/modules/tow/http/serialize.js
+$ shasum -a 256 -c .nc-tmp/before.sha
+src/modules/tow/http/serialize.js: OK
+
+================================================================================
+STEP 5 — GREEN: the same test passes again after the byte-identical restore
+================================================================================
+PASS tests/tow/mvp03/towPartnerOpportunitiesContract.test.js
+  MVP-03 — live partner opportunities conform to the canonical OpenAPI contract
+    ✓ the canonical validators are compiled from the composed contract (not vacuously absent) (1 ms)
+    ✓ the ACTUAL HTTP 200 response of the live endpoint validates against TowOpportunityListResponse (32 ms)
+    ✓ the live item carries exactly the contract members (no invented, no missing) (7 ms)
+    ✓ the contract validator rejects a live payload missing active_tow_vehicle (in-suite negative control) (9 ms)
+    ✓ the contract validator rejects a live payload missing compatibility (in-suite negative control) (6 ms)
+    ✓ opportunity_expires_at is nullable and optional in the frozen contract (9 ms)
+    ✓ base and canonical opportunity schemas do not diverge silently (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       7 passed, 7 total
+Snapshots:   0 total
+Time:        1.148 s, estimated 2 s
+Ran all test suites matching /tests\/tow\/mvp03\/towPartnerOpportunitiesContract.test.js/i.
+
+================================================================================
+VERDICT
+================================================================================
+RED  (mutated runtime, 3 failed / 4 passed)  ->  the live test detects real
+                                                 runtime contract drift.
+RESTORE                                      ->  sha256 identical, `diff -q` clean.
+GREEN (7 passed / 7)                         ->  the committed runtime conforms.
+
+The mutation was applied to the WORKING TREE only; it was never committed, and
+the restored file hash equals the pre-mutation hash.
+
+================================================================================
+STEP 6 — raw re-run of the restore proof at evidence-write time
+================================================================================
+$ shasum -a 256 src/modules/tow/http/serialize.js
+648d0a0d316909d53c67d9380baed8e3dc0d0dfc5b0d692a7d702a7394301976  src/modules/tow/http/serialize.js
+$ shasum -a 256 .nc-tmp/serialize.js.orig
+648d0a0d316909d53c67d9380baed8e3dc0d0dfc5b0d692a7d702a7394301976  .nc-tmp/serialize.js.orig
+$ diff -q .nc-tmp/serialize.js.orig src/modules/tow/http/serialize.js && echo 'diff -q exit 0: BYTE-IDENTICAL'
+diff -q exit 0: BYTE-IDENTICAL
+$ shasum -a 256 -c .nc-tmp/before.sha
+src/modules/tow/http/serialize.js: OK
+
+$ git status --porcelain src/modules/tow/http/serialize.js   # working tree, not committed yet
+ M socorre_ai_backend/src/modules/tow/http/serialize.js
+
+NOTE: `socorre_ai_backend/.nc-tmp/` was a scratch directory holding the
+pre-mutation copy and the RED/GREEN logs. It was deleted after this evidence was
+written and was never committed. The restored serializer's sha256
+(648d0a0d316909d53c67d9380baed8e3dc0d0dfc5b0d692a7d702a7394301976) is the value
+recorded in STEP 1 and STEP 6 above, and it is the value present in the commit.

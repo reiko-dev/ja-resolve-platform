@@ -1,0 +1,125 @@
+================================================================================
+MVP-03 correction — PRESERVED INVARIANTS re-proven at the correction HEAD
+================================================================================
+Branch:            feature/mvp-03-tow-request-matching
+Correction base:   2edf03068d4c739cd4874ba4f4deddee31c3e5ef (PR #37 HEAD)
+Capture (UTC):     2026-09-20T19:31:25Z
+
+The correction adds two members to the opportunity item. These four invariants
+are the ones a careless "just add the fields" change would break, so each is
+re-proven here at the correction HEAD with raw output.
+
+================================================================================
+INVARIANT 1 — the client cannot provide a price
+INVARIANT 2 — the client cannot provide a route distance
+================================================================================
+(A) Domain probe: every client-supplied commercial field is REJECTED
+Command (from socorre_ai_backend/):
+  node -e "validateCreateTowRequestInput({...base, ...extra}) for each extra"
+
+REJECTED  code=validation_error  {"route_quote":{"total_distance_meters":14350,"total_duration_seconds":2100}}
+REJECTED  code=validation_error  {"distance_meters":14350}
+REJECTED  code=validation_error  {"duration_seconds":2100}
+REJECTED  code=validation_error  {"estimated_price":199}
+REJECTED  code=validation_error  {"proposed_price":{"amount_cents":1,"currency":"BRL"}}
+REJECTED  code=validation_error  {"final_price":1}
+REJECTED  code=validation_error  {"partner_id":1}
+
+(B) Committed domain test (exact test name, focused run)
+Command: npx jest tests/tow/mvp03/towRequestDomain.test.js \
+           -t "client-supplied distance or price is rejected, never silently dropped" \
+           --runInBand --verbose
+    ✓ client-supplied distance or price is rejected, never silently dropped (1 ms)
+    ○ skipped a valid payload is normalized, frozen and carries only canonical keys
+    ○ skipped optional vehicle fields may be omitted and normalize to null
+    ○ skipped missing required field pickup is a validation error
+
+(C) Committed HTTP test — the same rejection over the wire (422, nothing persisted)
+Command: npx jest tests/tow/mvp03/towRequestCreate.test.js \
+           -t "unknown top-level field is a 422 validation error and persists nothing" \
+           --runInBand --verbose
+      ✓ unknown top-level field is a 422 validation error and persists nothing (38 ms)
+Ran all test suites matching /tests\/tow\/mvp03\/towRequestCreate.test.js/i with tests matching "unknown top-level field is a 422 validation error and persists nothing".
+
+(D) The persisted row cannot even hold a price or a route
+Committed test: "no price, route or assignment is ever persisted"
+  socorre_ai_backend/tests/tow/mvp03/towRequestCreate.test.js:161
+It asserts the persisted tow_requests columns contain NONE of:
+  estimated_price, final_price, price_breakdown, route_quote, distance_meters,
+  duration_seconds, partner_id, assigned_partner_id, selected_proposal_id,
+  payment_status, payment_method, search_expires_at
+Run: npx jest tests/tow/mvp03/towRequestCreate.test.js -t "no price, route or assignment is ever persisted" --runInBand
+      ✓ no price, route or assignment is ever persisted (29 ms)
+Tests:       25 skipped, 1 passed, 26 total
+
+================================================================================
+INVARIANT 3 — a partner cannot see an incompatible request
+INVARIANT 4 — an excluded candidate triggers 0 Google (RouteProvider) calls
+================================================================================
+Both are proven by the SAME committed suite. Its `expectExcluded` helper asserts,
+for every exclusion case:
+    response.status === 200
+    response.body.data.items === []
+    response.body.data.meta.total === 0
+    routeProvider.callCount() === 0        <-- INVARIANT 4
+
+Command: npx jest tests/tow/mvp03/towPartnerOpportunities.test.js -t "is excluded" \
+           --runInBand --verbose
+
+      ✓ an out-of-radius partner is excluded (33 ms)
+      ✓ an unavailable partner is excluded (7 ms)
+      ✓ an offline partner is excluded (6 ms)
+      ✓ a partner registered at (0,0) is excluded (5 ms)
+      ✓ a partner with no registered coordinates is excluded (8 ms)
+      ✓ a partner whose only vehicle is inactive is excluded (6 ms)
+      ✓ a partner with no vehicle document is excluded (5 ms)
+      ✓ a partner with a pending document is excluded (6 ms)
+      ✓ a partner with a rejected document is excluded (6 ms)
+      ✓ a partner with an expired document is excluded (5 ms)
+      ✓ a vehicle that does not support the requested class is excluded (4 ms)
+      ✓ a vehicle without enough capacity is excluded (5 ms)
+Test Suites: 1 passed, 1 total
+Tests:       20 skipped, 12 passed, 32 total
+
+The two cases that prove INVARIANT 3 specifically:
+  ✓ a vehicle that does not support the requested class is excluded
+  ✓ a vehicle without enough capacity is excluded
+Both are 200 + empty items + meta.total 0 + ZERO provider calls, so an
+incompatible candidate can never even be quoted.
+
+The in-suite source of the zero-call assertion
+(socorre_ai_backend/tests/tow/mvp03/towPartnerOpportunities.test.js:304):
+    async function expectExcluded(partner) {
+      const response = await listOpportunities(partner);
+      expect(response.status).toBe(200);
+      expect(response.body.data.items).toEqual([]);
+      expect(response.body.data.meta.total).toBe(0);
+      expect(routeProvider.callCount()).toBe(0);
+    }
+
+================================================================================
+INVARIANT 5 (supporting) — the published compatibility is the MVP-01 verdict,
+                              not a second policy recomputed in the HTTP layer
+================================================================================
+Committed tests added/extended in tests/tow/mvp01/towFoundationDomain.test.js:
+  ✓ exposes the per-dimension verdicts from the SAME policy (EXT-MVP03-1)
+  ✓ all conditions satisfied => eligible            (asserts result.compatibility)
+  ✓ incompatible vehicle => vehicle_not_compatible  (asserts result.compatibility)
+Run: npx jest tests/tow/mvp01/towFoundationDomain.test.js --runInBand
+      ✓ exposes the per-dimension verdicts from the SAME policy (EXT-MVP03-1) (1 ms)
+      ✓ all conditions satisfied => eligible
+      ✓ incompatible vehicle => vehicle_not_compatible
+Test Suites: 1 passed, 1 total
+Tests:       31 passed, 31 total
+
+================================================================================
+INVARIANT 6 (supporting) — the matching geodesic distance is STILL not exposed
+================================================================================
+The opportunity item has exactly six members
+  [active_tow_vehicle, compatibility, opportunity_expires_at, proposed_price,
+   request, route_quote]
+and the only distance on the wire is `route_quote.total_distance_meters`
+(14350 m = the authoritative Google Routes number), never the ~14450 m Haversine
+value used for radius filtering. Asserted by:
+  ✓ the live item carries exactly the contract members (no invented, no missing)
+in tests/tow/mvp03/towPartnerOpportunitiesContract.test.js.

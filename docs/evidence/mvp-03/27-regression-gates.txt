@@ -1,0 +1,226 @@
+================================================================================
+MVP-03 EXT-MVP03-1 correction — FULL REGRESSION GATE TRANSCRIPT
+================================================================================
+Branch:            feature/mvp-03-tow-request-matching
+Correction base:   2edf03068d4c739cd4874ba4f4deddee31c3e5ef (PR #37 HEAD)
+Capture (UTC):     2026-09-20T19:31:25Z
+
+Counts may only INCREASE and no previously passing test may regress. No `.only`,
+no `.skip`, no relaxed assertion was introduced by this correction.
+
+NOTE ON DB_PORT: the default harness port 55432 is occupied on this machine by an
+unrelated running container (`akry-edge-pg`), so every PostgreSQL stage below was
+run with `DB_PORT=55434` (the port the correction instructions designate as
+free). The harness scopes its Compose project by port, so this changes nothing
+about the tests themselves. The first, default-port attempts failed ONLY at
+container startup with "Bind for 0.0.0.0:55432 failed: port is already
+allocated" and tore their own project down; they are recorded at the end.
+
+================================================================================
+GATE 1 — npm run validate:openapi
+================================================================================
+
+> socorre-ai-backend@1.0.0 validate:openapi
+> node scripts/tow/validate-openapi.js
+
+Tow OpenAPI contract validation
+  docs:                             /Volumes/Reiko/projects/work/socorre-system/docs/tow
+  canonical entrypoint:             tow-api-contract.openapi.yaml
+  composition artifact:             tow-api-contract.base.openapi.yaml
+  OpenAPI version:                  3.1.0
+  Contract version:                 1.0.0-draft.5
+  Canonical paths:                  56
+  Base paths:                       51
+  Composed paths:                   56
+  Composed operations:              66
+  Shadowed base paths:              10
+  Unallowlisted dropped methods:    0
+  $ref occurrences checked:         492
+  External/local-file $refs:        124
+  Unresolved refs:                  0
+  Missing operationId:              0
+  Duplicate operationId:            0
+  Path-parameter mismatches:        0
+  Request bodies checked:           24
+  Request bodies without schema:    0
+  Responses checked:                66
+  Operations without 2xx:           0
+  2xx responses without schema:     0
+  Component schemas checked:        110
+  Inline schema nodes checked:      124
+  JSON Schema definition errors:    0
+  Canonical enum mismatches:        0
+  Forbidden legacy enum values:     0
+  TowSettingsPatch errors:          0
+  RESULT:                           PASS
+
+Shadowed base paths (base methods must survive composition or be allowlisted):
+  - /tow/requests: base=[post] composed=[get,post] dropped=[] added=[get]
+  - /tow/partner/opportunities: base=[get] composed=[get] dropped=[] added=[]
+  - /admin/tow/settings: base=[get,patch] composed=[get,patch] dropped=[] added=[]
+  - /admin/tow/vehicle-documents/{documentId}: base=[get] composed=[get] dropped=[] added=[]
+  - /admin/tow/requests/{requestId}: base=[get] composed=[get] dropped=[] added=[]
+  - /admin/tow/disputes/{disputeId}: base=[get] composed=[get] dropped=[] added=[]
+  - /admin/tow/payout-batches/preview: base=[get] composed=[get] dropped=[] added=[]
+  - /admin/tow/payout-batches: base=[post] composed=[post] dropped=[] added=[]
+  - /admin/tow/payout-batches/{batchId}: base=[get] composed=[get] dropped=[] added=[]
+  - /admin/tow/payout-batches/{batchId}/process: base=[post] composed=[post] dropped=[] added=[]
+  allowlist: (empty — the frozen contract drops no base method)
+
+================================================================================
+GATE 2 — npm run test:contract
+================================================================================
+
+PASS tests/contract/openapi.structure.test.js
+PASS tests/contract/consumerSmoke.test.js
+PASS tests/contract/towRefResolution.test.js
+PASS tests/contract/towSettingsPatch.test.js
+PASS tests/contract/consumerDiscovery.test.js
+
+Test Suites: 5 passed, 5 total
+Tests:       62 passed, 62 total
+Snapshots:   0 total
+Time:        1.641 s, estimated 2 s
+Ran all test suites matching /tests\/contract/i.
+
+================================================================================
+GATE 3 — npm run verify:tow   (DB_PORT=55434; includes PG foundation e2e)
+================================================================================
+ Network socorre-tow-test-55434-cb0d0933_tow-test-net Removing 
+ Network socorre-tow-test-55434-cb0d0933_tow-test-net Removed 
+PostgreSQL test environment destroyed (containers, volumes, network)
+
+=== [verify:tow] summary ===
+  PASS  OpenAPI 3.1 structure gate
+  PASS  contract suite (OpenAPI + patch semantics + discovery + consumer smoke)
+  PASS  focused Tow suite (offline)
+  PASS  prepare database + migrations from zero
+  PASS  PostgreSQL foundation gate
+
+[verify:tow] GREEN
+
+================================================================================
+GATE 4 — npx jest tests/tow/mvp01 --runInBand
+================================================================================
+Test Suites: 2 skipped, 13 passed, 13 of 15 total
+Tests:       10 skipped, 124 passed, 134 total
+
+================================================================================
+GATE 5 — npx jest tests/tow/mvp02 --runInBand
+================================================================================
+Test Suites: 5 passed, 5 total
+Tests:       204 passed, 204 total
+
+================================================================================
+GATE 6 — npx jest tests/tow/mvp03 --runInBand
+================================================================================
+Test Suites: 8 passed, 8 total
+Tests:       7 skipped, 177 passed, 184 total
+
+================================================================================
+GATE 7 — npx jest tests/tow --runInBand
+================================================================================
+Test Suites: 5 skipped, 42 passed, 42 of 47 total
+Tests:       65 skipped, 856 passed, 921 total
+
+================================================================================
+GATE 8 — npm run test:db-baseline   (DB_PORT=55434)
+================================================================================
+[db-gate] compose project: socorre-tow-test-55434-cb0d0933
+[db-gate] stage 1/9: guard + container up (previous environment destroyed first)
+[db-gate] target: postgresql://tow_test@127.0.0.1:55434/socorre_ai_tow_test (purpose: test)
+[db-gate] stage 2/9: verify the database is empty
+[db-gate] database is empty (0 tables) — new disposable volume confirmed
+[db-gate] stage 3/9: migrate from zero
+[db-gate] migrations applied: 001_baseline_schema.js, 002_baseline_settings.js, 003_mvp01_tow_foundation.js, 004_mvp03_tow_requests.js (batch 1)
+[db-gate] stage 4/9: seed the default administrator
+[db-gate] default administrator created: gate-admin-32560844@example.test (id=1)
+[db-gate] stage 5/9: assert the clean baseline
+[db-gate] baseline OK: 33 tables, 32 row(s), settings=25
+[db-gate] stage 6/9: schema snapshot (run 1)
+[db-gate] run 1 fingerprint: f2771dcf6a253951c1d4a596e681c52a759ed0c4bcd70ecdcbe971505e8ed2bf
+[db-gate] stage 7/9: guarded destructive reset + repeat
+[db-gate] guarded reset dropped 33 table(s)
+[db-gate] repeat OK: 33 tables, 32 row(s)
+[db-gate] stage 8/9: schema snapshot (run 2) + fingerprint comparison
+[db-gate] run 2 fingerprint: f2771dcf6a253951c1d4a596e681c52a759ed0c4bcd70ecdcbe971505e8ed2bf
+[db-gate] fingerprints identical: reset+migrate+seed reproduces the same schema
+[db-gate] teardown verified: no container/volume/network left for project "socorre-tow-test-55434-cb0d0933"
+[db-gate] GREEN — evidence written to /Volumes/Reiko/projects/work/socorre-system/docs/evidence/t01/db-baseline-gate.json
+
+================================================================================
+GATE 9 — npx jest --runInBand   (FULL repository suite)
+================================================================================
+Test Suites: 5 skipped, 75 passed, 75 of 80 total
+Tests:       65 skipped, 1280 passed, 1345 total
+PASS suites: 75
+FAIL suites: 0
+
+================================================================================
+GATE 10 — PostgreSQL end-to-end
+================================================================================
+Commands:
+  DB_PORT=55434 npm run test:pg:up
+  DB_PORT=55434 npm run test:pg:wait
+  DB_PORT=55434 TOW_POSTGRES_E2E=1 npx jest tests/tow/baseline/dbBaseline.e2e.test.js --runInBand
+  DB_PORT=55434 TOW_POSTGRES_E2E=1 npx jest tests/tow/mvp03/towMvp03Postgres.e2e.test.js --runInBand
+  DB_HOST=127.0.0.1 DB_PORT=55434 DB_NAME_TEST=socorre_ai_tow_test DB_USER=tow_test \
+    DB_PASSWORD=tow_test_password TOW_POSTGRES_E2E=1 \
+    npx jest tests/tow/towPostgres.e2e.test.js tests/tow/g3TowPostgres.e2e.test.js --runInBand
+
+pg:up:
+ Container socorre-tow-test-55434-cb0d0933-tow-postgres-test-1 Waiting 
+ Container socorre-tow-test-55434-cb0d0933-tow-postgres-test-1 Healthy 
+PostgreSQL test container is healthy
+pg:wait:
+
+healthcheck: healthy
+
+dbBaseline.e2e.test.js:
+Test Suites: 1 passed, 1 total
+Tests:       33 passed, 33 total
+
+towMvp03Postgres.e2e.test.js:
+Test Suites: 1 passed, 1 total
+Tests:       7 passed, 7 total
+
+towPostgres.e2e.test.js + g3TowPostgres.e2e.test.js:
+Test Suites: 2 passed, 2 total
+Tests:       9 passed, 9 total
+
+================================================================================
+GATE 11 — MANDATORY TEARDOWN: DB_PORT=55434 npm run test:pg:down
+================================================================================
+ Network socorre-tow-test-55434-cb0d0933_tow-test-net Removing 
+ Network socorre-tow-test-55434-cb0d0933_tow-test-net Removed 
+PostgreSQL test environment destroyed (containers, volumes, network)
+
+Residual resources for Compose project socorre-tow-test-55434-cb0d0933:
+  containers: 0
+  volumes:    0
+  networks:   0
+(verified with docker ps -a / docker volume ls / docker network ls filtered by
+ com.docker.compose.project=socorre-tow-test-55434-cb0d0933)
+
+================================================================================
+APPENDIX — default-port (55432) attempts, kept for transparency
+================================================================================
+`npm run verify:tow` and `npm run test:db-baseline` were first run WITHOUT
+DB_PORT. Both failed at PostgreSQL container startup only:
+
+  Error response from daemon: failed to set up container networking: driver
+  failed programming external connectivity on endpoint
+  socorre-tow-test-55432-cb0d0933-tow-postgres-test-1 (...): Bind for
+  0.0.0.0:55432 failed: port is already allocated
+
+Both runs destroyed their own Compose project and left no residue. The cause is
+an unrelated container already published on 55432:
+
+  $ docker ps --format '{{.Names}}\t{{.Ports}}'
+  akry-edge-pg	Up 13 hours (healthy)	0.0.0.0:55432->5432/tcp, [::]:55432->5432/tcp
+
+The offline stages of those runs PASSED before the PostgreSQL stage:
+  PASS  OpenAPI 3.1 structure gate
+  PASS  contract suite (OpenAPI + patch semantics + discovery + consumer smoke)
+  PASS  focused Tow suite (offline)
+Re-running with DB_PORT=55434 (as instructed) is GATE 3 above: GREEN.

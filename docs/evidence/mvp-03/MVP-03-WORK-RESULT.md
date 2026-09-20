@@ -242,8 +242,9 @@ reproduces an identical schema fingerprint
 32 rows, settings 25) on both runs.
 
 ## Tests
-Seven new suites in `tests/tow/mvp03/` — **177 tests (170 passed, 7 opt-in
-PostgreSQL skips)**, no `.only`, no hidden `.skip`, no real Google call:
+Eight new suites in `tests/tow/mvp03/` — **184 tests (177 passed, 7 opt-in
+PostgreSQL skips)**, no `.only`, no hidden `.skip`, no real Google call. The
+seventh row was added by the external contract correction (EXT-MVP03-1) below:
 
 | Suite | Focus |
 | --- | --- |
@@ -251,11 +252,19 @@ PostgreSQL skips)**, no `.only`, no hidden `.skip`, no real Google call:
 | `towRequestCreate.test.js` | `POST /tow/requests` end-to-end: 201 shape, module gate before validation and before replay, required/8–128-char key, radius frozen from settings and immune to later settings changes, DTO neutrality, 401/403 authz |
 | `towRequestIdempotency.test.js` | same key + same payload returns the same request, changed payload → 409 `idempotency_conflict` (pickup, vehicle, observations), per-customer scoping, zero-match retry, hashed (never raw) fingerprint, concurrent retries collapse to one row |
 | `towRequestRehydrate.test.js` | `GET /tow/requests` pagination defaults and bounds, `GET /tow/requests/:id` owner-only (403 `not_request_owner`, 404 unknown/non-numeric), customer isolation, ISO normalization |
-| `towPartnerOpportunities.test.js` | the full exclusion matrix (module, partner missing, wrong type, unavailable, offline, invalid coordinates, class, capacity, five document states, radius) with `routeProvider.callCount() === 0`; the inclusion set (unverified/unapproved still included); frozen-radius scope; ordering + equidistant tie-break; live quote projection; provider failure → 503 with no partial feed |
+| `towPartnerOpportunities.test.js` | the full exclusion matrix (module, partner missing, wrong type, unavailable, offline, invalid coordinates, class, capacity, five document states, radius) with `routeProvider.callCount() === 0`; the inclusion set (unverified/unapproved still included); frozen-radius scope; ordering + equidistant tie-break; live quote projection; provider failure → 503 with no partial feed; the truthful item shape (`request`, `active_tow_vehicle`, `route_quote`, `proposed_price`, `compatibility`, `opportunity_expires_at: null`) |
+| `towPartnerOpportunitiesContract.test.js` | **(EXT-MVP03-1)** the REAL `GET /tow/partner/opportunities` HTTP 200 body validated by ajv against the COMPOSED canonical `TowOpportunityListResponse`; exact-member lock; nullable/optional `opportunity_expires_at`; in-suite negative controls (missing `active_tow_vehicle`, missing `compatibility`); base↔canonical convergence |
 | `towMvp03Architecture.test.js` | layering and purity scans, single `node:crypto` owner, migration 004 does not touch the legacy tables, route registration and guards, contract/DTO vocabulary agreement, no `.only`/`.skip` |
 | `towMvp03Postgres.e2e.test.js` | opt-in: migration 004 from an empty schema, uniqueness authority asserted by **constraint columns** (not by name), coordinate/radius round-trip, concurrent collapse to one row, the opportunity feed through the real production path, teardown of the pool |
 
 ## Gates
+
+> These are the counts of the **frozen delivery** and of correction-2. The
+> current HEAD additionally carries the correction-3 changes (EXT-MVP03-1), so
+> the live counts are the ones in the *Correction-3 gate re-run* table below:
+> `tests/tow/mvp03` **184**, `tests/tow` **921**, full Jest **1345**,
+> `tests/tow/mvp01` **134**; `tests/tow/mvp02` and `tests/tow/contract` are
+> unchanged.
 
 | Gate | Result | Artifact |
 | --- | --- | --- |
@@ -418,6 +427,193 @@ Counts are identical to the frozen delivery: no test was added, removed, skipped
 or relaxed. The only test-behaviour change is the diagnostic guard, which is
 inert on success (26/26 in `towRequestCreate.test.js`).
 
+## External contract correction (EXT-MVP03-1 / EXT-MVP03-2)
+External review of PR #37 (comment `#5752012874`, CHANGES_REQUIRED, P0=0, blocking
+P1=1, P2=0) raised one blocking finding and one documentation finding. Both are
+corrected here at `2edf0306…` (correction-3). **No behaviour was weakened and no
+contract was edited to excuse the runtime.**
+
+### EXT-MVP03-1 (P1, blocking) — the runtime opportunity item did not match the canonical contract
+**What was actually wrong.** The canonical entrypoint
+(`docs/tow/tow-api-contract.openapi.yaml`) declared
+`TowOpportunity.required = [request, active_tow_vehicle, route_quote,
+proposed_price, compatibility, opportunity_expires_at]`, but
+`GET /api/tow/partner/opportunities` returned items of exactly
+`{request, route_quote, proposed_price}`. The runtime was not conformant to its
+own frozen contract, and `tests/tow/mvp03/towPartnerOpportunities.test.js:126`
+**locked the reduced shape**, so the suite could not catch it.
+
+**Root cause (disclosed).** The pre-existing consumer smoke test built its fixture
+through the contract's own `generateFixture`, and arrays generate as `[]`
+(`{"success":true,"data":{"items":[],"meta":{"page":1,"limit":2}}}`), so
+`data.items[0]` never existed and the *item* schema was never exercised. The
+reduced shape was an implementation gap, not a contract decision.
+
+**The fix makes the RUNTIME truthful; the contract was not weakened.**
+- `active_tow_vehicle` is the **actual** vehicle evaluated and quoted. The
+  matching service already had it in hand (`vehicle`), so it is carried into the
+  item and projected to `TowVehicleSummary` by a new `serializeVehicleSummary`
+  — exactly the ten contract fields, **no `pricing`/tariff**. `serializeVehicle`
+  now composes the same helper plus `pricing`, so the two projections cannot
+  drift and `serializeVehicle`'s output is byte-identical.
+- `compatibility` is the **MVP-01 verdict carried through**
+  (`compatibility.js` → `eligibility.js` → `matching.js` →
+  `matching-service.js`). `isCompatible` now also returns
+  `vehicle_class_supported` / `weight_within_capacity`, derived from the *same*
+  checks it already ran — there is no second policy and no recomputation in the
+  HTTP layer; the serializer only narrows the object to the three contract
+  members and coerces to boolean.
+- `opportunity_expires_at` is emitted as **`null`** and declared
+  **nullable/optional**. MVP-03 owns no expiry (no scheduler, no search timeout,
+  no proposal lifecycle), so no truthful instant exists. It is **never derived
+  from `tow_proposal_expiry_minutes`** — that setting belongs to MVP-04 and using
+  it here would have fabricated a guarantee this delivery cannot honour.
+- The Haversine distance used for radius filtering is still **not** serialized:
+  the only distance on the wire remains the authoritative Google Routes
+  `route_quote.total_distance_meters`.
+
+**Exact OpenAPI delta** (full diff and rationale:
+`25-openapi-delta.txt`; validation: `23-live-openapi-validation.txt`):
+
+| # | File | Change |
+| --- | --- | --- |
+| 1 | canonical | `info.version` `1.0.0-draft.4` → `1.0.0-draft.5` |
+| 2 | canonical | `info.description` gained a draft.5 revision note (EXT-MVP03-1) stating no other consumer contract changed |
+| 3 | canonical | `TowOpportunity.required` drops `opportunity_expires_at` (it becomes **optional**) |
+| 4 | canonical | `opportunity_expires_at` `{type: string}` → `{type: [string, 'null'], format: date-time, description: <why null / why optional / never derived from the proposal-expiry setting>}` |
+| 5 | canonical | **nothing else** — other members, `OpportunityCompatibility` (`const: true` ×3) and `TowOpportunityListResponse` (item stays `$ref TowOpportunity`) unchanged |
+| 6 | base | **+** `components.schemas.OpportunityCompatibility`, identical to the canonical component, so base and canonical cannot diverge silently |
+| 7 | base | inline list item `required` `[request, proposed_price, route_quote]` → `[request, active_tow_vehicle, route_quote, proposed_price, compatibility]`, `request`/`proposed_price`/`route_quote` re-pointed to real `$ref`s, `active_tow_vehicle` → `$ref TowVehicleSummary`, `compatibility` → `$ref OpportunityCompatibility`, plus the nullable/optional `opportunity_expires_at` with the same description |
+
+No other OpenAPI file, path, operation, security scheme, error response or enum
+was touched. `npm run validate:openapi` → **PASS**, contract version
+`1.0.0-draft.5`, composed paths 56, composed operations 66, unresolved refs 0,
+JSON Schema definition errors 0, canonical enum mismatches 0, unallowlisted
+dropped methods 0.
+
+**Live OpenAPI validation (new, and it can fail).** The gap above is closed by
+`tests/tow/mvp03/towPartnerOpportunitiesContract.test.js`, which drives the real
+HTTP endpoint and validates the real 200 body with ajv against the **composed**
+canonical `TowOpportunityListResponse` (`COMPOSED_SCHEMA_ID`), asserting a
+non-empty item and exactly one RouteProvider call. It also contains in-suite
+negative controls (a live payload with `active_tow_vehicle` or `compatibility`
+removed is rejected) and base↔canonical convergence assertions.
+
+**Negative control (mandatory, proven).** Removing the single
+`active_tow_vehicle` line from `serializeOpportunity` turns the suite **RED
+(3 failed / 4 passed)** with the *schema validator itself* naming the drift:
+
+```
+Received: [{"instancePath": "/data/items/0", "keyword": "required",
+            "message": "must have required property 'active_tow_vehicle'",
+            "params": {"missingProperty": "active_tow_vehicle"},
+            "schemaPath": "#/required"}]
+```
+
+The file was then restored **byte-identically** (`sha256
+648d0a0d316909d53c67d9380baed8e3dc0d0dfc5b0d692a7d702a7394301976` before and
+after; `diff -q` clean; `shasum -a 256 -c` OK) and the same suite returned
+**GREEN 7/7**. Raw transcript: `24-negative-control-live-contract.txt`.
+
+### EXT-MVP03-2 (documentation) — the PR claim "Contract: OpenAPI updated and validated" was not true as written
+At `2edf0306…` the document was updated and validated **statically**, but the
+runtime returned a reduced item, so "OpenAPI updated and validated" read as if
+the endpoint conformed. It did not. The corrected statement (also in
+`25-openapi-delta.txt` §4):
+
+> The canonical `TowOpportunity` already required `active_tow_vehicle`,
+> `compatibility` and `opportunity_expires_at`; the MVP-03 runtime returned only
+> `{request, route_quote, proposed_price}`. This correction makes the **runtime**
+> truthful instead of weakening the contract: `GET
+> /api/tow/partner/opportunities` now returns the active vehicle used for
+> eligibility/quoting (projected to `TowVehicleSummary`, no tariff), the MVP-01
+> compatibility verdict carried through unchanged, and `opportunity_expires_at:
+> null` because MVP-03 owns no expiry semantics. The document changed only to
+> make `opportunity_expires_at` nullable/optional (draft.4 → draft.5) and to add
+> the base `OpportunityCompatibility` component plus the missing members to the
+> base inline list item so base and canonical converge. Validated by
+> `npm run validate:openapi` (PASS, draft.5, 0 unresolved refs) **and** by a new
+> live-endpoint contract test that validates the real HTTP 200 body against the
+> composed canonical `TowOpportunityListResponse` (7/7), with a negative control
+> proving the test goes RED when `active_tow_vehicle` is removed from the
+> runtime serializer.
+
+### Preserved invariants, re-proven at the correction HEAD
+Raw transcript: `26-preserved-invariants.txt`.
+
+| Invariant | Proof |
+| --- | --- |
+| client cannot provide a **price** | domain probe rejects `estimated_price` / `proposed_price` / `final_price` (`validation_error`); `towRequestDomain.test.js › client-supplied distance or price is rejected, never silently dropped`; HTTP `422` for an unknown top-level field; `no price, route or assignment is ever persisted` |
+| client cannot provide a **route distance** | same probe rejects `route_quote` / `distance_meters` / `duration_seconds`; same domain + HTTP tests |
+| a partner cannot see an **incompatible** request | `towPartnerOpportunities.test.js › a vehicle that does not support the requested class is excluded` and `› a vehicle without enough capacity is excluded` (200, `items: []`, `meta.total: 0`) |
+| an **excluded** candidate triggers **0 Google calls** | the same suite's `expectExcluded` helper asserts `routeProvider.callCount() === 0` on all 12 exclusion cases |
+| published `compatibility` is the MVP-01 verdict, not a second policy | `towFoundationDomain.test.js › exposes the per-dimension verdicts from the SAME policy (EXT-MVP03-1)` + `result.compatibility` asserted on the eligible and incompatible eligibility paths |
+| the matching geodesic distance is still not exposed | `the live item carries exactly the contract members (no invented, no missing)` — the only distance is `route_quote.total_distance_meters` |
+
+### Correction-3 gate re-run
+Raw transcript: `27-regression-gates.txt`. The host's default harness port 55432
+is occupied by an unrelated running container (`akry-edge-pg`), so every
+PostgreSQL stage used `DB_PORT=55434` as instructed; the default-port attempts
+failed **only** at container startup and are recorded in the appendix of that
+file.
+
+| Gate | Result |
+| --- | --- |
+| `npm run validate:openapi` | **PASS** — draft.5, 0 unresolved refs, 0 schema errors |
+| `npm run test:contract` | **PASS** 5 suites / 62 tests |
+| `npm run verify:tow` (`DB_PORT=55434`) | **GREEN 5/5 stages**, teardown complete |
+| `npx jest tests/tow/mvp01 --runInBand` | **124 passed / 10 skipped / 134** |
+| `npx jest tests/tow/mvp02 --runInBand` | **204 passed / 204** |
+| `npx jest tests/tow/mvp03 --runInBand` | **177 passed / 7 skipped / 184** |
+| `npx jest tests/tow --runInBand` | **856 passed / 65 skipped / 921 · 0 failures** |
+| `npm run test:db-baseline` (`DB_PORT=55434`) | **GREEN** — 33 tables / 32 rows / settings 25, fingerprint `f2771dcf…` identical on both runs |
+| `npx jest --runInBand` (full) | **1280 passed / 65 skipped / 1345 · 0 failures**, 75 PASS / 0 FAIL suites |
+| PG `dbBaseline.e2e.test.js` | **33 passed / 33** |
+| PG `towMvp03Postgres.e2e.test.js` | **7 passed / 7** |
+| PG legacy e2e ×2 | **9 passed / 9** |
+| `npm run test:pg:down` | **done** — 0 containers, 0 volumes, 0 networks for the tow project |
+
+Counts moved **only upward**, by exactly the new tests: `tests/tow` +8
+(7 live-contract + 1 MVP-01 policy-derivation), full Jest +8, `tests/tow/mvp03`
++7. `tests/tow/mvp02` is unchanged at 204/204, and no previously passing test
+regressed. No `.only`, no `.skip`, no relaxed assertion.
+
+### Disclosures for correction-3
+- **Three pre-existing test files were changed**, all strengthening:
+  1. `tests/tow/mvp03/towPartnerOpportunities.test.js` — the assertion that
+     *locked the reduced shape* is replaced by the truthful six-member shape
+     (keys, the exact `TowVehicleSummary` projection, the three compatibility
+     flags, `opportunity_expires_at: null`). This is the file the review named;
+     it now locks the correct shape rather than the gap.
+  2. `tests/contract/openapi.structure.test.js` — the pre-existing
+     `info.version` pin moved `1.0.0-draft.4` → `1.0.0-draft.5`. The pin is kept
+     (not deleted) so a future version bump still fails loudly.
+  3. `tests/tow/mvp01/towFoundationDomain.test.js` — one new test plus two
+     extended assertions for the per-dimension verdicts; no assertion removed.
+- **One new suite**: `tests/tow/mvp03/towPartnerOpportunitiesContract.test.js`
+  (7 tests, hermetic/offline — sqlite harness + fake clock + recording fake route
+  provider; **no real Google call**).
+- **`active_tow_vehicle.document_status` is `'pending'` in the live body.** The
+  SQLite harness's `mapVehicleRow` does not select `document_status`, so the
+  serializer's `row.document_status || 'pending'` fallback applies. `'pending'`
+  is a valid `VehicleDocumentStatus` enum value and the opportunity is only
+  emitted for a vehicle whose document eligibility already passed, so the field
+  is truthful for the harness. The assertion pins the current value; if the
+  repository starts projecting the real column, the test must be updated with it.
+- **`docs/evidence/t01/db-baseline-gate.json` was reverted, not committed.** The
+  gate regenerates it on every run and the only delta this time was the
+  randomized seeded-admin email (`gate-admin-20137632@…` →
+  `gate-admin-32560844@…`); fingerprint, counts and migration list were
+  unchanged. Committing it would have added noise, so it was restored to the
+  committed value. The correction-3 gate output itself is preserved verbatim in
+  `27-regression-gates.txt`.
+- **Muse P3 follow-ups F2 (SQLite `CHECK` fidelity), F4 (antimeridian bbox
+  helper), F5 (cap-bounded `meta.total`) and the transport harness flake are
+  accepted non-blocking and were deliberately NOT expanded here.** F3 (haversine
+  `[0,1]` clamp) and F6 (`toIsoInstant` corrupt text) were reviewed and left
+  untouched: neither is reached by this correction, and touching them would add
+  risk without addressing a blocking finding.
+
 ## Regression
 Baselines and the observed post-delivery counts:
 
@@ -433,6 +629,18 @@ Baselines and the observed post-delivery counts:
 No existing pass regressed; the count increases are exactly the new tests. No
 real Google call is made in any default test (the route provider is the
 deterministic fake, and the Google adapter suite is offline).
+
+Correction-3 moved these counts only upward, by exactly the new tests:
+
+| Scope | MVP-03 | Correction-3 | Delta |
+| --- | --- | --- | --- |
+| `tests/tow/mvp01` | 123 passed / 10 skipped | **124 passed / 10 skipped** | +1 (policy-derivation test) |
+| `tests/tow/mvp02` | 204 passed / 204 | **204 passed / 204** | 0 |
+| `tests/tow/mvp03` | 170 passed / 7 skipped / 177 | **177 passed / 7 skipped / 184** | +7 (live contract suite) |
+| `tests/tow` | 848 passed / 65 skipped / 913 | **856 passed / 65 skipped / 921** | +8 |
+| full Jest | 1272 passed / 65 skipped / 1337 | **1280 passed / 65 skipped / 1345** | +8 |
+| contract | 62/62 | **62/62** | 0 |
+| `verify:tow` | GREEN | **GREEN** | 0 |
 
 ## Negative Controls
 `11-negative-controls.md` — five mutations, each breaking exactly one MVP-03
@@ -529,6 +737,17 @@ rather than papered over.
   is implemented. MVP-04 owns the first non-empty value.
 - **`search_expires_at` is always `null`.** MVP-03 has no scheduler; a non-null
   value requires the expiry owner.
+- **`opportunity_expires_at` is always `null` too, and is now optional in the
+  contract.** Same reason as `search_expires_at`: MVP-03 owns no expiry. It is
+  **not** derived from `tow_proposal_expiry_minutes` (MVP-04's setting); a
+  non-null value requires the delivery that owns expiry semantics, which must
+  also revisit the contract's `format: date-time` branch.
+- **The OpenAPI version pin is a pre-existing test, kept and moved.**
+  `tests/contract/openapi.structure.test.js` pinned `1.0.0-draft.4` before this
+  correction; the correction-3 contract revision required `1.0.0-draft.5`, so the
+  pin was updated (not deleted), and it still fails loudly on an un-revisited
+  version bump. Disclosed because the correction brief did not anticipate that a
+  pin existed.
 - **`payment.request_id` is emitted** in addition to the neutral fields required
   by the contract; it is the request's own id and carries no payment state.
 - **`tow_max_radius_km` is informational.** It is surfaced in
@@ -564,3 +783,14 @@ rather than papered over.
 MVP-03 READY FOR MUSE REVIEW (correction-2: T01 e2e pin fixed and proven on
 PostgreSQL; 401 flake root-caused to the test-harness transport layer, product
 excluded, guard added — disclosed as not fixed).
+
+Correction-3 (external review EXT-MVP03-1 P1 / EXT-MVP03-2): the runtime
+opportunity item now matches the canonical `TowOpportunity` contract
+(`active_tow_vehicle` as the real `TowVehicleSummary` projection,
+`compatibility` as the carried-through MVP-01 verdict, `opportunity_expires_at:
+null` because MVP-03 owns no expiry), the contract was moved draft.4 → draft.5
+only to make the expiry nullable/optional and to converge the base inline item,
+the old reduced-shape lock was replaced, a live-endpoint contract regression test
+was added and proven RED-then-byte-identically-restored-then-GREEN, all gates are
+green with counts only increasing and no regression, and the PR contract claim
+was corrected in writing. Ready for a fresh Muse review.
