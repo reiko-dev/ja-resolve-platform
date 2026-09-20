@@ -80,38 +80,40 @@ the enum contains `proposal_expired`, `proposal_not_actionable`,
 
 **Decision**: contract **revision** `1.0.0-draft.5` → `1.0.0-draft.6`, adding one
 enum member. This is additive (no consumer that handled `conflict` breaks), it is
-declared in `04-contract-conflict-audit.md` and in the OpenAPI revision note, and
-it is covered by the contract suite (the canonical error-code list stays a
-*subset* requirement, so the validator keeps passing). `CANONICAL_ERROR_CODES`
-in `tests/helpers/towContract.js` gains the code so the "must be present"
-assertion now protects it too.
+declared in `04-contract-conflict-audit.md` and in the OpenAPI `info.description`
+revision note, and it is covered by the contract suite (the canonical error-code
+list stays a *subset* requirement, so the validator keeps passing).
+`CANONICAL_ERROR_CODES` in `tests/helpers/towContract.js` gains the code so the
+"must be present" assertion now protects it too. The version pin in
+`tests/contract/openapi.structure.test.js` is updated in the same commit, so the
+revision cannot happen silently.
 
 ---
 
-## CONTRACT_CONFLICT-3 — `EnvelopeTowProposal.data` points at `PayoutBatch`
+## CONTRACT_CONFLICT-3 — `EnvelopeTowProposal.data` (audited, **no defect found**)
 
-**Defect** (`docs/tow/tow-api-contract.base.openapi.yaml`, `EnvelopeTowProposal`):
+**Audit claim to verify**: an earlier reconnaissance note recorded that
+`EnvelopeTowProposal.data` pointed at `PayoutBatch` instead of `TowProposal`,
+which would have made live HTTP→OpenAPI validation for `createTowProposal` and
+`withdrawTowProposal` impossible.
 
-```yaml
-EnvelopeTowProposal:
-  properties:
-    data: { $ref: '#/components/schemas/PayoutBatch' }   # ← wrong
+**Verification performed** (this delivery, on the dispatch base):
+
+```text
+docs/tow/tow-api-contract.base.openapi.yaml:1600-1603
+  EnvelopeTowProposal:
+    required: [success, data]
+    properties: { success: { const: true }, data: { $ref: '#/components/schemas/TowProposal' } }
 ```
 
-`PayoutBatch` requires `[id, status, total_amount, created_at]` with
-`status ∈ {CREATED, PROCESSING, PROCESSED, PARTIAL_FAILURE, FAILED}`. A real
-`TowProposal` response therefore **cannot** validate against the declared
-envelope. This is a copy-paste defect, not a business disagreement: every other
-envelope in the document points at its own payload.
+`grep -n "PayoutBatch" tow-api-contract.base.openapi.yaml` returns only the
+`PayoutBatch` schema definition, `EnvelopePayoutBatch` and the admin payout
+paths. `EnvelopeTowProposal` correctly references `TowProposal`.
 
-**Impact**: `createTowProposal` (201) and `withdrawTowProposal` (200) both return
-`EnvelopeTowProposal`, so live HTTP→OpenAPI validation for MVP-04 would fail on a
-defect that has nothing to do with the implementation.
-
-**Decision**: **fix** the `$ref` to `#/components/schemas/TowProposal` as part of
-the same documented contract revision (draft.6). Evidence: the pre-fix live
-validation failure is captured, the fix is applied, and the post-fix live
-validation passes — a contract-level negative control.
+**Outcome**: **no defect, no change.** The claim is recorded here as audited and
+rejected so it cannot be re-raised as an open issue, and so nobody "fixes" a
+correct `$ref`. The only contract revision MVP-04 makes is the additive enum
+member in CONTRACT_CONFLICT-2.
 
 ---
 
@@ -208,7 +210,7 @@ tariff and the provider route, and persisted as integer cents.
 |---|---|---|---|
 | 1 | matrix `approved` vs MVP-03 eligibility | **accepted MVP-03 semantics** (no tightening) | no |
 | 2 | `proposal_already_active` absent from enum | additive enum member | yes (draft.6) |
-| 3 | `EnvelopeTowProposal.data → PayoutBatch` | fix the `$ref` | yes (draft.6) |
+| 3 | `EnvelopeTowProposal.data → PayoutBatch` (claimed) | **audited: claim false, no change** | no |
 | 4 | `COUNTERED` in enum, no counteroffer in MVP-04 | keep enum, never write it | no |
 | 5 | `allowed_actions` enum over-declares | emit truthful subset | no |
 | 6 | `SEARCHING` filter hides request after first proposal | `NEGOTIATING` + widened candidate set | no |
