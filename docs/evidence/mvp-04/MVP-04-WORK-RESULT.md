@@ -12,9 +12,11 @@ READY_FOR_MUSE_REVIEW
 - Branch: `feature/mvp-04-proposals-assignment`
 - Implementation head (frozen): **`8b550440c9c6bbbe3bb0ccac555d340c6716da74`** —
   48 files, +6641/−148 (13 commits).
-- Evidence follow-up: **`ee150deb`** — `docs/evidence/mvp-04/05..20` (docs only,
-  no source or test change). This `MVP-04-WORK-RESULT.md` is a second docs-only
-  follow-up, the MVP-02/MVP-03 precedent.
+- Docs-only follow-ups after the implementation head (MVP-02/MVP-03 precedent,
+  no source or test change in any of them): **`ee150deb`** (evidence 05..20),
+  **`f8f0fcf1`** (this file) and **`e46cfad7`** (an accept-response wording
+  correction in `06-contract-revision.md`). The implementation tree reviewed by
+  Muse is `8b550440` plus documentation; nothing executable changed after it.
 - Issue: #16 (MVP-04 — Proposal Lifecycle & Atomic Assignment)
 - Push / PR / merge: **not performed.** No push, no PR, no merge, no MVP-05/#17,
   no counteroffer, no tracking, no payments, no scheduler, no #31, no #33, no
@@ -465,5 +467,5 @@ PostgreSQL, under concurrency, with nine negative controls showing that each
 safeguard fails loudly when it is broken.
 
 Evidence: `docs/evidence/mvp-04/01..20` and this file. Implementation head
-`8b550440`, docs-only follow-ups `ee150deb` and this commit. Not pushed, not
-merged, no PR opened: awaiting Muse review.
+`8b550440`, docs-only follow-ups `ee150deb`, `f8f0fcf1` and `e46cfad7`. Not
+pushed, not merged, no PR opened: awaiting Muse review.
