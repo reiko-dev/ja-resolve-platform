@@ -1,0 +1,74 @@
+MVP-03 — final frozen-tree confirmation
+generated: 2026-09-20T16:06:06Z
+branch: feature/mvp-03-tow-request-matching
+execution base (frozen): c0ae3c01774dbaaf162113cef574cb728ec8db61
+IMPLEMENTATION HEAD (frozen): 15f7f57a44986e94827be9749cadeee006dbbeff
+this document is the follow-up evidence commit; it changes no source file
+
+== sha256 of the MVP-03 production sources ==
+efd4b24ec70b6cfc763207de6a0d97be675cd4752586c48867ca9efd23579eaf  database/migrations/004_mvp03_tow_requests.js
+fb34ef7a22c0a2c7652f70b4077a1e0a7f45a73355535e67741be04607adcffd  src/modules/tow/domain/tow-request.js
+a677859d3e4846f4f05a34924258d09418dc706c43a7d98bbd6bd5da188ed5ad  src/modules/tow/domain/matching.js
+48ca38e3ca66b637718ffa9630ef52d006ee9e6ae7f2d269b9f893d666464046  src/modules/tow/domain/idempotency.js
+2ebb98effab0fa3326a1d6b6255383dc68a064f51185236f04a9eeb09760607f  src/modules/tow/domain/geo.js
+5e43848c807f8f13dee5135eac0ccd7cae65bbd0196b1d9fab235d5831f629e1  src/modules/tow/application/tow-request-service.js
+c8687ac4f883551ab2a3268747ab4059c81444e072485c7f1a43bb478f5925bb  src/modules/tow/application/matching-service.js
+e07ff12e762bd75182cac71fbcbcd95ff4fd7062f9a315f1b800a0d6fb42d7b8  src/modules/tow/application/list-query.js
+63b152ce6fbb90fbacf38faa788bb5c37b22884255c3f28a0caf34c2052256b9  src/modules/tow/application/ports.js
+58ec46d6ce898685ae148e11fb8a8214b3853e9e3d1d001536c65cc9e3e5e110  src/modules/tow/adapters/persistence/tow-request-repository.js
+a6f477223844002c788d5df2654023956db15be961816be7d9178b6783f558af  src/modules/tow/adapters/persistence/partner-repository.js
+df58282553bd748798f2818e2700f63ed6d011df3f9e922af441a2ceab35611c  src/modules/tow/http/routes.js
+364fc94fa774fa3cdfcdef2eecae95cb9349bf9737f27a2ff9a5624a79d3d00f  src/modules/tow/http/middleware.js
+5cb7b65968d8209bffbde4ab96c43fc045dee48f7445b10e5e54883d65d50947  src/modules/tow/http/tow-request-controller.js
+fd4835a988e7a45378256a1f620d3fe34e437d2bb74a21919a5e63e5b9e86c67  src/modules/tow/http/serialize.js
+e3a55329181ca3e5a3ce61ea77406c7ce32cb410839625bfb28e5457bf67520e  src/modules/tow/composition.js
+0503b4024b63674c00e446539db1045df7470fd6e43b48c7550b2d0e766e8d28  src/app.js
+
+== MVP-02 boundary suite (must be byte-identical / untouched) ==
+f564f9ed20512383c55a4b437c5ba943376a293514845756ffa886f9ba609e9f  tests/tow/mvp02/towRouteProviderBoundary.test.js
+git status of tests/tow/mvp02: 0 modified file(s) (expect 0)
+
+== gate results on the frozen tree ==
+mvp03 focused:  Test Suites: 7 passed, 7 total
+mvp03 focused:  Tests:       7 skipped, 170 passed, 177 total
+tests/tow:      Test Suites: 5 skipped, 41 passed, 41 of 46 total
+tests/tow:      Tests:       65 skipped, 848 passed, 913 total
+full jest:      Test Suites: 5 skipped, 74 passed, 74 of 79 total
+full jest:      Tests:       65 skipped, 1272 passed, 1337 total
+contract:       Test Suites: 5 passed, 5 total
+contract:       Tests:       62 passed, 62 total
+verify:tow:     [verify:tow] migrations against postgresql://tow_test@127.0.0.1:55434/socorre_ai_tow_test
+verify:tow:     [verify:tow] migrations applied: 4 (batch 1)
+verify:tow:     [verify:tow] tables in public: 33
+verify:tow:     [verify:tow] database ready at 127.0.0.1:55434/socorre_ai_tow_test
+verify:tow:       PASS  OpenAPI 3.1 structure gate
+verify:tow:       PASS  contract suite (OpenAPI + patch semantics + discovery + consumer smoke)
+verify:tow:       PASS  focused Tow suite (offline)
+verify:tow:       PASS  prepare database + migrations from zero
+verify:tow:       PASS  PostgreSQL foundation gate
+verify:tow:     [verify:tow] GREEN
+pg proof:       === [mvp03-pg] summary ===
+pg proof:         PASS  migrate from zero
+pg proof:         PASS  MVP-03 PostgreSQL e2e + T00 foundation
+pg proof:         PASS  T01 database baseline gate (real PostgreSQL)
+pg proof:       [mvp03-pg] GREEN
+
+== T01 clean-baseline gate (real PostgreSQL) ==
+fingerprint run1: f2771dcf6a253951c1d4a596e681c52a759ed0c4bcd70ecdcbe971505e8ed2bf
+fingerprint run2: f2771dcf6a253951c1d4a596e681c52a759ed0c4bcd70ecdcbe971505e8ed2bf
+identical: True
+tables: 33 rows: 32 settings: 25
+migrations: 001_baseline_schema.js, 002_baseline_settings.js, 003_mvp01_tow_foundation.js, 004_mvp03_tow_requests.js
+tow_requests present: True | rows: 0
+
+== disposable environment teardown (tow test project) ==
+containers: 0
+volumes:    0
+networks:   0
+
+== hard-stop audit ==
+push/PR/merge performed: NO
+MVP-04 started: NO
+#31 / #33 touched: NO
+production/VPS touched: NO
+real Google call in default tests: NO (FakeRouteProvider only; the Google adapter suite is offline)
