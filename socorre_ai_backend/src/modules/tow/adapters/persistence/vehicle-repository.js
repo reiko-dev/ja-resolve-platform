@@ -57,6 +57,13 @@ function isUniqueViolation(error) {
   );
 }
 
+function isForeignKeyViolation(error) {
+  return Boolean(error) && (
+    error.code === '23503'
+    || /foreign key constraint|violates foreign key|SQLITE_CONSTRAINT_FOREIGNKEY/i.test(error.message || '')
+  );
+}
+
 function toColumns(record) {
   const columns = {};
   if (record.partner_id !== undefined) columns.partner_id = record.partner_id;
@@ -155,8 +162,49 @@ function createVehicleRepository(db) {
     return findById(vehicleId);
   }
 
+  /**
+   * A vehicle that a proposal or an assignment references is never erased: it is
+   * part of a price the customer already saw and of the job that was assigned, so
+   * the partner deactivates it instead.
+   *
+   * `tow_request_proposals.tow_vehicle_id` and `tow_assignments.tow_vehicle_id`
+   * are `ON DELETE RESTRICT`, and that constraint is the authority. The pre-check
+   * exists because of two engine differences: the SQLite harness does not enable
+   * `PRAGMA foreign_keys`, so without it the delete would silently orphan the
+   * proposals, and on PostgreSQL the violation would otherwise reach the client
+   * as a 500 although the frozen contract declares `409 DomainConflict`. The
+   * catch keeps the race (a proposal created between the count and the delete) a
+   * 409 as well.
+   */
   async function remove(id) {
-    return db('tow_vehicles').where({ id }).del();
+    const references = await countVehicleReferences(id);
+    if (references > 0) {
+      throw new TowError(
+        'conflict',
+        `TowVehicle ${id} has ${references} linked proposal(s) or assignment(s) and cannot be deleted`
+      );
+    }
+    try {
+      return await db('tow_vehicles').where({ id }).del();
+    } catch (error) {
+      if (isForeignKeyViolation(error)) {
+        throw new TowError(
+          'conflict',
+          `TowVehicle ${id} is referenced by proposals or assignments and cannot be deleted`
+        );
+      }
+      throw error;
+    }
+  }
+
+  /** Proposals plus assignments that reference this vehicle (live or historical). */
+  async function countVehicleReferences(id) {
+    const toCount = (row) => Number(row && row.total) || 0;
+    const [proposals, assignments] = await Promise.all([
+      db('tow_request_proposals').where({ tow_vehicle_id: id }).count({ total: '*' }).first(),
+      db('tow_assignments').where({ tow_vehicle_id: id }).count({ total: '*' }).first(),
+    ]);
+    return toCount(proposals) + toCount(assignments);
   }
 
   return {
@@ -172,4 +220,4 @@ function createVehicleRepository(db) {
   };
 }
 
-module.exports = { createVehicleRepository, mapVehicleRow, isUniqueViolation };
+module.exports = { createVehicleRepository, mapVehicleRow, isUniqueViolation, isForeignKeyViolation };

@@ -12,6 +12,7 @@
  *   C4  occupancy (one live job per partner/vehicle) is a partial unique index
  *   C5  disable x accept is deterministically serialized (assignment XOR disabled)
  *   C6  migration 005 applies from an empty schema and pins the vocabulary
+ *   C7  a referenced vehicle is protected by RESTRICT, and the delete is a 409
  *
  * No Google call: the RouteProvider is the deterministic fake.
  */
@@ -407,6 +408,46 @@ describePostgres('MVP-04 PostgreSQL — atomic assignment and concurrency', () =
     expect(responses.filter((response) => response.status === 409).length)
       .toBe(responses.length - created.length);
     expect(await db('tow_request_proposals').select('*')).toHaveLength(1);
+  });
+
+  test('C7 — a referenced vehicle is protected by RESTRICT, and the delete answers 409', async () => {
+    const customer = await createCustomer('C7 Customer');
+    const partner = await createTowPartner('C7 Partner');
+    const towRequest = await createRequest(customer, 'pg-c7-request-000001');
+    const proposal = await propose(partner, towRequest.id, 'pg-c7-prop-000001');
+
+    // The constraint, not the application, is the authority: a raw DELETE that
+    // bypasses every guard must still be refused by the engine.
+    let error = null;
+    try {
+      await db('tow_vehicles').where({ id: partner.vehicle.id }).del();
+    } catch (raised) {
+      error = raised;
+    }
+    expect(error).not.toBeNull();
+    expect(error.code).toBe('23503');
+
+    // ... and the API turns that refusal into the contract's 409, never a 500.
+    const refused = await request(app)
+      .delete(`/api/tow/vehicles/${partner.vehicle.id}`)
+      .set(partner.headers);
+    expect(refused.status).toBe(409);
+    expect(refused.body.error.code).toBe('conflict');
+
+    // Withdrawing the proposal does not free the vehicle: the FK is RESTRICT, not
+    // "RESTRICT while ACTIVE", because the price the customer saw is history.
+    const withdrawn = await services.proposalService.withdraw({
+      partnerId: partner.partner.id,
+      proposalId: proposal.id,
+    });
+    expect(withdrawn.status).toBe('WITHDRAWN');
+
+    const stillPinned = await request(app)
+      .delete(`/api/tow/vehicles/${partner.vehicle.id}`)
+      .set(partner.headers);
+    expect(stillPinned.status).toBe(409);
+    expect(stillPinned.body.error.code).toBe('conflict');
+    expect(await db('tow_vehicles').where({ id: partner.vehicle.id }).first()).toBeDefined();
   });
 });
 
