@@ -144,6 +144,49 @@ function roundHalfUpDivide(numerator, denominator) {
 }
 
 /**
+ * Canonical normalization for authoritative quoting (EXT-MVP02-1).
+ *
+ * `validatePricing` above is the MVP-01 coarse shape validator and keeps its
+ * behaviour for its existing callers. The authoritative quote path needs a
+ * stronger guarantee: every value the price computation consumes must be fully
+ * validated here, BEFORE the route provider is called — otherwise a tariff that
+ * `validatePricing` accepts but the computation later rejects (an over-precise
+ * `included_km`, an unsafe money value) would consume a billable provider call
+ * and only then fail.
+ *
+ * This is the single primitive shared by `quote-service.resolveTariff` and
+ * `computeTowPrice`, so the pre-provider rules and the pricing rules cannot
+ * drift apart. The returned shape is frozen and carries the decimal-exact
+ * `included_meters`, so the computation never re-derives it from a float.
+ *
+ * @param {object} pricing
+ * @returns {Readonly<{minimum_charge_cents: number, included_km: number|string, included_meters: number, price_per_additional_km_cents: number}>}
+ */
+function normalizeTowPricingForQuote(pricing) {
+  if (!pricing || typeof pricing !== 'object' || Array.isArray(pricing)) {
+    throw validationError('pricing is required');
+  }
+
+  const { minimum_charge_cents, included_km, price_per_additional_km_cents } = pricing;
+
+  const minimumCharge = requireSafeNonNegativeInteger(minimum_charge_cents, 'minimum_charge_cents');
+  const pricePerAdditionalKm = requireSafeNonNegativeInteger(
+    price_per_additional_km_cents,
+    'price_per_additional_km_cents',
+  );
+  // `toIncludedMeters` is the exact DECIMAL(10,3) gate: it rejects >3 decimals,
+  // negative/non-finite values and anything that would overflow meters.
+  const includedMeters = toIncludedMeters(included_km);
+
+  return Object.freeze({
+    minimum_charge_cents: minimumCharge,
+    included_km,
+    included_meters: includedMeters,
+    price_per_additional_km_cents: pricePerAdditionalKm,
+  });
+}
+
+/**
  * Authoritative tow price for a route distance.
  *
  * @param {object} input
@@ -153,23 +196,21 @@ function roundHalfUpDivide(numerator, denominator) {
  * @param {number} input.price_per_additional_km_cents
  * @returns {Readonly<object>} frozen price breakdown in integer cents
  */
-function computeTowPrice({
-  total_distance_meters: totalDistanceMeters,
-  minimum_charge_cents: minimumChargeCents,
-  included_km: includedKm,
-  price_per_additional_km_cents: pricePerAdditionalKmCents,
-} = {}) {
+function computeTowPrice({ total_distance_meters: totalDistanceMeters, ...pricing } = {}) {
   const totalDistance = requireSafeNonNegativeInteger(totalDistanceMeters, 'total_distance_meters');
-  const minimumCharge = requireSafeNonNegativeInteger(minimumChargeCents, 'minimum_charge_cents');
-  const pricePerKm = requireSafeNonNegativeInteger(pricePerAdditionalKmCents, 'price_per_additional_km_cents');
-  const includedMeters = toIncludedMeters(includedKm);
+  // The same strict normalization the application layer runs before the
+  // provider call, so the two paths can never accept different tariffs.
+  const tariff = normalizeTowPricingForQuote(pricing);
 
-  const excessMeters = Math.max(0, totalDistance - includedMeters);
+  const excessMeters = Math.max(0, totalDistance - tariff.included_meters);
 
   // Both operands are safe integers but their product is not, so the money is
   // computed with BigInt and only converted back after the range check.
-  const variableCharge = roundHalfUpDivide(BigInt(excessMeters) * BigInt(pricePerKm), METERS_PER_INCLUDED_KM);
-  const finalPrice = BigInt(minimumCharge) + variableCharge;
+  const variableCharge = roundHalfUpDivide(
+    BigInt(excessMeters) * BigInt(tariff.price_per_additional_km_cents),
+    METERS_PER_INCLUDED_KM,
+  );
+  const finalPrice = BigInt(tariff.minimum_charge_cents) + variableCharge;
 
   if (variableCharge > MAX_SAFE_BIGINT) {
     throw validationError('variable_charge_cents overflowed the safe integer range', {
@@ -184,7 +225,7 @@ function computeTowPrice({
 
   return Object.freeze({
     total_distance_meters: totalDistance,
-    included_meters: includedMeters,
+    included_meters: tariff.included_meters,
     excess_meters: excessMeters,
     variable_charge_cents: Number(variableCharge),
     final_price_cents: Number(finalPrice),
@@ -192,4 +233,9 @@ function computeTowPrice({
   });
 }
 
-module.exports = { validatePricing, toIncludedMeters, computeTowPrice };
+module.exports = {
+  validatePricing,
+  normalizeTowPricingForQuote,
+  toIncludedMeters,
+  computeTowPrice,
+};

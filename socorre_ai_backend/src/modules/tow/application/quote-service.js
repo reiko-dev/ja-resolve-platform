@@ -10,7 +10,10 @@
  * snapshot rather than a live reference to a row that can change underneath it.
  *
  * Guarantees enforced here:
- *   - coordinates and tariff are validated BEFORE the provider is called;
+ *   - coordinates are validated, then the tariff is FULLY normalized with the
+ *     same strict primitive the price computation uses (`normalizeTowPricingForQuote`),
+ *     and only then is the provider called — an invalid local tariff can never
+ *     consume a provider call and fail afterwards (EXT-MVP02-1);
  *   - the distance is whatever the provider returned, summed leg by leg;
  *   - client-supplied distance/price fields are ignored outright;
  *   - a provider failure becomes `external_dependency_unavailable` with no price
@@ -25,7 +28,7 @@ const {
   validateGeoPoint,
   createRouteQuote,
   computeTowPrice,
-  validatePricing,
+  normalizeTowPricingForQuote,
 } = require('../domain');
 
 const CURRENCY = 'BRL';
@@ -41,11 +44,13 @@ function createQuoteService({ routeProvider, vehicleRepository = null, clock } =
   /**
    * Resolves the tariff that will be frozen into the quote. An explicitly
    * supplied backend tariff wins; otherwise the vehicle is resolved through the
-   * VehicleRepository port.
+   * VehicleRepository port. Both paths run the SAME strict normalization used by
+   * `computeTowPrice`, so everything the price needs is validated here — before
+   * `quoteTow` reaches the route provider.
    */
   async function resolveTariff(input) {
     if (input.tariff !== undefined && input.tariff !== null) {
-      return validatePricing(input.tariff);
+      return normalizeTowPricingForQuote(input.tariff);
     }
     if (!vehicleRepository || input.partnerId === undefined || input.vehicleId === undefined) {
       throw validationError('tariff is required');
@@ -56,7 +61,7 @@ function createQuoteService({ routeProvider, vehicleRepository = null, clock } =
       throw new TowError('not_found', 'TowVehicle not found');
     }
 
-    return validatePricing(vehicle.pricing);
+    return normalizeTowPricingForQuote(vehicle.pricing);
   }
 
   async function quoteTow(input = {}) {
@@ -94,7 +99,7 @@ function createQuoteService({ routeProvider, vehicleRepository = null, clock } =
       pricing_snapshot: Object.freeze({
         minimum_charge_cents: tariff.minimum_charge_cents,
         included_km: tariff.included_km,
-        included_meters: price.included_meters,
+        included_meters: tariff.included_meters,
         price_per_additional_km_cents: tariff.price_per_additional_km_cents,
       }),
       calculated_price: Object.freeze({

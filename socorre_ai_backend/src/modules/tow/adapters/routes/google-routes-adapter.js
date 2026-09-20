@@ -50,23 +50,28 @@ function parseDistanceMeters(value, field) {
 
 /**
  * Google returns `duration` as a protobuf Duration string with up to nine
- * fractional digits ("165s", "900.5s"). Seconds are converted exactly from the
- * decimal digits and rounded half-up; no float ever touches the value.
+ * fractional digits ("165s", "900.5s", "900.123456789s"). Seconds are converted
+ * exactly from the decimal digits and rounded half-up; no float ever touches the
+ * value. More than nine fractional digits is outside the protobuf Duration
+ * contract and is a `malformed_response`, never silently truncated or rounded.
  */
+const SECONDS_DECIMAL_PATTERN = /^(\d+)(?:\.(\d{1,9}))?$/;
+const SECONDS_STRING_PATTERN = /^(\d+)(?:\.(\d{1,9}))?s$/;
+
 function parseDurationSeconds(value, field) {
   let text;
 
   if (typeof value === 'string') {
-    const match = /^(\d+(?:\.\d+)?)s$/.exec(value);
+    const match = SECONDS_STRING_PATTERN.exec(value);
     if (!match) throw malformed(`${field}.duration_seconds`);
-    text = match[1];
+    text = match[2] === undefined ? match[1] : `${match[1]}.${match[2]}`;
   } else if (typeof value === 'number' && Number.isFinite(value) && value >= 0 && !/[eE]/.test(String(value))) {
     text = String(value);
   } else {
     throw malformed(`${field}.duration_seconds`);
   }
 
-  const [, wholePart, fractionPart = ''] = /^(\d+)(?:\.(\d+))?$/.exec(text) || [];
+  const [, wholePart, fractionPart = ''] = SECONDS_DECIMAL_PATTERN.exec(text) || [];
   if (wholePart === undefined) throw malformed(`${field}.duration_seconds`);
 
   const whole = BigInt(wholePart);

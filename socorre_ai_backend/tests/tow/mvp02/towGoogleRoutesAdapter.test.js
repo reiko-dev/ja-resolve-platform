@@ -271,6 +271,71 @@ describe('MVP-02 UNIT — Google Routes adapter', () => {
     });
   });
 
+  describe('EXT-MVP02-2 — duration accepts at most nine fractional digits', () => {
+    // Google protobuf Duration: whole seconds or 1..9 fractional digits, for both
+    // the JSON string form ("900.123456789s") and the numeric form (900.123456789).
+    // Ten fractional digits are outside the contract, not something to round.
+    test.each([
+      ['whole seconds', '900s', 900],
+      ['one fractional digit', '900.1s', 900],
+      ['nine fractional digits below the half', '900.123456789s', 900],
+      ['nine fractional digits at or above the half', '900.523456789s', 901],
+      ['nine nines', '900.999999999s', 901],
+    ])('accepts the string form (%s)', async (_label, duration, expected) => {
+      const { adapter } = createAdapter({
+        httpClient: createStubHttpClient(googleRoute({ legs: [leg({ duration }), leg({ duration: '900s' })] })),
+      });
+
+      const result = await adapter.computeRoute({ origin: PROVIDER, destination: DESTINATION, pickup: PICKUP });
+      expect(result.provider_to_pickup.duration_seconds).toBe(expected);
+    });
+
+    test.each([
+      ['ten fractional digits', '900.1234567890s'],
+      ['ten fractional digits above the half', '900.5999999999s'],
+      ['negative duration', '-5s'],
+      ['unparseable duration', 'soon'],
+      ['bare fraction', '.5s'],
+      ['no unit', '900'],
+    ])('rejects the string form (%s) as malformed_response', async (_label, duration) => {
+      const { adapter } = createAdapter({
+        httpClient: createStubHttpClient(googleRoute({ legs: [leg({ duration }), leg()] })),
+      });
+
+      const error = await captureError(adapter.computeRoute({ origin: PROVIDER, destination: DESTINATION, pickup: PICKUP }));
+      expect(error).toBeInstanceOf(RouteProviderError);
+      expect(error.reason).toBe('malformed_response');
+    });
+
+    test.each([
+      ['a whole number', 900, 900],
+      ['one fractional digit', 900.1, 900],
+      ['nine fractional digits below the half', 900.123456789, 900],
+      ['nine fractional digits at or above the half', 900.523456789, 901],
+    ])('accepts the numeric form (%s)', async (_label, duration, expected) => {
+      const { adapter } = createAdapter({
+        httpClient: createStubHttpClient(googleRoute({ legs: [leg({ duration }), leg({ duration: 900 })] })),
+      });
+
+      const result = await adapter.computeRoute({ origin: PROVIDER, destination: DESTINATION, pickup: PICKUP });
+      expect(result.provider_to_pickup.duration_seconds).toBe(expected);
+    });
+
+    test.each([
+      ['more than nine fractional digits', 900.1234567891],
+      ['a binary float artifact', 0.1 + 0.2],
+      ['a negative number', -5],
+    ])('rejects the numeric form (%s) as malformed_response', async (_label, duration) => {
+      const { adapter } = createAdapter({
+        httpClient: createStubHttpClient(googleRoute({ legs: [leg({ duration }), leg()] })),
+      });
+
+      const error = await captureError(adapter.computeRoute({ origin: PROVIDER, destination: DESTINATION, pickup: PICKUP }));
+      expect(error).toBeInstanceOf(RouteProviderError);
+      expect(error.reason).toBe('malformed_response');
+    });
+  });
+
   describe('single-leg mode (no pickup supplied)', () => {
     test('omits intermediates and maps the single leg to pickup_to_destination', async () => {
       const { adapter, httpClient } = createAdapter({

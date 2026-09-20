@@ -265,6 +265,89 @@ describe('MVP-02 UNIT — quoteTow application operation', () => {
     });
   });
 
+  describe('EXT-MVP02-1 — strict tariff normalization happens before the provider is called', () => {
+    // The coarse MVP-01 `validatePricing` accepts all three tariffs below, but the
+    // authoritative price computation rejects them. They must be rejected by the
+    // strict normalization BEFORE `computeRoute`, or an invalid local tariff would
+    // consume a billable Google call.
+    test.each([
+      ['included_km with more than three decimals', {
+        minimum_charge_cents: 15000, included_km: 1.0001, price_per_additional_km_cents: 800,
+      }],
+      ['minimum_charge_cents = 2 ** 53', {
+        minimum_charge_cents: 2 ** 53, included_km: 1, price_per_additional_km_cents: 800,
+      }],
+      ['price_per_additional_km_cents = 2 ** 53', {
+        minimum_charge_cents: 15000, included_km: 1, price_per_additional_km_cents: 2 ** 53,
+      }],
+    ])('%s is a validation_error and the provider call count stays 0', async (_label, tariff) => {
+      const routeProvider = createFakeRouteProvider();
+      const service = createService({ routeProvider });
+
+      await expect(quote(service, { tariff })).rejects.toMatchObject({ code: 'validation_error' });
+      expect(routeProvider.callCount('computeRoute')).toBe(0);
+    });
+
+    test('a valid tariff calls the provider exactly once', async () => {
+      const routeProvider = createFakeRouteProvider();
+      const service = createService({ routeProvider });
+
+      const result = await quote(service, { tariff: { ...TARIFF } });
+
+      expect(routeProvider.callCount('computeRoute')).toBe(1);
+      expect(result.calculated_price.amount_cents).toBe(18480);
+    });
+
+    test('a DECIMAL(10,3) string tariff is normalized to exact meters before the single provider call', async () => {
+      const routeProvider = createFakeRouteProvider();
+      const service = createService({ routeProvider });
+
+      const result = await quote(service, {
+        tariff: { minimum_charge_cents: 15000, included_km: '2.007', price_per_additional_km_cents: 1500 },
+      });
+
+      expect(routeProvider.callCount('computeRoute')).toBe(1);
+      expect(result.pricing_snapshot).toEqual({
+        minimum_charge_cents: 15000,
+        included_km: '2.007',
+        included_meters: 2007,
+        price_per_additional_km_cents: 1500,
+      });
+    });
+
+    test('repository-resolved vehicle pricing is strictly normalized before the provider call', async () => {
+      const routeProvider = createFakeRouteProvider();
+      const vehicleRepository = {
+        findByPartnerAndId: async () => ({
+          id: 7,
+          pricing: { minimum_charge_cents: 15000, included_km: 1.0001, price_per_additional_km_cents: 800 },
+        }),
+      };
+      const service = createService({ routeProvider, vehicleRepository });
+
+      await expect(service.quoteTow({
+        provider: PROVIDER, pickup: PICKUP, destination: DESTINATION, partnerId: 1, vehicleId: 7,
+      })).rejects.toMatchObject({ code: 'validation_error' });
+      expect(routeProvider.callCount('computeRoute')).toBe(0);
+    });
+
+    test('an unsafe repository-resolved money value is rejected before the provider call', async () => {
+      const routeProvider = createFakeRouteProvider();
+      const vehicleRepository = {
+        findByPartnerAndId: async () => ({
+          id: 7,
+          pricing: { minimum_charge_cents: 2 ** 53, included_km: 1, price_per_additional_km_cents: 800 },
+        }),
+      };
+      const service = createService({ routeProvider, vehicleRepository });
+
+      await expect(service.quoteTow({
+        provider: PROVIDER, pickup: PICKUP, destination: DESTINATION, partnerId: 1, vehicleId: 7,
+      })).rejects.toMatchObject({ code: 'validation_error' });
+      expect(routeProvider.callCount('computeRoute')).toBe(0);
+    });
+  });
+
   describe('client input can never override distance or price', () => {
     test('client-supplied distance, legs, totals and price are ignored', async () => {
       const result = await quote(createService(), {
