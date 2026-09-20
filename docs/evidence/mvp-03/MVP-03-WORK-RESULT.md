@@ -9,6 +9,7 @@ READY_FOR_MUSE_REVIEW
 - Branch: `feature/mvp-03-tow-request-matching`
 - Implementation head (frozen): **`15f7f57a44986e94827be9749cadeee006dbbeff`** — 47 files, +7340/−40. This `MVP-03-WORK-RESULT.md` and `12-final-confirmation.txt` are a follow-up evidence commit that changes no source file (the MVP-02 precedent).
 - Pre-Muse hardening head (frozen): **`1756742e104ec579c86e6f6e396276a8bb4f60cf`** — test-only transport hardening in `tests/tow/mvp03/towRequestIdempotency.test.js` (1 file, +44/−2; no production or source change). The hardening evidence below is a follow-up docs/evidence commit that changes no source or test file.
+- Correction-2 head (frozen): **`1bbfd13a`** — base of this correction; two orchestrator-found issues fixed in this pass (T01 e2e pin + 401 flake diagnosis). See **Correction-2** below and evidence `19-e2e-pin-fix.txt` / `20-401-flake-diagnosis.txt`. Test-only: `tests/tow/baseline/dbBaseline.e2e.test.js` (pin) and `tests/tow/mvp03/towRequestCreate.test.js` (diagnostic guard). **No production file changed.**
 - Issue: #15 (MVP-03 — Tow Request & Lean Geographic Matching)
 - Push / PR / merge: **not performed.** No push, no PR, no merge, no MVP-04, no #31/#33, no production/VPS. This executor stops before Muse review by instruction.
 
@@ -317,6 +318,103 @@ Hardened-tree re-run evidence (raw logs under `docs/evidence/mvp-03/`):
 Counts are identical to the frozen delivery (no test added or removed): the
 hardening changes only how the suite reaches the in-process server.
 
+## Correction-2 (pre-Muse): T01 e2e pin + 401 flake
+Two issues found by the orchestrator after `1bbfd13a`. Both are test-infrastructure
+issues; **no production file was touched** and no assertion was relaxed.
+
+### C2-1 — T01 e2e pinned a stale MVP-01 baseline (hard failure, FIXED)
+`tests/tow/baseline/dbBaseline.e2e.test.js` pinned `BASELINE_MIGRATIONS` to
+`[001, 002, 003]` while this delivery ships `004_mvp03_tow_requests.js`, so every
+PostgreSQL assertion comparing applied migrations against the pin failed:
+`unexpected migration file(s) outside the pinned MVP-01 baseline:
+004_mvp03_tow_requests.js` — **5 failed / 28 passed / 33** on the disposable
+target (raw log `/tmp/e2e-before-55434.txt`, quoted in `19-e2e-pin-fix.txt`).
+
+Fix (test-only): the pin is now `001..004`, mirroring the two other canonical
+pins of the delivery (`scripts/tow/run-db-baseline-gate.js` → `PINNED_MIGRATIONS`
+and the offline assertion in `tests/tow/baseline/dbBaselineSafety.test.js`), and
+the comment in the file says so. Cross-check semantics were **kept loud, not
+weakened**: the directory read is still a cross-check, the error message now
+prints the whole pin (`outside the pinned baseline [001…, 004…]: 005_*.js`), the
+`expect(files).toEqual(BASELINE_MIGRATIONS…)` assertion is unchanged, and the
+smuggled-`005` negative control still exists. No fingerprint was hardcoded: the
+suite still compares run1-vs-run2 schema fingerprints, so the old `37cee47e…`
+value is not frozen into the test.
+
+Proof (disposable PostgreSQL on `127.0.0.1:55434`, torn down after):
+`dbBaseline.e2e.test.js` **33 passed / 33** (was 5 failed / 28 passed); legacy
+`towPostgres.e2e.test.js` + `g3TowPostgres.e2e.test.js` **9 passed / 9**; the
+offline pin guard stays green. Other MVP-01/002 expectations were swept with a
+deterministic grep; the e2e pin was the only stale one.
+
+### C2-2 — 401 flake in a combined full-suite run (root-caused, NOT claimed fixed)
+`tests/tow/mvp03/towRequestCreate.test.js › a custom radius setting is frozen
+into the new request` failed once with `Expected: 201 / Received: 401` while
+passing in focused runs.
+
+**Root cause: not the product.** Two independent server-side sources prove the
+401 was never produced for the failing request: morgan logged
+`POST /api/partners/onboarding/complete … 201 1422` (the only 401 in the window
+is the preceding intentional anonymous upload), and an instrumented
+`src/middleware/auth.js` (all five exits logged) recorded **zero** 401s for the
+onboarding route in any run. The client therefore received a response the server
+never produced for that request.
+
+**Reproduced under load, not in focused runs.** 20 instrumented full-suite runs
+under 6-core artificial load produced 4 failing runs (~20%): a stale 401 + `Parse
+Error` (run 6), `socket hang up` ×2 on `deliveryOrders` (run 10), `Parse Error`
+on `/motoboy/history` (run 16), `socket hang up` ×2 on `towRequestCreate` (run
+19). Every symptom is transport-level.
+
+**All product-side hypotheses were checked and excluded with direct evidence**
+(JWT_SECRET leak across files, `revoked_tokens`, deleted user row, fake-timer vs
+JWT `exp`/`iat`, email/sequence collision, auth fail-closed on a transient DB
+error, global-agent socket reuse, shared `TestAgent`): see
+`20-401-flake-diagnosis.txt` §3 for each exclusion. Notably, Node ≥ 19's
+keep-alive `http.globalAgent` is **not** in the path — supertest sets
+`agent: false`, so every request gets a fresh socket (`reused=false`), and a
+forced port-reuse probe still reported `reused=false` and a fresh 201 body.
+
+**Mechanism family demonstrated deterministically.** While instrumenting, an
+exception inside a `'response'`/`'end'` listener aborted the emit, so superagent's
+own listener never ran: the response was silently swallowed and the test died on
+timeout (5 s default; 60 s in `g2PhotoContract.test.js`, matching the exact 60 s
+cadence seen in stalled runs). The trigger was superagent's
+`res.setEncoding('utf8')` making the chunks strings, so `Buffer.concat(chunks)`
+threw. That is the same failure family as the observed `Parse Error` /
+`socket hang up` / stale-status symptoms, and it documents why such failures are
+invisible in this harness.
+
+**Status: NOT claimed fixed.** The exact trigger inside supertest's per-request
+ephemeral-server churn could not be pinned on demand within this correction's
+budget, so no speculative harness change was made. Instead a **permanent
+diagnostic guard** was added: `expectCreated(response, auth)` in
+`tests/tow/mvp03/towRequestCreate.test.js` throws a single message carrying
+`body`, `userId`, `userEmail`, decoded `tokenClaims`, `nowSeconds` and
+`jwtSecret: 'env' | 'dev-fallback'` — exactly the state needed to tell the four
+`auth.js` 401 branches apart from a transport artifact. The strict
+`expect(response.status).toBe(201)` assertion is unchanged for the success path.
+Recommended follow-up (out of scope here): move the tow/integration harness to a
+single shared `http.createServer(app)` per test file and re-run the load loop.
+
+Correction-2 gate re-run (instrumentation fully removed; raw logs in
+`19-e2e-pin-fix.txt` / `20-401-flake-diagnosis.txt`):
+
+| Gate | Result | Artifact |
+| --- | --- | --- |
+| `npm run validate:openapi` | **PASS** (0 errors) | `19-e2e-pin-fix.txt` |
+| `npm run test:contract` | **PASS** 5 suites / 62 tests | `19-e2e-pin-fix.txt` |
+| `npx jest tests/tow/mvp03 --runInBand` | **170 passed / 7 skipped / 177 · 0 failures** | `20-401-flake-diagnosis.txt` |
+| `npx jest tests/tow --runInBand` | **848 passed / 65 skipped / 913 · 0 failures** | `19-e2e-pin-fix.txt` |
+| `npx jest --runInBand` (full) ×2 | **1272 passed / 65 skipped / 1337 · 0 failures** (both runs) | `20-401-flake-diagnosis.txt` |
+| PG `dbBaseline.e2e.test.js` (`DB_PORT=55434`) | **33 passed / 33** (was 5 failed / 28) | `19-e2e-pin-fix.txt` |
+| PG legacy e2e ×2 | **9 passed / 9** | `19-e2e-pin-fix.txt` |
+| PostgreSQL teardown | **done** — 0 containers/volumes/networks for the tow project | `19-e2e-pin-fix.txt` |
+
+Counts are identical to the frozen delivery: no test was added, removed, skipped
+or relaxed. The only test-behaviour change is the diagnostic guard, which is
+inert on success (26/26 in `towRequestCreate.test.js`).
+
 ## Regression
 Baselines and the observed post-delivery counts:
 
@@ -449,6 +547,17 @@ rather than papered over.
 - **Shared-host port collision.** 55432 and 55433 are occupied on this host, so
   every PostgreSQL stage used `DB_PORT=55434`. This is a harness detail with no
   code impact, and it is the reason the committed T01 gate JSON records 55434.
+- **401 flake (correction-2) — disclosed, not claimed fixed.** Reproduced in
+  4/20 loaded full-suite runs (~20%), never in focused runs; the product was
+  excluded as the cause by two independent server-side sources (morgan + an
+  instrumented `auth.js` show the failing request was answered 201 and that no
+  401 was ever emitted for that route). The exact transport trigger inside
+  supertest's per-request ephemeral-server churn was not pinned, so no
+  speculative fix was made; a permanent diagnostic guard was added instead and a
+  harness rework is recommended as follow-up. Full analysis and every excluded
+  hypothesis: `20-401-flake-diagnosis.txt`.
 
 ## Final Verdict
-MVP-03 READY FOR MUSE REVIEW
+MVP-03 READY FOR MUSE REVIEW (correction-2: T01 e2e pin fixed and proven on
+PostgreSQL; 401 flake root-caused to the test-harness transport layer, product
+excluded, guard added — disclosed as not fixed).

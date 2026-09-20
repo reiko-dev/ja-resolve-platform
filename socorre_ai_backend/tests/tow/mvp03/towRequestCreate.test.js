@@ -16,6 +16,7 @@ process.env.RATE_LIMIT_MAX_REQUESTS = '100000';
 jest.mock('../../../src/config/database', () => require('../../helpers/testDb').db);
 
 const request = require('supertest');
+const jwt = require('jsonwebtoken');
 const testDb = require('../../helpers/testDb');
 const { createApp } = require('../../../src/app');
 const { buildTowServices } = require('../../../src/modules/tow/composition');
@@ -69,12 +70,45 @@ describe('MVP-03 — Tow request creation', () => {
     return testDb.db('tow_requests').select('*');
   }
 
+  /**
+   * CORRECTION-2 (flake diagnosis) — a 201 assertion that reports the exact
+   * auth state when creation is refused.
+   *
+   * `src/middleware/auth.js` answers four DIFFERENT 401s and none of them
+   * carries an `error.code`: 'Token de acesso não fornecido' (header missing),
+   * 'Token revogado' (revoked_tokens hit), 'Usuário não encontrado' (the token
+   * verified but the row is gone) and 'Token inválido' (verify threw / DB
+   * error). A bare `expect(response.status).toBe(201)` hides which one fired,
+   * so a flake is undiagnosable after the fact.
+   */
+  function expectCreated(response, auth) {
+    if (response.status !== 201) {
+      let claims = null;
+      try {
+        claims = jwt.decode(auth.token);
+      } catch (error) {
+        claims = { decodeError: error.message };
+      }
+      throw new Error(
+        `expected 201 Created, got ${response.status}: ${JSON.stringify({
+          body: response.body,
+          userId: auth.user ? auth.user.id : null,
+          userEmail: auth.user ? auth.user.email : null,
+          tokenClaims: claims,
+          nowSeconds: Math.floor(Date.now() / 1000),
+          jwtSecret: process.env.JWT_SECRET ? 'env' : 'dev-fallback',
+        })}`
+      );
+    }
+    expect(response.status).toBe(201);
+  }
+
   describe('successful creation', () => {
     test('a valid payload returns 201 with the canonical TowRequest DTO', async () => {
       const customer = await createTowCustomerAuth();
       const response = await post(createTowRequestInput(), { auth: customer });
 
-      expect(response.status).toBe(201);
+      expectCreated(response, customer);
       expect(response.body.success).toBe(true);
       const dto = response.body.data;
       expect(dto).toMatchObject({
@@ -148,7 +182,7 @@ describe('MVP-03 — Tow request creation', () => {
       await services.settingsService.patch({ tow_initial_radius_km: 30 });
       const customer = await createTowCustomerAuth();
       const response = await post(createTowRequestInput(), { auth: customer });
-      expect(response.status).toBe(201);
+      expectCreated(response, customer);
       expect(response.body.data.matching.current_radius_km).toBe(30);
       expect((await rows())[0].matching_radius_km).toBe(30);
       await services.settingsService.patch({ tow_initial_radius_km: 15 });
@@ -163,7 +197,7 @@ describe('MVP-03 — Tow request creation', () => {
       delete payload.observations;
 
       const response = await post(payload, { auth: customer });
-      expect(response.status).toBe(201);
+      expectCreated(response, customer);
       expect(response.body.data.vehicle).toEqual({
         class: 'light_vehicle', make: 'Fiat', model: 'Argo', year: null, weight_kg: null, plate: null,
       });
