@@ -510,8 +510,8 @@ T01                                    ACCEPTED ✅
 #31 security                           DEFERRED
 MVP-01 / #13                           ACCEPTED ✅
 MVP-02 / #14                           ACCEPTED ✅
-MVP-03 / #15                           READY / current delivery
-MVP-04 / #16                           BLOCKED by MVP-03
+MVP-03 / #15                           ACCEPTED ✅
+MVP-04 / #16                           READY / current delivery
 MVP-05 / #17                           BLOCKED by MVP-04
 MVP-06 / #18                           BLOCKED by MVP-05
 Phase 2 / #33                          DEFERRED
@@ -520,15 +520,15 @@ Phase 2 / #33                          DEFERRED
 Accepted implementation baseline:
 
 ```text
-main @ 1f589d60b8f8020cc6162ebf2c5200c0d2cfa632   # MVP-02 accepted (PR #36, receipt #5749173315)
+main @ f100bea9b79536dbe06e5032c451271b5f614f9c   # MVP-03 accepted (PR #37, receipt #5752423773)
 ```
 
 Next executable work:
 
 ```text
-MVP-03 — Tow Request & Lean Geographic Matching
-Issue #15
-base: main @ 1f589d60b8f8020cc6162ebf2c5200c0d2cfa632 (MVP-02 accepted main;
+MVP-04 — Proposal Lifecycle & Atomic Assignment
+Issue #16
+base: main @ f100bea9b79536dbe06e5032c451271b5f614f9c (MVP-03 accepted main;
       the bookkeeping commit that carries this line is the effective dispatch base)
-branch: (to be created when MVP-03 is dispatched)
+branch: (to be created when MVP-04 is dispatched)
 ```
