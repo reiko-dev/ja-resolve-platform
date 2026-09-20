@@ -62,6 +62,7 @@ const PINNED_MIGRATIONS = Object.freeze([
   '001_baseline_schema.js',
   '002_baseline_settings.js',
   '003_mvp01_tow_foundation.js',
+  '004_mvp03_tow_requests.js',
 ]);
 
 function directoryMigrations() {
@@ -80,7 +81,7 @@ function assertPinnedMigrations(pinned, actual) {
   const missing = expected.filter((file) => !found.includes(file));
   if (unexpected.length > 0 || missing.length > 0) {
     throw new Error(
-      'migrations directory does not match the pinned MVP-01 baseline '
+      'migrations directory does not match the pinned baseline '
       + `(unexpected: ${unexpected.join(', ') || '(none)'}; missing: ${missing.join(', ') || '(none)'}; `
       + `expected: [${expected.join(', ')}], found: [${found.join(', ')}])`
     );

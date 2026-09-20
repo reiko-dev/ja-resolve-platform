@@ -1,6 +1,8 @@
 /**
  * MVP-01 — module composition root.
  * MVP-02 — wires the RouteProvider port and the route/pricing quote operation.
+ * MVP-03 — wires the canonical TowRequest store and the geographic matching
+ *          operations.
  *
  * Builds the application services from the infrastructure adapters. This is the
  * only place the pure layers meet Knex, HTTP, the filesystem and the system
@@ -15,12 +17,15 @@ const {
   createSettingsService,
   createEligibilityService,
   createQuoteService,
+  createTowRequestService,
+  createMatchingService,
 } = require('./application');
 const { createModuleRepository } = require('./adapters/persistence/module-repository');
 const { createVehicleRepository } = require('./adapters/persistence/vehicle-repository');
 const { createDocumentRepository } = require('./adapters/persistence/document-repository');
 const { createSettingsRepository } = require('./adapters/persistence/settings-repository');
 const { createPartnerRepository } = require('./adapters/persistence/partner-repository');
+const { createTowRequestRepository } = require('./adapters/persistence/tow-request-repository');
 const { createLocalFileStorage } = require('./adapters/storage/local-file-storage');
 const { createSystemClock } = require('./adapters/clock/system-clock');
 const { createGoogleRoutesAdapter } = require('./adapters/routes/google-routes-adapter');
@@ -39,6 +44,11 @@ function buildTowServices(options = {}) {
   const documentRepository = createDocumentRepository(db);
   const settingsRepository = createSettingsRepository(db);
   const partnerRepository = createPartnerRepository(db);
+  const towRequestRepository = createTowRequestRepository(db);
+
+  const moduleService = createModuleService({ moduleRepository });
+  const settingsService = createSettingsService({ settingsRepository, clock });
+  const quoteService = createQuoteService({ routeProvider, vehicleRepository, clock });
 
   return {
     db,
@@ -50,10 +60,11 @@ function buildTowServices(options = {}) {
     documentRepository,
     settingsRepository,
     partnerRepository,
-    moduleService: createModuleService({ moduleRepository }),
+    towRequestRepository,
+    moduleService,
     vehicleService: createVehicleService({ vehicleRepository, documentRepository, clock }),
     documentService: createDocumentService({ documentRepository, vehicleRepository, storage, clock }),
-    settingsService: createSettingsService({ settingsRepository, clock }),
+    settingsService,
     eligibilityService: createEligibilityService({
       moduleRepository,
       vehicleRepository,
@@ -61,7 +72,24 @@ function buildTowServices(options = {}) {
       partnerRepository,
       clock,
     }),
-    quoteService: createQuoteService({ routeProvider, vehicleRepository, clock }),
+    quoteService,
+    towRequestService: createTowRequestService({
+      moduleService,
+      settingsService,
+      towRequestRepository,
+      clock,
+    }),
+    matchingService: createMatchingService({
+      moduleService,
+      settingsService,
+      partnerRepository,
+      vehicleRepository,
+      documentRepository,
+      towRequestRepository,
+      quoteService,
+      clock,
+      ...(options.matching || {}),
+    }),
   };
 }
 

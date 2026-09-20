@@ -1,0 +1,102 @@
+ Network socorre-tow-test-55434-cb0d0933_tow-test-net Creating 
+ Network socorre-tow-test-55434-cb0d0933_tow-test-net Creating 
+ Network socorre-tow-test-55434-cb0d0933_tow-test-net Created 
+ Network socorre-tow-test-55434-cb0d0933_tow-test-net Created 
+ Container socorre-tow-test-55434-cb0d0933-tow-postgres-test-1 Creating 
+ Container socorre-tow-test-55434-cb0d0933-tow-postgres-test-1 Created 
+ Container socorre-tow-test-55434-cb0d0933-tow-postgres-test-1 Starting 
+ Container socorre-tow-test-55434-cb0d0933-tow-postgres-test-1 Started 
+ Container socorre-tow-test-55434-cb0d0933-tow-postgres-test-1 Waiting 
+ Container socorre-tow-test-55434-cb0d0933-tow-postgres-test-1 Healthy 
+PostgreSQL test container is healthy
+healthcheck: healthy
+
+=== [mvp03-pg] migrate from zero ===
+[verify:tow] migrations against postgresql://tow_test@127.0.0.1:55434/socorre_ai_tow_test
+[verify:tow] migrations applied: 4 (batch 1)
+[verify:tow] tables in public: 33
+[verify:tow] database ready at 127.0.0.1:55434/socorre_ai_tow_test
+
+=== [mvp03-pg] MVP-03 PostgreSQL e2e + T00 foundation ===
+PASS tests/tow/foundation/towPostgresFoundation.e2e.test.js
+::ffff:127.0.0.1 - - [20/Sep/2026:16:02:10 +0000] "GET /health HTTP/1.1" 200 179 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:16:02:11 +0000] "POST /api/tow/requests HTTP/1.1" 201 883 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:16:02:11 +0000] "POST /api/tow/requests HTTP/1.1" 201 883 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:16:02:11 +0000] "POST /api/tow/requests HTTP/1.1" 201 883 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:16:02:11 +0000] "POST /api/tow/requests HTTP/1.1" 201 883 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:16:02:11 +0000] "POST /api/tow/requests HTTP/1.1" 201 883 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:16:02:11 +0000] "POST /api/tow/requests HTTP/1.1" 201 883 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:16:02:11 +0000] "POST /api/tow/requests HTTP/1.1" 201 883 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:16:02:11 +0000] "POST /api/tow/requests HTTP/1.1" 409 127 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:16:02:11 +0000] "POST /api/tow/requests HTTP/1.1" 201 883 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:16:02:11 +0000] "GET /api/tow/partner/opportunities HTTP/1.1" 200 1079 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:16:02:11 +0000] "GET /api/tow/partner/opportunities HTTP/1.1" 200 75 "-" "-"
+PASS tests/tow/mvp03/towMvp03Postgres.e2e.test.js
+
+Test Suites: 2 passed, 2 total
+Tests:       13 passed, 13 total
+Snapshots:   0 total
+Time:        2.573 s
+Ran all test suites matching /tests\/tow\/mvp03\/towMvp03Postgres.e2e.test.js|tests\/tow\/foundation\/towPostgresFoundation.e2e.test.js/i.
+::ffff:127.0.0.1 - - [20/Sep/2026:16:02:11 +0000] "POST /api/tow/requests HTTP/1.1" 201 883 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:16:02:11 +0000] "POST /api/tow/requests HTTP/1.1" 201 885 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:16:02:11 +0000] "POST /api/tow/requests HTTP/1.1" 201 885 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:16:02:11 +0000] "GET /api/tow/requests HTTP/1.1" 200 1796 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:16:02:11 +0000] "GET /api/tow/requests/9 HTTP/1.1" 403 106 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:16:02:11 +0000] "POST /api/tow/requests HTTP/1.1" 409 126 "-" "-"
+
+=== [mvp03-pg] T01 database baseline gate (real PostgreSQL) ===
+[db-gate] compose project: socorre-tow-test-55434-cb0d0933
+[db-gate] stage 1/9: guard + container up (previous environment destroyed first)
+ Container socorre-tow-test-55434-cb0d0933-tow-postgres-test-1 Stopping 
+ Container socorre-tow-test-55434-cb0d0933-tow-postgres-test-1 Stopped 
+ Container socorre-tow-test-55434-cb0d0933-tow-postgres-test-1 Removing 
+ Container socorre-tow-test-55434-cb0d0933-tow-postgres-test-1 Removed 
+ Network socorre-tow-test-55434-cb0d0933_tow-test-net Removing 
+ Network socorre-tow-test-55434-cb0d0933_tow-test-net Removed 
+PostgreSQL test environment destroyed (containers, volumes, network)
+ Network socorre-tow-test-55434-cb0d0933_tow-test-net Creating 
+ Network socorre-tow-test-55434-cb0d0933_tow-test-net Creating 
+ Network socorre-tow-test-55434-cb0d0933_tow-test-net Created 
+ Network socorre-tow-test-55434-cb0d0933_tow-test-net Created 
+ Container socorre-tow-test-55434-cb0d0933-tow-postgres-test-1 Creating 
+ Container socorre-tow-test-55434-cb0d0933-tow-postgres-test-1 Created 
+ Container socorre-tow-test-55434-cb0d0933-tow-postgres-test-1 Starting 
+ Container socorre-tow-test-55434-cb0d0933-tow-postgres-test-1 Started 
+ Container socorre-tow-test-55434-cb0d0933-tow-postgres-test-1 Waiting 
+ Container socorre-tow-test-55434-cb0d0933-tow-postgres-test-1 Healthy 
+PostgreSQL test container is healthy
+healthcheck: healthy
+[db-gate] target: postgresql://tow_test@127.0.0.1:55434/socorre_ai_tow_test (purpose: test)
+[db-gate] stage 2/9: verify the database is empty
+[db-gate] database is empty (0 tables) — new disposable volume confirmed
+[db-gate] stage 3/9: migrate from zero
+[db-gate] migrations applied: 001_baseline_schema.js, 002_baseline_settings.js, 003_mvp01_tow_foundation.js, 004_mvp03_tow_requests.js (batch 1)
+[db-gate] stage 4/9: seed the default administrator
+[db-gate] default administrator created: gate-admin-20137632@example.test (id=1)
+[db-gate] stage 5/9: assert the clean baseline
+[db-gate] baseline OK: 33 tables, 32 row(s), settings=25
+[db-gate] stage 6/9: schema snapshot (run 1)
+[db-gate] run 1 fingerprint: f2771dcf6a253951c1d4a596e681c52a759ed0c4bcd70ecdcbe971505e8ed2bf
+[db-gate] stage 7/9: guarded destructive reset + repeat
+[db-gate] guarded reset dropped 33 table(s)
+[db-gate] repeat OK: 33 tables, 32 row(s)
+[db-gate] stage 8/9: schema snapshot (run 2) + fingerprint comparison
+[db-gate] run 2 fingerprint: f2771dcf6a253951c1d4a596e681c52a759ed0c4bcd70ecdcbe971505e8ed2bf
+[db-gate] fingerprints identical: reset+migrate+seed reproduces the same schema
+ Container socorre-tow-test-55434-cb0d0933-tow-postgres-test-1 Stopping 
+ Container socorre-tow-test-55434-cb0d0933-tow-postgres-test-1 Stopped 
+ Container socorre-tow-test-55434-cb0d0933-tow-postgres-test-1 Removing 
+ Container socorre-tow-test-55434-cb0d0933-tow-postgres-test-1 Removed 
+ Network socorre-tow-test-55434-cb0d0933_tow-test-net Removing 
+ Network socorre-tow-test-55434-cb0d0933_tow-test-net Removed 
+PostgreSQL test environment destroyed (containers, volumes, network)
+[db-gate] teardown verified: no container/volume/network left for project "socorre-tow-test-55434-cb0d0933"
+[db-gate] GREEN — evidence written to /Volumes/Reiko/projects/work/socorre-system/docs/evidence/t01/db-baseline-gate.json
+PostgreSQL test environment destroyed (containers, volumes, network)
+
+=== [mvp03-pg] summary ===
+  PASS  migrate from zero
+  PASS  MVP-03 PostgreSQL e2e + T00 foundation
+  PASS  T01 database baseline gate (real PostgreSQL)
+[mvp03-pg] GREEN

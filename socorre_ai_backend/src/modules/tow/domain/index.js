@@ -20,6 +20,9 @@ const availability = require('./availability');
 const compatibility = require('./compatibility');
 const eligibility = require('./eligibility');
 const settings = require('./settings');
+const towRequest = require('./tow-request');
+const idempotency = require('./idempotency');
+const matching = require('./matching');
 
 module.exports = {
   ...identity,
@@ -35,4 +38,7 @@ module.exports = {
   ...compatibility,
   ...eligibility,
   ...settings,
+  ...towRequest,
+  ...idempotency,
+  ...matching,
 };

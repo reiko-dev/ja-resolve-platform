@@ -1,0 +1,126 @@
+/**
+ * MVP-03 — partner-facing geographic matching service.
+ *
+ * `GET /tow/partner/opportunities` answers, for the AUTHENTICATED partner:
+ * "which open tow requests are mine to see right now, and what would each one
+ * pay?".
+ *
+ * The feed is request-driven: the candidates are the `SEARCHING` requests
+ * (`towRequestRepository.listSearchingCandidates`), and each candidate is
+ * evaluated against the authenticated partner by the pure domain policy
+ * `evaluateTowMatch` (module → partner identity → availability/online →
+ * operational coordinates → MVP-01 eligibility → geodesic radius). This
+ * mirrors the legacy partner-side nearby search and avoids a second, divergent
+ * query authority.
+ *
+ * Guarantees enforced here:
+ *   - the module gate runs FIRST: a disabled module is a 409 with ZERO provider
+ *     calls, for a partner with or without candidates;
+ *   - the radius is the radius FROZEN on each request, never the live setting;
+ *   - a request reaches the RouteProvider ONLY after it has been matched, so an
+ *     ineligible or out-of-radius request can never consume a provider call;
+ *   - the price is the authoritative MVP-02 quote computed live for the
+ *     partner's active vehicle — never a persisted snapshot, never a
+ *     straight-line estimate. A provider failure is a 503 and produces no feed
+ *     at all (a partially quoted feed would be worse than none);
+ *   - ordering is deterministic (distance ascending, then request id), and
+ *     pagination slices that ordered list.
+ *
+ * Deliberately deferred (documented, not silently dropped): a bounding-box
+ * pre-filter in SQL. The radius is per-request (a frozen column), so an
+ * indexable expression does not exist; MVP-03 scans the newest `SEARCHING`
+ * requests with a documented cap instead. See
+ * `docs/evidence/mvp-03/01-current-state-delta.md` §3.
+ */
+'use strict';
+
+const {
+  evaluateTowMatch,
+  selectMatches,
+  buildTowRequestDto,
+} = require('../domain');
+const { validateListQuery } = require('./list-query');
+
+/** Documented scan cap for the candidate query (newest `SEARCHING` first). */
+const DEFAULT_CANDIDATE_SCAN_LIMIT = 500;
+
+function createMatchingService({
+  moduleService,
+  settingsService,
+  partnerRepository,
+  vehicleRepository,
+  documentRepository,
+  towRequestRepository,
+  quoteService,
+  clock,
+  candidateScanLimit = DEFAULT_CANDIDATE_SCAN_LIMIT,
+}) {
+  if (!moduleService) throw new TypeError('createMatchingService requires a moduleService');
+  if (!settingsService) throw new TypeError('createMatchingService requires a settingsService');
+  if (!partnerRepository) throw new TypeError('createMatchingService requires a partnerRepository port');
+  if (!vehicleRepository) throw new TypeError('createMatchingService requires a vehicleRepository port');
+  if (!documentRepository) throw new TypeError('createMatchingService requires a documentRepository port');
+  if (!towRequestRepository) throw new TypeError('createMatchingService requires a towRequestRepository port');
+  if (!quoteService) throw new TypeError('createMatchingService requires a quoteService');
+  if (!clock) throw new TypeError('createMatchingService requires a clock port');
+
+  async function listOpportunitiesForPartner({ partnerId, query } = {}) {
+    const filters = validateListQuery(query, { states: [] });
+
+    // 1. Module gate first: disabled means 409 and no provider call at all.
+    const moduleStatus = await moduleService.assertNewBusinessAllowed();
+
+    // 2. The authenticated partner's own operational context.
+    const partner = await partnerRepository.findById(partnerId);
+    const vehicle = partner ? await vehicleRepository.findActiveByPartner(partner.id) : null;
+    const documents = vehicle ? await documentRepository.listByVehicle(vehicle.id) : [];
+
+    // 3. Candidates, then the pure domain decision.
+    const candidates = await towRequestRepository.listSearchingCandidates({ limit: candidateScanLimit });
+    const now = clock.now();
+    const matches = [];
+    for (const request of candidates) {
+      const evaluation = evaluateTowMatch({
+        request,
+        partner,
+        moduleStatus,
+        vehicle,
+        documents,
+        now,
+      });
+      if (evaluation.matched) {
+        matches.push({ request, distance_meters: evaluation.distance_meters });
+      }
+    }
+
+    const ordered = selectMatches(matches);
+    const page = ordered.slice(filters.offset, filters.offset + filters.limit);
+
+    // 4. Quote ONLY what will be returned. A provider failure propagates as
+    //    503 `external_dependency_unavailable` with no partial feed.
+    const settings = await settingsService.get();
+    const items = [];
+    for (const match of page) {
+      const quote = await quoteService.quoteTow({
+        provider: { latitude: partner.latitude, longitude: partner.longitude },
+        pickup: match.request.pickup,
+        destination: match.request.destination,
+        tariff: vehicle.pricing,
+      });
+      items.push({
+        request: buildTowRequestDto(match.request, { max_radius_km: settings.tow_max_radius_km }),
+        route_quote: quote.route_quote,
+        proposed_price: quote.calculated_price,
+      });
+    }
+
+    return {
+      items,
+      meta: { page: filters.page, limit: filters.limit, total: ordered.length },
+    };
+  }
+
+  return { listOpportunitiesForPartner };
+}
+
+module.exports = { createMatchingService, DEFAULT_CANDIDATE_SCAN_LIMIT };

@@ -15,8 +15,12 @@ const db = require('./config/database');
  * HTTP transport tests call the same factory so they exercise the real
  * production stack (helmet, CORS, rate limit, routers, error handler)
  * instead of hand-built request/response mocks.
+ *
+ * `options.tow` is forwarded verbatim to the Tow composition root. Production
+ * always calls `createApp()` (defaults only); HTTP suites inject a deterministic
+ * clock and a recording RouteProvider so no test can reach Google.
  */
-function createApp() {
+function createApp(options = {}) {
   const app = express();
 
   // Nginx sits in front of Express in production: trust the first proxy
@@ -150,7 +154,7 @@ function createApp() {
   // MVP-01 — explicit Tow module (module registry, vehicles, documents,
   // settings). See docs/tow/TOW-MODULE-CONTRACT.md.
   const { createTowModule } = require('./modules/tow/http/mount');
-  const towModule = createTowModule();
+  const towModule = createTowModule(options.tow || {});
   app.use('/api/tow', towModule.publicRouter);
   app.use('/api/admin/tow', towModule.adminRouter);
 

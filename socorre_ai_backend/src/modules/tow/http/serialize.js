@@ -81,4 +81,34 @@ function serializeDocument(row, context = {}) {
   };
 }
 
-module.exports = { serializeModule, serializeAdminModule, serializeVehicle, serializeDocument, toIso };
+/**
+ * MVP-03 — partner opportunity item.
+ *
+ * The item is exactly `{request, proposed_price, route_quote}`. The distance and
+ * duration live inside `route_quote` (the authoritative provider numbers), never
+ * duplicated at the top level, and the geodesic distance used for filtering is
+ * deliberately NOT serialized: it is a matching mechanism, not a commercial
+ * number, and exposing it would invite a client to price from it.
+ */
+function serializeOpportunity(opportunity) {
+  return {
+    request: opportunity.request,
+    proposed_price: {
+      amount_cents: Number(opportunity.proposed_price.amount_cents),
+      currency: opportunity.proposed_price.currency,
+    },
+    route_quote: {
+      total_distance_meters: Number(opportunity.route_quote.total_distance_meters),
+      total_duration_seconds: Number(opportunity.route_quote.total_duration_seconds),
+    },
+  };
+}
+
+module.exports = {
+  serializeModule,
+  serializeAdminModule,
+  serializeVehicle,
+  serializeDocument,
+  serializeOpportunity,
+  toIso,
+};
