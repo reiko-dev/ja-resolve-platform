@@ -52,10 +52,15 @@ function evaluateEligibility({ partner, moduleStatus, vehicle, documents, reques
 
   const compatibility = isCompatible(vehicle, requested);
   if (!compatibility.compatible) {
-    return { eligible: false, code: compatibility.code, reasons: compatibility.reasons };
+    return {
+      eligible: false,
+      code: compatibility.code,
+      reasons: compatibility.reasons,
+      compatibility,
+    };
   }
 
-  return { eligible: true, code: null, reasons: [] };
+  return { eligible: true, code: null, reasons: [], compatibility };
 }
 
 module.exports = { evaluateEligibility };

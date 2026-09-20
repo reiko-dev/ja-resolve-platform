@@ -24,7 +24,12 @@
  *     straight-line estimate. A provider failure is a 503 and produces no feed
  *     at all (a partially quoted feed would be worse than none);
  *   - ordering is deterministic (distance ascending, then request id), and
- *     pagination slices that ordered list.
+ *     pagination slices that ordered list;
+ *   - each item describes the opportunity TRUTHFULLY: the request, the actual
+ *     active TowVehicle used for eligibility/quote, the authoritative route
+ *     quote and price, and the MVP-01 compatibility verdict (carried through,
+ *     never recomputed). `opportunity_expires_at` is `null` because MVP-03 owns
+ *     no expiry.
  *
  * Deliberately deferred (documented, not silently dropped): a bounding-box
  * pre-filter in SQL. The radius is per-request (a frozen column), so an
@@ -89,7 +94,12 @@ function createMatchingService({
         now,
       });
       if (evaluation.matched) {
-        matches.push({ request, distance_meters: evaluation.distance_meters });
+        matches.push({
+          request,
+          distance_meters: evaluation.distance_meters,
+          // MVP-01 verdict, carried through verbatim for the DTO.
+          compatibility: evaluation.compatibility,
+        });
       }
     }
 
@@ -109,8 +119,19 @@ function createMatchingService({
       });
       items.push({
         request: buildTowRequestDto(match.request, { max_radius_km: settings.tow_max_radius_km }),
+        // The ACTUAL active vehicle used for eligibility and for the quote. The
+        // transport projects it to `TowVehicleSummary` (no tariff, no
+        // persistence-only columns).
+        active_tow_vehicle: vehicle,
         route_quote: quote.route_quote,
         proposed_price: quote.calculated_price,
+        compatibility: match.compatibility,
+        // MVP-03 owns no expiry: there is no scheduler, no search timeout and no
+        // opportunity/proposal lifecycle, so nothing can truthfully expire an
+        // opportunity. The field is emitted as `null` (nullable/optional in the
+        // contract) until the delivery that owns expiry semantics exists — it is
+        // never fabricated from the proposal-expiry setting (MVP-04).
+        opportunity_expires_at: null,
       });
     }
 

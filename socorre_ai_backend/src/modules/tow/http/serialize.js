@@ -31,7 +31,12 @@ function serializeAdminModule(row) {
   };
 }
 
-function serializeVehicle(row) {
+/**
+ * The contract `TowVehicleSummary` projection: exactly the ten properties the
+ * frozen schema requires, with no tariff and no persistence-only column.
+ * `serializeVehicle` (the full `TowVehicle`) is this projection plus `pricing`.
+ */
+function serializeVehicleSummary(row) {
   return {
     id: String(row.id),
     plate: row.plate,
@@ -45,6 +50,12 @@ function serializeVehicle(row) {
     max_towed_weight_kg: Number(row.max_towed_weight_kg),
     document_status: row.document_status || 'pending',
     active: row.active === true,
+  };
+}
+
+function serializeVehicle(row) {
+  return {
+    ...serializeVehicleSummary(row),
     pricing: {
       minimum_charge_cents: Number(row.pricing.minimum_charge_cents),
       included_km: Number(row.pricing.included_km),
@@ -84,15 +95,28 @@ function serializeDocument(row, context = {}) {
 /**
  * MVP-03 — partner opportunity item.
  *
- * The item is exactly `{request, proposed_price, route_quote}`. The distance and
- * duration live inside `route_quote` (the authoritative provider numbers), never
- * duplicated at the top level, and the geodesic distance used for filtering is
- * deliberately NOT serialized: it is a matching mechanism, not a commercial
- * number, and exposing it would invite a client to price from it.
+ * The item is exactly the frozen `TowOpportunity` shape:
+ * `{request, active_tow_vehicle, route_quote, proposed_price, compatibility,
+ * opportunity_expires_at}`.
+ *
+ *   - the distance and duration live inside `route_quote` (the authoritative
+ *     provider numbers), never duplicated at the top level, and the geodesic
+ *     distance used for filtering is deliberately NOT serialized: it is a
+ *     matching mechanism, not a commercial number, and exposing it would invite
+ *     a client to price from it;
+ *   - `active_tow_vehicle` is the actual vehicle that was evaluated and quoted,
+ *     projected to `TowVehicleSummary` — the tariff is deliberately absent from
+ *     the partner feed;
+ *   - `compatibility` is the MVP-01 verdict carried through by the matching
+ *     service, projected to exactly the three contract properties;
+ *   - `opportunity_expires_at` is passed through as `null`: MVP-03 has no
+ *     expiry owner (no scheduler, no search timeout, no proposal lifecycle), so
+ *     nothing may be fabricated here.
  */
 function serializeOpportunity(opportunity) {
   return {
     request: opportunity.request,
+    active_tow_vehicle: serializeVehicleSummary(opportunity.active_tow_vehicle),
     proposed_price: {
       amount_cents: Number(opportunity.proposed_price.amount_cents),
       currency: opportunity.proposed_price.currency,
@@ -101,6 +125,12 @@ function serializeOpportunity(opportunity) {
       total_distance_meters: Number(opportunity.route_quote.total_distance_meters),
       total_duration_seconds: Number(opportunity.route_quote.total_duration_seconds),
     },
+    compatibility: {
+      compatible: opportunity.compatibility.compatible === true,
+      vehicle_class_supported: opportunity.compatibility.vehicle_class_supported === true,
+      weight_within_capacity: opportunity.compatibility.weight_within_capacity === true,
+    },
+    opportunity_expires_at: toIso(opportunity.opportunity_expires_at),
   };
 }
 
@@ -108,6 +138,7 @@ module.exports = {
   serializeModule,
   serializeAdminModule,
   serializeVehicle,
+  serializeVehicleSummary,
   serializeDocument,
   serializeOpportunity,
   toIso,

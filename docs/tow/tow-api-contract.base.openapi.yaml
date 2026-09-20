@@ -1674,6 +1674,16 @@ components:
           properties:
             items: { type: array, items: { $ref: '#/components/schemas/TowVehicleDocument' } }
             meta: { $ref: '#/components/schemas/PaginationMeta' }
+    # Published per-opportunity compatibility verdict (MVP-03). The canonical
+    # entrypoint declares the identical component; the inline opportunity item
+    # below references this one so base and canonical cannot diverge silently.
+    OpportunityCompatibility:
+      type: object
+      required: [compatible, vehicle_class_supported, weight_within_capacity]
+      properties:
+        compatible: { const: true }
+        vehicle_class_supported: { const: true }
+        weight_within_capacity: { const: true }
     TowOpportunityListResponse:
       type: object
       required: [success, data]
@@ -1687,11 +1697,26 @@ components:
               type: array
               items:
                 type: object
-                required: [request, proposed_price, route_quote]
+                required: [request, active_tow_vehicle, route_quote, proposed_price, compatibility]
                 properties:
                   request: { $ref: '#/components/schemas/TowRequest' }
+                  active_tow_vehicle: { $ref: '#/components/schemas/TowVehicleSummary' }
                   proposed_price: { $ref: '#/components/schemas/Money' }
                   route_quote: { $ref: '#/components/schemas/RouteQuote' }
+                  compatibility: { $ref: '#/components/schemas/OpportunityCompatibility' }
+                  opportunity_expires_at:
+                    type: [string, 'null']
+                    format: date-time
+                    description: >-
+                      When the opportunity stops being offered, or `null` while
+                      nothing expires it. MVP-03 opportunities do not expire by
+                      scheduler: this delivery has no search timeout and no
+                      opportunity/proposal expiry owner (proposal lifecycle is a
+                      later delivery), so the backend emits `null`. The field is
+                      therefore OPTIONAL: consumers must treat `null` and an
+                      absent value identically. It becomes a non-null instant
+                      only in the delivery that owns expiry semantics; it is
+                      never derived from the proposal-expiry setting.
             meta: { $ref: '#/components/schemas/PaginationMeta' }
     CustomerDebtListResponse:
       type: object

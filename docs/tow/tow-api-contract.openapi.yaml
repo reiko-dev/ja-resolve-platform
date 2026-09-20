@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: JaResolve Tow Consumer API
-  version: 1.0.0-draft.4
+  version: 1.0.0-draft.5
   description: >-
     Normative consumer contract for Mobile Cliente, Mobile Parceiro and Dashboard.
     This entrypoint composes the reviewed draft.2 base contract with the frozen
@@ -10,6 +10,12 @@ info:
     contracts required to implement the complete consumer flows without inventing
     undocumented endpoints or DTOs. Backend T00-T18 must converge to this contract
     or explicitly revise it with contract tests and matching documentation updates.
+    Revision draft.5 (MVP-03 external contract correction EXT-MVP03-1): the partner
+    opportunity item now carries the truthful `active_tow_vehicle` and
+    `compatibility` members required by this document, and
+    `opportunity_expires_at` is nullable/optional because MVP-03 owns no expiry
+    semantics (no scheduler, no search timeout, no proposal lifecycle). No other
+    consumer contract changed in this revision.
 servers:
   - url: /api
 security: []
@@ -545,14 +551,25 @@ components:
         weight_within_capacity: { const: true }
     TowOpportunity:
       type: object
-      required: [request, active_tow_vehicle, route_quote, proposed_price, compatibility, opportunity_expires_at]
+      required: [request, active_tow_vehicle, route_quote, proposed_price, compatibility]
       properties:
         request: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TowRequest' }
         active_tow_vehicle: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TowVehicleSummary' }
         route_quote: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/RouteQuote' }
         proposed_price: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/Money' }
         compatibility: { $ref: '#/components/schemas/OpportunityCompatibility' }
-        opportunity_expires_at: { type: string, format: date-time }
+        opportunity_expires_at:
+          type: [string, 'null']
+          format: date-time
+          description: >-
+            When the opportunity stops being offered, or `null` while nothing
+            expires it. MVP-03 opportunities do not expire by scheduler: this
+            delivery has no search timeout and no opportunity/proposal expiry
+            owner (proposal lifecycle is a later delivery), so the backend emits
+            `null`. The field is therefore OPTIONAL: consumers must treat `null`
+            and an absent value identically. It becomes a non-null instant only
+            in the delivery that owns expiry semantics; it is never derived from
+            the proposal-expiry setting.
     TowOpportunityListResponse:
       type: object
       required: [success, data]

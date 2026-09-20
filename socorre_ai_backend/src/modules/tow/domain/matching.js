@@ -61,7 +61,9 @@ function operationalLocation(partner) {
  * radius. Cheap and absolute checks come first; the radius last, because it is
  * the only one that needs the distance computation.
  *
- * @returns {{matched: boolean, code: string|null, reasons: readonly string[], distance_meters: number|null}}
+ * @returns {{matched: boolean, code: string|null, reasons: readonly string[], distance_meters: number|null,
+ *   compatibility?: {compatible: boolean, code: string|null, reasons: readonly string[],
+ *   vehicle_class_supported: boolean, weight_within_capacity: boolean}}}
  */
 function evaluateTowMatch({ request, partner, moduleStatus, vehicle, documents, now } = {}) {
   if (!isModuleEnabled(moduleStatus)) {
@@ -117,6 +119,11 @@ function evaluateTowMatch({ request, partner, moduleStatus, vehicle, documents, 
     code: null,
     reasons: Object.freeze([]),
     distance_meters: distanceMeters,
+    // The MVP-01 compatibility verdict is carried through untouched — matching
+    // never re-derives class/capacity. The consumer contract publishes it as
+    // `OpportunityCompatibility`; only `matched` results carry it because an
+    // excluded candidate has no opportunity to describe.
+    compatibility: eligibility.compatibility,
   });
 }
 

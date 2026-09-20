@@ -216,6 +216,34 @@ describe('MVP-01 UNIT — Tow domain', () => {
       expect(domain.isCompatible(heavy, { class: 'heavy_truck' }).compatible).toBe(false);
       expect(domain.isCompatible(heavy, { class: 'heavy_truck', weight_kg: 12000 }).compatible).toBe(true);
     });
+
+    test('exposes the per-dimension verdicts from the SAME policy (EXT-MVP03-1)', () => {
+      // Contract `OpportunityCompatibility` needs both dimensions; they are
+      // derived from the checks above, never recomputed by a second policy.
+      expect(domain.isCompatible(vehicle, { class: 'light_vehicle', weight_kg: 1500 }))
+        .toMatchObject({ vehicle_class_supported: true, weight_within_capacity: true });
+
+      const wrongClass = domain.isCompatible(vehicle, { class: 'heavy_truck', weight_kg: 1500 });
+      expect(wrongClass.compatible).toBe(false);
+      expect(wrongClass.vehicle_class_supported).toBe(false);
+      expect(wrongClass.weight_within_capacity).toBe(true);
+
+      const tooHeavy = domain.isCompatible(
+        { ...vehicle, supported_vehicle_classes: ['light_vehicle'] },
+        { class: 'light_vehicle', weight_kg: 5000 },
+      );
+      expect(tooHeavy.compatible).toBe(false);
+      expect(tooHeavy.vehicle_class_supported).toBe(true);
+      expect(tooHeavy.weight_within_capacity).toBe(false);
+
+      // A class that does not require a weight is vacuously within capacity ...
+      expect(domain.isCompatible(vehicle, { class: 'motorcycle' }))
+        .toMatchObject({ compatible: true, vehicle_class_supported: true, weight_within_capacity: true });
+      // ... while a class that DOES require one is not.
+      const heavy = { active: true, supported_vehicle_classes: ['heavy_truck'], max_towed_weight_kg: 20000 };
+      expect(domain.isCompatible(heavy, { class: 'heavy_truck' }))
+        .toMatchObject({ compatible: false, vehicle_class_supported: true, weight_within_capacity: false });
+    });
   });
 
   describe('operational eligibility composition', () => {
@@ -229,6 +257,14 @@ describe('MVP-01 UNIT — Tow domain', () => {
     test('all conditions satisfied => eligible', () => {
       const result = domain.evaluateEligibility({ partner, moduleStatus: enabled, vehicle, documents, requested, now });
       expect(result).toMatchObject({ eligible: true, code: null });
+      // The MVP-01 verdict is SURFACED, not discarded: MVP-03 publishes it.
+      expect(result.compatibility).toEqual({
+        compatible: true,
+        code: null,
+        reasons: [],
+        vehicle_class_supported: true,
+        weight_within_capacity: true,
+      });
     });
 
     test('a non-tow partner is not eligible (partner_not_operational)', () => {
@@ -287,6 +323,11 @@ describe('MVP-01 UNIT — Tow domain', () => {
     test('incompatible vehicle => vehicle_not_compatible', () => {
       const result = domain.evaluateEligibility({ partner, moduleStatus: enabled, vehicle, documents, requested: { class: 'heavy_truck', weight_kg: 9000 }, now });
       expect(result).toMatchObject({ eligible: false, code: 'vehicle_not_compatible' });
+      expect(result.compatibility).toMatchObject({
+        compatible: false,
+        vehicle_class_supported: false,
+        weight_within_capacity: false,
+      });
     });
   });
 });

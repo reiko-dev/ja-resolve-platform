@@ -7,7 +7,14 @@
  *   - only an eligible, inside-radius candidate may reach the RouteProvider;
  *   - the proposed price is the authoritative MVP-02 quote, never a persisted
  *     or client-derived number;
+ *   - the item is the truthful frozen `TowOpportunity` shape: the actual active
+ *     vehicle used for eligibility/quote, the MVP-01 compatibility verdict and
+ *     `opportunity_expires_at: null` (MVP-03 owns no expiry);
  *   - ordering is deterministic (distance, then request id).
+ *
+ * Live validation of the same response against the composed canonical
+ * `TowOpportunityListResponse` lives in
+ * `towPartnerOpportunitiesContract.test.js` (EXT-MVP03-1).
  *
  * RED-first: written before the matching service, the domain policy and the
  * route exist.
@@ -123,13 +130,41 @@ describe('MVP-03 — partner opportunities', () => {
       expect(response.body.data.items).toHaveLength(1);
 
       const opportunity = response.body.data.items[0];
-      expect(Object.keys(opportunity).sort()).toEqual(['proposed_price', 'request', 'route_quote']);
+      expect(Object.keys(opportunity).sort()).toEqual([
+        'active_tow_vehicle',
+        'compatibility',
+        'opportunity_expires_at',
+        'proposed_price',
+        'request',
+        'route_quote',
+      ]);
       expect(opportunity.request).toEqual(created);
       expect(opportunity.proposed_price).toEqual({ amount_cents: 18480, currency: 'BRL' });
       expect(opportunity.route_quote).toEqual({
         total_distance_meters: 14350,
         total_duration_seconds: 2100,
       });
+      // The ACTUAL active vehicle used for eligibility and quote, projected to
+      // `TowVehicleSummary`: no tariff, no persistence-only column.
+      expect(opportunity.active_tow_vehicle).toEqual({
+        id: String(partner.vehicle.id),
+        plate: partner.vehicle.plate,
+        make: 'Ford',
+        model: 'F-4000',
+        year: 2020,
+        equipment_type: 'flatbed',
+        supported_vehicle_classes: ['light_vehicle', 'motorcycle'],
+        max_towed_weight_kg: 4000,
+        document_status: 'pending',
+        active: true,
+      });
+      expect(opportunity.compatibility).toEqual({
+        compatible: true,
+        vehicle_class_supported: true,
+        weight_within_capacity: true,
+      });
+      // MVP-03 owns no expiry owner: the field is null, never fabricated.
+      expect(opportunity.opportunity_expires_at).toBeNull();
     });
 
     test('the proposed price is exactly the live MVP-02 quote for that vehicle', async () => {
