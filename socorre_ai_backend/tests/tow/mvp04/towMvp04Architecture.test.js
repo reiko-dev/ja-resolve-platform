@@ -110,7 +110,17 @@ describe('MVP-04 ARCH — the database is the atomicity authority', () => {
     const code = readMigrationCode();
     expect(code).not.toMatch(/emergency_requests/);
     expect(code).not.toMatch(/\btow_proposals\b/);
-    expect(code).not.toMatch(/dropColumn|renameTable|alterTable/);
+    // The ban is on MUTATING an earlier table, not on the keyword: the SQLite
+    // fallback legitimately uses `alterTable` on the table this migration just
+    // created. Every table the migration touches must be one it owns.
+    const owned = ['tow_request_proposals', 'tow_assignments'];
+    const touched = [
+      ...[...code.matchAll(/alterTable\(\s*['"]([^'"]+)['"]/g)].map((match) => match[1]),
+      ...[...code.matchAll(/ALTER\s+TABLE\s+([a-z_]+)/gi)].map((match) => match[1]),
+    ];
+    expect(touched.length).toBeGreaterThan(0);
+    expect(touched.every((table) => owned.includes(table))).toBe(true);
+    expect(code).not.toMatch(/dropColumn|renameTable/);
   });
 
   test('the migrations are registered everywhere the schema is pinned', () => {
@@ -228,8 +238,16 @@ describe('MVP-04 ARCH — ports, barrels and error vocabulary', () => {
     // Before any provider/pricing work in the create path.
     expect(proposalService.indexOf('assertNewBusinessAllowed'))
       .toBeLessThan(proposalService.indexOf('quoteTow'));
-    expect(assignmentService.indexOf('assertNewBusinessAllowed'))
-      .toBeLessThan(assignmentService.indexOf('assignmentRepository.createForProposal'));
+    // The accept path delegates its transactional body to `acceptWithin`, which is
+    // declared first, so the whole-file offsets say nothing: the gate must run
+    // inside `accept` BEFORE the unit of work is opened (a disabled module must
+    // not even start a transaction).
+    const acceptBody = assignmentService.slice(assignmentService.indexOf('async function accept('));
+    expect(acceptBody.indexOf('assertNewBusinessAllowed')).toBeGreaterThanOrEqual(0);
+    expect(acceptBody.indexOf('assertNewBusinessAllowed'))
+      .toBeLessThan(acceptBody.indexOf('unitOfWork.run'));
+    // ... and the transactional body is reachable only through `accept`.
+    expect(assignmentService.match(/acceptWithin\(/g)).toHaveLength(2);
   });
 });
 

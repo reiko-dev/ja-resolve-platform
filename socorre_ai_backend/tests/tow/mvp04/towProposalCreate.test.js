@@ -163,7 +163,9 @@ describe('MVP-04 — server-priced proposal creation', () => {
   describe('module gate', () => {
     test('a disabled module blocks creation with service_module_disabled and no provider call', async () => {
       const { request: towRequest, auths } = await scenario({ partnerCount: 1 });
-      await testDb.db('service_modules').where({ module_key: 'tow' }).update({ enabled: false });
+      // The canonical way to disable the module: the row is created on first
+      // read and then flipped, exactly like the MVP-03 gate test does.
+      await services.moduleService.setEnabled({ enabled: false, reason: 'MVP-04 gate test' });
 
       const response = await createProposal(auths[0], towRequest.id);
       expect(response.status).toBe(409);

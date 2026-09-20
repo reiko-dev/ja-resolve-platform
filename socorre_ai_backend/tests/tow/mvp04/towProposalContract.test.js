@@ -37,6 +37,7 @@ const {
   composeDocument,
   buildAjv,
   schemaUri,
+  CANONICAL_ENUMS,
   CANONICAL_ERROR_CODES,
 } = require('../../helpers/towContract');
 
@@ -264,23 +265,42 @@ describe('MVP-04 — live proposal lifecycle conforms to the canonical OpenAPI c
 
   test('base and canonical proposal schemas do not diverge silently', () => {
     const canonicalProposal = documents.canonical.components.schemas.TowProposal;
+    const baseProposal = documents.base.components.schemas.TowProposal;
     const baseItem = documents.base.components.schemas.TowProposalListResponse
       .properties.data.properties.items.items;
 
     expect(baseItem.$ref).toBe('#/components/schemas/TowProposal');
+    // The canonical entrypoint re-declares the proposal item so the MVP-04
+    // operations are self-describing. It must not diverge from the frozen
+    // composition source: same required set, same referenced members.
+    expect(canonicalProposal.required).toEqual(baseProposal.required);
     expect(canonicalProposal.required).toEqual([
       'id', 'request_id', 'partner_id', 'tow_vehicle', 'route_quote', 'price',
       'status', 'expires_at', 'created_at',
     ]);
-    expect(canonicalProposal.properties.tow_vehicle.$ref)
+    // `$ref` targets are compared by fragment: the canonical points at the base
+    // file for members it does not own, and both forms name the same schema.
+    const refTarget = (ref) => `#${String(ref).split('#')[1]}`;
+    for (const member of ['tow_vehicle', 'route_quote', 'price', 'status']) {
+      expect(refTarget(canonicalProposal.properties[member].$ref))
+        .toBe(refTarget(baseProposal.properties[member].$ref));
+    }
+    expect(refTarget(canonicalProposal.properties.tow_vehicle.$ref))
       .toBe('#/components/schemas/TowVehicleSummary');
-    expect(canonicalProposal.properties.price.$ref).toBe('#/components/schemas/Money');
-    expect(canonicalProposal.properties.route_quote.$ref).toBe('#/components/schemas/RouteQuote');
-    expect(canonicalProposal.properties.status.enum).toEqual([
-      'ACTIVE', 'COUNTERED', 'ACCEPTED', 'REJECTED', 'WITHDRAWN', 'EXPIRED', 'CLOSED',
-    ]);
+    expect(refTarget(canonicalProposal.properties.route_quote.$ref))
+      .toBe('#/components/schemas/RouteQuote');
+    expect(refTarget(canonicalProposal.properties.price.$ref))
+      .toBe('#/components/schemas/Money');
+    expect(refTarget(canonicalProposal.properties.status.$ref))
+      .toBe('#/components/schemas/TowProposalStatus');
+    // The proposal status vocabulary is declared by the canonical entrypoint
+    // and still matches the frozen enum — including COUNTERED, which MVP-04
+    // declares but never emits.
+    expect(documents.canonical.components.schemas.TowProposalStatus.enum)
+      .toEqual(CANONICAL_ENUMS.TowProposalStatus);
     // `counteroffer` is declared but MUST stay unused in MVP-04.
     expect(canonicalProposal.required).not.toContain('counteroffer');
+    expect(baseProposal.required).not.toContain('counteroffer');
   });
 
   test('the create operation body stays empty by contract (additionalProperties: false)', () => {
@@ -289,7 +309,11 @@ describe('MVP-04 — live proposal lifecycle conforms to the canonical OpenAPI c
     expect(schema.type).toBe('object');
     expect(schema.additionalProperties).toBe(false);
     expect(schema.properties).toBeUndefined();
-    expect(create.parameters.map((parameter) => parameter.name))
-      .toEqual(expect.arrayContaining(['requestId', 'Idempotency-Key']));
+    // Parameters are `$ref`s in the canonical entrypoint, so the name comes
+    // from the referenced component when the item is not inlined.
+    const parameterNames = create.parameters.map(
+      (parameter) => parameter.name || String(parameter.$ref).split('/').pop()
+    );
+    expect(parameterNames).toEqual(expect.arrayContaining(['RequestId', 'IdempotencyKey']));
   });
 });
