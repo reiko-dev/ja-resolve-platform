@@ -1,0 +1,419 @@
+/**
+ * MVP-04 — real PostgreSQL proof for the atomic assignment (OPT-IN,
+ * `TOW_POSTGRES_E2E=1`).
+ *
+ * The default suite runs on the SQLite harness, which has a single connection
+ * and therefore CANNOT certify a race. The properties proven here can only be
+ * proven on the production engine:
+ *
+ *   C1  two concurrent accepts of DIFFERENT proposals  -> exactly one assignment
+ *   C2  N concurrent accepts of the SAME proposal      -> exactly one assignment
+ *   C3  the UNIQUE constraint, not a read-then-write, is the authority
+ *   C4  occupancy (one live job per partner/vehicle) is a partial unique index
+ *   C5  disable x accept is deterministically serialized (assignment XOR disabled)
+ *   C6  migration 005 applies from an empty schema and pins the vocabulary
+ *
+ * No Google call: the RouteProvider is the deterministic fake.
+ */
+'use strict';
+
+const request = require('supertest');
+
+const postgres = require('../../helpers/tow/postgres');
+
+const enabled = postgres.isEnabled();
+const describePostgres = enabled ? describe : describe.skip;
+
+const CUSTOMER_INPUT = Object.freeze({
+  pickup: { latitude: -23.561684, longitude: -46.655981, formatted_address: 'Av. Paulista, 1578 - São Paulo - SP' },
+  destination: { latitude: -23.6639, longitude: -46.531, formatted_address: 'Rua das Figueiras, 100 - Santo André - SP' },
+  vehicle: { class: 'light_vehicle', make: 'Fiat', model: 'Argo', year: 2021, weight_kg: 1200, plate: 'ABC1D23' },
+  problem_description: 'Carro não liga na garagem do prédio',
+  observations: null,
+});
+
+const TARIFF = Object.freeze({
+  minimum_charge_cents: 15000,
+  included_km: 10,
+  price_per_additional_km_cents: 800,
+});
+
+describePostgres('MVP-04 PostgreSQL — atomic assignment and concurrency', () => {
+  let db;
+  let appDb;
+  let services;
+  let app;
+  let routeProvider;
+  let clock;
+  let sequence = 0;
+
+  const nextSequence = () => {
+    sequence += 1;
+    return sequence;
+  };
+
+  beforeAll(async () => {
+    db = postgres.createConnection();
+    await postgres.resetSchema(db);
+    await postgres.migrateFromScratch(db);
+
+    // Required AFTER the target env is resolved by the helper above.
+    const { buildTowServices } = require('../../../src/modules/tow/composition');
+    const { createApp } = require('../../../src/app');
+    const { createFakeClock } = require('../../helpers/tow/clock');
+    const { createFakeRouteProvider } = require('../../helpers/tow/gateways/mapsGateway');
+
+    clock = createFakeClock('2026-01-15T12:00:00.000Z');
+    routeProvider = createFakeRouteProvider();
+    services = buildTowServices({ db, clock, routeProvider });
+    app = createApp({ tow: { clock, routeProvider } });
+    appDb = require('../../../src/config/database');
+  });
+
+  afterAll(async () => {
+    if (appDb) await appDb.destroy();
+    if (db) await db.destroy();
+  });
+
+  beforeEach(async () => {
+    await db('tow_assignments').del();
+    await db('tow_request_proposals').del();
+    await db('tow_requests').del();
+    await db('tow_vehicle_documents').del();
+    await db('tow_vehicles').del();
+    await db('partners').del();
+    await db('users').del();
+    await db('service_modules').del();
+    routeProvider.reset();
+    routeProvider.failure = null;
+    clock.reset();
+  });
+
+  async function createUser({ role, name }) {
+    const id = nextSequence();
+    const [row] = await db('users').insert({
+      name,
+      email: `${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${id}@mvp04.pg.test`,
+      password: 'not-a-real-hash',
+      phone: '11990000000',
+      role,
+    }).returning('*');
+    return row;
+  }
+
+  function signFor(user) {
+    const jwt = require('jsonwebtoken');
+    const { getJwtSecret } = require('../../../src/config/jwt');
+    return { Authorization: `Bearer ${jwt.sign({ userId: user.id, role: user.role }, getJwtSecret(), { expiresIn: '1h' })}` };
+  }
+
+  async function createCustomer(name = 'PG Customer') {
+    const user = await createUser({ role: 'user', name });
+    return { user, headers: signFor(user) };
+  }
+
+  async function createTowPartner(name = 'PG Tow Partner') {
+    const user = await createUser({ role: 'partner', name });
+    const [partner] = await db('partners').insert({
+      user_id: user.id,
+      type: 'tow',
+      business_name: 'Guincho PG',
+      address: 'Av. Paulista, 1578 - São Paulo - SP',
+      phone: '11990000001',
+      latitude: CUSTOMER_INPUT.pickup.latitude,
+      longitude: CUSTOMER_INPUT.pickup.longitude,
+      is_verified: true,
+      is_available: true,
+      is_online: true,
+      approval_status: 'approved',
+    }).returning('*');
+
+    const vehicle = await services.vehicleRepository.insert({
+      partner_id: partner.id,
+      plate: `PG${String(partner.id).padStart(5, '0')}`,
+      make: 'Ford',
+      model: 'F-4000',
+      year: 2020,
+      equipment_type: 'flatbed',
+      supported_vehicle_classes: ['light_vehicle', 'motorcycle'],
+      max_towed_weight_kg: 4000,
+      active: true,
+      pricing: TARIFF,
+    });
+    await services.documentRepository.insert({
+      tow_vehicle_id: vehicle.id,
+      partner_id: partner.id,
+      document_type: 'vehicle_license',
+      filename: `pg-${partner.id}`,
+      original_name: 'crlv.jpg',
+      file_path: `pg-${partner.id}`,
+      file_url: `pg-${partner.id}`,
+      mime_type: 'image/jpeg',
+      file_size: 1,
+      status: 'approved',
+    });
+
+    return { user, partner, vehicle, headers: signFor(user) };
+  }
+
+  async function createRequest(customer, key) {
+    const response = await request(app)
+      .post('/api/tow/requests')
+      .set(customer.headers)
+      .set('Idempotency-Key', key)
+      .send(CUSTOMER_INPUT);
+    expect(response.status).toBe(201);
+    return response.body.data;
+  }
+
+  async function propose(partner, requestId, key) {
+    const response = await request(app)
+      .post(`/api/tow/requests/${requestId}/proposals`)
+      .set(partner.headers)
+      .set('Idempotency-Key', key)
+      .send({});
+    expect(response.status).toBe(201);
+    return response.body.data;
+  }
+
+  function accept(customer, proposalId, key) {
+    return request(app)
+      .post(`/api/tow/proposals/${proposalId}/accept`)
+      .set(customer.headers)
+      .set('Idempotency-Key', key)
+      .send({});
+  }
+
+  async function assignmentRows() {
+    return db('tow_assignments').select('*');
+  }
+
+  async function proposalStatuses() {
+    const rows = await db('tow_request_proposals').select('id', 'status').orderBy('id');
+    return Object.fromEntries(rows.map((row) => [String(row.id), row.status]));
+  }
+
+  test('migration 005 applies from an empty schema and pins the atomicity authority', async () => {
+    const tables = await postgres.listTables(db);
+    expect(tables).toContain('tow_request_proposals');
+    expect(tables).toContain('tow_assignments');
+
+    // Assert the CONSTRAINT COLUMNS, not the names: the covered column set is
+    // the invariant.
+    const constraints = await db.raw(`
+      SELECT c.conname, string_agg(a.attname, ',' ORDER BY k.ord) AS columns
+      FROM pg_constraint c
+      JOIN pg_class t ON t.oid = c.conrelid
+      JOIN unnest(c.conkey) WITH ORDINALITY AS k(attnum, ord) ON true
+      JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = k.attnum
+      WHERE t.relname IN ('tow_request_proposals', 'tow_assignments') AND c.contype = 'u'
+      GROUP BY c.conname
+    `);
+    const uniqueColumnSets = constraints.rows.map((row) => row.columns);
+    expect(uniqueColumnSets).toContain('tow_request_id');
+    expect(uniqueColumnSets).toContain('proposal_id');
+    expect(uniqueColumnSets).toContain('partner_id,idempotency_key');
+
+    // The occupancy indexes must be PARTIAL: a released assignment stops
+    // occupying without deleting history.
+    const indexes = await db.raw(`
+      SELECT indexdef FROM pg_indexes
+      WHERE tablename = 'tow_assignments' AND indexdef ILIKE '%released_at IS NULL%'
+    `);
+    const definitions = indexes.rows.map((row) => row.indexdef).join('\n');
+    expect(definitions).toMatch(/partner_id/);
+    expect(definitions).toMatch(/tow_vehicle_id/);
+
+    // The status vocabulary is pinned by a CHECK constraint, not by convention.
+    const check = await db.raw(`
+      SELECT pg_get_constraintdef(c.oid) AS definition
+      FROM pg_constraint c
+      JOIN pg_class t ON t.oid = c.conrelid
+      WHERE t.relname = 'tow_request_proposals' AND c.contype = 'c'
+        AND pg_get_constraintdef(c.oid) ILIKE '%status%'
+    `);
+    const checkDefinition = check.rows.map((row) => row.definition).join('\n');
+    for (const status of ['ACTIVE', 'ACCEPTED', 'CLOSED', 'WITHDRAWN', 'EXPIRED', 'REJECTED']) {
+      expect(checkDefinition).toContain(status);
+    }
+  });
+
+  test('C1 — two concurrent accepts of different proposals yield exactly one assignment', async () => {
+    const customer = await createCustomer('C1 Customer');
+    const first = await createTowPartner('C1 Partner A');
+    const second = await createTowPartner('C1 Partner B');
+    const towRequest = await createRequest(customer, 'pg-c1-request-000001');
+    const proposalA = await propose(first, towRequest.id, 'pg-c1-prop-a-000001');
+    const proposalB = await propose(second, towRequest.id, 'pg-c1-prop-b-000001');
+
+    // Both accepts start while the request is still ASSIGNED-less.
+    const responses = await Promise.all([
+      accept(customer, proposalA.id, 'pg-c1-accept-a-0001'),
+      accept(customer, proposalB.id, 'pg-c1-accept-b-0001'),
+    ]);
+
+    const statuses = responses.map((response) => response.status).sort();
+    expect(statuses).toEqual([200, 409]);
+
+    const winner = responses.find((response) => response.status === 200);
+    const loser = responses.find((response) => response.status === 409);
+    expect(winner.body.data.state).toBe('ASSIGNED');
+    expect(loser.body.error.code).toBe('request_already_assigned');
+
+    // Exactly ONE assignment row, ever.
+    const assignments = await assignmentRows();
+    expect(assignments).toHaveLength(1);
+    expect(assignments[0].released_at).toBeNull();
+    expect([String(proposalA.id), String(proposalB.id)])
+      .toContain(String(assignments[0].proposal_id));
+    // The winning proposal is the one the request was assigned to.
+    expect(String(assignments[0].tow_request_id)).toBe(String(towRequest.id));
+
+    // Winner ACCEPTED, loser CLOSED, and nothing else touched.
+    const byId = await proposalStatuses();
+    expect(byId[String(assignments[0].proposal_id)]).toBe('ACCEPTED');
+    const loserProposalId = String(assignments[0].proposal_id) === String(proposalA.id)
+      ? String(proposalB.id)
+      : String(proposalA.id);
+    expect(byId[loserProposalId]).toBe('CLOSED');
+
+    const [requestRow] = await db('tow_requests').where({ id: towRequest.id }).select('*');
+    expect(requestRow.state).toBe('ASSIGNED');
+  });
+
+  test('C2 — N concurrent accepts of the SAME proposal collapse to one assignment', async () => {
+    const customer = await createCustomer('C2 Customer');
+    const partner = await createTowPartner('C2 Partner');
+    const towRequest = await createRequest(customer, 'pg-c2-request-000001');
+    const proposal = await propose(partner, towRequest.id, 'pg-c2-prop-000001');
+
+    const responses = await Promise.all([1, 2, 3, 4, 5].map(
+      (index) => accept(customer, proposal.id, `pg-c2-accept-00000${index}`)
+    ));
+
+    for (const response of responses) {
+      expect(response.status).toBe(200);
+      expect(response.body.data.state).toBe('ASSIGNED');
+    }
+    // Same assignment every time: the accept is idempotent, not duplicated.
+    const assignmentIds = new Set(responses.map((response) => response.body.data.assignment.assigned_at));
+    expect(assignmentIds.size).toBe(1);
+
+    const assignments = await assignmentRows();
+    expect(assignments).toHaveLength(1);
+    expect((await proposalStatuses())[String(proposal.id)]).toBe('ACCEPTED');
+  });
+
+  test('C3 — the UNIQUE constraint rejects a second assignment for the same request', async () => {
+    const customer = await createCustomer('C3 Customer');
+    const first = await createTowPartner('C3 Partner A');
+    const second = await createTowPartner('C3 Partner B');
+    const towRequest = await createRequest(customer, 'pg-c3-request-000001');
+    const proposalA = await propose(first, towRequest.id, 'pg-c3-prop-a-000001');
+    const proposalB = await propose(second, towRequest.id, 'pg-c3-prop-b-000001');
+
+    const response = await accept(customer, proposalA.id, 'pg-c3-accept-000001');
+    expect(response.status).toBe(200);
+
+    // A direct INSERT bypasses every application guard: only the constraint can
+    // stop it. This is what makes the guarantee structural instead of advisory.
+    let error = null;
+    try {
+      await db('tow_assignments').insert({
+        tow_request_id: towRequest.id,
+        proposal_id: proposalB.id,
+        partner_id: second.partner.id,
+        tow_vehicle_id: second.vehicle.id,
+        final_price_amount_cents: 18480,
+        final_price_currency: 'BRL',
+        assigned_at: new Date('2026-01-15T12:00:00.000Z'),
+        created_at: new Date('2026-01-15T12:00:00.000Z'),
+        updated_at: new Date('2026-01-15T12:00:00.000Z'),
+      });
+    } catch (raised) {
+      error = raised;
+    }
+    expect(error).not.toBeNull();
+    expect(error.code).toBe('23505');
+    expect(await assignmentRows()).toHaveLength(1);
+  });
+
+  test('C4 — one live job per partner is a partial unique index (occupancy)', async () => {
+    const customer = await createCustomer('C4 Customer');
+    const partner = await createTowPartner('C4 Partner');
+    const firstRequest = await createRequest(customer, 'pg-c4-request-000001');
+    const firstProposal = await propose(partner, firstRequest.id, 'pg-c4-prop-000001');
+    expect((await accept(customer, firstProposal.id, 'pg-c4-accept-000001')).status).toBe(200);
+
+    const secondRequest = await createRequest(customer, 'pg-c4-request-000002');
+    const secondProposal = await propose(partner, secondRequest.id, 'pg-c4-prop-000002');
+
+    const response = await accept(customer, secondProposal.id, 'pg-c4-accept-000002');
+    expect(response.status).toBe(409);
+    expect(await assignmentRows()).toHaveLength(1);
+
+    // The partner becomes assignable again only once the live job is released.
+    await db('tow_assignments')
+      .where({ tow_request_id: firstRequest.id })
+      .update({ released_at: new Date('2026-01-15T13:00:00.000Z'), release_reason: 'COMPLETED' });
+
+    const retry = await accept(customer, secondProposal.id, 'pg-c4-accept-000003');
+    expect(retry.status).toBe(200);
+    expect(await assignmentRows()).toHaveLength(2);
+  });
+
+  test('C5 — disable x accept is deterministically serialized', async () => {
+    const customer = await createCustomer('C5 Customer');
+    const partner = await createTowPartner('C5 Partner');
+    const towRequest = await createRequest(customer, 'pg-c5-request-000001');
+    const proposal = await propose(partner, towRequest.id, 'pg-c5-prop-000001');
+
+    const [acceptResponse] = await Promise.all([
+      accept(customer, proposal.id, 'pg-c5-accept-000001'),
+      services.moduleService.setEnabled({ enabled: false, reason: 'MVP-04 PG concurrency' }),
+    ]);
+
+    // Either the assignment won the race ...
+    if (acceptResponse.status === 200) {
+      expect(acceptResponse.body.data.state).toBe('ASSIGNED');
+      expect(await assignmentRows()).toHaveLength(1);
+      const [row] = await db('tow_requests').where({ id: towRequest.id }).select('state');
+      expect(row.state).toBe('ASSIGNED');
+    } else {
+      // ... or the module gate won. Never a partial assignment.
+      expect(acceptResponse.status).toBe(409);
+      expect(acceptResponse.body.error.code).toBe('service_module_disabled');
+      expect(await assignmentRows()).toHaveLength(0);
+      const [row] = await db('tow_requests').where({ id: towRequest.id }).select('state');
+      expect(row.state).not.toBe('ASSIGNED');
+    }
+  });
+
+  test('C6 — concurrent creation by one partner for one request yields one proposal', async () => {
+    const customer = await createCustomer('C6 Customer');
+    const partner = await createTowPartner('C6 Partner');
+    const towRequest = await createRequest(customer, 'pg-c6-request-000001');
+
+    const responses = await Promise.all([1, 2, 3].map(
+      (index) => request(app)
+        .post(`/api/tow/requests/${towRequest.id}/proposals`)
+        .set(partner.headers)
+        .set('Idempotency-Key', `pg-c6-prop-00000${index}`)
+        .send({})
+    ));
+
+    const created = responses.filter((response) => response.status === 201);
+    expect(created.length).toBeGreaterThanOrEqual(1);
+    expect(responses.filter((response) => response.status === 409).length)
+      .toBe(responses.length - created.length);
+    expect(await db('tow_request_proposals').select('*')).toHaveLength(1);
+  });
+});
+
+if (!enabled) {
+  describe('MVP-04 PostgreSQL suite (skipped)', () => {
+    test('enable with TOW_POSTGRES_E2E=1 and the disposable compose harness', () => {
+      expect(postgres.isEnabled()).toBe(false);
+    });
+  });
+}
