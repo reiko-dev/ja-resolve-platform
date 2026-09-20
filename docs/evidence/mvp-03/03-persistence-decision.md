@@ -101,6 +101,12 @@ bounded box query plus a pure domain geodesic comparison.
 **Not persisted in MVP-03** (deliberate): route distance, route duration, polyline, price,
 assignment, proposal, payment, search expiry. Price is always the live MVP-02 quote.
 
+Matching eligibility is composed at read time and is **not** part of this persistence decision:
+`evaluateTowMatch` requires `partner.is_online === true` because `PARTNER_OFFLINE` is a canonical
+operational blocker in the frozen contract (`TOW-API-CONTRACT-DRAFT4-ADDENDUM.md` §2), while
+`is_verified`/`approval_status` remain proven not to exclude (see `MVP-03-WORK-RESULT.md`,
+Eligibility Composition).
+
 ---
 
 ## 4. Migration safety

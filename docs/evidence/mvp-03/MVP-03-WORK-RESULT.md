@@ -8,6 +8,7 @@ READY_FOR_MUSE_REVIEW
 - Execution base (frozen): `c0ae3c01774dbaaf162113cef574cb728ec8db61` — the actual MVP-03 dispatch base (post-bookkeeping main). Historical fact preserved in the task graph: MVP-02 accepted main = `1f589d60b8f8020cc6162ebf2c5200c0d2cfa632` (PR #36, receipt `#5749173315`).
 - Branch: `feature/mvp-03-tow-request-matching`
 - Implementation head (frozen): **`15f7f57a44986e94827be9749cadeee006dbbeff`** — 47 files, +7340/−40. This `MVP-03-WORK-RESULT.md` and `12-final-confirmation.txt` are a follow-up evidence commit that changes no source file (the MVP-02 precedent).
+- Pre-Muse hardening head (frozen): **`1756742e104ec579c86e6f6e396276a8bb4f60cf`** — test-only transport hardening in `tests/tow/mvp03/towRequestIdempotency.test.js` (1 file, +44/−2; no production or source change). The hardening evidence below is a follow-up docs/evidence commit that changes no source or test file.
 - Issue: #15 (MVP-03 — Tow Request & Lean Geographic Matching)
 - Push / PR / merge: **not performed.** No push, no PR, no merge, no MVP-04, no #31/#33, no production/VPS. This executor stops before Muse review by instruction.
 
@@ -157,6 +158,9 @@ them. `evaluateTowMatch` applies, in order: module gate → partner exists →
 eligibility → radius. `NC-MVP03-2` proves the composition is wired in (8 tests
 turn RED when it is skipped), including the inclusion counter-example that a
 partner with no vehicle sees an empty feed and never reaches the provider.
+`is_online` is required because `PARTNER_OFFLINE` is a canonical operational
+blocker in the frozen contract (`TOW-API-CONTRACT-DRAFT4-ADDENDUM.md` §2);
+`is_verified` and `approval_status` remain proven not to exclude.
 
 Two things are explicitly **not** required and are documented rather than
 silently tightened: `is_verified` and `approval_status` (proved by inclusion
@@ -267,6 +271,51 @@ Disposable-environment teardown verified independently after every PostgreSQL
 run: **0 containers, 0 volumes, 0 networks** for the tow test project. The only
 containers left on the host belong to an unrelated pre-existing project
 (`akry-*`) and were never touched.
+
+## Pre-Muse Hardening (transport flake + `is_online` rationale)
+The independent acceptance sweep found one transient failure in the new suite:
+`towRequestIdempotency.test.js` → *concurrent retries of the same key create
+exactly one request* → `socket hang up` (transport), while the combined run was
+green (201/201/409 with exactly one row) and 10/10 dedicated re-runs passed. The
+invariant was never in question; the transport was. Hardened **test-only**, at
+`1756742e…`:
+
+- **One shared listener.** The suite binds a single `http.Server` in `beforeAll`
+  and drives it through `request.agent(server)`; `post()` no longer builds
+  `request(app)` per call (each call spun its own ephemeral listener, and three
+  concurrent listeners can surface as `socket hang up`). The server is bound
+  *before* the agent is created so supertest never lazily starts (and then
+  closes) it per Test, and it is closed in `afterAll`
+  (`closeAllConnections()` then `close()`).
+- **Transport-only single retry.** A request may be retried **once**, and only on
+  an in-process transport error (`socket hang up`, `ECONNRESET`, `ECONNREFUSED`,
+  `EPIPE`); every other error is rethrown. An HTTP status is never tolerated or
+  retried: the concurrency test still asserts all responses `201`, one unique
+  `data.id` and exactly one persisted row, and those row assertions run after the
+  (possibly retried) responses and fail the test on any violation. No `.only`,
+  no `.skip`, no assertion relaxed, no test removed; the PostgreSQL e2e
+  concurrency proof (`towMvp03Postgres.e2e.test.js`) and the constraint
+  authority are untouched.
+- **`is_online` rationale (docs-only, no behavior change).** `evaluateTowMatch`
+  requires `partner.is_online === true` because `PARTNER_OFFLINE` is a canonical
+  operational blocker in the frozen contract
+  (`TOW-API-CONTRACT-DRAFT4-ADDENDUM.md` §2); `is_verified`/`approval_status`
+  remain proven not to exclude. Recorded in the Eligibility Composition section
+  above and in `03-persistence-decision.md` §3.
+
+Hardened-tree re-run evidence (raw logs under `docs/evidence/mvp-03/`):
+
+| Gate | Result | Artifact |
+| --- | --- | --- |
+| `towRequestIdempotency` ×5 consecutive | **5/5 GREEN** — 9 passed / 9 each, exit 0 each | `13-idempotency-hardening-5x.txt` |
+| `npx jest tests/tow/mvp03 --runInBand` | **170 passed / 7 skipped / 177 · 0 failures** | `14-mvp03-suite.txt` |
+| `npx jest tests/tow --runInBand` | **848 passed / 65 skipped / 913 · 0 failures** | `15-tow-suite.txt` |
+| `npx jest --runInBand` (full) | **1272 passed / 65 skipped / 1337 · 0 failures** | `16-full-jest.txt` |
+| `npm run validate:openapi` | **PASS** (0 errors; `/tow/requests` `base=[post] composed=[get,post] dropped=[]`) | `17-openapi.txt` |
+| `npm run test:contract` | **PASS** 5 suites / 62 tests | `18-contract.txt` |
+
+Counts are identical to the frozen delivery (no test added or removed): the
+hardening changes only how the suite reaches the in-process server.
 
 ## Regression
 Baselines and the observed post-delivery counts:
