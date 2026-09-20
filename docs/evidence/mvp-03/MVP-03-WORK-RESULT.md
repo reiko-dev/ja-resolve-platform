@@ -96,8 +96,11 @@ outside `adapters/` requires `node:crypto`.
   `destination`, `vehicle`, `problem_description` required; `observations`
   optional. Coordinate ranges, `year ∈ [1900, 2200]`, `weight_kg` a positive
   integer, and the class/weight coupling (`medium_truck`/`heavy_truck` require
-  weight, the lighter classes must not carry it) are all validated in the domain,
-  mirrored by DB CHECK constraints, and re-stated in the contract.
+  weight; the lighter classes may carry it) are all validated in the domain and
+  re-stated in the contract; the coordinate, year, weight and radius bounds are
+  additionally mirrored by DB CHECK constraints (Muse F1: earlier prose said the
+  lighter classes must not carry weight — the code is correct, the sentence was
+  wrong).
 - `matching_radius_km` is **frozen at creation** from the
   `tow_initial_radius_km` setting. It is a snapshot, not a live reference:
   changing the setting afterwards cannot re-scope an existing request.
