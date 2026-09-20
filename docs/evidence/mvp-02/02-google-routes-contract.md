@@ -128,16 +128,19 @@ the adapter error entirely and raises a generic
   `socorre_ai_admin/src/components/partners/PartnerForm.tsx:148` uses it for
   Geocoding. A key shipped to a browser is public by construction; it can only be
   restricted by HTTP referrer, which is not a restriction a server can present.
+- MVP-02 introduces no committed `GOOGLE_ROUTES_API_KEY` or server-side Routes
+  credential. The pre-existing browser/admin Maps-key fallback is outside MVP-02
+  and remains deferred to #31.
 - `docs/evidence/t00/google-routes-audit.txt` recorded that the backend had **no**
-  Google client and no Google key of any kind before this delivery.
+  Google client before this delivery.
 - MVP-02 therefore introduces a distinct variable, `GOOGLE_ROUTES_API_KEY`,
   documented in `env.example` and `env.production.example` with the required
   restriction (application restriction by server IP/CIDR, API restriction
   including "Routes API"). The adapter must never read `GOOGLE_MAPS_API_KEY` or
   any `REACT_APP_*` variable — asserted by
   `tests/tow/mvp02/towRouteProviderBoundary.test.js`.
-- No key literal matching `AIza[0-9A-Za-z_-]{35}` is committed anywhere; the
-  examples only document the variable name.
+- The examples only document the variable name; MVP-02 adds no credential
+  literal of its own.
 - An unset key does not break startup: `createGoogleRoutesAdapter` never throws at
   construction, and the failure surfaces per call as
   `external_dependency_unavailable` (503). Composition is verified to build with

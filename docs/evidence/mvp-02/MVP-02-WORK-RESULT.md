@@ -1,15 +1,16 @@
 # MVP-02 Work Result
 
 ## Status
-READY_FOR_EXTERNAL_REVIEW
+READY_FOR_MUSE_REREVIEW
 
 ## Base / Branch / Head
 - Repository: `socorre-system`
 - Base (execution): `c03e2d06d6680eef1f3f961c877985033da0d89f` (post-merge main of PR #35, Tow MVP-01 ACCEPTED, receipt `#5745811538`, Issue #13 CLOSED)
 - Branch: `feature/mvp-02-routes-pricing`
-- **Implementation head (frozen): `827cbaf0c8e1ee4deda160543def494c432fe5eb`** — 36 files, +5350/−19
+- **Original implementation head (frozen): `827cbaf0c8e1ee4deda160543def494c432fe5eb`** — 36 files, +5350/−19
+- **Correction implementation head: `e04e9b94d2ca5f8534ce3d42644621dc2799bf88`** — external correction pass EXT-MVP02-1/2/3 (5 files, +229/−25); detail in `14-external-correction.md`
 - Issue: #14 (MVP-02 — Google Routes & Authoritative Tow Pricing)
-- Push / PR / merge: **not performed** — the executor stops before PR creation; the orchestrator opens the PR after Muse's verdict. Issue #14 stays OPEN; MVP-03 (#15) was not released.
+- Push / PR / merge: **not performed by this executor.** The orchestrator pushed the frozen head and opened PR #36; the external review returned CHANGES_REQUIRED (comment `#5747856417`). This correction pass commits on the existing branch only — **no push, no PR update/replacement, no merge** — and stops before Muse re-review. Issue #14 stays OPEN; MVP-03 (#15) was not released.
 
 ## Current-State Delta
 Delivered as its own required artifact before any code:
@@ -198,11 +199,13 @@ equal that sum — never an independent figure.
   public by construction and can only be referrer-restricted, which a server
   cannot present. An architecture test asserts the adapter never references
   `GOOGLE_MAPS_API_KEY` or any `REACT_APP_*` variable (`NC-5` proves it).
+- MVP-02 introduces no committed `GOOGLE_ROUTES_API_KEY` or server-side Routes
+  credential. The pre-existing browser/admin Maps-key fallback is outside MVP-02
+  and remains deferred to #31.
 - `docs/evidence/t00/google-routes-audit.txt` recorded that the backend had no
-  Google client and no Google key before this delivery; that remains true for
-  every other key.
-- No key literal matching `AIza[0-9A-Za-z_-]{35}` is committed anywhere; the
-  examples only document the variable name.
+  Google client before this delivery.
+- The examples only document the variable name; MVP-02 adds no credential
+  literal of its own.
 - `env.example` keeps its unused `GOOGLE_MAPS_API_KEY` untouched (not
   repurposed, not deleted) to avoid silently changing another delivery's config.
 
@@ -216,28 +219,29 @@ equal that sum — never an independent figure.
 - No OpenAPI file was modified (see the scope-boundary decision above).
 
 ## Tests
-New focused suites in `tests/tow/mvp02/` — **179 tests, 5 suites**, no
-`.only`/`.skip`, no socket, no `jest.mock('axios')`, no real Google call:
+New focused suites in `tests/tow/mvp02/` — **204 tests, 5 suites** (179 at the original
+frozen head, +25 from the external correction), no `.only`/`.skip`, no socket, no
+`jest.mock('axios')`, no real Google call:
 
 | Suite | Focus |
 | --- | --- |
 | `towPricingPolicy.test.js` | decimal-exact `included_km`, excess boundaries, the 14.350 km contract example, half-cent below/exact/above, the `2.007` float-drift regression, a 0–30000-thousandths sweep, overflow/unsafe-integer rejection, immutability, MVP-01 `validatePricing` preservation |
 | `towRouteQuoteDomain.test.js` | leg sums, single-leg, null polyline, deep freeze, JSON round-trip, malformed legs, overflow, geo bounds → `validation_error`/422 |
-| `towQuoteService.test.js` | output shape, summed-before-pricing, snapshot immutability vs tariff B, deep freeze, `generated_at` from the clock, repository resolution, `not_found`, validation-before-provider, client-override immunity, explicit-tariff precedence, provider failure → 503 with no leak, malformed payload → 503, constructor guards |
-| `towGoogleRoutesAdapter.test.js` | one call, endpoint, body (`intermediates`, never `waypoints`, never `via`), DRIVE, exact field mask, headers, timeout, leg mapping, no distance rounding, duration `"900.5s"→901` / `"900.4999s"→900`, whole-route polyline, single-leg mode, leg-count failures, `empty_route`, 12 malformed payloads, timeout/network/provider_error (400/401/403/429/500/503/504), no key or body leakage, `RouteProviderError` shape, configuration failures with zero HTTP calls, adapter-side geo validation |
+| `towQuoteService.test.js` | output shape, summed-before-pricing, snapshot immutability vs tariff B, deep freeze, `generated_at` from the clock, repository resolution, `not_found`, validation-before-provider, client-override immunity, explicit-tariff precedence, provider failure → 503 with no leak, malformed payload → 503, constructor guards; **EXT-MVP02-1**: strict pre-provider tariff normalization with provider-call-count assertions (`included_km = 1.0001`, `2 ** 53` money values → `validation_error`, call count 0; valid tariff → exactly 1 call; repository-resolved pricing too) |
+| `towGoogleRoutesAdapter.test.js` | one call, endpoint, body (`intermediates`, never `waypoints`, never `via`), DRIVE, exact field mask, headers, timeout, leg mapping, no distance rounding, duration `"900.5s"→901` / `"900.4999s"→900`, whole-route polyline, single-leg mode, leg-count failures, `empty_route`, 12 malformed payloads, timeout/network/provider_error (400/401/403/429/500/503/504), no key or body leakage, `RouteProviderError` shape, configuration failures with zero HTTP calls, adapter-side geo validation; **EXT-MVP02-2**: duration accepts whole seconds or 1..9 fractional digits (string and numeric form) and rejects `900.1234567890s` as `malformed_response` |
 | `towRouteProviderBoundary.test.js` | port registration, fake↔adapter LSP equivalence, composition without a key, injected provider override, lazy env read, Domain/Application purity scans, single-axios-file scan, no Haversine / no estimation vocabulary, fake determinism, key hygiene, no `.only`/`.skip` |
 
 | Gate | Result |
 | --- | --- |
-| `npm run validate:openapi` | PASS (`05-openapi.txt`) |
-| `npm run test:contract` | 5 suites / 62 tests PASS (`06-contract.txt`) |
-| `npm run verify:tow` | **GREEN 5/5 stages** incl. PostgreSQL foundation gate (`07-verify-tow.txt`) |
-| `npx jest tests/tow/mvp02 --runInBand` | 5 suites · **179 passed / 179 · 0 failures** (`04-mvp02-green.txt`) |
+| `npm run validate:openapi` | PASS (`05-openapi.txt`; re-run `14-openapi.txt`) |
+| `npm run test:contract` | 5 suites / 62 tests PASS (`06-contract.txt`; re-run `14-contract.txt`) |
+| `npm run verify:tow` | **GREEN 5/5 stages** incl. PostgreSQL foundation gate (`07-verify-tow.txt`; re-run `14-verify-tow.txt`) |
+| `npx jest tests/tow/mvp02 --runInBand` | 5 suites · **179 passed / 179 · 0 failures** at the original head (`04-mvp02-green.txt`); **204 passed / 204** after the correction (`14-mvp02.txt`) |
 | `TOW_POSTGRES_E2E=1 npx jest tests/tow/mvp02 --runInBand` | 179 passed / 179 — the new suites need no database |
-| `npx jest tests/tow/mvp01 --runInBand` | 13 passed / 2 skipped suites · **123 passed / 10 skipped** — identical to the MVP-01 baseline |
-| `npx jest tests/tow --runInBand` | 34 passed / 5 skipped suites · **653 passed / 58 skipped / 0 failures** (`09-tow.txt`) |
-| `npm run test:db-baseline` | GREEN — fresh volume, reset+migrate fingerprint identical ×2 (`08-db-baseline.txt`) |
-| `npx jest --runInBand` (full) | 67 passed / 5 skipped suites · **1077 passed / 58 skipped / 0 failures** (`10-full-jest.txt`) |
+| `npx jest tests/tow/mvp01 --runInBand` | 13 passed / 2 skipped suites · **123 passed / 10 skipped** — identical to the MVP-01 baseline, before and after the correction (`14-mvp01.txt`) |
+| `npx jest tests/tow --runInBand` | 34 passed / 5 skipped suites · **653 passed / 58 skipped / 0 failures** at the original head (`09-tow.txt`); **678 passed / 58 skipped / 0 failures** after the correction (`14-tow.txt`) |
+| `npm run test:db-baseline` | GREEN — fresh volume, reset+migrate fingerprint identical ×2 (`08-db-baseline.txt`; re-run `14-db-baseline.txt`) |
+| `npx jest --runInBand` (full) | 67 passed / 5 skipped suites · **1077 passed / 58 skipped / 0 failures** at the original head (`10-full-jest.txt`); **1102 passed / 58 skipped / 0 failures** after the correction (`14-full-jest.txt`) |
 
 ## Regression
 - Every pre-existing gate is preserved: OpenAPI PASS · contract 62/62 ·
@@ -247,9 +251,15 @@ New focused suites in `tests/tow/mvp02/` — **179 tests, 5 suites**, no
   58 skipped and 0 failures.
 - Full Jest rose 898 → 1077 passed (+179, again exactly the new tests) with the
   same 58 skipped and 0 failures.
-- **No pre-existing test was modified.** The only two pre-existing test files
-  touched are additive: `tests/helpers/tow/gateways/mapsGateway.js` keeps every
-  T00 export (`FakeMapsGateway`, `createFakeMapsGateway`, `DEFAULT_ROUTE`)
+- **External correction re-run:** `tests/tow` 653 → **678** and full Jest 1077 →
+  **1102**, again +25 exactly the new EXT-MVP02 tests, same 58 skipped, 0
+  failures; `tests/tow/mvp01` byte-identical at 123 passed / 10 skipped; contract
+  62/62; `verify:tow` GREEN 5/5; fingerprint unchanged.
+- **No pre-existing test was modified** at the original head. In the correction
+  pass the two MVP-02 suites were extended **additively** (25 new tests); no
+  existing test was changed, skipped or relaxed. The only two pre-existing test
+  files touched at the original head are additive: `tests/helpers/tow/gateways/mapsGateway.js`
+  keeps every T00 export (`FakeMapsGateway`, `createFakeMapsGateway`, `DEFAULT_ROUTE`)
   unchanged and adds `FakeRouteProvider` / `createFakeRouteProvider` /
   `DEFAULT_ROUTE_PROVIDER`, and `tests/helpers/tow/index.js` gains a `routes` key
   in `createFakeGateways`. No T00 suite changed behaviour; the T00 determinism
@@ -346,6 +356,36 @@ guarantee, all **detected** (suite RED) and all restored byte-for-byte:
   `included_km`; snapshot immutability; Routes v2 shape/mask/non-`via` pickup/timeout/error sanitization;
   no Haversine fallback; domain/application purity; no HTTP endpoint/migration/OpenAPI change).
 - artifact: `docs/evidence/mvp-02/13-muse-review.md`.
+- **Superseded in part by the external review:** PR #36's external review returned
+  CHANGES_REQUIRED (comment `#5747856417`) with 1 P2 + 2 P3, all fixed in the correction pass
+  below. The Muse artifact is left as the historical record of the pre-correction head.
+
+## External Correction Pass (EXT-MVP02-1 / EXT-MVP02-2 / EXT-MVP02-3)
+- reviewed head: `fd55ffd70a5608316fd4de36de30d179eb56165b` (implementation `827cbaf0`), PR #36
+- external verdict: **CHANGES_REQUIRED** — P0 = 0, P1 = 0, **P2 = 1**, P3 = 2
+- correction implementation head: **`e04e9b94d2ca5f8534ce3d42644621dc2799bf88`**
+- artifact: `docs/evidence/mvp-02/14-external-correction.md` (findings, fix design, RED tests,
+  negative control, gate re-run)
+
+| Finding | Sev | Fix |
+| --- | --- | --- |
+| EXT-MVP02-1 — coarse MVP-01 `validatePricing` let an invalid local tariff consume a provider call before the local `validation_error` | P2 | New shared pure `normalizeTowPricingForQuote(pricing)` in `domain/pricing.js` (non-negative safe-integer money; exact `toIncludedMeters` DECIMAL(10,3) gate; frozen result) used by **both** `resolveTariff` (explicit tariff and repository pricing) and `computeTowPrice`; `quoteTow` order is now coordinates → full tariff normalization → `computeRoute`. Provider-call-count tests: `included_km = 1.0001`, `minimum_charge_cents = 2 ** 53`, `price_per_additional_km_cents = 2 ** 53` → `validation_error` with **call count 0**; valid tariff → exactly one call. MVP-01 `validatePricing` behaviour unchanged. |
+| EXT-MVP02-2 — duration regex accepted 10 fractional digits (`900.1234567890s`) | P3 | Parser accepts whole seconds or 1..9 fractional digits, string and numeric form; ten digits → `malformed_response`. 18 focused adapter tests. No pricing change (price comes from meters). |
+| EXT-MVP02-3 — wording equivalent to "No key in the repo" | P3 | Mandated sentence added verbatim to `01-current-state-delta.md`, `02-google-routes-contract.md` and the Key Hygiene section above; the absolute "no Google key of any kind" claims removed. No key touched; #31 untouched. |
+
+- **Negative control NC-7:** bypassing the strict normalization (back to `validatePricing` in
+  `resolveTariff`) turned the new provider-call-count tests RED (6 failed / 1 passed); restoring
+  `quote-service.js` **byte-identically** (sha256 `d05c27418e8b1e4ecca67636864ef785bfc98ab040a99c5c887978fcb9fec1c9`
+  before and after) returned them GREEN. States persisted in `14a`/`14b`/`14c`.
+- **Gate re-run after the fix:** OpenAPI PASS · contract 62/62 · `verify:tow` GREEN 5/5 with
+  teardown · mvp01 123 passed / 10 skipped (unchanged) · mvp02 **204** passed · tow **678**
+  passed / 58 skipped · db-baseline GREEN with fingerprint
+  `37cee47edc8dd1084786ab5fe3c32511c71b9a4a2788f67406391916c7cc0f59` ×2 · full Jest **1102**
+  passed / 58 skipped / 0 failures. No new migration, no OpenAPI change, no HTTP endpoint.
+- **Guarantees preserved:** Routes v2 shape/mask, non-`via` pickup, two observable legs, no
+  Haversine/line-of-sight/estimate fallback, no `ceil`, BigInt pricing, immutable snapshot.
+- **Not done (by instruction):** no push, no PR update/replacement, no merge, no MVP-03, no
+  #31/#33, no production/VPS, no real Google call in any default test.
 
 ## Final Verdict
-MVP-02 READY FOR EXTERNAL REVIEW
+MVP-02 READY FOR MUSE RE-REVIEW

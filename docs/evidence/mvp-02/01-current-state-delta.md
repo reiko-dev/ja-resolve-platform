@@ -27,7 +27,7 @@ Paths are relative to `socorre_ai_backend/` unless the path starts with `docs/` 
 | 9 | Geo coordinate validation before the provider call | none in the Tow module | **MISSING** |
 | 10 | Canonical `external_dependency_unavailable` at the business boundary | code is frozen in the contract (`docs/tow/TOW-API-CONTRACT.md:1339`, `docs/tow/tow-api-contract.base.openapi.yaml:1808`) and known to the test contract helper (`tests/helpers/towContract.js:79`), but it is **not** in `src/modules/tow/domain/errors.js:12-24` `ERROR_STATUS` | **ADAPT** (add the code + factory to the existing domain error owner) |
 | 11 | Composition wiring for the new port/service | `src/modules/tow/composition.js:25-58` — builds 6 repositories/adapters + 5 services from `options.*` overrides | **ADAPT** (same pattern: `options.routeProvider` override, otherwise the real adapter) |
-| 12 | Dedicated server-side credential | `env.production.example` has **no** Google key at all; `env.example:41` only has `GOOGLE_MAPS_API_KEY` (unused by any backend code) | **ADAPT** (`GOOGLE_ROUTES_API_KEY` documented in `env.production.example`; the legacy unused name is left alone) |
+| 12 | Dedicated server-side credential | `env.production.example` carries no Google key in that file; `env.example:41` only has `GOOGLE_MAPS_API_KEY` (unused by any backend code) | **ADAPT** (`GOOGLE_ROUTES_API_KEY` documented in `env.production.example`; the legacy unused name is left alone) |
 | 13 | Reuse the existing HTTP stack | `package.json:35` declares `axios ^1.14.0`; `axios@1.15.2` is installed. Backend `src/` currently has **zero** `require('axios')` — the only axios usage in the repo tree is the unrelated TS admin client `src/services/api.ts:1-10` | **REUSE** (`axios` only inside the new adapter) |
 | 14 | TowVehicle tariff source | `src/modules/tow/adapters/persistence/vehicle-repository.js:30-51` `mapVehicleRow` already returns `pricing: { minimum_charge_cents, included_km, price_per_additional_km_cents }` with `Number(...)`; `src/modules/tow/http/serialize.js:34-54` `serializeVehicle` exposes the same nested shape | **REUSE** (no DTO change; MVP-02 consumes the existing tariff shape as-is) |
 | 15 | Vehicle resolution through a port | `src/modules/tow/application/ports.js:13-22` `VehicleRepository.findByPartnerAndId`; used by `src/modules/tow/application/vehicle-service.js:23-27` | **REUSE** (optional tariff resolution path in the quote service) |
@@ -42,7 +42,7 @@ Paths are relative to `socorre_ai_backend/` unless the path starts with `docs/` 
 
 | Surface | Finding | Consequence for MVP-02 |
 |---|---|---|
-| `env.production.example` | no Google key whatsoever | must add `GOOGLE_ROUTES_API_KEY` |
+| `env.production.example` | this file carries no Google key | must add `GOOGLE_ROUTES_API_KEY` |
 | `env.example:41` | `GOOGLE_MAPS_API_KEY=sua_google_maps_api_key` — never read by any backend module (audit line 4-7) | do not reuse this name; a browser Maps key is not the same credential as a server Routes key |
 | `ecosystem.config.js:12-18` (`env_production`) | lists `SERVICE_PHOTO_STORAGE_DIR` and `TOW_DOCUMENT_STORAGE_DIR` only | no Google secret injected through PM2 config |
 | `docker-compose.yml:54-55` (backend service `environment:`) | same two storage dirs only | no Google secret in the Compose surface |
@@ -52,6 +52,11 @@ Paths are relative to `socorre_ai_backend/` unless the path starts with `docs/` 
 Decision: MVP-02 introduces a **dedicated** `GOOGLE_ROUTES_API_KEY`, read only by the adapter
 factory, sent only in the `X-Goog-Api-Key` request header (never in a URL, never logged, never in an
 error message), and documented in `env.production.example`.
+
+Wording correction (EXT-MVP02-3): the per-file findings above say which **environment files** did
+not carry a Google key before MVP-02; they are not a claim that the repository contains no key.
+MVP-02 introduces no committed `GOOGLE_ROUTES_API_KEY` or server-side Routes credential. The
+pre-existing browser/admin Maps-key fallback is outside MVP-02 and remains deferred to #31.
 
 ---
 
