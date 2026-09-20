@@ -509,8 +509,8 @@ T00                                    ACCEPTED ✅
 T01                                    ACCEPTED ✅
 #31 security                           DEFERRED
 MVP-01 / #13                           ACCEPTED ✅
-MVP-02 / #14                           READY / current delivery
-MVP-03 / #15                           BLOCKED by MVP-02
+MVP-02 / #14                           ACCEPTED ✅
+MVP-03 / #15                           READY / current delivery
 MVP-04 / #16                           BLOCKED by MVP-03
 MVP-05 / #17                           BLOCKED by MVP-04
 MVP-06 / #18                           BLOCKED by MVP-05
@@ -520,14 +520,15 @@ Phase 2 / #33                          DEFERRED
 Accepted implementation baseline:
 
 ```text
-main @ c03e2d06d6680eef1f3f961c877985033da0d89f
+main @ 1f589d60b8f8020cc6162ebf2c5200c0d2cfa632   # MVP-02 accepted (PR #36, receipt #5749173315)
 ```
 
 Next executable work:
 
 ```text
-MVP-02 — Google Routes & Authoritative Pricing
-Issue #14
-base: main @ c03e2d06d6680eef1f3f961c877985033da0d89f
-branch: feature/mvp-02-routes-pricing
+MVP-03 — Tow Request & Lean Geographic Matching
+Issue #15
+base: main @ 1f589d60b8f8020cc6162ebf2c5200c0d2cfa632 (MVP-02 accepted main;
+      the bookkeeping commit that carries this line is the effective dispatch base)
+branch: (to be created when MVP-03 is dispatched)
 ```
