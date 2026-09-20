@@ -14,6 +14,8 @@
  *   C6  migration 005 applies from an empty schema and pins the vocabulary
  *   C7  a referenced vehicle is protected by RESTRICT, and the delete is a 409
  *   C8  concurrent same-key different-payload creates: one proposal, one 409
+ *   C9  a create that blocks behind an UNCOMMITTED winner recovers through the
+ *       index (the unique-violation branch, forced deterministically)
  *
  * No Google call: the RouteProvider is the deterministic fake.
  */
@@ -184,6 +186,25 @@ describePostgres('MVP-04 PostgreSQL — atomic assignment and concurrency', () =
       .set(customer.headers)
       .set('Idempotency-Key', key)
       .send({});
+  }
+
+  /**
+   * True once some OTHER session is waiting on a lock while running the proposal
+   * INSERT. That is the exact moment the create has passed its pre-read and is
+   * blocked behind the uncommitted row C9 holds: committing then is deterministic
+   * instead of a sleep-and-hope.
+   */
+  async function waitForBlockedProposalInsert(timeoutMs = 5000) {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const result = await db.raw(
+        "SELECT count(*)::int AS blocked FROM pg_stat_activity "
+        + "WHERE wait_event_type = 'Lock' AND query ILIKE '%insert into \"tow_request_proposals\"%'"
+      );
+      if (result.rows[0].blocked > 0) return true;
+      await new Promise((resolve) => { setTimeout(resolve, 20); });
+    }
+    return false;
   }
 
   async function assignmentRows() {
@@ -450,6 +471,54 @@ describePostgres('MVP-04 PostgreSQL — atomic assignment and concurrency', () =
     expect(stillPinned.status).toBe(409);
     expect(stillPinned.body.error.code).toBe('conflict');
     expect(await db('tow_vehicles').where({ id: partner.vehicle.id }).first()).toBeDefined();
+  });
+
+  test('C9 — a create blocked behind an uncommitted winner recovers through the index', async () => {
+    const customer = await createCustomer('C9 Customer');
+    const partner = await createTowPartner('C9 Partner');
+    const firstRequest = await createRequest(customer, 'pg-c9-request-000001');
+    const secondRequest = await createRequest(customer, 'pg-c9-request-000002');
+    const key = 'pg-c9-prop-shared-0001';
+
+    // A real proposal, only to copy a valid column set from: it is deleted
+    // (committed) so the create below cannot replay it from a pre-read.
+    const committed = await propose(partner, firstRequest.id, key);
+    const template = await db('tow_request_proposals').where({ id: committed.id }).first();
+    await db('tow_request_proposals').where({ id: committed.id }).del();
+
+    // An UNCOMMITTED winner the pre-read of the create cannot see either. It is
+    // the deleted row itself, so it carries the FIRST payload's digest (a replay
+    // would be a lie) and lives on the FIRST request (so the one-active-per
+    // (request, partner) partial index is not the rule at stake): the plain
+    // (partner_id, idempotency_key) unique index is.
+    const trx = await db.transaction();
+    try {
+      const { id, ...columns } = template;
+      await trx('tow_request_proposals').insert({
+        ...columns,
+        // `jsonb` read back as a JS array: re-bind it as JSON text, never as a
+        // PostgreSQL array literal.
+        vehicle_supported_vehicle_classes: JSON.stringify(columns.vehicle_supported_vehicle_classes),
+      });
+
+      const pending = request(app)
+        .post(`/api/tow/requests/${secondRequest.id}/proposals`)
+        .set(partner.headers)
+        .set('Idempotency-Key', key)
+        .send({})
+        // `.then` dispatches immediately: a supertest chain is lazy until awaited.
+        .then((response) => response);
+
+      expect(await waitForBlockedProposalInsert()).toBe(true);
+      await trx.commit();
+
+      const response = await pending;
+      expect(response.status).toBe(409);
+      expect(response.body.error.code).toBe('idempotency_conflict');
+      expect(await db('tow_request_proposals').select('*')).toHaveLength(1);
+    } finally {
+      if (!trx.isCompleted()) await trx.rollback();
+    }
   });
 
   test('C8 — concurrent same-key different-payload creates: one proposal, one 409', async () => {
