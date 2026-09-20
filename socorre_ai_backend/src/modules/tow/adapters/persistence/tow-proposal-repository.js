@@ -24,6 +24,9 @@ const { INITIAL_TOW_PROPOSAL_STATUS } = require('../../domain');
 const { toIsoInstant } = require('../../domain/instants');
 const { applyRowLock } = require('./row-lock');
 
+/** The partial index that allows one ACTIVE proposal per (request, partner). */
+const ACTIVE_PROPOSAL_INDEX = 'tow_request_proposals_one_active_per_partner';
+
 const COLUMNS = Object.freeze([
   'id',
   'tow_request_id',
@@ -92,6 +95,31 @@ function isUniqueViolation(error) {
     error.code === '23505'
     || /unique constraint|duplicate key|SQLITE_CONSTRAINT/i.test(error.message || '')
   );
+}
+
+/**
+ * Which constraint rejected the insert.
+ *
+ * Two different UNIQUE rules can reject the same statement, and they mean two
+ * different things to the caller: the idempotency key (a replay to resolve) and
+ * the partial index that allows one ACTIVE proposal per (request, partner) (a
+ * lost race against a SIBLING key, which is a 409, not a 500).
+ *
+ * Only the constraint part of the message is inspected, never the whole
+ * message: knex prefixes the failing SQL, and that SQL names both columns.
+ *
+ *   PostgreSQL -> `error.constraint` / `... unique constraint "name"`
+ *   SQLite     -> `UNIQUE constraint failed: index 'name'` for a partial index
+ */
+function violationTarget(error) {
+  const parts = [];
+  if (error && error.constraint) parts.push(String(error.constraint));
+  const message = String((error && error.message) || '');
+  const sqlite = /unique constraint failed:\s*(.+)$/im.exec(message);
+  if (sqlite) parts.push(sqlite[1]);
+  const postgres = /unique constraint "([^"]+)"/i.exec(message);
+  if (postgres) parts.push(postgres[1]);
+  return parts.join(' ');
 }
 
 /** 1:1 with the `tow_request_proposals` columns, minus `id` (database-owned). */
@@ -264,7 +292,7 @@ function createTowProposalRepository(db) {
         .distinct('tow_request_id')
         .whereIn('tow_request_id', ids)
         .where({ status: INITIAL_TOW_PROPOSAL_STATUS })
-        .where('expires_at', '>', now)
+        .where('expires_at', '>', toIsoInstant(now))
         .orderBy('tow_request_id', 'asc');
       return rows.map((row) => row.tow_request_id);
     }
@@ -332,10 +360,29 @@ function createTowProposalRepository(db) {
       } catch (error) {
         if (!isUniqueViolation(error)) throw error;
 
-        // Lost a concurrent race: the winner's row is now the authority.
+        const target = violationTarget(error);
+        if (target.includes(ACTIVE_PROPOSAL_INDEX)) {
+          // A SIBLING key won the (request, partner) race: the partial index is
+          // the authority, and the honest answer is the same 409 the pre-read
+          // guard raises when it wins the race instead.
+          return { row: null, created: false, same_payload: false, conflict: 'active' };
+        }
+
+        // Lost a concurrent race on the idempotency key: the winner's row is now
+        // the authority.
         const winner = await findByPartnerAndKey(record.partner_id, record.idempotency_key);
-        if (!winner) throw error;
-        return { row: winner, created: false, same_payload: winner.idempotency_fingerprint === fingerprint };
+        if (winner) {
+          return { row: winner, created: false, same_payload: winner.idempotency_fingerprint === fingerprint };
+        }
+
+        // An unnamed or engine-specific rejection: ask the database which row
+        // exists, which separates the two rules without trusting the message.
+        const active = await findActiveForPartnerAndRequest({
+          partnerId: record.partner_id,
+          requestId: record.tow_request_id,
+        });
+        if (active) return { row: null, created: false, same_payload: false, conflict: 'active' };
+        throw error;
       }
     }
 
@@ -373,4 +420,5 @@ module.exports = {
   mapRow,
   toColumns,
   hashFingerprintSource,
+  violationTarget,
 };

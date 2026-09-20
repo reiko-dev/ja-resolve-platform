@@ -155,12 +155,15 @@ function createTowRequestRepository(db) {
 
     function applyFilters(query, { state, from, to } = {}) {
       if (state) query.where({ state });
-      // `Date` bindings are the only representation both engines compare
-      // correctly: PostgreSQL binds them to `timestamptz`, and the SQLite harness
-      // normalizes them to the same `'YYYY-MM-DD HH:MM:SS.mmm'` text the rows were
-      // written with.
-      if (from) query.where('created_at', '>=', from);
-      if (to) query.where('created_at', '<=', to);
+      // The window must be bound in the SAME representation the rows are written
+      // in (`toIsoInstant`): on PostgreSQL `timestamptz` normalizes either form,
+      // but the SQLite harness stores TEXT, so a `Date` bound here would be
+      // normalized to `'YYYY-MM-DD HH:MM:SS.mmm'` and compared lexically against
+      // `'YYYY-MM-DDTHH:MM:SS.mmmZ'` — and `'T' > ' '` would silently widen the
+      // window by one row. One instant representation, both sides of every
+      // comparison.
+      if (from) query.where('created_at', '>=', toIsoInstant(from));
+      if (to) query.where('created_at', '<=', toIsoInstant(to));
       return query;
     }
 

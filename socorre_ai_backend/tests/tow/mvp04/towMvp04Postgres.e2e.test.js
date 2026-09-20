@@ -326,6 +326,7 @@ describePostgres('MVP-04 PostgreSQL — atomic assignment and concurrency', () =
         proposal_id: proposalB.id,
         partner_id: second.partner.id,
         tow_vehicle_id: second.vehicle.id,
+        vehicle_plate: second.vehicle.plate,
         final_price_amount_cents: 18480,
         final_price_currency: 'BRL',
         assigned_at: new Date('2026-01-15T12:00:00.000Z'),

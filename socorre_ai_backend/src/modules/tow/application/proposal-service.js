@@ -227,13 +227,23 @@ function createProposalService({
 
     // 9. Atomic create-or-replay. The fingerprint source stays transient: the
     //    adapter persists only its digest.
-    const { row, created, same_payload: samePayload } = await towProposalRepository.createIdempotent(record, {
+    const {
+      row,
+      created,
+      same_payload: samePayload,
+      conflict,
+    } = await towProposalRepository.createIdempotent(record, {
       fingerprintSource: canonicalProposalFingerprintSource({
         partner_id: partner.id,
         tow_request_id: towRequest.id,
         tow_vehicle_id: vehicle.id,
       }),
     });
+    if (conflict === 'active') {
+      // Lost the (request, partner) race to a sibling key: same answer as the
+      // pre-read guard above, so the caller cannot tell which check won.
+      throw new TowError('proposal_already_active', 'This partner already has an active proposal for this request');
+    }
     if (!samePayload) {
       throw new TowError('idempotency_conflict', 'Idempotency-Key was already used with a different payload');
     }

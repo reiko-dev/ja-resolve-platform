@@ -77,20 +77,27 @@ function createAssignmentService({
     }
 
     // Serialization point: every accept of this request passes through this lock.
-    await requests.lockById(towRequest.id);
+    //
+    // The row the lock RETURNS is the state committed by whoever held the lock
+    // before us, and it is the only one the guards and the response may use. The
+    // snapshot read above predates the serialization point: on PostgreSQL a loser
+    // that kept it would answer `proposal_not_actionable` about a request another
+    // transaction has already assigned, and an idempotent replay would report a
+    // stale `NEGOTIATING`. A loser must OBSERVE the winner.
+    const lockedRequest = (await requests.lockById(towRequest.id)) || towRequest;
 
     // Replayed accept. Checked BEFORE the state guards on purpose: the request of
     // a successful accept is `ASSIGNED`, which would otherwise be reported as a
     // conflict instead of the idempotent replay the contract promises.
     const existing = await assignmentRepository.findByProposalId(proposal.id);
-    if (existing) return { assignment: existing, request: towRequest };
+    if (existing) return { assignment: existing, request: lockedRequest };
 
-    if (towRequest.state === 'ASSIGNED') {
+    if (lockedRequest.state === 'ASSIGNED') {
       throw new TowError('request_already_assigned', 'This tow request is already assigned to another proposal');
     }
-    if (!isOpenTowRequestState(towRequest.state)) {
+    if (!isOpenTowRequestState(lockedRequest.state)) {
       throw new TowError('proposal_not_actionable', 'This tow request no longer accepts a proposal', {
-        details: { state: towRequest.state },
+        details: { state: lockedRequest.state },
       });
     }
 
@@ -115,7 +122,7 @@ function createAssignmentService({
 
     if (conflict === 'proposal') {
       const winner = await assignmentRepository.findByProposalId(proposal.id);
-      if (winner) return { assignment: winner, request: towRequest };
+      if (winner) return { assignment: winner, request: lockedRequest };
       throw new TowError('request_already_assigned', 'This tow request is already assigned to another proposal');
     }
     if (conflict === 'request') {
@@ -130,11 +137,11 @@ function createAssignmentService({
       });
     }
 
-    const assignedRequest = await requests.markAssigned(towRequest.id, { updatedAt: now });
+    const assignedRequest = await requests.markAssigned(lockedRequest.id, { updatedAt: now });
     await proposals.markAccepted(locked.id, { decidedAt: now });
-    await proposals.closeActiveForRequestExcept(towRequest.id, { exceptProposalId: locked.id, decidedAt: now });
+    await proposals.closeActiveForRequestExcept(lockedRequest.id, { exceptProposalId: locked.id, decidedAt: now });
 
-    return { assignment: row, request: assignedRequest || towRequest };
+    return { assignment: row, request: assignedRequest || lockedRequest };
   }
 
   async function accept({ customerId, proposalId } = {}) {
