@@ -8,7 +8,9 @@
  *   - Domain/Application stay pure and never import the legacy subsystem;
  *   - the new ports, error codes and barrels are wired;
  *   - migration 004 is registered everywhere the schema is pinned;
- *   - no MVP-04 route, table or vocabulary leaked into this delivery.
+ *   - no later (MVP-05+) route, table or vocabulary leaked into this delivery.
+ *     The MVP-04 subset of these assertions moved to the MVP-04 suite when that
+ *     delivery landed; see `tests/tow/mvp04/towMvp04Architecture.test.js`.
  *
  * RED-first: written before the MVP-03 sources exist.
  */
@@ -237,18 +239,27 @@ describe('MVP-03 ARCH — scope discipline', () => {
     expect(ROUTES).toContain("router.get('/partner/opportunities'");
   });
 
-  test('no MVP-04 route leaked into this delivery', () => {
+  test('no MVP-05 route leaked into this delivery', () => {
+    // MVP-04 (proposals/assignment) is a LATER delivery and owns
+    // `/proposals` and `/accept`; the assertions for those moved to
+    // `tests/tow/mvp04/towMvp04Architecture.test.js` when MVP-04 landed, so this
+    // list was narrowed instead of deleted. Everything still banned here is a
+    // genuinely later surface (counteroffer, job lifecycle, payments).
     for (const forbidden of [
-      '/proposals', '/counteroffer', '/accept', '/assignment', '/cancel', '/destination',
+      '/counteroffer', '/assignment', '/cancel', '/destination',
       '/completion', '/dispute', '/review', '/payments', '/partner/status', '/partner/location',
     ]) {
       expect(ROUTES).not.toContain(forbidden);
     }
   });
 
-  test('no MVP-04 table is referenced by the Tow module', () => {
+  test('no legacy or later table is referenced by the Tow module', () => {
+    // `tow_assignments` was removed from this list when MVP-04 landed: it is now
+    // a canonical table of this module. `tow_proposals` (the LEGACY table, keyed
+    // by `emergency_requests`) stays banned, and the pattern is anchored on the
+    // quotes so the canonical `tow_request_proposals` does not match it.
     const offenders = ALL_TOW_SRC_FILES
-      .filter((file) => /['"](tow_proposals|tow_assignments|tow_payments|tow_audit_events|tow_request_snapshots)['"]/.test(readCode(file)))
+      .filter((file) => /['"](tow_proposals|tow_payments|tow_audit_events|tow_request_snapshots)['"]/.test(readCode(file)))
       .map(relative);
     expect(offenders).toEqual([]);
   });

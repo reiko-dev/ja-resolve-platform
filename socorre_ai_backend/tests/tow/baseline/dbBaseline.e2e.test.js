@@ -36,16 +36,18 @@ const { disposableAdminCredentials } = require('../../../scripts/tow/disposable-
 const { snapshotSchema, compareSnapshots, fingerprintOf } = require('../../../scripts/tow/schema-snapshot');
 
 const describePostgres = postgres.isEnabled() ? describe : describe.skip;
-// PINNED explicitly: the exact baseline of this delivery (MVP-01 foundation +
-// MVP-03 tow requests), mirroring `PINNED_MIGRATIONS` of
-// `scripts/tow/run-db-baseline-gate.js` and the offline assertion in
-// `tests/tow/baseline/dbBaselineSafety.test.js`. The directory read below is a
-// cross-check only, so a smuggled `005_*.js` cannot be absorbed silently.
+// PINNED explicitly: the exact baseline of this delivery (MVP-01 foundation,
+// MVP-03 tow requests, MVP-04 proposals/assignments), mirroring
+// `PINNED_MIGRATIONS` of `scripts/tow/run-db-baseline-gate.js` and the offline
+// assertion in `tests/tow/baseline/dbBaselineSafety.test.js`. The directory read
+// below is a cross-check only, so a smuggled `006_*.js` cannot be absorbed
+// silently.
 const BASELINE_MIGRATIONS = Object.freeze([
   '001_baseline_schema.js',
   '002_baseline_settings.js',
   '003_mvp01_tow_foundation.js',
   '004_mvp03_tow_requests.js',
+  '005_mvp04_proposals_assignments.js',
 ]);
 
 /** Disposable credentials: generated per run, never committed. */

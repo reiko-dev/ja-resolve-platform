@@ -115,6 +115,12 @@ const TABLES = [
   'tow_vehicles',
   'tow_vehicle_documents',
   'tow_requests',
+  // MVP-04. Appended in dependency order relative to each other (assignments
+  // reference proposals). The harness does not enable `PRAGMA foreign_keys`, so
+  // the list as a whole is not FK-ordered — that is pre-existing behaviour, and
+  // real referential integrity is exercised on PostgreSQL instead.
+  'tow_assignments',
+  'tow_request_proposals',
 ];
 
 const SCHEMA = [
@@ -772,6 +778,94 @@ const SCHEMA = [
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (customer_id, idempotency_key)
   )`,
+
+  // MVP-04 — the negotiation record and the single assignment authority
+  // (mirrors database/migrations/005_mvp04_proposals_assignments.js). The
+  // CHECK constraints are mirrored on purpose: the offline suite must be able to
+  // fail on a persisted total that disagrees with its legs, on a non-BRL money
+  // row or on a status outside the canonical enum, exactly as PostgreSQL would.
+  // `vehicle_supported_vehicle_classes` is TEXT here and jsonb in PostgreSQL,
+  // matching the `tow_vehicles` mirror and the adapter's JSON text binding.
+  `CREATE TABLE IF NOT EXISTS tow_request_proposals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tow_request_id INTEGER NOT NULL,
+    partner_id INTEGER NOT NULL,
+    tow_vehicle_id INTEGER NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+    route_provider_to_pickup_distance_meters INTEGER,
+    route_provider_to_pickup_duration_seconds INTEGER,
+    route_pickup_to_destination_distance_meters INTEGER,
+    route_pickup_to_destination_duration_seconds INTEGER,
+    route_total_distance_meters INTEGER NOT NULL,
+    route_total_duration_seconds INTEGER NOT NULL,
+    pricing_minimum_charge_cents INTEGER NOT NULL,
+    pricing_included_meters INTEGER NOT NULL,
+    pricing_price_per_additional_km_cents INTEGER NOT NULL,
+    price_amount_cents INTEGER NOT NULL,
+    price_currency VARCHAR(3) NOT NULL DEFAULT 'BRL',
+    vehicle_plate VARCHAR(20) NOT NULL,
+    vehicle_make VARCHAR(100) NOT NULL,
+    vehicle_model VARCHAR(100) NOT NULL,
+    vehicle_year INTEGER,
+    vehicle_equipment_type VARCHAR(30) NOT NULL,
+    vehicle_supported_vehicle_classes TEXT NOT NULL,
+    vehicle_max_towed_weight_kg INTEGER,
+    vehicle_document_status VARCHAR(20) NOT NULL,
+    vehicle_active INTEGER NOT NULL DEFAULT 1,
+    partner_business_name VARCHAR(200),
+    expires_at TEXT NOT NULL,
+    decided_at TEXT,
+    idempotency_key VARCHAR(128) NOT NULL,
+    idempotency_fingerprint VARCHAR(64) NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (partner_id, idempotency_key),
+    CHECK (status IN ('ACTIVE', 'COUNTERED', 'ACCEPTED', 'REJECTED', 'WITHDRAWN', 'EXPIRED', 'CLOSED')),
+    CHECK (price_currency = 'BRL'),
+    CHECK (price_amount_cents >= 0),
+    CHECK (route_total_distance_meters >= 0),
+    CHECK (route_total_duration_seconds >= 0),
+    CHECK (route_total_distance_meters = coalesce(route_provider_to_pickup_distance_meters, 0) + coalesce(route_pickup_to_destination_distance_meters, 0)),
+    CHECK (route_total_duration_seconds = coalesce(route_provider_to_pickup_duration_seconds, 0) + coalesce(route_pickup_to_destination_duration_seconds, 0)),
+    CHECK (route_provider_to_pickup_distance_meters IS NOT NULL OR route_pickup_to_destination_distance_meters IS NOT NULL),
+    CHECK (pricing_minimum_charge_cents >= 0),
+    CHECK (pricing_included_meters >= 0),
+    CHECK (pricing_price_per_additional_km_cents >= 0),
+    CHECK (vehicle_equipment_type IN ('flatbed', 'wheel_lift', 'heavy_wrecker')),
+    CHECK (vehicle_document_status IN ('pending', 'approved', 'rejected', 'expired')),
+    CHECK (vehicle_supported_vehicle_classes LIKE '[%]'),
+    CHECK (expires_at > created_at)
+  )`,
+
+  `CREATE UNIQUE INDEX IF NOT EXISTS tow_request_proposals_one_active_per_partner
+    ON tow_request_proposals (tow_request_id, partner_id) WHERE status = 'ACTIVE'`,
+
+  `CREATE TABLE IF NOT EXISTS tow_assignments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tow_request_id INTEGER NOT NULL,
+    proposal_id INTEGER NOT NULL,
+    partner_id INTEGER NOT NULL,
+    tow_vehicle_id INTEGER NOT NULL,
+    final_price_amount_cents INTEGER NOT NULL,
+    final_price_currency VARCHAR(3) NOT NULL DEFAULT 'BRL',
+    vehicle_plate VARCHAR(20) NOT NULL,
+    assigned_at TEXT NOT NULL,
+    released_at TEXT,
+    release_reason VARCHAR(40),
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (tow_request_id),
+    UNIQUE (proposal_id),
+    CHECK (final_price_amount_cents >= 0),
+    CHECK (final_price_currency = 'BRL'),
+    CHECK (released_at IS NULL OR released_at >= assigned_at)
+  )`,
+
+  `CREATE UNIQUE INDEX IF NOT EXISTS tow_assignments_one_live_per_partner
+    ON tow_assignments (partner_id) WHERE released_at IS NULL`,
+
+  `CREATE UNIQUE INDEX IF NOT EXISTS tow_assignments_one_live_per_vehicle
+    ON tow_assignments (tow_vehicle_id) WHERE released_at IS NULL`,
 ];
 
 let schemaReady = null;

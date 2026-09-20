@@ -63,6 +63,7 @@ const PINNED_MIGRATIONS = Object.freeze([
   '002_baseline_settings.js',
   '003_mvp01_tow_foundation.js',
   '004_mvp03_tow_requests.js',
+  '005_mvp04_proposals_assignments.js',
 ]);
 
 function directoryMigrations() {

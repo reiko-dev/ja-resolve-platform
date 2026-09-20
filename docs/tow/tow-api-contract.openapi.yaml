@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: JaResolve Tow Consumer API
-  version: 1.0.0-draft.5
+  version: 1.0.0-draft.6
   description: >-
     Normative consumer contract for Mobile Cliente, Mobile Parceiro and Dashboard.
     This entrypoint composes the reviewed draft.2 base contract with the frozen
@@ -16,6 +16,15 @@ info:
     `opportunity_expires_at` is nullable/optional because MVP-03 owns no expiry
     semantics (no scheduler, no search timeout, no proposal lifecycle). No other
     consumer contract changed in this revision.
+    Revision draft.6 (MVP-04 additive error vocabulary): `ErrorResponse.error.code`
+    gains `proposal_already_active`, the code returned when a partner already holds
+    a live proposal for the same request (409). The addition is purely additive —
+    every previously declared code keeps its meaning and no response shape, path,
+    parameter or enum member is removed or narrowed — and it mirrors the existing
+    `request_already_assigned` / `counteroffer_already_used` family rather than
+    overloading the generic `conflict`. No other consumer contract changed in this
+    revision; the MVP-04 operations themselves were already declared in the base
+    contract.
 servers:
   - url: /api
 security: []
