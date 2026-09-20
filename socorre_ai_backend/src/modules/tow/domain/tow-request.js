@@ -267,22 +267,12 @@ function buildTowRequestRecord({ input, customerId, radiusKm, idempotencyKey, no
  * Normalizes any persisted timestamp representation to an ISO-8601 instant.
  * PostgreSQL hands back a `Date`; the SQLite harness hands back the TEXT
  * `'YYYY-MM-DD HH:MM:SS.mmm'`; an epoch-ms number is accepted too.
+ *
+ * The implementation moved to `domain/instants.js` in MVP-04 (the proposal and
+ * the assignment need exactly the same rule); it is re-exported here so every
+ * existing caller and the MVP-03 contract stay untouched.
  */
-function toIsoInstant(value) {
-  if (value === null || value === undefined) return null;
-  if (value instanceof Date) return value.toISOString();
-  if (typeof value === 'number') {
-    const fromNumber = new Date(value);
-    return Number.isFinite(fromNumber.getTime()) ? fromNumber.toISOString() : null;
-  }
-  const text = String(value).trim();
-  if (text.length === 0) return null;
-  const normalized = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d+)?$/.test(text)
-    ? `${text.replace(' ', 'T')}Z`
-    : text;
-  const parsed = new Date(normalized);
-  return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : text;
-}
+const { toIsoInstant } = require('./instants');
 
 /**
  * The contract DTO of a tow request.

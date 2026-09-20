@@ -197,21 +197,20 @@ describe('MVP-04 DOMAIN — record and DTO shapes', () => {
     expect(row).not.toHaveProperty('idempotency_fingerprint');
   });
 
-  test('the fingerprint is stable for the same snapshot and changes with the price', () => {
-    const a = canonicalProposalFingerprintSource({
-      tow_request_id: 1, partner_id: 2, tow_vehicle_id: 9,
-      price: { amount_cents: 15000, currency: 'BRL' },
-    });
-    const b = canonicalProposalFingerprintSource({
-      tow_request_id: 1, partner_id: 2, tow_vehicle_id: 9,
-      price: { amount_cents: 15000, currency: 'BRL' },
-    });
-    const c = canonicalProposalFingerprintSource({
-      tow_request_id: 1, partner_id: 2, tow_vehicle_id: 9,
-      price: { amount_cents: 15001, currency: 'BRL' },
-    });
+  test('the fingerprint source is the (partner, request, vehicle) triple', () => {
+    // The create body is always empty, so the price is not a client input and
+    // cannot be part of the source. The only degree of freedom a partner has is
+    // WHICH vehicle it offers: a retry with another vehicle is a different
+    // attempt (the frozen contract then requires `idempotency_conflict`).
+    const a = canonicalProposalFingerprintSource({ tow_request_id: 1, partner_id: 2, tow_vehicle_id: 9 });
+    const b = canonicalProposalFingerprintSource({ tow_request_id: '1', partner_id: '2', tow_vehicle_id: '9' });
+    const c = canonicalProposalFingerprintSource({ tow_request_id: 1, partner_id: 2, tow_vehicle_id: 10 });
+    const d = canonicalProposalFingerprintSource({ tow_request_id: 1, partner_id: 3, tow_vehicle_id: 9 });
     expect(a).toBe(b);
     expect(a).not.toBe(c);
+    expect(a).not.toBe(d);
+    // It is a SOURCE, not a digest: no hashing happens in Domain.
+    expect(a).toContain('tow_vehicle_id');
   });
 
   test('the DTO is contract-shaped: string ids, Money, RouteQuote, TowVehicleSummary', () => {

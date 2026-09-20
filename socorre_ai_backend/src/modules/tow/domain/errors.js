@@ -26,6 +26,15 @@ const ERROR_STATUS = Object.freeze({
   tow_document_not_approved: 409,
   vehicle_not_compatible: 409,
   external_dependency_unavailable: 503,
+  // MVP-04 — the proposal lifecycle and the atomic assignment. All four are
+  // domain CONFLICTS: the caller's intent was well-formed, the resource exists,
+  // and the state of the world says no. `request_already_assigned` is also the
+  // backstop of the `tow_assignments.tow_request_id` UNIQUE constraint, so a
+  // losing concurrent accept reports the same code as a sequential one.
+  proposal_already_active: 409,
+  proposal_expired: 409,
+  proposal_not_actionable: 409,
+  request_already_assigned: 409,
 });
 
 const TOW_ERROR_CODES = Object.freeze(Object.keys(ERROR_STATUS));
