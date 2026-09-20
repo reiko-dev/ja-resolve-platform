@@ -22,6 +22,13 @@
  *     `not_request_owner` (never a 404), so the caller learns the id exists but
  *     is not theirs — the legacy contract of the module and the honest answer
  *     for a support flow.
+ *
+ * MVP-04 EXT: reads now report the ASSIGNMENT and the truthful `allowed_actions`.
+ * Both are resolved in batch for a page of requests (two queries, never one per
+ * row): the assignment comes from `tow_assignments` — the only authority on
+ * occupancy — and `accept_proposal` is offered only while the request is open AND
+ * at least one proposal is still actionable. A request with no live proposal
+ * therefore advertises no action, which is the honest answer at that instant.
  */
 'use strict';
 
@@ -33,6 +40,8 @@ const {
   canonicalFingerprintSource,
   buildTowRequestRecord,
   buildTowRequestDto,
+  buildAssignmentDto,
+  allowedActionsForRequest,
 } = require('../domain');
 const { validateListQuery } = require('./list-query');
 
@@ -40,6 +49,8 @@ function createTowRequestService({
   moduleService,
   settingsService,
   towRequestRepository,
+  towProposalRepository = null,
+  assignmentRepository = null,
   clock,
 }) {
   if (!moduleService) throw new TypeError('createTowRequestService requires a moduleService');
@@ -47,8 +58,28 @@ function createTowRequestService({
   if (!towRequestRepository) throw new TypeError('createTowRequestService requires a towRequestRepository port');
   if (!clock) throw new TypeError('createTowRequestService requires a clock port');
 
-  function toDto(row, settings) {
-    return buildTowRequestDto(row, { max_radius_km: settings.tow_max_radius_km });
+  function toDto(row, settings, extras = {}) {
+    return buildTowRequestDto(row, {
+      max_radius_km: settings.tow_max_radius_km,
+      assignment: extras.assignment ?? null,
+      allowed_actions: extras.allowed_actions ?? [],
+    });
+  }
+
+  /** Which of these requests have at least one actionable proposal right now? */
+  async function liveRequestIds(rows) {
+    if (!towProposalRepository || rows.length === 0) return new Set();
+    const ids = await towProposalRepository.findLiveRequestIds(rows.map((row) => row.id), {
+      now: clock.now(),
+    });
+    return new Set(ids.map(String));
+  }
+
+  function actionsFor(row, liveIds) {
+    return allowedActionsForRequest({
+      state: row.state,
+      has_live_proposal: liveIds.has(String(row.id)),
+    });
   }
 
   async function create({ customerId, payload, idempotencyKey } = {}) {
@@ -97,7 +128,14 @@ function createTowRequestService({
     const own = await towRequestRepository.findByIdForCustomer(requestId, customerId);
     if (own) {
       const settings = await settingsService.get();
-      return toDto(own, settings);
+      const assignment = assignmentRepository
+        ? await assignmentRepository.findByRequestId(own.id)
+        : null;
+      const liveIds = await liveRequestIds([own]);
+      return toDto(own, settings, {
+        assignment: assignment ? buildAssignmentDto(assignment) : null,
+        allowed_actions: actionsFor(own, liveIds),
+      });
     }
 
     const existing = await towRequestRepository.findById(requestId);
@@ -119,8 +157,19 @@ function createTowRequestService({
       to: filters.to,
     });
 
+    const assignments = assignmentRepository
+      ? await assignmentRepository.findByRequestIds(rows.map((row) => row.id))
+      : [];
+    const assignmentByRequest = new Map(assignments.map((row) => [String(row.tow_request_id), row]));
+    const liveIds = await liveRequestIds(rows);
+
     return {
-      items: rows.map((row) => toDto(row, settings)),
+      items: rows.map((row) => toDto(row, settings, {
+        assignment: assignmentByRequest.has(String(row.id))
+          ? buildAssignmentDto(assignmentByRequest.get(String(row.id)))
+          : null,
+        allowed_actions: actionsFor(row, liveIds),
+      })),
       meta: { page: filters.page, limit: filters.limit, total },
     };
   }

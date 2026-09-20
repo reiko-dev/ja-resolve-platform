@@ -94,7 +94,41 @@ paths:
   /tow/requests/{requestId}/destination:
     $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1requests~1{requestId}~1destination'
   /tow/requests/{requestId}/proposals:
-    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1requests~1{requestId}~1proposals'
+    get:
+      tags: [Tow Customer]
+      operationId: listTowRequestProposals
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Proposals for customer request
+          content:
+            application/json:
+              schema: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TowProposalListResponse' }
+        '404': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/NotFound' }
+    post:
+      tags: [Tow Partner]
+      operationId: createTowProposal
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/RequestId'
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+      responses:
+        '201':
+          description: Server-calculated proposal
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TowProposalResponse' }
+        '403': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Forbidden' }
+        '409': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/DomainConflict' }
   /tow/requests/{requestId}/route:
     get:
       tags: [Tow Customer, Tow Partner]
@@ -117,11 +151,41 @@ paths:
         '404': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/NotFound' }
 
   /tow/proposals/{proposalId}/accept:
-    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1proposals~1{proposalId}~1accept'
+    post:
+      tags: [Tow Customer]
+      operationId: acceptTowProposal
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/ProposalId'
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Atomic assignment completed
+          content:
+            application/json:
+              schema: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TowRequestResponse' }
+        '403': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Forbidden' }
+        '404': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/NotFound' }
+        '409': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/DomainConflict' }
   /tow/proposals/{proposalId}/counteroffer:
     $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1proposals~1{proposalId}~1counteroffer'
   /tow/proposals/{proposalId}/withdraw:
-    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1proposals~1{proposalId}~1withdraw'
+    post:
+      tags: [Tow Partner]
+      operationId: withdrawTowProposal
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/ProposalId'
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Proposal withdrawn
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TowProposalResponse' }
+        '403': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Forbidden' }
+        '404': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/NotFound' }
+        '409': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/DomainConflict' }
   /tow/counteroffers/{counterofferId}/accept:
     $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1counteroffers~1{counterofferId}~1accept'
   /tow/counteroffers/{counterofferId}/reject:
@@ -223,7 +287,23 @@ paths:
               schema: { $ref: '#/components/schemas/TowOpportunityListResponse' }
         '409': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/DomainConflict' }
   /tow/partner/proposals:
-    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1partner~1proposals'
+    get:
+      tags: [Tow Partner]
+      operationId: listPartnerTowProposals
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/TowProposalStatus' }
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/Page'
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Partner proposals
+          content:
+            application/json:
+              schema: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TowProposalListResponse' }
+        '422': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/ValidationError' }
   /tow/partner/jobs:
     get:
       tags: [Tow Partner]
@@ -439,6 +519,57 @@ components:
       scheme: bearer
       bearerFormat: JWT
   schemas:
+    TowProposal:
+      type: object
+      required: [id, request_id, partner_id, tow_vehicle, route_quote, price, status, expires_at, created_at]
+      properties:
+        id: { type: string }
+        request_id: { type: string }
+        partner_id: { type: string }
+        partner:
+          type: object
+          properties:
+            display_name: { type: string }
+            rating: { type: number, minimum: 0, maximum: 5 }
+            review_count: { type: integer, minimum: 0 }
+        tow_vehicle: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TowVehicleSummary' }
+        route_quote: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/RouteQuote' }
+        price: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/Money' }
+        status: { $ref: '#/components/schemas/TowProposalStatus' }
+        expires_at: { type: string, format: date-time }
+        counteroffer:
+          oneOf:
+            - $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/Counteroffer'
+            - type: 'null'
+        created_at: { type: string, format: date-time }
+
+    TowProposalStatus:
+      type: string
+      enum: [ACTIVE, COUNTERED, ACCEPTED, REJECTED, WITHDRAWN, EXPIRED, CLOSED]
+
+    EnvelopeTowProposal:
+      type: object
+      required: [success, data]
+      properties: { success: { const: true }, data: { $ref: '#/components/schemas/TowProposal' } }
+    TowProposalResponse: { $ref: '#/components/schemas/EnvelopeTowProposal' }
+
+    ErrorResponse:
+      type: object
+      required: [success, message, error]
+      properties:
+        success: { const: false }
+        message: { type: string }
+        error:
+          type: object
+          required: [code]
+          properties:
+            code:
+              type: string
+              enum: [service_module_disabled, outstanding_financial_debt, partner_platform_fee_debt_limit, invalid_tow_state, invalid_tow_transition, not_request_owner, not_assigned_partner, vehicle_not_compatible, vehicle_not_operational, tow_document_required, tow_document_not_approved, proposal_already_active, proposal_expired, proposal_not_actionable, counteroffer_already_used, counteroffer_expired, request_already_assigned, payment_not_ready, payment_failed, payment_method_not_changeable, customer_no_show_not_allowed_yet, idempotency_conflict, conflict, validation_error, unauthorized, forbidden, not_found, external_dependency_unavailable]
+            details:
+              type: object
+              additionalProperties: true
+
     TowSettingsPatch:
       type: object
       additionalProperties: false

@@ -37,6 +37,52 @@
  * @typedef {Object} PartnerRepository
  * @property {(id: number|string) => Promise<{ id: number|string, type: string, is_available: boolean, is_online: boolean, is_verified: boolean, latitude: number|null, longitude: number|null }|null>} findById
  *
+ * MVP-04 — the proposal store.
+ *
+ * `createIdempotent` mirrors `TowRequestRepository.createIdempotent`: the
+ * adapter hashes `fingerprintSource` and resolves `(partner_id,
+ * idempotency_key)` through the UNIQUE constraint, never through a
+ * read-then-write check.
+ *
+ * Every method accepts an optional transaction handle through
+ * `withTransaction(trx)`, which returns the same API bound to that transaction.
+ * Binding is explicit because a query issued on the pool while a transaction is
+ * open would silently escape it (and deadlock the single-connection SQLite
+ * harness).
+ *
+ * @typedef {Object} TowProposalRepository
+ * @property {(record: object, options: { fingerprintSource: string }) => Promise<{ row: object, created: boolean, same_payload: boolean }>} createIdempotent
+ * @property {(id: number|string) => Promise<object|null>} findById
+ * @property {(id: number|string, partnerId: number|string) => Promise<object|null>} findByIdForPartner
+ * @property {(args: { partnerId: number|string, requestId: number|string }) => Promise<object|null>} findActiveForPartnerAndRequest
+ * @property {(requestId: number|string, filters: { limit: number, offset: number, status?: string|null }) => Promise<{ rows: object[], total: number }>} listByRequest
+ * @property {(partnerId: number|string, filters: { limit: number, offset: number, status?: string|null }) => Promise<{ rows: object[], total: number }>} listByPartner
+ * @property {(requestIds: Array<number|string>) => Promise<Array<number|string>>} findLiveRequestIds
+ * @property {(id: number|string) => Promise<object|null>} lockById
+ * @property {(id: number|string, args: { decidedAt: Date|string }) => Promise<object|null>} markAccepted
+ * @property {(id: number|string, args: { decidedAt: Date|string }) => Promise<object|null>} markWithdrawn
+ * @property {(requestId: number|string, args: { exceptProposalId: number|string, decidedAt: Date|string }) => Promise<number>} closeActiveForRequestExcept
+ * @property {(trx: object) => object} withTransaction
+ *
+ * MVP-04 — the assignment store, and the ONLY authority on occupancy.
+ *
+ * @typedef {Object} AssignmentRepository
+ * @property {(record: object) => Promise<object>} createForProposal
+ * @property {(id: number|string) => Promise<object|null>} findById
+ * @property {(requestId: number|string) => Promise<object|null>} findByRequestId
+ * @property {(proposalId: number|string) => Promise<object|null>} findByProposalId
+ * @property {(requestIds: Array<number|string>) => Promise<object[]>} findByRequestIds
+ * @property {(trx: object) => object} withTransaction
+ *
+ * MVP-04 — the transaction boundary.
+ *
+ * The application layer decides WHAT must be atomic; the adapter decides how the
+ * database expresses it. `run` hands the callback a transaction handle that is
+ * only ever consumed through `withTransaction(trx)`.
+ *
+ * @typedef {Object} UnitOfWork
+ * @property {<T>(work: (trx: object) => Promise<T>) => Promise<T>} run
+ *
  * MVP-03 — the canonical tow request store.
  *
  * `createIdempotent` is the ONLY creation path and it owns the atomicity: the
@@ -78,6 +124,9 @@ const PORT_NAMES = Object.freeze([
   'SettingsRepository',
   'PartnerRepository',
   'TowRequestRepository',
+  'TowProposalRepository',
+  'AssignmentRepository',
+  'UnitOfWork',
   'FileStorage',
   'Clock',
   'RouteProvider',

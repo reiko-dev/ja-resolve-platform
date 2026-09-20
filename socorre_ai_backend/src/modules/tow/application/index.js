@@ -2,6 +2,7 @@
  * MVP-01 — application barrel.
  * MVP-02 — adds the route/pricing quote operation.
  * MVP-03 — adds the canonical TowRequest and the geographic matching operations.
+ * MVP-04 — adds the proposal lifecycle and the atomic assignment.
  */
 'use strict';
 
@@ -13,6 +14,8 @@ const { createEligibilityService } = require('./eligibility-service');
 const { createQuoteService } = require('./quote-service');
 const { createTowRequestService } = require('./tow-request-service');
 const { createMatchingService } = require('./matching-service');
+const { createProposalService } = require('./proposal-service');
+const { createAssignmentService } = require('./assignment-service');
 const { validateListQuery } = require('./list-query');
 
 module.exports = {
@@ -24,5 +27,7 @@ module.exports = {
   createQuoteService,
   createTowRequestService,
   createMatchingService,
+  createProposalService,
+  createAssignmentService,
   validateListQuery,
 };
