@@ -7,8 +7,9 @@
  *     (no read-then-write, no application-level "check then insert");
  *   - Domain/Application still own every rule and never touch Knex/HTTP;
  *   - the legacy `tow_proposals` / `emergency_requests` subsystem stays isolated;
- *   - exactly the five MVP-04 operations are routed, and no counteroffer /
- *     MVP-05 / scheduler surface leaked in;
+ *   - exactly the five MVP-04 lifecycle operations plus the canonical partner job
+ *     rehydration route (EXT-MVP04-1) are routed, and no counteroffer / MVP-05 /
+ *     scheduler surface leaked in;
  *   - the migration is registered everywhere the schema is pinned.
  *
  * RED-first: written before the MVP-04 sources exist.
@@ -254,18 +255,21 @@ describe('MVP-04 ARCH — ports, barrels and error vocabulary', () => {
 describe('MVP-04 ARCH — scope discipline', () => {
   const ROUTES = read(path.join(TOW_SRC, 'http/routes.js'));
 
-  test('exactly the five MVP-04 operations are routed', () => {
+  test('exactly the five MVP-04 lifecycle operations plus partner job rehydration are routed', () => {
     expect(ROUTES).toContain("router.post('/requests/:requestId/proposals'");
     expect(ROUTES).toContain("router.get('/requests/:requestId/proposals'");
     expect(ROUTES).toContain("router.get('/partner/proposals'");
     expect(ROUTES).toContain("router.post('/proposals/:proposalId/accept'");
     expect(ROUTES).toContain("router.post('/proposals/:proposalId/withdraw'");
+    // EXT-MVP04-1: the canonical `listPartnerTowJobs` operation
+    // (`GET /tow/partner/jobs`) is now routed, partner-only.
+    expect(ROUTES).toContain("router.get('/partner/jobs', auth, requireTowPartner");
   });
 
   test('no counteroffer, tracking, payment or MVP-05 route leaked in', () => {
     for (const forbidden of [
       '/counteroffer', '/assignment', '/cancel', '/destination', '/completion', '/dispute',
-      '/review', '/payments', '/partner/status', '/partner/location', '/jobs', '/tracking',
+      '/review', '/payments', '/partner/status', '/partner/location', '/tracking',
       '/en-route', '/arrived', '/in-transit',
     ]) {
       expect(ROUTES).not.toContain(forbidden);
@@ -302,7 +306,7 @@ describe('MVP-04 ARCH — scope discipline', () => {
   test('the contract revision that adds proposal_already_active is recorded', () => {
     const contract = read(CANONICAL_CONTRACT);
     expect(contract).toContain('proposal_already_active');
-    expect(contract).toContain('1.0.0-draft.6');
+    expect(contract).toContain('1.0.0-draft.7');
     const helper = read(path.join(BACKEND_ROOT, 'tests/helpers/towContract.js'));
     expect(helper).toContain("'proposal_already_active'");
   });

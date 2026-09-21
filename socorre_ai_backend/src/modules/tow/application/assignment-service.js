@@ -19,10 +19,12 @@
  *      occupancy rule: a partner or a vehicle already on a job cannot be given a
  *      second one.
  *
- * The Idempotency-Key header is accepted but is NOT the idempotency authority:
- * the proposal id is. Replaying an accept of the same proposal returns the SAME
- * assignment — with a different key as well — because a second job for the same
- * proposal is impossible by construction.
+ * The `Idempotency-Key` header is REQUIRED by the canonical contract and is
+ * validated (8–128 chars, the shared domain validator) before the transaction is
+ * opened, but it is NOT the idempotency authority: the proposal id is. Replaying
+ * an accept of the same proposal returns the SAME assignment — with a different
+ * valid key as well — because a second job for the same proposal is impossible by
+ * construction.
  *
  * The response is the full `TowRequestResponse`: the customer sees the request
  * in its new `ASSIGNED` state, with the frozen final price and an empty
@@ -39,6 +41,7 @@ const {
   buildAssignmentDto,
   assertProposalActionable,
   allowedActionsForRequest,
+  validateIdempotencyKey,
 } = require('../domain');
 
 function createAssignmentService({
@@ -144,11 +147,21 @@ function createAssignmentService({
     return { assignment: row, request: assignedRequest || lockedRequest };
   }
 
-  async function accept({ customerId, proposalId } = {}) {
+  async function accept({ customerId, proposalId, idempotencyKey } = {}) {
     // 1. Module gate FIRST: a disabled module never assigns, and never replays.
     await moduleService.assertNewBusinessAllowed();
 
-    // 2. A non-canonical id can never match a row.
+    // 2. The canonical `Idempotency-Key` header is REQUIRED (8–128 chars). It is
+    //    validated with the SAME domain validator the create paths use — never a
+    //    second length policy — and BEFORE the transaction is opened, so a
+    //    missing or malformed header inserts zero assignment rows and changes no
+    //    proposal state. The key is deliberately NOT the idempotency authority:
+    //    `proposal_id` plus the PostgreSQL unique constraints remain that
+    //    authority, so a replay with a different valid key still returns the SAME
+    //    assignment.
+    validateIdempotencyKey(idempotencyKey);
+
+    // 3. A non-canonical id can never match a row.
     if (!isTowProposalId(proposalId)) throw new TowError('not_found', 'Tow proposal not found');
 
     const now = clock.now();

@@ -459,9 +459,12 @@ describePostgres('MVP-04 PostgreSQL — atomic assignment and concurrency', () =
 
     // Withdrawing the proposal does not free the vehicle: the FK is RESTRICT, not
     // "RESTRICT while ACTIVE", because the price the customer saw is history.
+    // EXT-MVP04-2: the canonical `Idempotency-Key` header is required on withdraw,
+    // so this direct service call supplies one exactly like the HTTP route does.
     const withdrawn = await services.proposalService.withdraw({
       partnerId: partner.partner.id,
       proposalId: proposal.id,
+      idempotencyKey: 'idem-mvp04-pg-c7-withdraw-0001',
     });
     expect(withdrawn.status).toBe('WITHDRAWN');
 

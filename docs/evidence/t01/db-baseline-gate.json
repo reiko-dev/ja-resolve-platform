@@ -21,7 +21,7 @@
   "seed": {
     "created": true,
     "id": 1,
-    "email": "gate-admin-40094656@example.test"
+    "email": "gate-admin-59039520@example.test"
   },
   "report": {
     "tables": [
@@ -100,7 +100,7 @@
     },
     "admin": {
       "id": 1,
-      "email": "gate-admin-40094656@example.test",
+      "email": "gate-admin-59039520@example.test",
       "role": "admin",
       "isActive": true
     },

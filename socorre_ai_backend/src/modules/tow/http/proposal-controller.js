@@ -9,6 +9,11 @@
  *   - the identity is ALWAYS taken from the authenticated context
  *     (`req.user.partner_id` / `req.user.id`) and never from the body or the
  *     query, so no client can propose or accept on behalf of somebody else;
+ *   - the `Idempotency-Key` header is REQUIRED by the canonical contract on
+ *     create, accept and withdraw, and is read here (never from the body) so the
+ *     application layer validates it before any mutation. On accept and withdraw
+ *     it is a CONTRACT requirement, not the idempotency authority: the proposal
+ *     id and the PostgreSQL unique constraints still decide what a replay means;
  *   - the DTOs come from the domain builders (`buildTowProposalDto`,
  *     `buildAssignmentDto`, `buildTowRequestDto`), so `allowed_actions`,
  *     `assignment` and the proposal projection cannot be widened by transport.
@@ -50,6 +55,7 @@ function createProposalController({ proposalService, assignmentService }) {
       const assigned = await assignmentService.accept({
         customerId: req.user.id,
         proposalId: req.params.proposalId,
+        idempotencyKey: req.get('Idempotency-Key'),
       });
       res.json({ success: true, data: assigned });
     }),
@@ -58,6 +64,7 @@ function createProposalController({ proposalService, assignmentService }) {
       const withdrawn = await proposalService.withdraw({
         partnerId: req.user.partner_id,
         proposalId: req.params.proposalId,
+        idempotencyKey: req.get('Idempotency-Key'),
       });
       res.json({ success: true, data: withdrawn });
     }),

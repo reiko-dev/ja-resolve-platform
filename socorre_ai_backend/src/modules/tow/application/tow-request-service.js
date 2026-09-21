@@ -6,6 +6,9 @@
  *   - `getForCustomer`  `GET /tow/requests/{requestId}`  (owner-only)
  *   - `listForCustomer` `GET /tow/requests`  (own history, paginated)
  *
+ * MVP-04 EXT adds the fourth read, the partner mirror of the same authority:
+ *   - `listJobsForPartner` `GET /tow/partner/jobs`  (own jobs, paginated)
+ *
  * Guarantees enforced here:
  *   - the MODULE GATE runs first, before validation, before the idempotent
  *     replay and before any write: a disabled module never persists a request
@@ -174,7 +177,57 @@ function createTowRequestService({
     };
   }
 
-  return { create, getForCustomer, listForCustomer };
+  /**
+   * MVP-04 EXT — `GET /tow/partner/jobs`: the jobs OWNED by the authenticated
+   * partner.
+   *
+   * The authority is exactly the one the customer recovery path reads:
+   * `tow_assignments` decides which jobs exist, and `buildAssignmentDto` renders
+   * the four contract members. The request is projected by the shared
+   * `buildTowRequestDto`, so for the same request the customer and the partner
+   * see the IDENTICAL `partner_id`, `tow_vehicle_id`, `final_price` and
+   * `assigned_at` — there is no second DTO and no second assignment state.
+   *
+   * `partnerId` is always `req.user.partner_id`; it is never read from the query,
+   * the body or the path, so a partner cannot widen the row set.
+   *
+   * Filters, all validated by the shared `validateListQuery`:
+   *   - `state`  → the request state (canonical enum);
+   *   - `page`/`limit` → the module pagination convention (1/20, max 100);
+   *   - `from`/`to` → INCLUSIVE bounds on `assignment.assigned_at`, the only
+   *     timestamp a job owns (documented in the canonical contract, draft.7).
+   */
+  async function listJobsForPartner({ partnerId, query } = {}) {
+    const filters = validateListQuery(query);
+    const settings = await settingsService.get();
+
+    const { rows, total } = await assignmentRepository.listForPartner(partnerId, {
+      limit: filters.limit,
+      offset: filters.offset,
+      state: filters.state,
+      from: filters.from,
+      to: filters.to,
+    });
+
+    const requests = await towRequestRepository.findByIds(rows.map((row) => row.tow_request_id));
+    const requestById = new Map(requests.map((row) => [String(row.id), row]));
+    const liveIds = await liveRequestIds(requests);
+
+    return {
+      items: rows
+        .filter((row) => requestById.has(String(row.tow_request_id)))
+        .map((row) => {
+          const towRequest = requestById.get(String(row.tow_request_id));
+          return toDto(towRequest, settings, {
+            assignment: buildAssignmentDto(row),
+            allowed_actions: actionsFor(towRequest, liveIds),
+          });
+        }),
+      meta: { page: filters.page, limit: filters.limit, total },
+    };
+  }
+
+  return { create, getForCustomer, listForCustomer, listJobsForPartner };
 }
 
 module.exports = { createTowRequestService };

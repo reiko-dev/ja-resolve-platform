@@ -36,6 +36,13 @@ const COLUMNS = Object.freeze([
   'updated_at',
 ]);
 
+/**
+ * The same columns, qualified for the `tow_requests` join used by the partner
+ * job list: both tables own `id`, `created_at` and `updated_at`, so an
+ * unqualified `select(COLUMNS)` would be ambiguous.
+ */
+const JOINED_COLUMNS = Object.freeze(COLUMNS.map((column) => `tow_assignments.${column} as ${column}`));
+
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return null;
   const parsed = Number(value);
@@ -149,6 +156,47 @@ function createAssignmentRepository(db) {
     }
 
     /**
+     * MVP-04 EXT — `GET /tow/partner/jobs`: the jobs OWNED by one partner.
+     *
+     * The row set is driven by `tow_assignments` (the only job/occupancy
+     * authority) and joined to `tow_requests` for the two things the assignment
+     * does not own: the request `state` filter and the request row the shared
+     * `TowRequest` DTO is built from. Nothing about the job is restated here.
+     *
+     * `from`/`to` bound the assignment's own `assigned_at` — the only timestamp
+     * a job has, and the one the canonical operation now documents. Both bounds
+     * are INCLUSIVE and compared in the same instant representation the column is
+     * written in (`toIsoInstant`), so the SQLite TEXT comparison cannot drift by
+     * one row (see `tow-request-repository.js` for the full rationale).
+     *
+     * @returns {Promise<{rows: object[], total: number}>}
+     */
+    async function listForPartner(partnerId, { limit, offset, state = null, from = null, to = null } = {}) {
+      const applyFilters = (query) => {
+        query.where('tow_assignments.partner_id', partnerId);
+        if (state) query.where('tow_requests.state', state);
+        if (from) query.where('tow_assignments.assigned_at', '>=', toIsoInstant(from));
+        if (to) query.where('tow_assignments.assigned_at', '<=', toIsoInstant(to));
+        return query;
+      };
+
+      const joined = () => connection('tow_assignments')
+        .join('tow_requests', 'tow_requests.id', 'tow_assignments.tow_request_id');
+
+      const rows = await applyFilters(joined().select(JOINED_COLUMNS))
+        .orderBy('tow_assignments.assigned_at', 'desc')
+        .orderBy('tow_assignments.id', 'desc')
+        .limit(limit)
+        .offset(offset);
+
+      const counted = await applyFilters(joined())
+        .count({ total: '*' })
+        .first();
+
+      return { rows: rows.map(mapRow), total: toNumber(counted && counted.total) || 0 };
+    }
+
+    /**
      * Inserts the winning assignment.
      *
      * There is no pre-read: the database arbitrates. A pre-read could not, since
@@ -206,6 +254,7 @@ function createAssignmentRepository(db) {
       findByRequestId,
       findByProposalId,
       findByRequestIds,
+      listForPartner,
       withTransaction,
     };
   }
@@ -213,4 +262,4 @@ function createAssignmentRepository(db) {
   return build(db);
 }
 
-module.exports = { createAssignmentRepository, COLUMNS, mapRow, toColumns, violationTarget };
+module.exports = { createAssignmentRepository, COLUMNS, JOINED_COLUMNS, mapRow, toColumns, violationTarget };

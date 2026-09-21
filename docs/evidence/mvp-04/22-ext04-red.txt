@@ -1,0 +1,47 @@
+MVP-04 EXTERNAL CORRECTION PASS — EVIDENCE 22
+RED evidence BEFORE any production correction (EXT-MVP04-1, EXT-MVP04-2)
+Branch: feature/mvp-04-proposals-assignment @ c8a602fd7a8b6c388866f017dfa8e667c6f54078
+Date: 2026-09-21T02:06:21Z
+Probe (temporary, deleted after capture): socorre_ai_backend/tests/tow/mvp04/ext04RedProbe.test.js
+Command: cd socorre_ai_backend && TEST_VERBOSE=1 npx jest tests/tow/mvp04/ext04RedProbe.test.js --runInBand
+================================================================================
+  console.log
+    Rota não encontrada: GET /api/tow/partner/jobs
+
+      at log (src/app.js:166:13)
+
+  console.log
+    RED-EXT04-1 status=404 body={"success":false,"message":"Rota não encontrada no backend da API"}
+
+      at Object.log (tests/tow/mvp04/ext04RedProbe.test.js:79:13)
+
+  console.log
+    RED-EXT04-2A status=200 state=ASSIGNED assignment_rows=1
+
+      at Object.log (tests/tow/mvp04/ext04RedProbe.test.js:94:13)
+
+  console.log
+    RED-EXT04-2B status=200 proposal_status=WITHDRAWN
+
+      at Object.log (tests/tow/mvp04/ext04RedProbe.test.js:108:13)
+
+PASS tests/tow/mvp04/ext04RedProbe.test.js
+  EXT-MVP04 RED probe
+    ✓ RED-EXT04-1 GET /api/tow/partner/jobs is unrouted (404) (37 ms)
+    ✓ RED-EXT04-2A accept without Idempotency-Key still succeeds (27 ms)
+    ✓ RED-EXT04-2B withdraw without Idempotency-Key still succeeds (10 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       3 passed, 3 total
+Snapshots:   0 total
+Time:        1.797 s, estimated 2 s
+Ran all test suites matching /tests\/tow\/mvp04\/ext04RedProbe.test.js/i.
+================================================================================
+RAW PROBE ASSERTIONS (the RED facts):
+  RED-EXT04-1  GET /api/tow/partner/jobs -> HTTP 404 (no route registered at HEAD).
+  RED-EXT04-2A POST /api/tow/proposals/:id/accept WITHOUT Idempotency-Key -> HTTP 200,
+               request state=ASSIGNED, tow_assignments rows=1: the controller ignores
+               the required canonical header and the accept mutates.
+  RED-EXT04-2B POST /api/tow/proposals/:id/withdraw WITHOUT Idempotency-Key -> HTTP 200,
+               proposal status=WITHDRAWN: the controller ignores the required header
+               and the withdraw mutates.

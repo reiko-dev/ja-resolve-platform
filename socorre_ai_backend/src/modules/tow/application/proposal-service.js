@@ -32,6 +32,13 @@
  *     transition is guarded in SQL, so two partners proposing at the same moment
  *     cannot fight over it.
  *
+ * MVP-04 EXT (EXT-MVP04-2): the canonical `Idempotency-Key` header is required on
+ * create AND withdraw and is validated before any read or write. On withdraw the
+ * key is a CONTRACT requirement, not the idempotency authority: the owner's retry
+ * of an already-WITHDRAWN proposal returns the same canonical proposal without a
+ * second mutation, while `ACCEPTED`/`CLOSED` stay 409 `proposal_not_actionable`
+ * and an expired ACTIVE stays 409 `proposal_expired`.
+ *
  * Deliberately out of scope (documented, not invented): a maximum number of
  * proposals per request. No TOW-PROP rule mandates one and no Tow setting
  * defines one, so the module does not impose a limit it cannot configure.
@@ -297,9 +304,15 @@ function createProposalService({
     };
   }
 
-  async function withdraw({ partnerId, proposalId } = {}) {
+  async function withdraw({ partnerId, proposalId, idempotencyKey } = {}) {
     // The module gate is first on every write path, withdraw included.
     await moduleService.assertNewBusinessAllowed();
+
+    // The canonical `Idempotency-Key` header is REQUIRED (8–128 chars) and is
+    // validated with the SAME domain validator the create path uses, BEFORE the
+    // proposal is even read. A missing or malformed header therefore never
+    // mutates, on every path below: replay, foreign, ACCEPTED, CLOSED, expired.
+    validateIdempotencyKey(idempotencyKey);
 
     if (!isTowProposalId(proposalId)) throw new TowError('not_found', 'Tow proposal not found');
     const proposal = await towProposalRepository.findById(proposalId);
@@ -307,6 +320,13 @@ function createProposalService({
     if (String(proposal.partner_id) !== String(partnerId)) {
       throw new TowError('forbidden', 'This tow proposal belongs to another partner');
     }
+
+    // EXT-MVP04-2 — the smallest truthful replay: the OWNER re-sending a withdraw
+    // for an already-WITHDRAWN proposal gets the same canonical withdrawn
+    // proposal and NO second mutation. It is checked after ownership (a foreign
+    // partner still gets 403) and before the action-time guard (a withdrawn
+    // proposal is not actionable by definition).
+    if (proposal.status === 'WITHDRAWN') return buildTowProposalDto(proposal);
 
     const now = clock.now();
     assertProposalActionable(proposal, now);

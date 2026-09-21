@@ -39,6 +39,20 @@ function createTowRequestController({ towRequestService }) {
       });
       res.json({ success: true, data: result });
     }),
+
+    /**
+     * MVP-04 EXT — `GET /tow/partner/jobs` (canonical `listPartnerTowJobs`).
+     *
+     * The partner identity is EXCLUSIVELY the authenticated context: no query,
+     * body or path field can select another partner's jobs.
+     */
+    listJobsForPartner: handle(async (req, res) => {
+      const result = await towRequestService.listJobsForPartner({
+        partnerId: req.user.partner_id,
+        query: req.query,
+      });
+      res.json({ success: true, data: result });
+    }),
   };
 }
 

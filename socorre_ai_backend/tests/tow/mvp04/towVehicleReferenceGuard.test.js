@@ -135,6 +135,9 @@ describe('MVP-04 — a referenced TowVehicle is not erasable', () => {
     await services.proposalService.withdraw({
       partnerId: partners[0].partner.id,
       proposalId: created.id,
+      // EXT-MVP04-2: the canonical Idempotency-Key header is required on
+      // withdraw; the direct application call supplies it explicitly.
+      idempotencyKey: 'idem-mvp04-veh-wdr-0001',
     });
     const row = await testDb.db('tow_request_proposals').where({ id: created.id }).first();
     expect(row.status).toBe('WITHDRAWN');

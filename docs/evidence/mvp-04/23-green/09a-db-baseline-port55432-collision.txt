@@ -1,0 +1,34 @@
+### npm run test:db-baseline
+$ npm run test:db-baseline
+
+> socorre-ai-backend@1.0.0 test:db-baseline
+> node scripts/tow/run-db-baseline-gate.js
+
+[db-gate] compose project: socorre-tow-test-55432-cb0d0933
+[db-gate] stage 1/9: guard + container up (previous environment destroyed first)
+PostgreSQL test environment destroyed (containers, volumes, network)
+ Network socorre-tow-test-55432-cb0d0933_tow-test-net Creating 
+ Network socorre-tow-test-55432-cb0d0933_tow-test-net Creating 
+ Network socorre-tow-test-55432-cb0d0933_tow-test-net Created 
+ Network socorre-tow-test-55432-cb0d0933_tow-test-net Created 
+ Container socorre-tow-test-55432-cb0d0933-tow-postgres-test-1 Creating 
+ Container socorre-tow-test-55432-cb0d0933-tow-postgres-test-1 Created 
+ Container socorre-tow-test-55432-cb0d0933-tow-postgres-test-1 Starting 
+Error response from daemon: failed to set up container networking: driver failed programming external connectivity on endpoint socorre-tow-test-55432-cb0d0933-tow-postgres-test-1 (efe0c3784ff00714f6e9d31855abbabca69bee5191ac0f69a7825920e1cacb7d): Bind for 0.0.0.0:55432 failed: port is already allocated
+ Container socorre-tow-test-55432-cb0d0933-tow-postgres-test-1 Stopping 
+ Container socorre-tow-test-55432-cb0d0933-tow-postgres-test-1 Stopped 
+ Container socorre-tow-test-55432-cb0d0933-tow-postgres-test-1 Removing 
+ Container socorre-tow-test-55432-cb0d0933-tow-postgres-test-1 Removed 
+ Network socorre-tow-test-55432-cb0d0933_tow-test-net Removing 
+ Network socorre-tow-test-55432-cb0d0933_tow-test-net Removed 
+PostgreSQL test environment destroyed (containers, volumes, network)
+[db-gate] RED — command failed (1): docker compose -p socorre-tow-test-55432-cb0d0933 -f /Volumes/Reiko/projects/work/socorre-system/socorre_ai_backend/docker-compose.test.yml up -d --wait --wait-timeout 90
+npm error Lifecycle script `test:db-baseline` failed with error:
+npm error code 1
+npm error path /Volumes/Reiko/projects/work/socorre-system/socorre_ai_backend
+npm error workspace socorre-ai-backend@1.0.0
+npm error location /Volumes/Reiko/projects/work/socorre-system/socorre_ai_backend
+npm error command failed
+npm error command sh -c node scripts/tow/run-db-baseline-gate.js
+
+exit=1

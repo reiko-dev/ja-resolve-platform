@@ -11,7 +11,8 @@
  *
  * It also proves the CONTRACT_CONFLICT-2 revision is real: the new
  * `proposal_already_active` code is in the enum the runtime emits and in
- * `CANONICAL_ERROR_CODES`, and the version pin moved to draft.6.
+ * `CANONICAL_ERROR_CODES`. The version pin tracks the current canonical revision
+ * (draft.7, the EXT-MVP04-3 operation-level pass).
  *
  * Hermetic and offline: SQLite test harness, fake clock, fake route provider.
  */
@@ -111,7 +112,7 @@ describe('MVP-04 — live proposal lifecycle conforms to the canonical OpenAPI c
     expect(typeof validateProposalList).toBe('function');
     expect(typeof validateRequestResponse).toBe('function');
     expect(typeof validateError).toBe('function');
-    expect(composed.info.version).toBe('1.0.0-draft.6');
+    expect(composed.info.version).toBe('1.0.0-draft.7');
   });
 
   test('the ACTUAL 201 create body validates against TowProposalResponse', async () => {
@@ -232,7 +233,7 @@ describe('MVP-04 — live proposal lifecycle conforms to the canonical OpenAPI c
     expect(validateError(missing.body)).toBe(true);
   });
 
-  test('proposal_already_active is part of the canonical error vocabulary (draft.6)', () => {
+  test('proposal_already_active is part of the canonical error vocabulary (draft.6, still frozen in draft.7)', () => {
     expect(CANONICAL_ERROR_CODES).toContain('proposal_already_active');
     const enumValues = documents.canonical.components.schemas.ErrorResponse
       .properties.error.properties.code.enum;

@@ -153,6 +153,18 @@ function createTowRequestRepository(db) {
       return mapRow(await base().where({ id, customer_id: customerId }).first());
     }
 
+    /**
+     * MVP-04 EXT — batch read for the partner job list: the assignments are
+     * paginated first (they are the job authority), then their requests are
+     * loaded in ONE query instead of one per row.
+     */
+    async function findByIds(ids) {
+      const list = Array.isArray(ids) ? ids.filter((id) => id !== null && id !== undefined) : [];
+      if (list.length === 0) return [];
+      const rows = await base().whereIn('id', list);
+      return rows.map(mapRow);
+    }
+
     function applyFilters(query, { state, from, to } = {}) {
       if (state) query.where({ state });
       // The window must be bound in the SAME representation the rows are written
@@ -289,6 +301,7 @@ function createTowRequestRepository(db) {
       createIdempotent,
       findById,
       findByIdForCustomer,
+      findByIds,
       findByCustomerAndKey,
       listForCustomer,
       listSearchingCandidates,
