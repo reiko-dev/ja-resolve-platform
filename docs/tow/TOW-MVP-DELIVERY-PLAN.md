@@ -512,8 +512,8 @@ MVP-01 / #13                           ACCEPTED ✅
 MVP-02 / #14                           ACCEPTED ✅
 MVP-03 / #15                           ACCEPTED ✅
 MVP-04 / #16                           ACCEPTED ✅
-MVP-05 / #17                           READY / current delivery
-MVP-06 / #18                           BLOCKED by MVP-05
+MVP-05 / #17                           ACCEPTED ✅
+MVP-06 / #18                           READY / current delivery
 Phase 2 / #33                          DEFERRED
 ```
 
@@ -523,14 +523,16 @@ Accepted implementation baseline:
 main @ f100bea9b79536dbe06e5032c451271b5f614f9c   # MVP-03 accepted (PR #37, receipt #5752423773)
 main @ 7ad3e56bab9bfc839dca88dc2832e425383b7741   # MVP-03 acceptance bookkeeping = MVP-04 dispatch base
 main @ c7d1e8e78778cd39c116a64a543e9d41718ebbc2   # MVP-04 accepted (PR #38, receipt #5755286376)
+main @ 1d9f04bf26ffb0d51af99d2d59b162712f1ffd45   # MVP-05 accepted (PR #39, receipt #5759825979)
 ```
 
 Next executable work:
 
 ```text
-MVP-05 — Service Execution, Live Tracking & Basic Cancellation
-Issue #17
-base: main @ c7d1e8e78778cd39c116a64a543e9d41718ebbc2 (MVP-04 accepted main;
-      the bookkeeping commit that carries this line is the effective dispatch base)
-branch: (to be created when MVP-05 is dispatched)
+MVP-06 — CASH Payment & Lean End-to-End Ready Gate
+Issue #18
+base: main @ 1d9f04bf26ffb0d51af99d2d59b162712f1ffd45 (MVP-05 accepted main;
+      the MVP-05 acceptance bookkeeping commit that carries this line is the
+      effective dispatch base, recorded as MVP06_EXECUTION_BASE)
+branch: feature/mvp-06-cash-readiness
 ```

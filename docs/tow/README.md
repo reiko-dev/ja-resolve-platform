@@ -193,10 +193,13 @@ This remains the production-hardening/full-contract milestone.
 ## Current next task
 
 ```text
-MVP-01 — Tow Foundation
-Issue #13
+MVP-06 — CASH Payment & Lean End-to-End Ready Gate
+Issue #18
 READY
-base: main @ f31962fdd0175303646a34c9d170032bc6a06601
+base: MVP05_ACCEPTED_MAIN @ 1d9f04bf26ffb0d51af99d2d59b162712f1ffd45
+      (the MVP-05 acceptance bookkeeping commit that carries this line is the
+      effective MVP06_EXECUTION_BASE)
+branch: feature/mvp-06-cash-readiness
 ```
 
 #31 remains deferred for dev/test functional work and must be resolved before production security sign-off/go-live.
