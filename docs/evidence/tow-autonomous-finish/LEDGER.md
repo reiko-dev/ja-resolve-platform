@@ -8,10 +8,10 @@ Updated after every major phase. Never presents local evidence as GitHub Actions
 ## Ledger
 
 ```text
-CURRENT_PHASE          = MVP-06 ACCEPTED — Tow MVP Phase 1 COMPLETE
-CURRENT_SHA            = c5ca8cc112f39ca8b1d0952b7c1a9305619f24b4 (MVP06_ACCEPTED_MAIN)
+CURRENT_PHASE          = Tow MVP Phase 1 COMPLETE — MVP-06 ACCEPTED, final bookkeeping done
+CURRENT_SHA            = the docs-only commit that carries this line is TOW_MVP_FINAL_MAIN
 CURRENT_PR             = MVP-06 #40 MERGED; MVP-05 #39 MERGED
-LAST_COMPLETED_GATE    = post-merge acceptance from merged main + MVP06_ACCEPTED receipt
+LAST_COMPLETED_GATE    = post-merge acceptance from merged main + MVP06_ACCEPTED receipt + bookkeeping
 NEXT_ACTION            = none in Phase 1; #33 and #31 require a new explicit decision
 BLOCKERS               = none
 DECLARATION            = TOW MVP BACKEND READY FOR INTEGRATION (MVP subset only)
