@@ -8,12 +8,14 @@ Updated after every major phase. Never presents local evidence as GitHub Actions
 ## Ledger
 
 ```text
-CURRENT_PHASE          = PHASE D/E — MVP-06 implemented, full regression GREEN, Muse review pending
-CURRENT_SHA            = feature/mvp-06-cash-readiness (uncommitted working tree at first commit)
+CURRENT_PHASE          = PAUSED AT HANDOFF — MVP-06 implemented, corrected and green; PR not yet opened
+CURRENT_SHA            = 74ab62e3d5da36db6c4bd4bd10f6f6ef4da50ffa (feature/mvp-06-cash-readiness)
 CURRENT_PR             = MVP-05 #39 MERGED; MVP-06 PR not yet opened
-LAST_COMPLETED_GATE    = S01–S20 GREEN, F1–F6 PG GREEN, negative controls RED→GREEN, full Jest 1666 passed
-NEXT_ACTION            = commit, run verify:tow, freeze functional head, fresh Muse review
-BLOCKERS               = none
+LAST_COMPLETED_GATE    = corrections applied (M6-01 savepoint, M6-02 note) + full regression GREEN
+NEXT_ACTION            = fresh adversarial review R2 on 74ab62e3, then open the MVP-06 PR
+BLOCKERS               = none (Muse Sparks tooling unavailable: adversarial review runs as a disclosed
+                         fresh-context subagent substitute; Hermes is forbidden and unused)
+HANDOFF                = docs/evidence/mvp-06/29-session-handoff.md
 ```
 
 ## Immutable records
@@ -42,8 +44,9 @@ MVP05_ACCEPTED_MAIN    = 1d9f04bf26ffb0d51af99d2d59b162712f1ffd45
 MVP05_BOOKKEEPING      = dbb7cef5bb110de16450d70441ea733f40fb31a6
 MVP06_EXECUTION_BASE   = dbb7cef5bb110de16450d70441ea733f40fb31a6
 MVP06_BRANCH           = feature/mvp-06-cash-readiness
-MVP06_FUNCTIONAL_HEAD  = pending
-MVP06_MUSE_REVIEWED    = pending
+MVP06_FUNCTIONAL_HEAD  = f8dd9a08101514e307a9b889dcc852609f2c6c68 (reviewed by R1)
+MVP06_CORRECTION_HEAD  = 74ab62e3d5da36db6c4bd4bd10f6f6ef4da50ffa (current, review R2 pending)
+MVP06_MUSE_REVIEWED    = f8dd9a08 (internal fresh-context review R1, APPROVE; Muse tooling unavailable)
 MVP06_APPROVED_HEAD    = pending
 MVP06_MERGE_SHA        = pending
 ```
