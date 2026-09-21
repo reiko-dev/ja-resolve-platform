@@ -2,14 +2,14 @@
   "project": "socorre-tow-test-55434-cb0d0933",
   "target": "postgresql://tow_test@127.0.0.1:55434/socorre_ai_tow_test (purpose: test)",
   "run1": {
-    "fingerprint": "2d51315075542832bbc4d5effa78ae83be05fc51f342cc0b0a7cc9ba78b35834",
-    "tables": 36,
-    "rows": 34
+    "fingerprint": "a5605ba9d71f214fb9b289e4d57001099119a2052a2ff5d4d67d66500446e999",
+    "tables": 37,
+    "rows": 35
   },
   "run2": {
-    "fingerprint": "2d51315075542832bbc4d5effa78ae83be05fc51f342cc0b0a7cc9ba78b35834",
-    "tables": 36,
-    "rows": 34
+    "fingerprint": "a5605ba9d71f214fb9b289e4d57001099119a2052a2ff5d4d67d66500446e999",
+    "tables": 37,
+    "rows": 35
   },
   "migrations": [
     "001_baseline_schema.js",
@@ -17,12 +17,13 @@
     "003_mvp01_tow_foundation.js",
     "004_mvp03_tow_requests.js",
     "005_mvp04_proposals_assignments.js",
-    "006_mvp05_service_execution_tracking.js"
+    "006_mvp05_service_execution_tracking.js",
+    "007_mvp06_cash_payment.js"
   ],
   "seed": {
     "created": true,
     "id": 1,
-    "email": "gate-admin-70271725@example.test"
+    "email": "gate-admin-92335942@example.test"
   },
   "report": {
     "tables": [
@@ -52,6 +53,7 @@
       "subscriptions",
       "system_settings",
       "tow_assignments",
+      "tow_payments",
       "tow_proposals",
       "tow_request_proposals",
       "tow_request_tracking",
@@ -71,7 +73,7 @@
       "delivery_orders": 0,
       "disputes": 0,
       "emergency_requests": 0,
-      "knex_migrations": 6,
+      "knex_migrations": 7,
       "knex_migrations_lock": 1,
       "mechanics": 0,
       "notifications": 0,
@@ -90,6 +92,7 @@
       "subscriptions": 0,
       "system_settings": 25,
       "tow_assignments": 0,
+      "tow_payments": 0,
       "tow_proposals": 0,
       "tow_request_proposals": 0,
       "tow_request_tracking": 0,
@@ -103,7 +106,7 @@
     },
     "admin": {
       "id": 1,
-      "email": "gate-admin-70271725@example.test",
+      "email": "gate-admin-92335942@example.test",
       "role": "admin",
       "isActive": true
     },
@@ -137,6 +140,6 @@
         "tow_price_per_km"
       ]
     },
-    "totalRows": 34
+    "totalRows": 35
   }
 }

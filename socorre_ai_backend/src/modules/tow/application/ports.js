@@ -74,6 +74,19 @@
  * @property {(requestIds: Array<number|string>) => Promise<object[]>} findByRequestIds
  * @property {(trx: object) => object} withTransaction
  *
+ * MVP-06 — the canonical CASH payment store, and the ONLY writer of
+ * `tow_payments`. `createForAssignment` lets the database decide uniqueness;
+ * `markReceived` is the guarded `PENDING -> RECEIVED` transition that makes a
+ * retry unable to restamp `received_at`.
+ *
+ * @typedef {Object} TowPaymentRepository
+ * @property {(towRequestId: number|string) => Promise<object|null>} findByRequestId
+ * @property {(towRequestIds: Array<number|string>) => Promise<object[]>} findByRequestIds
+ * @property {(assignmentId: number|string) => Promise<object|null>} findByAssignmentId
+ * @property {(record: object) => Promise<{ row: object|null, conflict: 'request'|'assignment'|null }>} createForAssignment
+ * @property {(towRequestId: number|string, args: { receivedAt: Date|string, receivedByPartnerId: number|string, updatedAt?: Date|string }) => Promise<{ row: object|null, transitioned: boolean }>} markReceived
+ * @property {(trx: object) => object} withTransaction
+ *
  * MVP-04 — the transaction boundary.
  *
  * The application layer decides WHAT must be atomic; the adapter decides how the
@@ -126,6 +139,7 @@ const PORT_NAMES = Object.freeze([
   'TowRequestRepository',
   'TowProposalRepository',
   'AssignmentRepository',
+  'TowPaymentRepository',
   'UnitOfWork',
   'FileStorage',
   'Clock',

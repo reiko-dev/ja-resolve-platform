@@ -262,8 +262,12 @@ describe('MVP-03 ARCH — scope discipline', () => {
     // a canonical table of this module. `tow_proposals` (the LEGACY table, keyed
     // by `emergency_requests`) stays banned, and the pattern is anchored on the
     // quotes so the canonical `tow_request_proposals` does not match it.
+    // `tow_payments` was removed when MVP-06 landed: it is now a canonical table
+    // of this module, asserted positively in
+    // `tests/tow/mvp06/towMvp06Architecture.test.js`, which carries the bans for
+    // everything still unimplemented.
     const offenders = ALL_TOW_SRC_FILES
-      .filter((file) => /['"](tow_proposals|tow_payments|tow_audit_events|tow_request_snapshots)['"]/.test(readCode(file)))
+      .filter((file) => /['"](tow_proposals|tow_audit_events|tow_request_snapshots)['"]/.test(readCode(file)))
       .map(relative);
     expect(offenders).toEqual([]);
   });

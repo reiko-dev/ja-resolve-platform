@@ -47,6 +47,7 @@ const {
   allowedActionsForRequest,
 } = require('../domain');
 const { validateListQuery } = require('./list-query');
+const { paymentSummaryFor, paymentSummariesFor } = require('./payment-summary');
 
 function createTowRequestService({
   moduleService,
@@ -54,6 +55,7 @@ function createTowRequestService({
   towRequestRepository,
   towProposalRepository = null,
   assignmentRepository = null,
+  paymentRepository = null,
   clock,
 }) {
   if (!moduleService) throw new TypeError('createTowRequestService requires a moduleService');
@@ -66,6 +68,7 @@ function createTowRequestService({
       max_radius_km: settings.tow_max_radius_km,
       assignment: extras.assignment ?? null,
       allowed_actions: extras.allowed_actions ?? [],
+      payment: extras.payment ?? null,
     });
   }
 
@@ -130,7 +133,16 @@ function createTowRequestService({
       );
     }
 
-    return toDto(row, settings);
+    // MVP-06: a replay is a READ of the same canonical row. If the request has
+    // since been assigned and/or paid, the response must project exactly what
+    // the recovery endpoints project — never a stale empty assignment/payment.
+    const assignment = assignmentRepository
+      ? await assignmentRepository.findByRequestId(row.id)
+      : null;
+    return toDto(row, settings, {
+      assignment: assignment ? buildAssignmentDto(assignment) : null,
+      payment: await paymentSummaryFor(paymentRepository, row.id),
+    });
   }
 
   async function getForCustomer({ customerId, requestId } = {}) {
@@ -151,6 +163,7 @@ function createTowRequestService({
       return toDto(own, settings, {
         assignment: assignment ? buildAssignmentDto(assignment) : null,
         allowed_actions: actionsFor(own, liveIds),
+        payment: await paymentSummaryFor(paymentRepository, own.id),
       });
     }
 
@@ -177,6 +190,7 @@ function createTowRequestService({
       ? await assignmentRepository.findByRequestIds(rows.map((row) => row.id))
       : [];
     const assignmentByRequest = new Map(assignments.map((row) => [String(row.tow_request_id), row]));
+    const payments = await paymentSummariesFor(paymentRepository, rows.map((row) => row.id));
     const liveIds = await liveRequestIds(rows);
 
     return {
@@ -185,6 +199,7 @@ function createTowRequestService({
           ? buildAssignmentDto(assignmentByRequest.get(String(row.id)))
           : null,
         allowed_actions: actionsFor(row, liveIds),
+        payment: payments.get(String(row.id)) ?? null,
       })),
       meta: { page: filters.page, limit: filters.limit, total },
     };
@@ -224,6 +239,7 @@ function createTowRequestService({
 
     const requests = await towRequestRepository.findByIds(rows.map((row) => row.tow_request_id));
     const requestById = new Map(requests.map((row) => [String(row.id), row]));
+    const payments = await paymentSummariesFor(paymentRepository, requests.map((row) => row.id));
     const liveIds = await liveRequestIds(requests);
 
     return {
@@ -234,6 +250,7 @@ function createTowRequestService({
           return toDto(towRequest, settings, {
             assignment: buildAssignmentDto(row),
             allowed_actions: actionsFor(towRequest, liveIds, 'partner'),
+            payment: payments.get(String(towRequest.id)) ?? null,
           });
         }),
       meta: { page: filters.page, limit: filters.limit, total },

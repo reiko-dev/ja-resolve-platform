@@ -52,6 +52,7 @@ const {
   TRANSITION_OUTCOMES,
 } = require('../domain');
 const { lockRequestForCustomer, lockJobForPartner } = require('./job-lock');
+const { paymentSummaryFor } = require('./payment-summary');
 
 const CANCELLED = 'CANCELLED';
 
@@ -59,6 +60,7 @@ function createCancellationService({
   settingsService,
   towRequestRepository,
   assignmentRepository,
+  paymentRepository = null,
   unitOfWork,
   clock,
 }) {
@@ -133,6 +135,7 @@ function createCancellationService({
       request: buildTowRequestDto(outcome.request, {
         max_radius_km: settings.tow_max_radius_km,
         assignment: outcome.assignment ? buildAssignmentDto(outcome.assignment) : null,
+        payment: await paymentSummaryFor(paymentRepository, outcome.request.id),
         allowed_actions: allowedActionsForRequest({
           state: outcome.request.state,
           has_live_proposal: false,

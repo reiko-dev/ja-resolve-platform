@@ -60,6 +60,7 @@ const REQUIRED_TABLES = [
   'subscriptions',
   'system_settings',
   'tow_assignments',
+  'tow_payments',
   'tow_proposals',
   'tow_request_proposals',
   'tow_request_tracking',

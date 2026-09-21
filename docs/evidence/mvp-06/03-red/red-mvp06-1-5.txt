@@ -1,0 +1,529 @@
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/1/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/proposals/1/accept HTTP/1.1" 200 1047 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/1/en-route HTTP/1.1" 200 1062 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/1/arrived HTTP/1.1" 200 1065 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/1/in-transit HTTP/1.1" 200 1057 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/1/finish HTTP/1.1" 200 1040 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/1/cash-received HTTP/1.1" 404 68 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/2/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/proposals/2/accept HTTP/1.1" 200 1047 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/2/cash-received HTTP/1.1" 404 68 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/3/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/proposals/3/accept HTTP/1.1" 200 1047 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/3/en-route HTTP/1.1" 200 1062 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/3/arrived HTTP/1.1" 200 1065 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/3/in-transit HTTP/1.1" 200 1057 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/3/finish HTTP/1.1" 200 1040 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/3/cash-received HTTP/1.1" 404 68 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/4/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/proposals/4/accept HTTP/1.1" 200 1048 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/4/en-route HTTP/1.1" 200 1063 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/4/arrived HTTP/1.1" 200 1066 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/4/in-transit HTTP/1.1" 200 1058 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/4/finish HTTP/1.1" 200 1041 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/4/cash-received HTTP/1.1" 404 68 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/5/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/proposals/5/accept HTTP/1.1" 200 1048 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/5/en-route HTTP/1.1" 200 1063 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/5/arrived HTTP/1.1" 200 1066 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/5/in-transit HTTP/1.1" 200 1058 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/5/finish HTTP/1.1" 200 1041 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/5/cash-received HTTP/1.1" 404 68 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/6/proposals HTTP/1.1" 201 750 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/proposals/6/accept HTTP/1.1" 200 1050 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/6/en-route HTTP/1.1" 200 1065 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/6/arrived HTTP/1.1" 200 1068 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/6/in-transit HTTP/1.1" 200 1060 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/6/finish HTTP/1.1" 200 1043 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/6/cash-received HTTP/1.1" 404 68 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/7/proposals HTTP/1.1" 201 750 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/proposals/7/accept HTTP/1.1" 200 1050 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/7/en-route HTTP/1.1" 200 1065 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/7/arrived HTTP/1.1" 200 1068 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/7/in-transit HTTP/1.1" 200 1060 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/7/finish HTTP/1.1" 200 1043 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/7/cash-received HTTP/1.1" 404 68 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/8/proposals HTTP/1.1" 201 750 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/proposals/8/accept HTTP/1.1" 200 1050 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/8/en-route HTTP/1.1" 200 1065 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/8/arrived HTTP/1.1" 200 1068 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/8/in-transit HTTP/1.1" 200 1060 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/8/finish HTTP/1.1" 200 1043 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/99999999/cash-received HTTP/1.1" 404 68 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/not-an-id/cash-received HTTP/1.1" 404 68 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/9/proposals HTTP/1.1" 201 750 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/proposals/9/accept HTTP/1.1" 200 1050 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/9/en-route HTTP/1.1" 200 1065 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/9/arrived HTTP/1.1" 200 1068 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/9/in-transit HTTP/1.1" 200 1060 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/9/finish HTTP/1.1" 200 1043 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/9/cash-received HTTP/1.1" 404 68 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "GET /api/tow/requests/9/payment HTTP/1.1" 404 68 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/10/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/proposals/10/accept HTTP/1.1" 200 1052 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/10/en-route HTTP/1.1" 200 1067 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/10/arrived HTTP/1.1" 200 1070 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/10/in-transit HTTP/1.1" 200 1062 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/10/finish HTTP/1.1" 200 1045 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/10/cash-received HTTP/1.1" 404 68 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "GET /api/tow/requests/10/payment HTTP/1.1" 404 68 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/11/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/proposals/11/accept HTTP/1.1" 200 1052 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "PUT /api/tow/requests/11/payment-method HTTP/1.1" 404 68 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/12/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/proposals/12/accept HTTP/1.1" 200 1052 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "GET /api/tow/requests/12/payment HTTP/1.1" 404 68 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/13/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/proposals/13/accept HTTP/1.1" 200 1052 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/13/en-route HTTP/1.1" 200 1067 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/13/arrived HTTP/1.1" 200 1070 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/13/in-transit HTTP/1.1" 200 1062 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/13/finish HTTP/1.1" 200 1045 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/13/cash-received HTTP/1.1" 404 68 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "GET /api/tow/partner/jobs HTTP/1.1" 200 1096 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/14/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/proposals/14/accept HTTP/1.1" 200 1052 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/14/en-route HTTP/1.1" 200 1067 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/14/arrived HTTP/1.1" 200 1070 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/14/in-transit HTTP/1.1" 200 1062 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/14/finish HTTP/1.1" 200 1045 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/14/cash-received HTTP/1.1" 404 68 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/15/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/proposals/15/accept HTTP/1.1" 200 1052 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/15/en-route HTTP/1.1" 200 1067 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/15/arrived HTTP/1.1" 200 1070 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/15/in-transit HTTP/1.1" 200 1062 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/15/finish HTTP/1.1" 200 1045 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/15/cash-received HTTP/1.1" 404 68 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/15/cash-received HTTP/1.1" 404 68 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/16/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/proposals/16/accept HTTP/1.1" 200 1052 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "PUT /api/tow/requests/16/payment-method HTTP/1.1" 404 68 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "PUT /api/tow/requests/16/payment-method HTTP/1.1" 404 68 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/17/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/proposals/17/accept HTTP/1.1" 200 1052 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "PUT /api/tow/requests/17/payment-method HTTP/1.1" 404 68 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/18/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/proposals/18/accept HTTP/1.1" 200 1052 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "PUT /api/tow/requests/18/payment-method HTTP/1.1" 404 68 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/19/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/proposals/19/accept HTTP/1.1" 200 1052 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/19/en-route HTTP/1.1" 200 1067 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "PUT /api/tow/requests/19/payment-method HTTP/1.1" 404 68 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/20/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/proposals/20/accept HTTP/1.1" 200 1052 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/20/en-route HTTP/1.1" 200 1067 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/20/arrived HTTP/1.1" 200 1070 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/20/in-transit HTTP/1.1" 200 1062 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/20/finish HTTP/1.1" 200 1045 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/21/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/proposals/21/accept HTTP/1.1" 200 1052 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "PUT /api/tow/requests/21/payment-method HTTP/1.1" 404 68 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/21/cancel HTTP/1.1" 200 1164 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/21/cash-received HTTP/1.1" 404 68 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/22/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/proposals/22/accept HTTP/1.1" 200 1052 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/22/en-route HTTP/1.1" 200 1067 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:41 +0000] "POST /api/tow/requests/22/arrived HTTP/1.1" 200 1070 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:42 +0000] "POST /api/tow/requests/22/in-transit HTTP/1.1" 200 1062 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:42 +0000] "POST /api/tow/requests/22/finish HTTP/1.1" 200 1045 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:42 +0000] "POST /api/tow/requests/22/cash-received HTTP/1.1" 404 68 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:11:43:42 +0000] "GET /api/tow/requests/22/payment HTTP/1.1" 404 68 "-" "-"
+FAIL tests/tow/mvp06/towMvp06CashPayment.test.js
+  MVP-06 — CASH payment
+    RED-MVP06-1 — cash confirmation endpoint
+      ✕ the assigned partner confirms cash on a COMPLETED tow and gets the receipt (60 ms)
+      ✕ the confirmation is rejected while the tow is not COMPLETED (17 ms)
+    RED-MVP06-2 — canonical cash authority
+      ✕ exactly one payment row exists, frozen at the assignment final price (39 ms)
+      ✕ a client-supplied amount is rejected and never becomes authority (28 ms)
+    RED-MVP06-3 — authz
+      ✕ another partner cannot confirm cash (25 ms)
+      ✕ the customer cannot confirm cash (19 ms)
+      ✕ an anonymous caller is rejected (20 ms)
+      ✓ an unknown request is 404 and a non-canonical id is 404 (20 ms)
+      ✕ the customer can read their own payment and a foreign customer cannot (25 ms)
+    RED-MVP06-4 — amount rehydration
+      ✕ the payment endpoint rehydrates the accepted amount, not a recalculation (29 ms)
+      ✕ TowRequest.payment is truthful after the customer selects cash (12 ms)
+      ✕ a request with no payment reports NOT_SELECTED with a null amount (12 ms)
+      ✕ the assigned partner recovers the cash state through the job list (34 ms)
+    RED-MVP06-5 — retry semantics
+      ✕ the same key retried returns the same payment and never restamps received_at (62 ms)
+      ✕ a DIFFERENT valid key still returns the same canonical payment (40 ms)
+      ✕ selecting cash twice is idempotent and never duplicates the row (15 ms)
+    payment method selection
+      ✕ card and pix are not implemented in the MVP subset (14 ms)
+      ✕ a foreign customer cannot select the method and an anonymous caller is rejected (12 ms)
+      ✕ cash can be selected while the job is in progress, before COMPLETED (12 ms)
+      ✕ cash cannot be selected before any assignment exists (17 ms)
+    terminal states
+      ✕ a cancelled tow can never receive cash (28 ms)
+      ✕ a completed tow keeps its historical payment readable after release (31 ms)
+
+  ● MVP-06 — CASH payment › RED-MVP06-1 — cash confirmation endpoint › the assigned partner confirms cash on a COMPLETED tow and gets the receipt
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 404
+
+      93 |       const response = await cashReceived(app, fixture.request.id, fixture.auths[0]);
+      94 |
+    > 95 |       expect(response.status).toBe(200);
+         |                               ^
+      96 |       expect(response.body.success).toBe(true);
+      97 |       expect(response.body.data).toMatchObject({
+      98 |         request_id: String(fixture.request.id),
+
+      at Object.toBe (tests/tow/mvp06/towMvp06CashPayment.test.js:95:31)
+
+  ● MVP-06 — CASH payment › RED-MVP06-1 — cash confirmation endpoint › the confirmation is rejected while the tow is not COMPLETED
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 409
+    Received: 404
+
+      109 |
+      110 |       const response = await cashReceived(app, fixture.request.id, fixture.auths[0]);
+    > 111 |       expect(response.status).toBe(409);
+          |                               ^
+      112 |       expect(response.body.error.code).toBe('invalid_tow_state');
+      113 |
+      114 |       const row = await paymentRow(testDb.db, fixture.request.id);
+
+      at Object.toBe (tests/tow/mvp06/towMvp06CashPayment.test.js:111:31)
+
+  ● MVP-06 — CASH payment › RED-MVP06-2 — canonical cash authority › exactly one payment row exists, frozen at the assignment final price
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 404
+
+      123 |
+      124 |       const response = await cashReceived(app, fixture.request.id, fixture.auths[0]);
+    > 125 |       expect(response.status).toBe(200);
+          |                               ^
+      126 |
+      127 |       const rows = await paymentRows(testDb.db, fixture.request.id);
+      128 |       expect(rows).toHaveLength(1);
+
+      at Object.toBe (tests/tow/mvp06/towMvp06CashPayment.test.js:125:31)
+
+  ● MVP-06 — CASH payment › RED-MVP06-2 — canonical cash authority › a client-supplied amount is rejected and never becomes authority
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 422
+    Received: 404
+
+      145 |       });
+      146 |
+    > 147 |       expect(response.status).toBe(422);
+          |                               ^
+      148 |       expect(response.body.error.code).toBe('validation_error');
+      149 |       const row = await paymentRow(testDb.db, fixture.request.id);
+      150 |       expect(row ?? null).toBeNull();
+
+      at Object.toBe (tests/tow/mvp06/towMvp06CashPayment.test.js:147:31)
+
+  ● MVP-06 — CASH payment › RED-MVP06-3 — authz › another partner cannot confirm cash
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 403
+    Received: 404
+
+      157 |       const response = await cashReceived(app, fixture.request.id, fixture.auths[1]);
+      158 |
+    > 159 |       expect(response.status).toBe(403);
+          |                               ^
+      160 |       expect(response.body.error.code).toBe('not_assigned_partner');
+      161 |       expect(await paymentRow(testDb.db, fixture.request.id)).toBeUndefined();
+      162 |     });
+
+      at Object.toBe (tests/tow/mvp06/towMvp06CashPayment.test.js:159:31)
+
+  ● MVP-06 — CASH payment › RED-MVP06-3 — authz › the customer cannot confirm cash
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 403
+    Received: 404
+
+      166 |       const response = await cashReceived(app, fixture.request.id, fixture.customerAuth);
+      167 |
+    > 168 |       expect(response.status).toBe(403);
+          |                               ^
+      169 |       expect(await paymentRow(testDb.db, fixture.request.id)).toBeUndefined();
+      170 |     });
+      171 |
+
+      at Object.toBe (tests/tow/mvp06/towMvp06CashPayment.test.js:168:31)
+
+  ● MVP-06 — CASH payment › RED-MVP06-3 — authz › an anonymous caller is rejected
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 401
+    Received: 404
+
+      174 |       const response = await cashReceived(app, fixture.request.id, null, { auth: null, key: null });
+      175 |
+    > 176 |       expect(response.status).toBe(401);
+          |                               ^
+      177 |       expect(await paymentRow(testDb.db, fixture.request.id)).toBeUndefined();
+      178 |     });
+      179 |
+
+      at Object.toBe (tests/tow/mvp06/towMvp06CashPayment.test.js:176:31)
+
+  ● MVP-06 — CASH payment › RED-MVP06-3 — authz › the customer can read their own payment and a foreign customer cannot
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 404
+
+      192 |
+      193 |       const own = await getPayment(app, fixture.request.id, fixture.customerAuth);
+    > 194 |       expect(own.status).toBe(200);
+          |                          ^
+      195 |       expect(own.body.data.status).toBe('CASH_RECEIVED');
+      196 |
+      197 |       const foreign = await createTowCustomerAuth();
+
+      at Object.toBe (tests/tow/mvp06/towMvp06CashPayment.test.js:194:26)
+
+  ● MVP-06 — CASH payment › RED-MVP06-4 — amount rehydration › the payment endpoint rehydrates the accepted amount, not a recalculation
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 404
+
+      208 |
+      209 |       const response = await getPayment(app, fixture.request.id, fixture.customerAuth);
+    > 210 |       expect(response.status).toBe(200);
+          |                               ^
+      211 |       expect(response.body.data).toEqual({
+      212 |         request_id: String(fixture.request.id),
+      213 |         method: 'cash',
+
+      at Object.toBe (tests/tow/mvp06/towMvp06CashPayment.test.js:210:31)
+
+  ● MVP-06 — CASH payment › RED-MVP06-4 — amount rehydration › TowRequest.payment is truthful after the customer selects cash
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 404
+
+      224 |       const selected = await selectPaymentMethod(app, fixture.request.id, fixture.customerAuth);
+      225 |
+    > 226 |       expect(selected.status).toBe(200);
+          |                               ^
+      227 |       expect(selected.body.data).toMatchObject({
+      228 |         method: 'cash',
+      229 |         status: 'CASH_SELECTED',
+
+      at Object.toBe (tests/tow/mvp06/towMvp06CashPayment.test.js:226:31)
+
+  ● MVP-06 — CASH payment › RED-MVP06-4 — amount rehydration › a request with no payment reports NOT_SELECTED with a null amount
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 404
+
+      242 |       const response = await getPayment(app, fixture.request.id, fixture.customerAuth);
+      243 |
+    > 244 |       expect(response.status).toBe(200);
+          |                               ^
+      245 |       expect(response.body.data).toEqual({
+      246 |         request_id: String(fixture.request.id),
+      247 |         method: null,
+
+      at Object.toBe (tests/tow/mvp06/towMvp06CashPayment.test.js:244:31)
+
+  ● MVP-06 — CASH payment › RED-MVP06-4 — amount rehydration › the assigned partner recovers the cash state through the job list
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 5
+    + Received  + 5
+
+      Object {
+    -   "amount_cents": 18480,
+    -   "can_start_service": true,
+    -   "currency": "BRL",
+    -   "method": "cash",
+    +   "amount_cents": null,
+    +   "can_start_service": false,
+    +   "currency": null,
+    +   "method": null,
+        "pix": null,
+        "request_id": "13",
+    -   "status": "CASH_RECEIVED",
+    +   "status": "NOT_SELECTED",
+      }
+
+      262 |       const job = jobs.body.data.items.find((item) => String(item.id) === String(fixture.request.id));
+      263 |       expect(job).toBeTruthy();
+    > 264 |       expect(job.payment).toEqual({
+          |                           ^
+      265 |         request_id: String(fixture.request.id),
+      266 |         method: 'cash',
+      267 |         status: 'CASH_RECEIVED',
+
+      at Object.toEqual (tests/tow/mvp06/towMvp06CashPayment.test.js:264:27)
+
+  ● MVP-06 — CASH payment › RED-MVP06-5 — retry semantics › the same key retried returns the same payment and never restamps received_at
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 404
+
+      278 |       const fixture = await completed();
+      279 |       const first = await cashReceived(app, fixture.request.id, fixture.auths[0]);
+    > 280 |       expect(first.status).toBe(200);
+          |                            ^
+      281 |
+      282 |       const rowAfterFirst = await paymentRow(testDb.db, fixture.request.id);
+      283 |       clock.advanceMinutes(5);
+
+      at Object.toBe (tests/tow/mvp06/towMvp06CashPayment.test.js:280:28)
+
+  ● MVP-06 — CASH payment › RED-MVP06-5 — retry semantics › a DIFFERENT valid key still returns the same canonical payment
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 404
+
+      301 |       });
+      302 |
+    > 303 |       expect(retry.status).toBe(200);
+          |                            ^
+      304 |       expect(retry.body.data).toEqual(first.body.data);
+      305 |       expect(await paymentRows(testDb.db, fixture.request.id)).toHaveLength(1);
+      306 |     });
+
+      at Object.toBe (tests/tow/mvp06/towMvp06CashPayment.test.js:303:28)
+
+  ● MVP-06 — CASH payment › RED-MVP06-5 — retry semantics › selecting cash twice is idempotent and never duplicates the row
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 404
+
+      313 |       });
+      314 |
+    > 315 |       expect(second.status).toBe(200);
+          |                             ^
+      316 |       expect(second.body.data).toEqual(first.body.data);
+      317 |       expect(await paymentRows(testDb.db, fixture.request.id)).toHaveLength(1);
+      318 |     });
+
+      at Object.toBe (tests/tow/mvp06/towMvp06CashPayment.test.js:315:29)
+
+  ● MVP-06 — CASH payment › payment method selection › card and pix are not implemented in the MVP subset
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 422
+    Received: 404
+
+      327 |           key: `idem-mvp06-unsupported-${method}`,
+      328 |         });
+    > 329 |         expect(response.status).toBe(422);
+          |                                 ^
+      330 |         expect(response.body.error.code).toBe('validation_error');
+      331 |       }
+      332 |       expect(await paymentRows(testDb.db, fixture.request.id)).toHaveLength(0);
+
+      at Object.toBe (tests/tow/mvp06/towMvp06CashPayment.test.js:329:33)
+
+  ● MVP-06 — CASH payment › payment method selection › a foreign customer cannot select the method and an anonymous caller is rejected
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 403
+    Received: 404
+
+      338 |
+      339 |       const denied = await selectPaymentMethod(app, fixture.request.id, foreign);
+    > 340 |       expect(denied.status).toBe(403);
+          |                             ^
+      341 |
+      342 |       const anon = await selectPaymentMethod(app, fixture.request.id, null, { auth: null });
+      343 |       expect(anon.status).toBe(401);
+
+      at Object.toBe (tests/tow/mvp06/towMvp06CashPayment.test.js:340:29)
+
+  ● MVP-06 — CASH payment › payment method selection › cash can be selected while the job is in progress, before COMPLETED
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 404
+
+      352 |       const response = await selectPaymentMethod(app, fixture.request.id, fixture.customerAuth);
+      353 |
+    > 354 |       expect(response.status).toBe(200);
+          |                               ^
+      355 |       expect(response.body.data.status).toBe('CASH_SELECTED');
+      356 |     });
+      357 |
+
+      at Object.toBe (tests/tow/mvp06/towMvp06CashPayment.test.js:354:31)
+
+  ● MVP-06 — CASH payment › payment method selection › cash cannot be selected before any assignment exists
+
+    update `tow_requests` set `state` = 'SEARCHING' where `id` = 20 - SQLITE_CONSTRAINT: CHECK constraint failed: (state = 'COMPLETED') = (completed_at IS NOT NULL)
+
+
+
+  ● MVP-06 — CASH payment › terminal states › a cancelled tow can never receive cash
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 409
+    Received: 404
+
+      378 |
+      379 |       const response = await cashReceived(app, fixture.request.id, fixture.auths[0]);
+    > 380 |       expect(response.status).toBe(409);
+          |                               ^
+      381 |       expect(response.body.error.code).toBe('invalid_tow_state');
+      382 |
+      383 |       const row = await paymentRow(testDb.db, fixture.request.id);
+
+      at Object.toBe (tests/tow/mvp06/towMvp06CashPayment.test.js:380:31)
+
+  ● MVP-06 — CASH payment › terminal states › a completed tow keeps its historical payment readable after release
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 404
+
+      394 |
+      395 |       const response = await getPayment(app, fixture.request.id, fixture.customerAuth);
+    > 396 |       expect(response.status).toBe(200);
+          |                               ^
+      397 |       expect(response.body.data.status).toBe('CASH_RECEIVED');
+      398 |       expect(response.body.data.amount_cents).toBe(Number(assignment.final_price_amount_cents));
+      399 |     });
+
+      at Object.toBe (tests/tow/mvp06/towMvp06CashPayment.test.js:396:31)
+
+Test Suites: 1 failed, 1 total
+Tests:       21 failed, 1 passed, 22 total
+Snapshots:   0 total
+Time:        1.192 s, estimated 2 s
+Ran all test suites matching /tests\/tow\/mvp06\/towMvp06CashPayment.test.js/i.
