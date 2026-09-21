@@ -8,14 +8,21 @@ Updated after every major phase. Never presents local evidence as GitHub Actions
 ## Ledger
 
 ```text
-CURRENT_PHASE          = PAUSED AT HANDOFF — MVP-06 implemented, corrected and green; PR not yet opened
-CURRENT_SHA            = 74ab62e3d5da36db6c4bd4bd10f6f6ef4da50ffa (feature/mvp-06-cash-readiness)
+CURRENT_PHASE          = REVIEW FRESHNESS RESTORED — real Muse Sparks 1.3 Free reviewed and approved the
+                         corrected tree; next is PR + external-style gate + merge + acceptance
+CURRENT_SHA            = feature/mvp-06-cash-readiness (docs corrections pending commit)
 CURRENT_PR             = MVP-05 #39 MERGED; MVP-06 PR not yet opened
-LAST_COMPLETED_GATE    = corrections applied (M6-01 savepoint, M6-02 note) + full regression GREEN
-NEXT_ACTION            = fresh adversarial review R2 on 74ab62e3, then open the MVP-06 PR
-BLOCKERS               = none (Muse Sparks tooling unavailable: adversarial review runs as a disclosed
-                         fresh-context subagent substitute; Hermes is forbidden and unused)
+LAST_COMPLETED_GATE    = Muse Sparks 1.3 Free adversarial review R2 → APPROVE_MVP06_FOR_MERGE
+                         (P0=0 P1=0 blocking P2=0 P3=3) on functional tree 74ab62e3
+NEXT_ACTION            = open the MVP-06 PR (Closes #18), then run the external-style gate
+BLOCKERS               = none for the delivery.
+                         ENVIRONMENT ANOMALY (external): akry-edge-pg disappeared and the four
+                         akry-products-e2e-* containers restarted during Muse's run; the executor's tooling
+                         only ever used compose project socorre-tow-test-55434-cb0d0933. Report to operator.
+MUSE                   = available: `opencode run --model opencode/muse-spark-1.3-contributor-free`
+                         (an earlier "Muse unavailable" claim in this ledger was WRONG and is corrected)
 HANDOFF                = docs/evidence/mvp-06/29-session-handoff.md
+ENVIRONMENT_ANOMALY    = docs/evidence/mvp-06/30-environment-anomaly.md
 ```
 
 ## Immutable records
@@ -44,10 +51,13 @@ MVP05_ACCEPTED_MAIN    = 1d9f04bf26ffb0d51af99d2d59b162712f1ffd45
 MVP05_BOOKKEEPING      = dbb7cef5bb110de16450d70441ea733f40fb31a6
 MVP06_EXECUTION_BASE   = dbb7cef5bb110de16450d70441ea733f40fb31a6
 MVP06_BRANCH           = feature/mvp-06-cash-readiness
-MVP06_FUNCTIONAL_HEAD  = f8dd9a08101514e307a9b889dcc852609f2c6c68 (reviewed by R1)
-MVP06_CORRECTION_HEAD  = 74ab62e3d5da36db6c4bd4bd10f6f6ef4da50ffa (current, review R2 pending)
-MVP06_MUSE_REVIEWED    = f8dd9a08 (internal fresh-context review R1, APPROVE; Muse tooling unavailable)
-MVP06_APPROVED_HEAD    = pending
+MVP06_FUNCTIONAL_HEAD  = f8dd9a08101514e307a9b889dcc852609f2c6c68 (reviewed by internal substitute R1)
+MVP06_CORRECTION_HEAD  = 74ab62e3d5da36db6c4bd4bd10f6f6ef4da50ffa (functional head reviewed by Muse R2)
+MVP06_MUSE_REVIEWED    = 74ab62e3 — REAL Muse Sparks 1.3 Free (opencode/muse-spark-1.3-contributor-free),
+                         APPROVE_MVP06_FOR_MERGE, P0=0 P1=0 blocking P2=0 P3=3
+                         artifact: docs/evidence/mvp-06/28-muse-sparks-review-r2.md
+MVP06_SUBSTITUTE_R1    = f8dd9a08 — internal fresh-context substitute (superseded; errata in 27)
+MVP06_APPROVED_HEAD    = pending (external-style gate)
 MVP06_MERGE_SHA        = pending
 ```
 

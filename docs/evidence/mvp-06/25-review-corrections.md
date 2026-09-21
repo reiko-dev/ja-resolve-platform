@@ -75,5 +75,12 @@ tracked follow-up, not a merge blocker.
 ## Post-correction state
 
 The functional tree changed after the first review, so the review is **stale** by the delivery's own rule.
-A fresh focused adversarial review of the corrected delta is recorded in
-`docs/evidence/mvp-06/28-adversarial-review-r2.md`.
+A fresh focused review of the corrected delta was executed by the **real Muse Sparks 1.3 Free** external
+reviewer (`opencode run --model opencode/muse-spark-1.3-contributor-free`) and is recorded in
+`docs/evidence/mvp-06/28-muse-sparks-review-r2.md`. Verdict: `APPROVE_MVP06_FOR_MERGE`,
+`P0 = 0`, `P1 = 0`, `blocking P2 = 0`, `P3 = 3` (all non-blocking, one of them the documented M6-03
+replay decision). Muse independently reproduced the savepoint fix: its PostgreSQL run included `F4b`
+GREEN, and its own negative control reverting the savepoint made `F4b` RED with byte-identical restore.
+
+An earlier note in this file pointed at `28-adversarial-review-r2.md`; the actual artifact is
+`28-muse-sparks-review-r2.md`.

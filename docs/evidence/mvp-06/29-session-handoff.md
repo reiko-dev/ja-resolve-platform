@@ -79,38 +79,53 @@ On `74ab62e3` (post-correction, current):
    and full Jest was **1667 passed / 0 failed**. Not classified as a product defect, but the exact test name
    was not captured — see next task step 0.
 
-### Environment limitation (must not be over-claimed)
+### Environment note — Muse IS available (previous claim corrected)
 
-No external **Muse Sparks 1.3 Free** tooling exists in this environment, and the workflow forbids Hermes.
-The adversarial review was therefore executed as a **fresh-context opencode subagent review in the Muse role**
-and is labeled as such in `27-adversarial-review.md` §0. It must never be presented as an external Muse
-session. This limitation does not block the delivery, but it must be disclosed in the PR, the external-style
-gate and the accepted receipt.
+An earlier version of this handoff claimed that no external **Muse Sparks 1.3 Free** tooling existed in this
+environment. **That was wrong.** The executor looked for a `muse` binary and an opencode agent definition but
+never ran `opencode models`. The real model is available:
+
+```text
+opencode run --model opencode/muse-spark-1.3-contributor-free --dir <repo> --auto "<prompt>"
+```
+
+It has now been executed for real. The authoritative external review is
+`docs/evidence/mvp-06/28-muse-sparks-review-r2.md`:
+
+```text
+verdict          = APPROVE_MVP06_FOR_MERGE
+P0 = 0 · P1 = 0 · blocking P2 = 0 · P3 = 3 (all non-blocking)
+reviewed tree    = 74ab62e3d5da36db6c4bd4bd10f6f6ef4da50ffa
+```
+
+Muse independently re-ran the suites (S01–S20 20/20, cash 24/24, attack 9/9, architecture 23/23, mvp05 89,
+OpenAPI `1.0.0-draft.9` exit 0), the PostgreSQL block (F1–F6 + F4b + inherited C1–C9, 20/20, teardown empty),
+proved the S09 one-meter case (`10001 m → 15001`), and executed three of its own negative controls with
+byte-identical restores (`job-lock 840aa736…`, `payment-service ae192889…`, `repository 2d70a612…`). Hermes
+was not used. The earlier internal substitute review (`27-adversarial-review.md`) is superseded and carries an
+errata note.
+
+One caveat Muse recorded and this handoff must keep honest: `docker ps` showed **no `akry-*` containers
+running** during Muse's run, whereas the executor observed four `akry-products-e2e-*` containers at the start
+of the session and `akry-edge-pg` has since disappeared entirely. The executor's tooling provably operates
+only on the compose project `socorre-tow-test-55434-cb0d0933` (dedicated compose file, unique project name)
+and never on the `akry-*` projects, but the change is **external and unexplained**; it must be reported to the
+operator and must not be silently ignored. See `30-environment-anomaly.md`.
 
 ---
 
 ## 2. Next task
 
-> **TASK N — Review-freshness restoration + MVP-06 PR + external-style gate + merge + post-merge acceptance.**
+> **TASK N — MVP-06 PR + external-style gate + merge + post-merge acceptance.**
 
-Because the functional tree changed after review R1 (corrections to `payment-service.js`,
-`tow-payment-repository.js`, plus a test and the canonical note), review R1 is **stale** by the delivery's own
-rule. The next task begins with a focused fresh review, then proceeds to publication.
+Review freshness is **restored**: the real Muse Sparks 1.3 Free externa review R2
+(`28-muse-sparks-review-r2.md`) approved the corrected functional tree
+`74ab62e3d5da36db6c4bd4bd10f6f6ef4da50ffa`. Steps 0–2 of the previous version of this handoff are DONE
+(mvp04 was re-run 3× and is green; the freeze is `74ab62e3`; R2 returned
+`P0=0 P1=0 blocking P2=0` → `APPROVE_MVP06_FOR_MERGE`).
 
-Steps, in order:
+Steps remaining, in order:
 
-0. **Capture the exact identity of the mvp04 transient** (new, cheap): run
-   `npx jest tests/tow/mvp04 --runInBand` twice and, if it ever fails, capture the failing test name and
-   assertion before continuing. Do not silently accept a repeated failure.
-1. **Freeze** `MVP06_FUNCTIONAL_HEAD_R2 = 74ab62e3d5da36db6c4bd4bd10f6f6ef4da50ffa` (or the then-current HEAD).
-2. **Fresh adversarial review R2** (focused on the corrected delta):
-   - confirm the savepoint fix is real and `F4b` is meaningful;
-   - confirm the draft.9 wording now matches the runtime;
-   - re-run `tests/tow/mvp06` + the PG F-block + `npx jest tests/tow`;
-   - attack the savepoint change itself (e.g. does the nested transaction behave on SQLite? does it change
-     concurrency outcomes? is the winner lookup still correct?);
-   - verdict must be `P0=0 P1=0 blocking P2=0`; write the artifact to
-     `docs/evidence/mvp-06/28-adversarial-review-r2.md`; disclose the Muse-unavailability again.
 3. **Open the MVP-06 PR** (`Closes #18`) with the title
    `MVP-06 — CASH Payment & Lean End-to-End Readiness Gate` and a body containing: execution base, functional
    head, reviewed head, CASH architecture, price authority, schema, idempotency, authz, rehydration, the
@@ -118,9 +133,14 @@ Steps, in order:
    concurrency gates, negative controls, regression counts, review verdicts (with the Muse disclosure), and
    the scope exclusions.
 4. **External-style gate** against the real PR and exact HEAD (the prompt's sections 63–77): re-read the PR
-   from GitHub, verify base/HEAD/mergeable, verify review freshness is docs-only after the reviewed head,
-   independently re-check authority/authz/completion/idempotency/PG constraints/rehydration/S01–S20/S09/S13/S19/S20,
-   and produce `APPROVE_MVP06_FOR_MERGE` or correct the findings and loop.
+   from GitHub, verify base/HEAD/mergeable, verify review freshness is docs-only after the reviewed head
+   (`74ab62e3` must remain the functional head), independently re-check
+   authority/authz/completion/idempotency/PG constraints/rehydration/S01–S20/S09/S13/S19/S20, and produce the
+   external verdict or correct the findings and loop.
+
+   Note on the review record: R2 was executed by the real Muse Sparks 1.3 Free model, but it is an
+   **executor-invoked** session, not a third-party approval. The PR and the receipt must describe it exactly
+   that way (model, command, tree, verdict), and must not imply an approval from a different organization.
 5. **Merge the exact approved HEAD (squash)**, verify tree equivalence, close #18 if not auto-closed.
 6. **Post-merge final acceptance from merged `main`**: full Jest, Tow, contract, OpenAPI, DB baseline, the full
    PG block, S01–S20, fresh-DB + seed, teardown 0/0/0, and record the final table count/fingerprint.
@@ -170,10 +190,11 @@ Local monorepo: /Volumes/Reiko/projects/work/socorre-system (backend: socorre_ai
 Epic: #10 — Tow
 Deliveries: MVP-05 / #17 (CLOSED, merged) and MVP-06 / #18 (OPEN, implemented, not yet published)
 
-Primary executor: DeepSeek V4.1 Flash. Adversarial reviewer role: "Muse" — but NO external Muse Sparks 1.3
-Free tooling exists in this environment and Hermes is FORBIDDEN. Perform the adversarial review as a
-fresh-context subagent review in the Muse role and label it exactly that way everywhere. Never present it as
-an external Muse session.
+Primary executor: DeepSeek V4.1 Flash. Adversarial reviewer: the real Muse Sparks 1.3 Free model, available
+here as `opencode/muse-spark-1.3-contributor-free` and invoked with:
+  opencode run --model opencode/muse-spark-1.3-contributor-free --dir /Volumes/Reiko/projects/work/socorre-system --auto "<brief>"
+Hermes is FORBIDDEN; never use it. Muse review R2 already APPROVED `74ab62e3` (see
+docs/evidence/mvp-06/28-muse-sparks-review-r2.md); verify freshness instead of re-running it.
 
 # ==== READ FIRST (saved state) ====
 docs/evidence/mvp-06/29-session-handoff.md   <- full state, gates, next task, inventory
@@ -224,14 +245,13 @@ Do NOT touch akry-* containers. Never merge unreviewed functional code.
 
 1. FREEZE MVP06_FUNCTIONAL_HEAD_R2 = current HEAD.
 
-2. FRESH ADVERSARIAL REVIEW R2 (Muse role, fresh context, disclosed as such):
-   inspect the corrected delta (savepoint in tow-payment-repository.createForAssignment, draft.9 wording,
-   selectMethod replay comment) and re-run: `tests/tow/mvp06`, the PG F-block
-   (`tests/tow/mvp06/towMvp06Postgres.e2e.test.js` + `tests/tow/mvp04/towMvp04Postgres.e2e.test.js`),
-   `tests/tow`, and `npm run validate:openapi`. Attack the savepoint change specifically (SQLite nested
-   transaction behaviour, concurrency outcomes, winner lookup correctness). Required: P0=0, P1=0,
-   blocking P2=0. Write `docs/evidence/mvp-06/28-adversarial-review-r2.md`. If any blocking finding appears,
-   correct it (RED → fix → GREEN → regression), re-freeze, and review again.
+2. REVIEW FRESHNESS IS ALREADY RESTORED — DO NOT REDO IT. The real Muse Sparks 1.3 Free review R2 exists at
+   `docs/evidence/mvp-06/28-muse-sparks-review-r2.md` and approved `74ab62e3` with P0=0, P1=0, blocking P2=0.
+   Verify only that `74ab62e3` is still the functional head and that every commit after it is docs-only
+   (`git diff --name-only 74ab62e3..HEAD`). If a functional file changed after `74ab62e3`, the review is stale
+   again: correct, re-freeze, and run a NEW Muse review with
+   `opencode run --model opencode/muse-spark-1.3-contributor-free --dir <repo> --auto "<review brief>"`.
+   Muse IS available; Hermes is forbidden and must not be used.
 
 3. OPEN THE MVP-06 PR: title `MVP-06 — CASH Payment & Lean End-to-End Readiness Gate`, body `Closes #18`,
    including execution base, functional/reviewed/current heads, CASH architecture, price authority, schema,
@@ -255,7 +275,9 @@ Do NOT touch akry-* containers. Never merge unreviewed functional code.
    Record the final table count and run the fingerprint twice.
 
 7. POST the `MVP06_ACCEPTED` receipt on the MVP-06 PR (all evidence, plus: no GitHub Actions exists; the
-   adversarial review was an internal fresh-context substitute, not an external Muse session).
+   adversarial review was executed by the real Muse Sparks 1.3 Free model, invoked by the executor via
+   `opencode run --model opencode/muse-spark-1.3-contributor-free`, on the exact reviewed tree — describe it
+   exactly that way and do not imply a third-party organizational approval).
 
 8. DOCS-ONLY planning bookkeeping on main: T00/T01/MVP-01..MVP-06 ACCEPTED, "Tow MVP Phase 1 = COMPLETE",
    Phase 2 #33 DEFERRED, #31 DEFERRED; record MVP06_ACCEPTED_MAIN and TOW_MVP_FINAL_MAIN. No functional

@@ -1,5 +1,22 @@
 # Fresh-Context Adversarial Review — MVP-06 (Muse role)
 
+> ## ERRATA (added by the executor, 2026-09-21, after this review was written)
+>
+> The disclosure below states that "no external Muse Sparks 1.3 Free tooling was available in this
+> environment". **That statement was wrong.** The executor checked for a `muse` executable and for an
+> opencode agent definition, but did not run `opencode models`; the model
+> `opencode/muse-spark-1.3-contributor-free` WAS available on this machine all along.
+>
+> Consequences, stated plainly:
+>
+> - this R1 document is an **internal fresh-context substitute**, not an external review, exactly as its
+>   own disclosure says — the body below is an honest record of what that substitute did;
+> - the availability claim in its §0 is retracted by this errata;
+> - the **authoritative external review is `28-muse-sparks-review-r2.md`**, executed by the real
+>   Muse Sparks 1.3 Free model through `opencode run --model opencode/muse-spark-1.3-contributor-free`,
+>   which returned `APPROVE_MVP06_FOR_MERGE` (`P0 = 0`, `P1 = 0`, `blocking P2 = 0`, `P3 = 3`) on the
+>   functional tree `74ab62e3d5da36db6c4bd4bd10f6f6ef4da50ffa`.
+
 Review date: 2026-09-21
 Reviewed artifact: `feature/mvp-06-cash-readiness` @ `f8dd9a08101514e307a9b889dcc852609f2c6c68`
 Review document: `docs/evidence/mvp-06/27-adversarial-review.md` (the only repository file created by this review)
