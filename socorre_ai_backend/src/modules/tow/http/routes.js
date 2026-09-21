@@ -7,15 +7,28 @@
  *
  * MVP-04 adds EXACTLY five proposal-lifecycle routes (proposal create/list for a
  * request, the partner proposal list, accept, withdraw) plus the canonical
- * partner job rehydration route (`GET /partner/jobs`, EXT-MVP04-1). Counteroffer,
- * tracking, payments and every MVP-05 surface stay unrouted: an unimplemented
- * operation must 404 rather than pretend.
+ * partner job rehydration route (`GET /partner/jobs`, EXT-MVP04-1).
+ *
+ * MVP-05 adds EXACTLY eight execution/tracking/cancellation routes, all of them
+ * under the canonical `/requests/{requestId}` resource: the four partner
+ * milestones, the two cancellations and the tracking read/write pair.
+ *
+ * Counteroffer, payments, ETA, tracking HISTORY, the legacy global
+ * partner-location push endpoint and every other unimplemented operation stay
+ * unrouted: an unimplemented operation must 404 rather than pretend. (That
+ * legacy path is deliberately not spelled out here — the architecture suites
+ * assert it never appears in this file, comments included.)
  */
 'use strict';
 
 const express = require('express');
 const { auth } = require('../../../middleware/auth');
-const { requireAdmin, requireTowPartner, requireCustomer } = require('./middleware');
+const {
+  requireAdmin,
+  requireTowPartner,
+  requireCustomer,
+  requireCustomerOrTowPartner,
+} = require('./middleware');
 const { createModuleController } = require('./module-controller');
 const { createVehicleController } = require('./vehicle-controller');
 const { createDocumentController } = require('./document-controller');
@@ -25,6 +38,9 @@ const {
   createMatchingController,
 } = require('./tow-request-controller');
 const { createProposalController } = require('./proposal-controller');
+const { createExecutionController } = require('./execution-controller');
+const { createTrackingController } = require('./tracking-controller');
+const { createCancellationController } = require('./cancellation-controller');
 
 function createTowRouter({ services, uploadMiddleware }) {
   const router = express.Router();
@@ -36,6 +52,11 @@ function createTowRouter({ services, uploadMiddleware }) {
   const proposalController = createProposalController({
     proposalService: services.proposalService,
     assignmentService: services.assignmentService,
+  });
+  const executionController = createExecutionController({ executionService: services.executionService });
+  const trackingController = createTrackingController({ trackingService: services.trackingService });
+  const cancellationController = createCancellationController({
+    cancellationService: services.cancellationService,
   });
 
   router.get('/module-status', moduleController.getPublicStatus);
@@ -58,6 +79,26 @@ function createTowRouter({ services, uploadMiddleware }) {
   // reads its OWN jobs from the same `tow_assignments` authority the customer
   // recovery path uses; the identity comes only from `req.user.partner_id`.
   router.get('/partner/jobs', auth, requireTowPartner, towRequestController.listJobsForPartner);
+
+  // MVP-05 — service execution. The four milestones of the frozen graph, driven
+  // by the ASSIGNED partner only (`req.user.partner_id`). Each is the same
+  // application operation with a different edge, so the order rule lives in the
+  // state machine and never in the routing table.
+  router.post('/requests/:requestId/en-route', auth, requireTowPartner, executionController.startEnRoute);
+  router.post('/requests/:requestId/arrived', auth, requireTowPartner, executionController.markArrived);
+  router.post('/requests/:requestId/in-transit', auth, requireTowPartner, executionController.startInTransit);
+  router.post('/requests/:requestId/finish', auth, requireTowPartner, executionController.finishService);
+
+  // MVP-05 — basic cancellation. Both routes are legal only before IN_TRANSIT;
+  // the customer path checks ownership, the partner path checks the assignment.
+  router.post('/requests/:requestId/cancel', auth, requireCustomer, cancellationController.cancelByCustomer);
+  router.post('/requests/:requestId/cancel-partner', auth, requireTowPartner, cancellationController.cancelByPartner);
+
+  // MVP-05 — current position. The write is the assigned partner's; the read is
+  // the only two-principal route of the module (owner customer OR assigned
+  // partner), which is why it carries its own guard.
+  router.get('/requests/:requestId/tracking', auth, requireCustomerOrTowPartner, trackingController.read);
+  router.post('/requests/:requestId/tracking', auth, requireTowPartner, trackingController.write);
 
   // MVP-03 — partner opportunity feed (geographic matching).
   router.get('/partner/opportunities', auth, requireTowPartner, matchingController.listOpportunities);

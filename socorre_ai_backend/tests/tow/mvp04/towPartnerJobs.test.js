@@ -232,8 +232,22 @@ describe('MVP-04 EXT — partner job list (EXT-MVP04-1)', () => {
 
       expect(fromCustomer.status).toBe(200);
       expect(fromPartner.status).toBe(200);
-      // Same authority, same projection: not a field may differ.
-      expect(fromPartner.body.data.items[0]).toEqual(fromCustomer.body.data);
+      // Same authority, same projection: not a field may differ — EXCEPT
+      // `allowed_actions`, which MVP-05 made VIEWER-AWARE on purpose (the
+      // assigned partner may start the trip, the customer may not). Everything
+      // that describes the job itself must still be identical, so the two
+      // projections are compared member by member with only that field removed.
+      const partnerItem = { ...fromPartner.body.data.items[0] };
+      const partnerActions = partnerItem.allowed_actions;
+      delete partnerItem.allowed_actions;
+      const customerItem = { ...fromCustomer.body.data };
+      const customerActions = customerItem.allowed_actions;
+      delete customerItem.allowed_actions;
+
+      expect(partnerItem).toEqual(customerItem);
+      expect(partnerItem.assignment).toEqual(fromCustomer.body.data.assignment);
+      expect(customerActions).toEqual(['cancel']);
+      expect(partnerActions).toEqual(['start_en_route', 'cancel']);
     });
 
     test('an ASSIGNED job is never visible to a partner that did not win it', async () => {
@@ -314,11 +328,20 @@ describe('MVP-04 EXT — partner job list (EXT-MVP04-1)', () => {
       // must read that authority — history included.
       await testDb.db('tow_assignments').where({ tow_request_id: firstRequest.id }).update({
         released_at: '2026-01-15T13:00:00.000Z',
-        release_reason: 'CUSTOMER_CANCELLED',
+        release_reason: 'COMPLETED',
         updated_at: '2026-01-15T13:00:00.000Z',
       });
+      // MVP-05 EXT: `tow_requests` now enforces terminal coherence
+      // (`(state = 'COMPLETED') = (completed_at IS NOT NULL)` plus the milestone
+      // ordering checks), so a fabricated COMPLETED row must carry the whole
+      // milestone chain instead of only the state. The assertions below are
+      // unchanged: this test is about which ASSIGNMENTS the list paginates over.
       await testDb.db('tow_requests').where({ id: firstRequest.id }).update({
         state: 'COMPLETED',
+        en_route_at: '2026-01-15T12:30:00.000Z',
+        arrived_at: '2026-01-15T12:45:00.000Z',
+        in_transit_at: '2026-01-15T12:50:00.000Z',
+        completed_at: '2026-01-15T13:00:00.000Z',
         updated_at: '2026-01-15T13:00:00.000Z',
       });
 

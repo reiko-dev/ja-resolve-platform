@@ -70,7 +70,9 @@ const CANONICAL_ENUMS = {
 /** Stable error codes frozen by TOW-API-CONTRACT.md §12. */
 const CANONICAL_ERROR_CODES = [
   'service_module_disabled', 'outstanding_financial_debt', 'partner_platform_fee_debt_limit',
+  'partner_not_operational',
   'invalid_tow_state', 'invalid_tow_transition', 'not_request_owner', 'not_assigned_partner',
+  'stale_tracking_update',
   'vehicle_not_compatible', 'vehicle_not_operational', 'tow_document_required',
   'tow_document_not_approved', 'proposal_already_active', 'proposal_expired', 'proposal_not_actionable',
   'counteroffer_already_used', 'counteroffer_expired', 'request_already_assigned',

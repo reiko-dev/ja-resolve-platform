@@ -35,6 +35,19 @@ const ERROR_STATUS = Object.freeze({
   proposal_expired: 409,
   proposal_not_actionable: 409,
   request_already_assigned: 409,
+  // MVP-05 — service execution, tracking and cancellation. `invalid_tow_state`
+  // is "this request cannot do that at all in its current state" (a terminal
+  // request accepts no tracking write), while `invalid_tow_transition` names the
+  // illegal EDGE (`from` → `to`), so a client can tell a wrong-order call from a
+  // call against a finished job. `not_assigned_partner` is the execution-side
+  // sibling of `not_request_owner`: the caller is a valid tow partner, just not
+  // the one holding this job. `stale_tracking_update` is a conflict by
+  // construction — the point is well-formed but older than the stored one, and
+  // accepting it would move the customer's map backwards.
+  invalid_tow_state: 409,
+  invalid_tow_transition: 409,
+  not_assigned_partner: 403,
+  stale_tracking_update: 409,
 });
 
 const TOW_ERROR_CODES = Object.freeze(Object.keys(ERROR_STATUS));

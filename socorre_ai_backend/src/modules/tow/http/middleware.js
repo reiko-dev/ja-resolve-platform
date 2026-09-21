@@ -43,4 +43,30 @@ function requireCustomer(req, res, next) {
   return next();
 }
 
-module.exports = { requireAdmin, requireTowPartner, requireCustomer };
+/**
+ * MVP-05 — the tracking READ is the only route of the module that serves two
+ * different principals.
+ *
+ * It is not a relaxation of `requireCustomer`/`requireTowPartner`: the caller
+ * must still be EXACTLY one of them (a customer with an id, or a tow partner with
+ * a partner id), and the application layer then applies the matching ownership
+ * predicate — owner customer or assigned partner. An admin, a non-tow partner or
+ * a partner row without an id is rejected here, so no downstream branch ever has
+ * to cope with a principal it does not understand.
+ */
+function requireCustomerOrTowPartner(req, res, next) {
+  if (!req.user) return forbidden(res, 'Acesso negado.');
+
+  const isCustomer = req.user.role === 'user'
+    && req.user.id !== null && req.user.id !== undefined;
+  const isTowPartner = req.user.role === 'partner'
+    && req.user.partner_type === PARTNER_TYPE
+    && req.user.partner_id !== null && req.user.partner_id !== undefined;
+
+  if (!isCustomer && !isTowPartner) {
+    return forbidden(res, 'Acesso negado. Apenas o cliente do pedido ou o parceiro atribuído podem acessar esta rota.');
+  }
+  return next();
+}
+
+module.exports = { requireAdmin, requireTowPartner, requireCustomer, requireCustomerOrTowPartner };

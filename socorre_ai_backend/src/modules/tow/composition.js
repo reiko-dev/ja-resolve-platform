@@ -5,6 +5,8 @@
  *          operations.
  * MVP-04 — wires the proposal store, the assignment store and the UnitOfWork
  *          the atomic accept runs in.
+ * MVP-05 — wires the current-position store and the execution, tracking and
+ *          cancellation services over the same UnitOfWork.
  *
  * Builds the application services from the infrastructure adapters. This is the
  * only place the pure layers meet Knex, HTTP, the filesystem and the system
@@ -23,6 +25,9 @@ const {
   createMatchingService,
   createProposalService,
   createAssignmentService,
+  createExecutionService,
+  createTrackingService,
+  createCancellationService,
 } = require('./application');
 const { createModuleRepository } = require('./adapters/persistence/module-repository');
 const { createVehicleRepository } = require('./adapters/persistence/vehicle-repository');
@@ -32,6 +37,7 @@ const { createPartnerRepository } = require('./adapters/persistence/partner-repo
 const { createTowRequestRepository } = require('./adapters/persistence/tow-request-repository');
 const { createTowProposalRepository } = require('./adapters/persistence/tow-proposal-repository');
 const { createAssignmentRepository } = require('./adapters/persistence/assignment-repository');
+const { createTrackingRepository } = require('./adapters/persistence/tracking-repository');
 const { createLocalFileStorage } = require('./adapters/storage/local-file-storage');
 const { createSystemClock } = require('./adapters/clock/system-clock');
 const { createGoogleRoutesAdapter } = require('./adapters/routes/google-routes-adapter');
@@ -53,6 +59,7 @@ function buildTowServices(options = {}) {
   const towRequestRepository = createTowRequestRepository(db);
   const towProposalRepository = createTowProposalRepository(db);
   const assignmentRepository = createAssignmentRepository(db);
+  const trackingRepository = createTrackingRepository(db);
 
   const moduleService = createModuleService({ moduleRepository });
   const settingsService = createSettingsService({ settingsRepository, clock });
@@ -80,6 +87,7 @@ function buildTowServices(options = {}) {
     towRequestRepository,
     towProposalRepository,
     assignmentRepository,
+    trackingRepository,
     unitOfWork,
     moduleService,
     vehicleService: createVehicleService({ vehicleRepository, documentRepository, clock }),
@@ -128,6 +136,27 @@ function buildTowServices(options = {}) {
       settingsService,
       towRequestRepository,
       towProposalRepository,
+      assignmentRepository,
+      unitOfWork,
+      clock,
+    }),
+    executionService: createExecutionService({
+      settingsService,
+      towRequestRepository,
+      assignmentRepository,
+      unitOfWork,
+      clock,
+    }),
+    trackingService: createTrackingService({
+      towRequestRepository,
+      assignmentRepository,
+      trackingRepository,
+      unitOfWork,
+      clock,
+    }),
+    cancellationService: createCancellationService({
+      settingsService,
+      towRequestRepository,
       assignmentRepository,
       unitOfWork,
       clock,

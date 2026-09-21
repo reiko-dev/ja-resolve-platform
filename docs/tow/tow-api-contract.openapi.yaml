@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: JaResolve Tow Consumer API
-  version: 1.0.0-draft.7
+  version: 1.0.0-draft.8
   description: >-
     Normative consumer contract for Mobile Cliente, Mobile Parceiro and Dashboard.
     This entrypoint composes the reviewed draft.2 base contract with the frozen
@@ -45,6 +45,38 @@ info:
     `Idempotency-Key`) — instead of only the happy path. Every change is additive:
     no path, parameter, response shape or enum member is removed or narrowed, and
     the base contract is untouched.
+    Revision draft.8 (MVP-05 service execution, live tracking and basic
+    cancellation): the eight operations the base contract already declared for
+    this flow — `startTowEnRoute`, `markTowArrived`, `startTowInTransit`,
+    `finishTowService`, `cancelTowRequestByCustomer`, `cancelTowRequestByPartner`,
+    `getTowTracking`, `postTowTrackingPoint` — are now re-declared here with the
+    truthful status surface the backend produces (`401` no/invalid token, `403`
+    wrong role or foreign owner/partner, `404` unknown or non-canonical request id,
+    `409` illegal transition / terminal state / stale tracking point, `422` invalid
+    `Idempotency-Key`, invalid `LocationInput`, invalid tracking point or invalid
+    cancellation reason), and `ErrorResponse.error.code` gains `stale_tracking_update`,
+    returned when a partner posts a tracking point OLDER than the one already
+    stored (an equal instant is accepted and replaces the point). This revision
+    also closes one INHERITED gap in the same enum: `partner_not_operational` has
+    been returned by `POST /tow/requests/{requestId}/proposals` (403, a partner
+    that is not an eligible Tow partner) since MVP-04 but was never declared here
+    nor in §12 of TOW-API-CONTRACT.md; it is added to both, with the existing
+    MVP-04 runtime assertions as proof, and no code is removed or renamed. Two
+    further clarifications are consumer-visible and are recorded here
+    because they are behavioural, not additive: (1) `allowed_actions` is
+    VIEWER-AWARE — the assigned partner is offered the forward milestone
+    (`start_en_route`, `mark_arrived`, `start_in_transit`, `finish_service`) plus
+    `cancel` while the request is `ASSIGNED`, `EN_ROUTE` or `ARRIVED`, whereas the
+    customer is offered only `cancel` in those states; no other viewer/state pair
+    changed, and the member itself, its type and its enum are unchanged. (2)
+    `POST /tow/requests/{requestId}/cancel` accepts an optional body
+    (`reason`, max 1000) exactly as the base declares, while
+    `POST /tow/requests/{requestId}/cancel-partner` requires
+    `RequiredReasonInput` (1–2000); both persist the terminal attribution
+    (`terminal_reason` `CUSTOMER_CANCELLED`/`PARTNER_CANCELLED`) and release the
+    assignment with `release_reason` `CANCELLED`. No path, parameter, response
+    shape or enum member is removed or narrowed, and the base contract stays
+    byte-identical.
 servers:
   - url: /api
 security: []
@@ -230,7 +262,43 @@ paths:
   /tow/requests/{requestId}/payment:
     $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1requests~1{requestId}~1payment'
   /tow/requests/{requestId}/cancel:
-    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1requests~1{requestId}~1cancel'
+    post:
+      tags: [Tow Customer]
+      operationId: cancelTowRequestByCustomer
+      security: [{ bearerAuth: [] }]
+      description: >-
+        The OWNING customer cancels a request that has not started transit
+        (`ASSIGNED`, `EN_ROUTE`, `ARRIVED`). The body is optional
+        (`reason`, max 1000). The terminal attribution
+        (`terminal_reason` `CUSTOMER_CANCELLED`, `cancelled_by_actor_type`
+        `customer`, `cancelled_by_actor_id` = the customer's user id) and the
+        assignment release (`release_reason` `CANCELLED`) happen in the same
+        transaction as the state change; MVP-05 records no fee, debt or refund,
+        so `financial_consequence` is always zero-valued. Replaying the
+        cancellation is a 200 that changes nothing.
+      parameters:
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/RequestId'
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                reason: { type: [string, 'null'], maxLength: 1000 }
+      responses:
+        '200':
+          description: Cancellation processed
+          content:
+            application/json:
+              schema: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/CancellationResponse' }
+        '401': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Forbidden' }
+        '404': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/NotFound' }
+        '409': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/DomainConflict' }
+        '422': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/ValidationError' }
   /tow/requests/{requestId}/completion/confirm:
     $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1requests~1{requestId}~1completion~1confirm'
   /tow/requests/{requestId}/disputes:
@@ -238,19 +306,186 @@ paths:
   /tow/requests/{requestId}/review:
     $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1requests~1{requestId}~1review'
   /tow/requests/{requestId}/tracking:
-    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1requests~1{requestId}~1tracking'
+    get:
+      tags: [Tow Customer, Tow Partner]
+      operationId: getTowTracking
+      security: [{ bearerAuth: [] }]
+      description: >-
+        The CURRENT tracking snapshot of one request: at most one point (the
+        latest accepted one, or `null` before the partner's first write) plus the
+        canonical route geometry (`pickup`/`destination`) read from the request
+        itself. Readable by the owning customer and by the assigned partner only;
+        the route is NOT recomputed here, so this operation never calls a routing
+        provider and has no tracking history.
+      parameters:
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Latest tracking snapshot
+          content:
+            application/json:
+              schema: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TrackingResponse' }
+        '401': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Forbidden' }
+        '404': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/NotFound' }
+    post:
+      tags: [Tow Partner]
+      operationId: postTowTrackingPoint
+      security: [{ bearerAuth: [] }]
+      description: >-
+        Records the partner's current position for one request. One row per
+        request is kept (`observed_at` is the client `recorded_at`, `received_at`
+        is the backend instant); a point strictly OLDER than the stored one is
+        refused with `stale_tracking_update` and an equal instant is accepted. The
+        assigned partner of THAT request is the only writer, and a terminal
+        request accepts no further point (`invalid_tow_state`).
+      parameters:
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/RequestId'
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TrackingPoint' }
+      responses:
+        '202':
+          description: Tracking point accepted
+          content:
+            application/json:
+              schema: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TrackingPointResponse' }
+        '401': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Forbidden' }
+        '404': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/NotFound' }
+        '409': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/DomainConflict' }
+        '422': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/ValidationError' }
+
   /tow/requests/{requestId}/en-route:
-    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1requests~1{requestId}~1en-route'
+    post:
+      tags: [Tow Partner]
+      operationId: startTowEnRoute
+      security: [{ bearerAuth: [] }]
+      description: >-
+        `ASSIGNED` -> `EN_ROUTE`, written with the backend instant
+        (`en_route_at`). Replaying it on an already-`EN_ROUTE` request is a 200
+        that writes nothing.
+      parameters:
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/RequestId'
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/TowRequestUpdated' }
+        '401': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Forbidden' }
+        '404': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/NotFound' }
+        '409': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/DomainConflict' }
+        '422': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/ValidationError' }
+
   /tow/requests/{requestId}/arrived:
-    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1requests~1{requestId}~1arrived'
+    post:
+      tags: [Tow Partner]
+      operationId: markTowArrived
+      security: [{ bearerAuth: [] }]
+      description: >-
+        `EN_ROUTE` -> `ARRIVED`, written with the backend instant (`arrived_at`).
+        The `LocationInput` body is required and validated, but the arrival
+        position is NOT persisted as tracking: the tracking point is the
+        partner's own `postTowTrackingPoint` write.
+      parameters:
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/RequestId'
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/LocationInput' }
+      responses:
+        '200': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/TowRequestUpdated' }
+        '401': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Forbidden' }
+        '404': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/NotFound' }
+        '409': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/DomainConflict' }
+        '422': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/ValidationError' }
+
   /tow/requests/{requestId}/in-transit:
-    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1requests~1{requestId}~1in-transit'
+    post:
+      tags: [Tow Partner]
+      operationId: startTowInTransit
+      security: [{ bearerAuth: [] }]
+      description: >-
+        `ARRIVED` -> `IN_TRANSIT`, written with the backend instant
+        (`in_transit_at`). After this transition the request can no longer be
+        cancelled: `cancel` answers `invalid_tow_transition`.
+      parameters:
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/RequestId'
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/TowRequestUpdated' }
+        '401': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Forbidden' }
+        '404': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/NotFound' }
+        '409': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/DomainConflict' }
+        '422': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/ValidationError' }
+
   /tow/requests/{requestId}/finish:
-    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1requests~1{requestId}~1finish'
+    post:
+      tags: [Tow Partner]
+      operationId: finishTowService
+      security: [{ bearerAuth: [] }]
+      description: >-
+        `IN_TRANSIT` -> `COMPLETED`, written with the backend instant
+        (`completed_at`). This is a terminal transition: the assignment is
+        released in the same transaction (`release_reason` `COMPLETED`), and the
+        partner becomes assignable again. Replaying it on a `COMPLETED` request
+        is the only accepted terminal replay (200, no write).
+      parameters:
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/RequestId'
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/LocationInput' }
+      responses:
+        '200': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/TowRequestUpdated' }
+        '401': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Forbidden' }
+        '404': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/NotFound' }
+        '409': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/DomainConflict' }
+        '422': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/ValidationError' }
   /tow/requests/{requestId}/cash-received:
     $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1requests~1{requestId}~1cash-received'
   /tow/requests/{requestId}/cancel-partner:
-    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1requests~1{requestId}~1cancel-partner'
+    post:
+      tags: [Tow Partner]
+      operationId: cancelTowRequestByPartner
+      security: [{ bearerAuth: [] }]
+      description: >-
+        The ASSIGNED partner cancels a request that has not started transit
+        (`ASSIGNED`, `EN_ROUTE`, `ARRIVED`) and MUST give a reason
+        (`RequiredReasonInput`, 1-2000 characters). Attribution is
+        `terminal_reason` `PARTNER_CANCELLED`, `cancelled_by_actor_type`
+        `partner`, `cancelled_by_actor_id` = the partner id; the assignment is
+        released with `release_reason` `CANCELLED`. `financial_consequence` is
+        always zero-valued in MVP-05. Replaying the cancellation is a 200 that
+        changes nothing.
+      parameters:
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/RequestId'
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/RequiredReasonInput' }
+      responses:
+        '200':
+          description: Partner cancellation processed
+          content:
+            application/json:
+              schema: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/CancellationResponse' }
+        '401': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Forbidden' }
+        '404': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/NotFound' }
+        '409': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/DomainConflict' }
+        '422': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/ValidationError' }
   /tow/requests/{requestId}/customer-no-show:
     $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1requests~1{requestId}~1customer-no-show'
 
@@ -611,7 +846,7 @@ components:
           properties:
             code:
               type: string
-              enum: [service_module_disabled, outstanding_financial_debt, partner_platform_fee_debt_limit, invalid_tow_state, invalid_tow_transition, not_request_owner, not_assigned_partner, vehicle_not_compatible, vehicle_not_operational, tow_document_required, tow_document_not_approved, proposal_already_active, proposal_expired, proposal_not_actionable, counteroffer_already_used, counteroffer_expired, request_already_assigned, payment_not_ready, payment_failed, payment_method_not_changeable, customer_no_show_not_allowed_yet, idempotency_conflict, conflict, validation_error, unauthorized, forbidden, not_found, external_dependency_unavailable]
+              enum: [service_module_disabled, outstanding_financial_debt, partner_platform_fee_debt_limit, partner_not_operational, invalid_tow_state, invalid_tow_transition, not_request_owner, not_assigned_partner, stale_tracking_update, vehicle_not_compatible, vehicle_not_operational, tow_document_required, tow_document_not_approved, proposal_already_active, proposal_expired, proposal_not_actionable, counteroffer_already_used, counteroffer_expired, request_already_assigned, payment_not_ready, payment_failed, payment_method_not_changeable, customer_no_show_not_allowed_yet, idempotency_conflict, conflict, validation_error, unauthorized, forbidden, not_found, external_dependency_unavailable]
             details:
               type: object
               additionalProperties: true

@@ -40,11 +40,16 @@ describe('MVP-05 — partner service execution', () => {
     await testDb.reset();
     clock = createFakeClock();
     routeProvider = createFakeRouteProvider();
-    app = createApp({ tow: { clock, routeProvider } });
+    // A real listening server, not the bare app: supertest would otherwise open and
+    // close an ephemeral server per request, and that churn is what produces this
+    // repository's documented stale-401 / `socket hang up` transport artifacts in a
+    // full-suite run. The assertions are unchanged.
+    app = createApp({ tow: { clock, routeProvider } }).listen(0);
     ({ services } = createMvp05Services({ clock, routeProvider }));
   });
 
   afterAll(async () => {
+    await new Promise((resolve) => { app.closeAllConnections?.(); app.close(resolve); });
     await testDb.reset();
   });
 
@@ -75,8 +80,14 @@ describe('MVP-05 — partner service execution', () => {
 
     // ASSIGNED: the partner is told to start the trip; the customer is told
     // nothing it cannot do (MVP-05 has no customer execution action).
+    //
+    // `fixture.assigned` is the ACCEPT response — a CUSTOMER call
+    // (`POST /proposals/{id}/accept`, customer auth) — so it carries the
+    // customer's actions. The partner's ASSIGNED view (`start_en_route`,
+    // `cancel`) is pinned by the partner-driven assertions below and by
+    // `towPartnerJobs`; RED correction 1 in `docs/evidence/mvp-05/04-red-corrections.md`.
     expect(fixture.assigned.state).toBe('ASSIGNED');
-    expect(fixture.assigned.allowed_actions).toEqual(['start_en_route', 'cancel']);
+    expect(fixture.assigned.allowed_actions).toEqual(['cancel']);
 
     clock.advanceMinutes(2);
     const started = await enRoute(app, towRequest.id, partnerAuth);
@@ -266,11 +277,15 @@ describe('MVP-05 — partner service execution', () => {
       const replay = await finish(app, fixture.request.id, fixture.auths[0], { key: 'idem-mvp05-finish-b0002' });
       expect(replay.status).toBe(200);
 
+      // The milestone and the release keep the FIRST finish instant (12:01 =
+      // 12:00 + 1). The replay happens at 12:10, so this assertion is exactly
+      // what proves the replay did not re-stamp anything.
+      // RED correction 2 in `docs/evidence/mvp-05/04-red-corrections.md`.
       const row = await testDb.db('tow_requests').where({ id: fixture.request.id }).first();
-      expect(row.completed_at).toBe('2026-01-15T12:41:00.000Z');
+      expect(row.completed_at).toBe('2026-01-15T12:01:00.000Z');
       const assignments = await testDb.db('tow_assignments').where({ tow_request_id: fixture.request.id });
       expect(assignments).toHaveLength(1);
-      expect(assignments[0].released_at).toBe('2026-01-15T12:41:00.000Z');
+      expect(assignments[0].released_at).toBe('2026-01-15T12:01:00.000Z');
     });
   });
 

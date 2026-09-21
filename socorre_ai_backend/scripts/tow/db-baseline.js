@@ -62,6 +62,7 @@ const REQUIRED_TABLES = [
   'tow_assignments',
   'tow_proposals',
   'tow_request_proposals',
+  'tow_request_tracking',
   'tow_requests',
   'tow_vehicle_documents',
   'tow_vehicles',

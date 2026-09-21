@@ -241,6 +241,40 @@ function createAssignmentRepository(db) {
       }
     }
 
+    /**
+     * MVP-05 — the terminal release of the job held by a request.
+     *
+     * Called ONLY from inside the transaction that moved the request to a
+     * terminal state (`COMPLETED` / `CANCELLED`), so the release and the
+     * milestone commit or roll back together: a request can never be terminal
+     * while its partner is still marked occupied.
+     *
+     * The update is GUARDED by `released_at IS NULL`, which makes it idempotent
+     * by construction: a replayed terminal transition finds the row already
+     * released and changes nothing (0 rows), and two concurrent releases cannot
+     * both write. The assignment IDENTITY (`id`, `partner_id`,
+     * `tow_vehicle_id`, `proposal_id`, `final_price_*`, `assigned_at`) is never
+     * touched — only `released_at`/`release_reason` — so the partner job history
+     * keeps naming the same job forever.
+     *
+     * @returns {Promise<{released: boolean, row: object|null}>} `released` is
+     * true only for the call that actually performed the transition.
+     */
+    async function releaseByRequestId(requestId, { reason, releasedAt }) {
+      const [updated] = await connection('tow_assignments')
+        .where({ tow_request_id: requestId })
+        .whereNull('released_at')
+        .update({
+          released_at: toIsoInstant(releasedAt),
+          release_reason: reason,
+          updated_at: toIsoInstant(releasedAt),
+        })
+        .returning(COLUMNS);
+
+      const row = mapRow(updated);
+      return { released: Boolean(row), row: row || await findByRequestId(requestId) };
+    }
+
     function withTransaction(trx) {
       if (!trx || typeof trx !== 'function') {
         throw new TypeError('withTransaction requires a transaction handle');
@@ -255,6 +289,7 @@ function createAssignmentRepository(db) {
       findByProposalId,
       findByRequestIds,
       listForPartner,
+      releaseByRequestId,
       withTransaction,
     };
   }

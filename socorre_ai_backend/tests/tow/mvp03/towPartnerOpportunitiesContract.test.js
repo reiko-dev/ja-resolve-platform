@@ -115,7 +115,7 @@ describe('MVP-03 — live partner opportunities conform to the canonical OpenAPI
   test('the canonical validators are compiled from the composed contract (not vacuously absent)', () => {
     expect(typeof validateOpportunityList).toBe('function');
     expect(typeof validateOpportunity).toBe('function');
-    expect(composed.info.version).toBe('1.0.0-draft.7');
+    expect(composed.info.version).toBe('1.0.0-draft.8');
   });
 
   test('the ACTUAL HTTP 200 response of the live endpoint validates against TowOpportunityListResponse', async () => {

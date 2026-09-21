@@ -46,11 +46,16 @@ describe('MVP-05 — Idempotency-Key on execution, tracking and cancellation', (
     await testDb.reset();
     clock = createFakeClock();
     routeProvider = createFakeRouteProvider();
-    app = createApp({ tow: { clock, routeProvider } });
+    // A real listening server, not the bare app: supertest would otherwise open and
+    // close an ephemeral server per request, and that churn is what produces this
+    // repository's documented stale-401 / `socket hang up` transport artifacts in a
+    // full-suite run. The assertions are unchanged.
+    app = createApp({ tow: { clock, routeProvider } }).listen(0);
     ({ services } = createMvp05Services({ clock, routeProvider }));
   });
 
   afterAll(async () => {
+    await new Promise((resolve) => { app.closeAllConnections?.(); app.close(resolve); });
     await testDb.reset();
   });
 
