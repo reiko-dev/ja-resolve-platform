@@ -107,6 +107,13 @@ function createTowPaymentRepository(db) {
      * concurrent double insert cannot create two rows, and the loser learns
      * which identity conflicted instead of crashing.
      *
+     * The INSERT runs inside a SAVEPOINT (a knex nested transaction). This is
+     * not decoration: on PostgreSQL a caught `23505` aborts the WHOLE
+     * transaction, and every later statement — including the winner lookup
+     * below — would fail with `25P02 current transaction is aborted`. A
+     * savepoint contains the failed statement so the surrounding transaction
+     * stays usable. On SQLite the savepoint is harmless.
+     *
      * @returns {Promise<{row: object|null, conflict: 'request'|'assignment'|null}>}
      */
     async function createForAssignment(record) {
@@ -123,18 +130,26 @@ function createTowPaymentRepository(db) {
         updated_at: record.updated_at,
       };
 
+      let inserted = null;
+      let uniqueError = null;
       try {
-        const [inserted] = await connection('tow_payments').insert(payload).returning(COLUMNS);
-        return { row: mapRow(inserted), conflict: null };
+        await connection.transaction(async (savepoint) => {
+          [inserted] = await savepoint('tow_payments').insert(payload).returning(COLUMNS);
+        });
       } catch (error) {
         if (!isUniqueViolation(error)) throw error;
-        const conflict = violationTarget(error);
-        // Resolve the winner so the caller can answer with the canonical row.
-        const existing = conflict === 'assignment'
-          ? await findByAssignmentId(record.assignment_id)
-          : await findByRequestId(record.tow_request_id);
-        return { row: existing, conflict: conflict || 'request' };
+        uniqueError = error;
       }
+
+      if (!uniqueError) return { row: mapRow(inserted), conflict: null };
+
+      const conflict = violationTarget(uniqueError) || 'request';
+      // Resolve the winner so the caller can answer with the canonical row. The
+      // surrounding transaction is still usable thanks to the savepoint.
+      const existing = conflict === 'assignment'
+        ? await findByAssignmentId(record.assignment_id)
+        : await findByRequestId(record.tow_request_id);
+      return { row: existing, conflict };
     }
 
     /**

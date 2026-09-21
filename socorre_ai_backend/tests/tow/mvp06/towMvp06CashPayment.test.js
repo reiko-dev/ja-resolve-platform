@@ -375,6 +375,41 @@ describe('MVP-06 — CASH payment', () => {
     });
   });
 
+  describe('canonical uniqueness recovery', () => {
+    test('a duplicate insert inside a transaction returns the winner instead of crashing', async () => {
+      const fixture = await completed();
+      const confirmed = await cashReceived(app, fixture.request.id, fixture.auths[0]);
+      expect(confirmed.status).toBe(200);
+
+      const assignment = await services.assignmentRepository.findByRequestId(fixture.request.id);
+      const canonical = (await paymentRows(testDb.db, fixture.request.id))[0];
+
+      // The exact repository call a concurrent loser would make. On PostgreSQL
+      // this is where the failed INSERT must NOT poison the transaction: the
+      // savepoint contains the 23505 and the winner lookup succeeds. (Adversarial
+      // review finding M6-01.)
+      const outcome = await services.towPaymentRepository.createForAssignment({
+        tow_request_id: fixture.request.id,
+        assignment_id: assignment.id,
+        method: 'CASH',
+        amount_cents: 1,
+        currency: 'BRL',
+        status: 'RECEIVED',
+        received_at: clock.now(),
+        received_by_partner_id: fixture.partners[0].partner.id,
+        created_at: clock.now(),
+        updated_at: clock.now(),
+      });
+
+      expect(outcome.conflict).not.toBeNull();
+      expect(outcome.row).toBeTruthy();
+      expect(Number(outcome.row.id)).toBe(Number(canonical.id));
+      expect(Number(outcome.row.amount_cents)).toBe(Number(confirmed.body.data.amount_cents));
+      expect(String(outcome.row.status)).toBe('RECEIVED');
+      expect(await paymentRows(testDb.db, fixture.request.id)).toHaveLength(1);
+    });
+  });
+
   describe('RED-MVP06-6 — no external PSP is ever called', () => {
     test('the whole CASH flow makes zero gateway calls', async () => {
       const stripe = require('../../../src/services/gateways/stripeGateway');

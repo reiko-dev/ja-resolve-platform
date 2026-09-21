@@ -89,9 +89,13 @@ info:
     gateway. (2) `PaymentSummary.can_start_service` becomes `true` once cash is
     selected (`CASH_SELECTED`) or received (`CASH_RECEIVED`); it was always
     `false` before this delivery. The implemented `PaymentStatus` transitions are
-    exactly `NOT_SELECTED -> CASH_SELECTED -> CASH_RECEIVED`; every CARD/PIX,
-    debt, payout, refund and dispute state remains declared for the long-term
-    target and is NOT reachable in this MVP. `POST
+    exactly `NOT_SELECTED -> CASH_SELECTED -> CASH_RECEIVED` when the customer
+    selects cash, and `NOT_SELECTED -> CASH_RECEIVED` when the assigned partner
+    confirms a bodyless cash receipt on an already `COMPLETED` Tow that never had
+    a selection (the payment row is created lazily on the first financial write,
+    which may be the confirmation itself); every CARD/PIX, debt, payout, refund
+    and dispute state remains declared for the long-term target and is NOT
+    reachable in this MVP. `POST
     /tow/requests/{requestId}/cash-received` keeps its bodyless request exactly
     as declared — the amount is always the accepted assignment's frozen final
     price, never a client input. `TowRequest.allowed_actions` deliberately does

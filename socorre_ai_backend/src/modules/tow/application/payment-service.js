@@ -99,6 +99,12 @@ function createPaymentService({
 
       const request = await lockRequestForCustomer({ requests, requestId, customerId });
 
+      // A replay is answered with the canonical row BEFORE the state check, on
+      // purpose: re-selecting an already-recorded method is a read (the same
+      // replay philosophy the execution milestones use), so a job that has since
+      // been cancelled still replays its real payment state instead of the error
+      // code. It writes nothing. The `CANCELLED` guard below therefore only
+      // applies to a FIRST selection. (Adversarial review finding M6-03.)
       const existing = await payments.findByRequestId(request.id);
       if (existing) return existing;
 

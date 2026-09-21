@@ -472,6 +472,52 @@ describePostgres('MVP-06 PostgreSQL — CASH payment authority and concurrency',
     expect(rows[0].received_by_partner_id).toBeNull();
   });
 
+  // -------------------------------------------------------------------------
+  // F4b — the savepoint recovery (adversarial review finding M6-01)
+  // -------------------------------------------------------------------------
+  test('F4b — a duplicate insert inside a transaction recovers without aborting it', async () => {
+    const fixture = await scenario();
+    await complete(fixture);
+    expect((await cashReceived(fixture, 'pg-f4b-cash-0000001')).status).toBe(200);
+
+    const canonical = (await paymentRows(fixture.request.id))[0];
+    const assignment = await db('tow_assignments').where({ tow_request_id: fixture.request.id }).first();
+
+    // Reproduces exactly what the repository does when it loses a unique race,
+    // but WITHOUT the request-row lock: the INSERT fails with 23505 and the
+    // winner lookup must still succeed. Before the savepoint fix this raised
+    // `25P02 current transaction is aborted`.
+    const outcome = await db.transaction(async (trx) => {
+      const repository = require('../../../src/modules/tow/adapters/persistence/tow-payment-repository')
+        .createTowPaymentRepository(trx);
+      const result = await repository.createForAssignment({
+        tow_request_id: fixture.request.id,
+        assignment_id: assignment.id,
+        method: 'CASH',
+        amount_cents: 1,
+        currency: 'BRL',
+        status: 'RECEIVED',
+        received_at: new Date('2026-01-15T12:30:00.000Z'),
+        received_by_partner_id: fixture.partners[0].partner.id,
+        created_at: new Date('2026-01-15T12:30:00.000Z'),
+        updated_at: new Date('2026-01-15T12:30:00.000Z'),
+      });
+
+      // The transaction is still usable after the contained 23505.
+      const stillAlive = await trx('tow_payments').where({ id: canonical.id }).first();
+      expect(stillAlive).toBeTruthy();
+
+      return result;
+    });
+
+    expect(outcome.conflict).not.toBeNull();
+    expect(outcome.row).toBeTruthy();
+    expect(Number(outcome.row.id)).toBe(Number(canonical.id));
+    expect(Number(outcome.row.amount_cents)).toBe(Number(canonical.amount_cents));
+    expect(String(outcome.row.status)).toBe('RECEIVED');
+    expect(await paymentRows(fixture.request.id)).toHaveLength(1);
+  });
+
   describe('migration 007 — database guards', () => {
     test('the two UNIQUE identities and every CHECK exist in PostgreSQL', async () => {
       const indexes = await db.raw(
