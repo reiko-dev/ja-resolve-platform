@@ -1,0 +1,4 @@
+### final teardown check — 2026-09-21T05:58:37Z
+containers:        0
+volumes:           0
+networks:          0

@@ -1,0 +1,39 @@
+### npm run validate:openapi
+  - /tow/proposals/{proposalId}/accept: base=[post] composed=[post] dropped=[] added=[]
+  - /tow/proposals/{proposalId}/withdraw: base=[post] composed=[post] dropped=[] added=[]
+  - /tow/requests/{requestId}/cancel: base=[post] composed=[post] dropped=[] added=[]
+  - /tow/requests/{requestId}/tracking: base=[get,post] composed=[get,post] dropped=[] added=[]
+  - /tow/requests/{requestId}/en-route: base=[post] composed=[post] dropped=[] added=[]
+  - /tow/requests/{requestId}/arrived: base=[post] composed=[post] dropped=[] added=[]
+  - /tow/requests/{requestId}/in-transit: base=[post] composed=[post] dropped=[] added=[]
+  - /tow/requests/{requestId}/finish: base=[post] composed=[post] dropped=[] added=[]
+  - /tow/requests/{requestId}/cancel-partner: base=[post] composed=[post] dropped=[] added=[]
+  - /tow/partner/opportunities: base=[get] composed=[get] dropped=[] added=[]
+  - /tow/partner/proposals: base=[get] composed=[get] dropped=[] added=[]
+  - /admin/tow/settings: base=[get,patch] composed=[get,patch] dropped=[] added=[]
+  - /admin/tow/vehicle-documents/{documentId}: base=[get] composed=[get] dropped=[] added=[]
+  - /admin/tow/requests/{requestId}: base=[get] composed=[get] dropped=[] added=[]
+  - /admin/tow/disputes/{disputeId}: base=[get] composed=[get] dropped=[] added=[]
+  - /admin/tow/payout-batches/preview: base=[get] composed=[get] dropped=[] added=[]
+  - /admin/tow/payout-batches: base=[post] composed=[post] dropped=[] added=[]
+  - /admin/tow/payout-batches/{batchId}: base=[get] composed=[get] dropped=[] added=[]
+  - /admin/tow/payout-batches/{batchId}/process: base=[post] composed=[post] dropped=[] added=[]
+  allowlist: (empty — the frozen contract drops no base method)
+exit=0
+
+### npm run test:contract
+Test Suites: 7 passed, 7 total
+Tests:       95 passed, 95 total
+exit=0
+
+### npx jest tests/tow/mvp05 --runInBand (offline)
+PASS tests/tow/mvp05/towMvp05Tracking.test.js
+PASS tests/tow/mvp05/towMvp05ExecutionApi.test.js
+PASS tests/tow/mvp05/towMvp05Cancellation.test.js
+PASS tests/tow/mvp05/towMvp05Release.test.js
+PASS tests/tow/mvp05/towMvp05GracefulDrain.test.js
+PASS tests/tow/mvp05/towMvp05Idempotency.test.js
+PASS tests/tow/mvp05/towMvp05Architecture.test.js
+Test Suites: 1 skipped, 7 passed, 7 of 8 total
+Tests:       6 skipped, 89 passed, 95 total
+exit=0

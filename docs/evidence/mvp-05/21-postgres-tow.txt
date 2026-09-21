@@ -1,0 +1,12 @@
+### full tests/tow with PostgreSQL enabled
+PASS tests/tow/mvp05/towMvp05Postgres.e2e.test.js
+PASS tests/tow/mvp05/towMvp05Tracking.test.js
+PASS tests/tow/mvp05/towMvp05Cancellation.test.js
+PASS tests/tow/mvp05/towMvp05ExecutionApi.test.js
+PASS tests/tow/mvp05/towMvp05Idempotency.test.js
+PASS tests/tow/mvp05/towMvp05Release.test.js
+PASS tests/tow/mvp05/towMvp05GracefulDrain.test.js
+PASS tests/tow/mvp05/towMvp05Architecture.test.js
+Test Suites: 64 passed, 64 total
+Tests:       1212 passed, 1212 total
+jest exit=0

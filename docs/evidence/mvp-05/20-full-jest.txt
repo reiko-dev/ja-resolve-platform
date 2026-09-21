@@ -1,0 +1,7 @@
+### full jest (offline, single worker) — 2026-09-21T05:56:46Z — FINAL, after the listening-server hardening
+Test Suites: 6 skipped, 93 passed, 93 of 99 total
+Tests:       81 skipped, 1591 passed, 1672 total
+jest exit=0
+
+### earlier full-jest runs (transport artifacts, kept for the record)
+--- run 1: legacy towDocumentFlow flake

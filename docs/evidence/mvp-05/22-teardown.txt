@@ -1,0 +1,20 @@
+### teardown of the MVP-05 PostgreSQL project (port 55434) — 2026-09-21T05:57:26Z
+
+> socorre-ai-backend@1.0.0 test:pg:down
+> node scripts/tow/test-env.js down
+
+ Container socorre-tow-test-55434-cb0d0933-tow-postgres-test-1 Stopping 
+ Container socorre-tow-test-55434-cb0d0933-tow-postgres-test-1 Stopped 
+ Container socorre-tow-test-55434-cb0d0933-tow-postgres-test-1 Removing 
+ Container socorre-tow-test-55434-cb0d0933-tow-postgres-test-1 Removed 
+ Network socorre-tow-test-55434-cb0d0933_tow-test-net Removing 
+ Network socorre-tow-test-55434-cb0d0933_tow-test-net Removed 
+PostgreSQL test environment destroyed (containers, volumes, network)
+exit=0
+
+### containers left for the project:
+       0
+### volumes left:
+       0
+### networks left:
+       0
