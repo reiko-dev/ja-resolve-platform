@@ -8,19 +8,13 @@ Updated after every major phase. Never presents local evidence as GitHub Actions
 ## Ledger
 
 ```text
-CURRENT_PHASE          = REVIEW FRESHNESS RESTORED — real Muse Sparks 1.3 Free reviewed and approved the
-                         corrected tree; next is PR + external-style gate + merge + acceptance
-CURRENT_SHA            = feature/mvp-06-cash-readiness (docs corrections pending commit)
-CURRENT_PR             = MVP-05 #39 MERGED; MVP-06 PR not yet opened
-LAST_COMPLETED_GATE    = Muse Sparks 1.3 Free adversarial review R2 → APPROVE_MVP06_FOR_MERGE
-                         (P0=0 P1=0 blocking P2=0 P3=3) on functional tree 74ab62e3
-NEXT_ACTION            = open the MVP-06 PR (Closes #18), then run the external-style gate
-BLOCKERS               = none for the delivery.
-                         ENVIRONMENT ANOMALY (external): akry-edge-pg disappeared and the four
-                         akry-products-e2e-* containers restarted during Muse's run; the executor's tooling
-                         only ever used compose project socorre-tow-test-55434-cb0d0933. Report to operator.
-MUSE                   = available: `opencode run --model opencode/muse-spark-1.3-contributor-free`
-                         (an earlier "Muse unavailable" claim in this ledger was WRONG and is corrected)
+CURRENT_PHASE          = MVP-06 ACCEPTED — Tow MVP Phase 1 COMPLETE
+CURRENT_SHA            = c5ca8cc112f39ca8b1d0952b7c1a9305619f24b4 (MVP06_ACCEPTED_MAIN)
+CURRENT_PR             = MVP-06 #40 MERGED; MVP-05 #39 MERGED
+LAST_COMPLETED_GATE    = post-merge acceptance from merged main + MVP06_ACCEPTED receipt
+NEXT_ACTION            = none in Phase 1; #33 and #31 require a new explicit decision
+BLOCKERS               = none
+DECLARATION            = TOW MVP BACKEND READY FOR INTEGRATION (MVP subset only)
 HANDOFF                = docs/evidence/mvp-06/29-session-handoff.md
 ENVIRONMENT_ANOMALY    = docs/evidence/mvp-06/30-environment-anomaly.md
 ```
@@ -57,7 +51,18 @@ MVP06_MUSE_REVIEWED    = 74ab62e3 — REAL Muse Sparks 1.3 Free (opencode/muse-s
                          APPROVE_MVP06_FOR_MERGE, P0=0 P1=0 blocking P2=0 P3=3
                          artifact: docs/evidence/mvp-06/28-muse-sparks-review-r2.md
 MVP06_SUBSTITUTE_R1    = f8dd9a08 — internal fresh-context substitute (superseded; errata in 27)
-MVP06_APPROVED_HEAD    = pending (external-style gate)
+MVP06_APPROVED_HEAD    = 5ac8173c0416142e98ee83d038cd261c725fcc96 (external-style gate)
+MVP06_APPROVED_TREE    = da9848446b7775c946f8dc012f9982e8ded56e98
+MVP06_PR               = #40
+MVP06_MERGE_SHA        = c5ca8cc112f39ca8b1d0952b7c1a9305619f24b4
+MVP06_MERGED_AT        = 2026-09-21T15:45:09Z
+MVP06_MERGED_TREE      = da9848446b7775c946f8dc012f9982e8ded56e98
+MVP06_TREE_EQUIVALENCE = PASS
+MVP06_RECEIPT          = PR #40 issuecomment-5763421609
+MVP06_APPROVAL_COMMENT = PR #40 issuecomment-5763274328
+ISSUE_18               = CLOSED
+TOW_MVP_SCHEMA_FINGERPRINT = a5605ba9d71f214fb9b289e4d57001099119a2052a2ff5d4d67d66500446e999
+TOW_MVP_TABLE_COUNT    = 37
 MVP06_MERGE_SHA        = pending
 ```
 

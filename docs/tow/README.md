@@ -193,13 +193,15 @@ This remains the production-hardening/full-contract milestone.
 ## Current next task
 
 ```text
-MVP-06 — CASH Payment & Lean End-to-End Ready Gate
-Issue #18
-READY
-base: MVP05_ACCEPTED_MAIN @ 1d9f04bf26ffb0d51af99d2d59b162712f1ffd45
-      (the MVP-05 acceptance bookkeeping commit that carries this line is the
-      effective MVP06_EXECUTION_BASE)
-branch: feature/mvp-06-cash-readiness
+NONE — Tow MVP Phase 1 is COMPLETE.
+
+MVP-06 accepted (PR #40, merge c5ca8cc1, receipt #5763421609).
+TOW MVP BACKEND READY FOR INTEGRATION for the implemented MVP subset:
+docs/evidence/mvp-06/TOW-MVP-READINESS.md
+
+Next decisions require a new explicit dispatch:
+  Phase 2 / #33 production hardening  (DEFERRED)
+  Security / #31 credential remediation (DEFERRED, required before production go-live)
 ```
 
 #31 remains deferred for dev/test functional work and must be resolved before production security sign-off/go-live.

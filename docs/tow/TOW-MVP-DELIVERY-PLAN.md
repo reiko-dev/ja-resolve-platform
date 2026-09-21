@@ -513,9 +513,14 @@ MVP-02 / #14                           ACCEPTED ✅
 MVP-03 / #15                           ACCEPTED ✅
 MVP-04 / #16                           ACCEPTED ✅
 MVP-05 / #17                           ACCEPTED ✅
-MVP-06 / #18                           READY / current delivery
+MVP-06 / #18                           ACCEPTED ✅
 Phase 2 / #33                          DEFERRED
 ```
+
+**Tow MVP Phase 1 = COMPLETE.** The final milestone `TOW MVP BACKEND READY FOR INTEGRATION` has been emitted
+for the explicitly implemented MVP consumer subset (see
+`docs/evidence/mvp-06/TOW-MVP-READINESS.md`). It is NOT the stronger Phase 2 milestone
+`TOW BACKEND READY FOR INTEGRATION`.
 
 Accepted implementation baseline:
 
@@ -524,15 +529,12 @@ main @ f100bea9b79536dbe06e5032c451271b5f614f9c   # MVP-03 accepted (PR #37, rec
 main @ 7ad3e56bab9bfc839dca88dc2832e425383b7741   # MVP-03 acceptance bookkeeping = MVP-04 dispatch base
 main @ c7d1e8e78778cd39c116a64a543e9d41718ebbc2   # MVP-04 accepted (PR #38, receipt #5755286376)
 main @ 1d9f04bf26ffb0d51af99d2d59b162712f1ffd45   # MVP-05 accepted (PR #39, receipt #5759825979)
+main @ c5ca8cc112f39ca8b1d0952b7c1a9305619f24b4   # MVP-06 accepted (PR #40, receipt #5763421609)
 ```
 
 Next executable work:
 
 ```text
-MVP-06 — CASH Payment & Lean End-to-End Ready Gate
-Issue #18
-base: main @ 1d9f04bf26ffb0d51af99d2d59b162712f1ffd45 (MVP-05 accepted main;
-      the MVP-05 acceptance bookkeeping commit that carries this line is the
-      effective dispatch base, recorded as MVP06_EXECUTION_BASE)
-branch: feature/mvp-06-cash-readiness
+NONE in Phase 1. The Tow MVP Phase 1 backend critical path is complete.
+Phase 2 / #33 (production hardening) and #31 (security) both require a new explicit decision.
 ```

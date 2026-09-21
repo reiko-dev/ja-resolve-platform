@@ -38,6 +38,43 @@ completion, PSP call from the CASH flow) was ever involved.
 No stale-body `Parse Error`, `socket hang up`, or default-port collision occurred in any MVP-06 gate. All
 suites used either the offline harness or the explicit `DB_PORT=55434` disposable environment.
 
+## Post-merge triage (2026-09-21, merged main `c5ca8cc1`) — two manifestations, both transport artifacts
+
+Two transient failures were captured on the merged tree while running the inherited MVP-04 suites. Both are
+client-side transport artifacts of the **ephemeral-server-per-request** pattern those suites use
+(`request(app)` without `app.listen(0)`); the MVP-05/MVP-06 API suites deliberately use a real listening
+server to avoid exactly this. Neither is a business defect, and each was verified from the server side.
+
+### Observation 3 — `socket hang up` with verified server success
+
+| Item | Value |
+| --- | --- |
+| Suite | `tests/tow/mvp04/towAssignmentAccept.test.js` (running the whole `tests/tow/mvp04` directory) |
+| Failing test | `MVP-04 — atomic assignment on accept › idempotency › a second accept of the SAME proposal with a different key stays idempotent` |
+| Client error | `socket hang up` |
+| Server evidence | `POST /api/tow/proposals/24/accept HTTP/1.1" 200 1052` — the server completed the request successfully |
+| Diagnosis | the client socket was torn down while the response was in flight; the server behaviour was correct |
+| Reruns | the isolated suite passed 20/20; the `tests/tow/mvp04` directory passed 4 consecutive times before and after |
+| Classification | known Supertest transport artifact (documented in the repository since MVP-05) |
+
+### Observation 4 — stale 401 with zero server 401s
+
+| Item | Value |
+| --- | --- |
+| Suite | `tests/tow/mvp04/towIdempotencyKey.test.js`, later in the full-Jest run |
+| Failing test | `MVP-04 EXT — required Idempotency-Key on accept and withdraw (EXT-MVP04-2) › withdraw › an unknown proposal is 404 with a key and 422 without one` |
+| Assertion | expected `422`, client received `401` |
+| Server evidence (raw counts from that run) | **`0`** responses with status 401 and **`9`** responses with status 422 in the whole run; the corresponding withdraw requests were logged as `422` |
+| Diagnosis | the server never emitted the 401 the client observed: a stale response from an earlier request was delivered to the later assertion (the repository's documented "stale-401" signature) |
+| Reruns | `towIdempotencyKey.test.js` passed 8 consecutive standalone runs and failed once; full Jest passed twice (`1667 passed / 0 failed`) and the failing suite passed on every re-run |
+| Classification | known stale-response transport artifact, **not** an authz or business defect |
+
+### Required follow-up (non-blocking, Phase 2 hygiene)
+
+Align the inherited MVP-04 API suites with the listening-server pattern already used by the MVP-05/MVP-06
+suites (`createApp(...).listen(0)` plus `closeAllConnections()` in `afterAll`). That change is test-harness
+hardening only and must not be folded into this accepted delivery.
+
 ## Flakes never silently accepted
 
 Every non-green run in this delivery is listed above with its resolution. No failing business assertion was
