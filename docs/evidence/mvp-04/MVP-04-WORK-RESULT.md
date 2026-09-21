@@ -1,7 +1,9 @@
 # MVP-04 Work Result
 
 ## Status
-READY_FOR_MUSE_REVIEW
+READY_FOR_MUSE_REVIEW — EXT-MVP04-1/2/3 corrections applied on top of the
+frozen implementation head; see **External Correction Pass** at the end of this
+file for the second implementation commit and its evidence.
 
 ## Base / Branch / Head
 - Repository: `socorre-system`
@@ -17,6 +19,13 @@ READY_FOR_MUSE_REVIEW
   8b550440..HEAD` touches `docs/` only, so nothing executable changed after the
   frozen implementation head. The implementation tree reviewed by Muse is
   `8b550440` plus documentation.
+- **Second implementation commit (external correction pass):** the review of PR
+  #38 (comment `#5753834965`, CHANGES_REQUIRED) required three corrections, so
+  the branch now carries `6eb7469a` on top of the documentation trail. That
+  commit changes production code, tests and the contract — `8b550440..HEAD` is
+  therefore **no longer docs-only**, and the executable tree under review is
+  `6eb7469a`. The original frozen head `8b550440` remains the MVP-04 delivery
+  baseline; the correction pass is described in full at the end of this file.
 - Issue: #16 (MVP-04 — Proposal Lifecycle & Atomic Assignment)
 - Push / PR / merge: **not performed.** No push, no PR, no merge, no MVP-05/#17,
   no counteroffer, no tracking, no payments, no scheduler, no #31, no #33, no
@@ -469,3 +478,191 @@ safeguard fails loudly when it is broken.
 Evidence: `docs/evidence/mvp-04/01..20` and this file. Implementation head
 `8b550440`; every commit after it is docs-only (`8b550440..HEAD`). Not pushed, not
 merged, no PR opened: awaiting Muse review.
+
+> Superseded for the executable tree by the **External Correction Pass** below:
+> the branch now also carries `6eb7469a`, so `8b550440..HEAD` is no longer
+> docs-only. The delivery claim above is unchanged; the correction pass fixes the
+> three findings of PR #38 review `#5753834965` on top of it.
+
+## External Correction Pass (EXT-MVP04-1 / EXT-MVP04-2 / EXT-MVP04-3)
+
+Review: PR #38 comment `#5753834965` — CHANGES_REQUIRED, **P0 0, P1 blocking 2,
+P2 blocking 1**. Commit: **`6eb7469a`** (second implementation commit on this
+branch, on top of the `8b550440` delivery head and its documentation trail).
+Evidence: RED `22-ext04-red.txt`; gates `23-green/`; negative controls
+`24-ext04-negative-controls.md`; suite transcripts `25-partner-jobs.txt`,
+`26-operation-contract.txt`, `27-idempotency-key.txt`.
+
+### EXT-MVP04-1 (P1) — `GET /api/tow/partner/jobs` (canonical `listPartnerTowJobs`)
+
+**Finding.** The canonical document already declared `listPartnerTowJobs`, but
+the backend had no such route: the partner book could list its *proposals* and
+never its *jobs*. RED fact (`22-ext04-red.txt`): `GET /api/tow/partner/jobs` →
+HTTP 404 `{"success":false,"message":"Rota não encontrada no backend da API"}`.
+
+**Correction.**
+- Route `router.get('/partner/jobs', auth, requireTowPartner,
+  towRequestController.listJobsForPartner)` in `http/routes.js`; the controller
+  forwards `{partnerId: req.user.partner_id, query: req.query}` — the partner id
+  is taken **exclusively** from the authenticated principal and can never be
+  supplied by query, body or header.
+- `application/tow-request-service.js#listJobsForPartner` reuses the existing
+  `validateListQuery` (page/limit/state/from/to, 422 on malformed input or
+  `from > to`), then reads through a **new `AssignmentRepository#listForPartner`**
+  that selects from `tow_assignments` — the same authority the customer recovery
+  path uses, not a second source of truth. The query is joined to `tow_requests`
+  only for the `state` filter, and `tow_assignments.partner_id` is always a
+  `WHERE` predicate, so a partner can never observe another partner's jobs.
+- Bounds are **inclusive** on `assignment.assigned_at` (`>= from`, `<= to`),
+  ordering `assigned_at DESC, id DESC`, pagination applied to the assignment
+  rows with `{items, meta:{page, limit, total}}`.
+- Every item is built by the **same** `buildAssignmentDto` plus `actionsFor` /
+  live-request lookup as the customer path, so `partner_id` stays a string, the
+  price snapshot is `{amount_cents, currency}`, and `allowed_actions` is derived
+  from the same live proposal set. No DTO fork exists.
+- Contract: `listPartnerTowJobs` description rewritten to state the identity
+  source, the `tow_assignments` authority and the inclusive `assigned_at`
+  bounds; responses pinned to 200/401/403/422.
+
+**Tests.** `tests/tow/mvp04/towPartnerJobs.test.js` — 16 tests: partner-only
+(401/403), foreign partner isolation, canonical filter subset, inclusive
+`from`/`to` boundaries, pagination/meta, state filter, DTO equality with the
+customer recovery path, and 422 validation. **NC-EXT04-1** removes the
+`partner_id` predicate and turns 5 of them RED, proving the isolation assertion
+has teeth.
+
+### EXT-MVP04-2 (P1) — `Idempotency-Key` enforced on accept and withdraw
+
+**Finding.** The canonical document declares `Idempotency-Key` as a **required**
+header (minLength 8, maxLength 128) on `acceptTowProposal` and
+`withdrawTowProposal`, and the domain already had `validateIdempotencyKey` — but
+the controllers never read the header. RED facts: accept without a key → HTTP
+200 with `state=ASSIGNED` and one `tow_assignments` row; withdraw without a key →
+HTTP 200 with `status=WITHDRAWN`.
+
+**Correction.**
+- `http/proposal-controller.js` passes `idempotencyKey: req.get('Idempotency-Key')`
+  into both services, and each service validates it through the **existing**
+  `validateIdempotencyKey` (`domain/idempotency.js` — no second validator, no
+  relaxed bound). Missing, shorter than 8 or longer than 128 → **422
+  `validation_error`** with `details.field = 'Idempotency-Key'` and
+  `details.reason` ∈ `missing` / `too_short` / `too_long`, raised **before any
+  mutation**.
+- Ordering is deliberate and identical on both operations: module gate →
+  key validation → id shape check → business logic. The header is therefore
+  enforced on every path, including 403/404/409 outcomes, so a caller cannot use
+  the key error as an existence oracle for a proposal it may not touch.
+- **Accept** keeps its existing replay authority: `proposal_id` plus the database
+  uniqueness constraints (`UNIQUE(tow_request_id)`, `UNIQUE(proposal_id)`,
+  partial uniques on live partner/vehicle). An identical retry returns the same
+  assignment DTO; a *different* key against an already-assigned request answers
+  409 `request_already_assigned`. The key is a contract requirement here, never
+  the idempotency authority.
+- **Withdraw** keeps ownership first (foreign partner → 403, checked before the
+  short-circuit), then the owner's `ACTIVE` proposal moves to `WITHDRAWN`. An
+  identical retry by the same owner on an already-`WITHDRAWN` proposal answers
+  **200 with the same DTO**; `ACCEPTED` and `CLOSED` never short-circuit and
+  answer 409 `proposal_not_actionable`; an expired `ACTIVE` proposal answers 409
+  `proposal_expired`.
+
+**Tests.** `tests/tow/mvp04/towIdempotencyKey.test.js` — 18 tests covering both
+operations: missing/short/long keys → 422 with the exact envelope, no mutation
+observed in the database, 403/404/409 still validating the header, accept replay
+parity, different-key conflict, withdraw replay parity, `ACCEPTED`/`CLOSED`/
+expired outcomes. **NC-EXT04-2** (remove accept validation) and **NC-EXT04-3**
+(remove withdraw validation) each turn the corresponding suite RED and restore
+byte-identically. One pre-existing fixture had to be updated: the PostgreSQL C7
+test calls `proposalService.withdraw(...)` directly and now supplies a key, just
+as the route does.
+
+### EXT-MVP04-3 (P2) — operation-level contract tests and revision draft.7
+
+**Finding.** Contract coverage was structural (paths, schemas, refs) but not
+operation-level: nothing asserted that the runtime status surface of the EXT
+operations matches the declared one, so the contract could drift silently.
+
+**Correction.** `tests/contract/towOperationContract.test.js` — 17 tests that
+compose the canonical document with `tests/helpers/towContract.js` and pin, for
+the six EXT operations (`listPartnerTowJobs`, `listPartnerTowProposals`,
+`listTowRequestProposals`, `createTowProposal`, `acceptTowProposal`,
+`withdrawTowProposal`): canonical path/method/operationId, a frozen
+`DECLARED_STATUSES` table, the required 8–128 `Idempotency-Key` header shape, 422
+declared and resolving to `ErrorResponse`, the partner-jobs query subset
+(`from`, `limit`, `page`, `state`, `to`, all optional), the `INCLUSIVE` +
+`assigned_at` description pins, `format: date-time` on the bounds, and the
+draft.7 revision pins — plus **live HTTP probes** whose observed statuses must be
+a subset of the declared ones and whose 4xx bodies (except the middleware's own
+401 envelope) must validate against `ErrorResponse`.
+
+The contract revision moves **draft.6 → draft.7** with the revision note in
+`info.description` naming EXT-MVP04-1/2/3; the two proposal list operations now
+declare the 422 they genuinely return; accept/withdraw declare
+200/401/403/404/409/422. Four pre-existing version pins were updated to draft.7
+(`openapi.structure.test.js`, `towPartnerOpportunitiesContract.test.js`,
+`towMvp04Architecture.test.js`, `towProposalContract.test.js`) — the only
+pre-existing assertions touched anywhere in this pass.
+
+### Gates (frozen tree, `23-green/`)
+
+| Gate | Result |
+| --- | --- |
+| `npm run validate:openapi` | PASS — draft.7, 56 paths / 66 operations, 0 unresolved refs, 0 dropped base methods |
+| `npm run test:contract` | 6 suites / **79 passed** (62 before, +17) |
+| `npm run verify:tow` | **GREEN** — contract 79/79, Tow 1045/75, PostgreSQL foundation 6/6, teardown clean |
+| `tests/tow/mvp01` | 124 passed / 10 skipped |
+| `tests/tow/mvp02` | 204 passed |
+| `tests/tow/mvp03` | 177 passed / 7 skipped |
+| `tests/tow/mvp04` | 9 suites / **189 passed** / 10 skipped (155 + 16 + 18) |
+| `tests/tow` | 51 suites / **1045 passed** / 75 skipped / 0 failures |
+| `test:db-baseline` ×2 | GREEN; fingerprint `efb6158bf9df52434f8e21bfa6d15a98fa9a5ee02a0ca0ee13144dc9c27d9cdc` identical in both runs |
+| whole backend `npx jest --runInBand` | 85 suites / **1486 passed** / 75 skipped / **0 failures** |
+| PostgreSQL suites (`DB_PORT=55434`) | MVP-04 C1–C9 **10/10**, T01 baseline **33/33**, MVP-03 **7/7**, legacy G2/G3 **9/9** |
+| Teardown | `test:pg:guard` SAFE, 0 containers / 0 volumes for `socorre-tow-test` |
+
+Counts only grew (contract 62→79, mvp04 155→189, tow 1011→1045, backend
+1435→1486); nothing was skipped, weakened or deleted.
+
+### Architecture, concurrency and schema preservation
+
+- No new table, column, index or migration: `docs/evidence/t01/db-baseline-gate.json`
+  and the double fingerprint prove migrations remain exactly `001..005` and the
+  schema is byte-stable.
+- The assignment transaction is untouched: one transaction, request + proposal
+  row locks, database uniqueness as the final arbiter. The new jobs read is a
+  read-only, partner-scoped projection over `tow_assignments`.
+- **NC-EXT04-4** removes the assignment snapshot from the jobs DTO and turns 4
+  tests RED, proving the jobs endpoint reads the real assignment authority
+  rather than re-deriving it.
+- The three module gates, the 403/404/409 semantics and the error envelope are
+  unchanged; the key validation was inserted **after** the module gate so no
+  authorization behaviour moved.
+
+### Disclosures
+
+- **Port collision (environmental).** Two first attempts ran without `DB_PORT`
+  and hit `55432`, already published by the unrelated `akry-edge-pg` container
+  (never touched): `09a-…`, `10a-…`, `03-verify-tow.txt`. All reruns pin
+  `DB_PORT=55434`, the disposable port used throughout this delivery.
+- **Transport flakes (documented, rerun, disclosed).** One `socket hang up` in
+  the pre-existing `g2PhotoContract.test.js` during the first `verify:tow`, and
+  one `Parse Error: Expected HTTP/, RTSP/ or ICE/` in the pre-existing
+  `towAssignmentAccept.test.js` during the first standalone `tests/tow` rerun —
+  two of the three documented Supertest signatures, neither in an EXT test, both
+  green in every other run including the whole-backend 0-failure run. No result
+  was waived, retried silently or relaxed.
+- **C7 fixture.** The PostgreSQL C7 test calls the withdraw service directly and
+  now passes a key like the route does. The RED is captured deliberately in
+  `23-green/13a-postgres-c7-red.txt` (1 failed / 9 passed, `TowError:
+  Idempotency-Key header is required`), the mutated fixture was restored
+  byte-identically (sha256 `e7c40b7c…` before and after, `git status` clean), and
+  the captured rerun is 10/10 in `23-green/13-postgres-suites.txt`.
+- The EXT negative-control driver and the gate scripts live outside the
+  repository (`/tmp/nc-ext04/`) because they rewrite tracked sources; results and
+  hashes are recorded in `24-ext04-negative-controls.md` and `23-green/00-summary.md`.
+
+### EXT Verdict
+
+All three blocking findings are corrected on `6eb7469a` with RED-before-fix
+evidence, four negative controls, an unchanged schema fingerprint, preserved
+transaction boundaries, and gates that only grew. Not pushed, not merged, no new
+branch, no new PR, issue #16 still open: **ready for a fresh Muse review.**

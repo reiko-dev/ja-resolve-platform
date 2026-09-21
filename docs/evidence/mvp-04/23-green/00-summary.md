@@ -51,9 +51,13 @@ result.
 **One fixture fix required by EXT-MVP04-2.** The PostgreSQL C7 test called
 `proposalService.withdraw(...)` directly, bypassing the HTTP layer that now
 carries the required header. The fixture now supplies an `Idempotency-Key` exactly
-like the route does (`towMvp04Postgres.e2e.test.js`, commented in place); the
-first PostgreSQL attempt is preserved in `13-postgres-suites.txt` history — 9/10
-with C7 RED — and the rerun is 10/10. No production code and no assertion changed.
+like the route does (`towMvp04Postgres.e2e.test.js`, commented in place). The RED
+was re-captured deliberately after the fix by removing the key again:
+`13a-postgres-c7-red.txt` shows 1 failed / 9 passed with
+`TowError: Idempotency-Key header is required`, the file was then restored
+byte-identically (sha256 `e7c40b7c…` before and after, `git status` clean), and
+the captured rerun is 10/10 in `13-postgres-suites.txt`. No production code and no
+assertion changed.
 
 **Counts only grew.** `test:contract` 62 → 79, `mvp04` 155 → 189, `tests/tow`
 1011 → 1045, whole backend 1435 → 1486. Nothing was deleted or weakened; the
