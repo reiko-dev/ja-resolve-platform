@@ -511,8 +511,8 @@ T01                                    ACCEPTED ✅
 MVP-01 / #13                           ACCEPTED ✅
 MVP-02 / #14                           ACCEPTED ✅
 MVP-03 / #15                           ACCEPTED ✅
-MVP-04 / #16                           READY / current delivery
-MVP-05 / #17                           BLOCKED by MVP-04
+MVP-04 / #16                           ACCEPTED ✅
+MVP-05 / #17                           READY / current delivery
 MVP-06 / #18                           BLOCKED by MVP-05
 Phase 2 / #33                          DEFERRED
 ```
@@ -522,14 +522,15 @@ Accepted implementation baseline:
 ```text
 main @ f100bea9b79536dbe06e5032c451271b5f614f9c   # MVP-03 accepted (PR #37, receipt #5752423773)
 main @ 7ad3e56bab9bfc839dca88dc2832e425383b7741   # MVP-03 acceptance bookkeeping = MVP-04 dispatch base
+main @ c7d1e8e78778cd39c116a64a543e9d41718ebbc2   # MVP-04 accepted (PR #38, receipt #5755286376)
 ```
 
-Next executable work (dispatched):
+Next executable work:
 
 ```text
-MVP-04 — Proposal Lifecycle & Atomic Assignment
-Issue #16
-base: main @ 7ad3e56bab9bfc839dca88dc2832e425383b7741 (MVP-03 acceptance bookkeeping
-      commit that carries this release line; historical MVP-03 merge stays f100bea9b79536dbe06e5032c451271b5f614f9c)
-branch: feature/mvp-04-proposals-assignment
+MVP-05 — Service Execution, Live Tracking & Basic Cancellation
+Issue #17
+base: main @ c7d1e8e78778cd39c116a64a543e9d41718ebbc2 (MVP-04 accepted main;
+      the bookkeeping commit that carries this line is the effective dispatch base)
+branch: (to be created when MVP-05 is dispatched)
 ```

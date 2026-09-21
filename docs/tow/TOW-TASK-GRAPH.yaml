@@ -8,7 +8,7 @@ contract:
   long_term_contract_preserved: true
 
 implementation_baseline:
-  main_sha: f100bea9b79536dbe06e5032c451271b5f614f9c   # MVP-03 accepted (PR #37, receipt #5752423773). Previous value 1f589d60b8f8020cc6162ebf2c5200c0d2cfa632 was the MVP-02 accepted main (PR #36, receipt #5749173315).
+  main_sha: c7d1e8e78778cd39c116a64a543e9d41718ebbc2   # MVP-04 accepted (PR #38, receipt #5755286376). Previous value f100bea9b79536dbe06e5032c451271b5f614f9c was the MVP-03 accepted main (PR #37, receipt #5752423773).
   schema_fingerprint: efb6158bf9df52434f8e21bfa6d15a98fa9a5ee02a0ca0ee13144dc9c27d9cdc   # 35 tables (MVP-04 adds tow_request_proposals and tow_assignments via migration 005). Previous value f2771dcf6a253951c1d4a596e681c52a759ed0c4bcd70ecdcbe971505e8ed2bf was the MVP-03 baseline (33 tables); updated by MVP-04 bookkeeping, not silently, and proven deterministic across two independent gate runs (run1 == run2).
 
 execution_policy:
@@ -113,8 +113,7 @@ tasks:
   - id: MVP04
     issue: 16
     title: Proposal Lifecycle & Atomic Assignment
-    status: READY
-    delivery_state: CURRENT
+    status: ACCEPTED
     depends_on: [MVP03]
     # Dispatch base recorded by MVP-04 PHASE B bookkeeping (docs-only commit).
     # `f100bea9b79536dbe06e5032c451271b5f614f9c` remains the MVP-03 ACCEPTED merge;
@@ -122,6 +121,9 @@ tasks:
     # bookkeeping commit that carries the MVP-04 release line and is therefore the
     # effective execution base (same convention as MVP02/MVP03 `execution_base`).
     execution_base: 7ad3e56bab9bfc839dca88dc2832e425383b7741
+    merge_commit: c7d1e8e78778cd39c116a64a543e9d41718ebbc2
+    accepted_receipt: "PR #38 comment #5755286376"
+    branch: feature/mvp-04-proposals-assignment
     size: L_XL
     outputs:
       - multiple_proposals
@@ -134,7 +136,8 @@ tasks:
   - id: MVP05
     issue: 17
     title: Service Execution, Live Tracking & Basic Cancellation
-    status: BLOCKED
+    status: READY
+    delivery_state: CURRENT
     depends_on: [MVP04]
     size: L
     outputs:
