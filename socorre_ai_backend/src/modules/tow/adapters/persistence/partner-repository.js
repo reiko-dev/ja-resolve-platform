@@ -16,6 +16,11 @@
  * `is_verified` is part of the projection for observability only: it is NOT a
  * matching criterion in MVP-03 (proved by the inclusion test for an unverified
  * partner).
+ *
+ * MVP-04 EXT: `business_name` joins the projection because a proposal freezes
+ * the partner's display name at creation time. The name is read from the SAME
+ * row the eligibility decision was made on, and snapshotted onto the proposal —
+ * a later rename must not rewrite what the customer was offered.
  */
 'use strict';
 
@@ -27,6 +32,7 @@ const PARTNER_COLUMNS = Object.freeze([
   'is_verified',
   'latitude',
   'longitude',
+  'business_name',
 ]);
 
 /**
@@ -54,6 +60,7 @@ function mapPartnerRow(row) {
     is_verified: toBoolean(row.is_verified),
     latitude: toCoordinate(row.latitude),
     longitude: toCoordinate(row.longitude),
+    business_name: row.business_name ?? null,
   };
 }
 

@@ -1,0 +1,26 @@
+MVP-04 — EVIDENCE 19
+PostgreSQL harness teardown (disposable container on DB_PORT=55434)
+Command: cd socorre_ai_backend && DB_PORT=55434 npm run test:pg:down
+Then: container / volume / network counts, all required to be 0.
+================================================================================
+--- teardown output (from the final evidence chain) ---
+########## 5. TEARDOWN ##########
+ Network socorre-tow-test-55434-cb0d0933_tow-test-net Removing 
+ Network socorre-tow-test-55434-cb0d0933_tow-test-net Removed 
+PostgreSQL test environment destroyed (containers, volumes, network)
+       0
+       0
+       0
+
+--- independent re-check, 2026-09-20T23:16:08Z ---
+containers matching socorre-tow-test-55434:
+  count: 0
+containers matching tow-test (any port):
+  count: 0
+volumes matching socorre-tow-test-55434:
+  count: 0
+networks matching socorre-tow-test-55434:
+  count: 0
+
+--- port 55434 listeners (must be none) ---
+  none

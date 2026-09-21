@@ -3,6 +3,8 @@
  * MVP-02 — wires the RouteProvider port and the route/pricing quote operation.
  * MVP-03 — wires the canonical TowRequest store and the geographic matching
  *          operations.
+ * MVP-04 — wires the proposal store, the assignment store and the UnitOfWork
+ *          the atomic accept runs in.
  *
  * Builds the application services from the infrastructure adapters. This is the
  * only place the pure layers meet Knex, HTTP, the filesystem and the system
@@ -19,6 +21,8 @@ const {
   createQuoteService,
   createTowRequestService,
   createMatchingService,
+  createProposalService,
+  createAssignmentService,
 } = require('./application');
 const { createModuleRepository } = require('./adapters/persistence/module-repository');
 const { createVehicleRepository } = require('./adapters/persistence/vehicle-repository');
@@ -26,6 +30,8 @@ const { createDocumentRepository } = require('./adapters/persistence/document-re
 const { createSettingsRepository } = require('./adapters/persistence/settings-repository');
 const { createPartnerRepository } = require('./adapters/persistence/partner-repository');
 const { createTowRequestRepository } = require('./adapters/persistence/tow-request-repository');
+const { createTowProposalRepository } = require('./adapters/persistence/tow-proposal-repository');
+const { createAssignmentRepository } = require('./adapters/persistence/assignment-repository');
 const { createLocalFileStorage } = require('./adapters/storage/local-file-storage');
 const { createSystemClock } = require('./adapters/clock/system-clock');
 const { createGoogleRoutesAdapter } = require('./adapters/routes/google-routes-adapter');
@@ -45,10 +51,21 @@ function buildTowServices(options = {}) {
   const settingsRepository = createSettingsRepository(db);
   const partnerRepository = createPartnerRepository(db);
   const towRequestRepository = createTowRequestRepository(db);
+  const towProposalRepository = createTowProposalRepository(db);
+  const assignmentRepository = createAssignmentRepository(db);
 
   const moduleService = createModuleService({ moduleRepository });
   const settingsService = createSettingsService({ settingsRepository, clock });
   const quoteService = createQuoteService({ routeProvider, vehicleRepository, clock });
+
+  /**
+   * The UnitOfWork port: `db.transaction(fn)` hands the callback a transaction
+   * handle, and every repository reaches that handle through
+   * `withTransaction(trx)`. Keeping the transaction an explicit argument — rather
+   * than a hidden ambient connection — is what makes "did this query join the
+   * transaction?" answerable by reading the call site.
+   */
+  const unitOfWork = { run: (fn) => db.transaction(fn) };
 
   return {
     db,
@@ -61,6 +78,9 @@ function buildTowServices(options = {}) {
     settingsRepository,
     partnerRepository,
     towRequestRepository,
+    towProposalRepository,
+    assignmentRepository,
+    unitOfWork,
     moduleService,
     vehicleService: createVehicleService({ vehicleRepository, documentRepository, clock }),
     documentService: createDocumentService({ documentRepository, vehicleRepository, storage, clock }),
@@ -77,6 +97,8 @@ function buildTowServices(options = {}) {
       moduleService,
       settingsService,
       towRequestRepository,
+      towProposalRepository,
+      assignmentRepository,
       clock,
     }),
     matchingService: createMatchingService({
@@ -89,6 +111,26 @@ function buildTowServices(options = {}) {
       quoteService,
       clock,
       ...(options.matching || {}),
+    }),
+    proposalService: createProposalService({
+      moduleService,
+      settingsService,
+      partnerRepository,
+      vehicleRepository,
+      documentRepository,
+      towRequestRepository,
+      towProposalRepository,
+      quoteService,
+      clock,
+    }),
+    assignmentService: createAssignmentService({
+      moduleService,
+      settingsService,
+      towRequestRepository,
+      towProposalRepository,
+      assignmentRepository,
+      unitOfWork,
+      clock,
     }),
   };
 }

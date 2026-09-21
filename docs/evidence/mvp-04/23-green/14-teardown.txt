@@ -1,0 +1,15 @@
+MVP-04 EXT — EVIDENCE 23-green/12 — teardown verification
+Command: TOW_POSTGRES_E2E=1 DB_PORT=55434 npm run test:pg:guard
+---
+
+> socorre-ai-backend@1.0.0 test:pg:guard
+> node scripts/tow/test-env.js guard
+
+[test-env] env file: /Volumes/Reiko/projects/work/socorre-system/socorre_ai_backend/.env.test not present (optional: safe defaults apply)
+target: postgresql://tow_test@127.0.0.1:55434/socorre_ai_tow_test
+SAFE
+guard exit=0
+--- docker ps -a --filter name=socorre-tow-test ---
+(empty above = no container)
+--- docker volume ls --filter name=socorre-tow-test ---
+(empty above = no volume)

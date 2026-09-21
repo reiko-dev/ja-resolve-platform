@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: JaResolve Tow Consumer API
-  version: 1.0.0-draft.5
+  version: 1.0.0-draft.7
   description: >-
     Normative consumer contract for Mobile Cliente, Mobile Parceiro and Dashboard.
     This entrypoint composes the reviewed draft.2 base contract with the frozen
@@ -16,6 +16,35 @@ info:
     `opportunity_expires_at` is nullable/optional because MVP-03 owns no expiry
     semantics (no scheduler, no search timeout, no proposal lifecycle). No other
     consumer contract changed in this revision.
+    Revision draft.6 (MVP-04 additive error vocabulary): `ErrorResponse.error.code`
+    gains `proposal_already_active`, the code returned when a partner already holds
+    a live proposal for the same request (409). The addition is purely additive —
+    every previously declared code keeps its meaning and no response shape, path,
+    parameter or enum member is removed or narrowed — and it mirrors the existing
+    `request_already_assigned` / `counteroffer_already_used` family rather than
+    overloading the generic `conflict`. No other consumer contract changed in this
+    revision; the MVP-04 operations themselves were already declared in the base
+    contract.
+    Revision draft.7 (MVP-04 external correction pass EXT-MVP04-1/2/3): three
+    clarifications make the declared MVP-04 surface match the running backend.
+    (1) `GET /tow/partner/jobs` (`listPartnerTowJobs`) is now documented as what it
+    is: the authenticated partner's own job list, whose identity comes exclusively
+    from the bearer token and whose items are read from the SAME `tow_assignments`
+    authority the customer recovery path reads, so `from`/`to` are INCLUSIVE bounds
+    on `assignment.assigned_at` (the assignment instant), not on the request
+    creation instant, and the query subset is exactly `state`, `from`, `to`, `page`,
+    `limit`. (2) `POST /tow/proposals/{proposalId}/accept` and
+    `POST /tow/proposals/{proposalId}/withdraw` now declare `422` because the
+    `Idempotency-Key` header they already required is ENFORCED at runtime (8–128
+    characters, validated before any mutation); accept replays remain keyed by
+    `proposal_id` + the database uniqueness constraints, and a withdraw retry by
+    the owning partner returns the same withdrawn proposal. (3) the MVP-04
+    operations now declare the full truthful status surface the backend produces —
+    `401` (no/invalid token), `403` (wrong role or foreign owner), `404` (unknown
+    request/proposal), `409` (domain conflict) and `422` (invalid query or
+    `Idempotency-Key`) — instead of only the happy path. Every change is additive:
+    no path, parameter, response shape or enum member is removed or narrowed, and
+    the base contract is untouched.
 servers:
   - url: /api
 security: []
@@ -85,7 +114,52 @@ paths:
   /tow/requests/{requestId}/destination:
     $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1requests~1{requestId}~1destination'
   /tow/requests/{requestId}/proposals:
-    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1requests~1{requestId}~1proposals'
+    get:
+      tags: [Tow Customer]
+      operationId: listTowRequestProposals
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/RequestId'
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/TowProposalStatus' }
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/Page'
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Proposals for customer request
+          content:
+            application/json:
+              schema: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TowProposalListResponse' }
+        '401': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Forbidden' }
+        '404': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/NotFound' }
+        '422': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/ValidationError' }
+    post:
+      tags: [Tow Partner]
+      operationId: createTowProposal
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/RequestId'
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+      responses:
+        '201':
+          description: Server-calculated proposal
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TowProposalResponse' }
+        '401': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Forbidden' }
+        '404': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/NotFound' }
+        '409': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/DomainConflict' }
+        '422': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/ValidationError' }
   /tow/requests/{requestId}/route:
     get:
       tags: [Tow Customer, Tow Partner]
@@ -108,11 +182,45 @@ paths:
         '404': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/NotFound' }
 
   /tow/proposals/{proposalId}/accept:
-    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1proposals~1{proposalId}~1accept'
+    post:
+      tags: [Tow Customer]
+      operationId: acceptTowProposal
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/ProposalId'
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Atomic assignment completed
+          content:
+            application/json:
+              schema: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TowRequestResponse' }
+        '401': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Forbidden' }
+        '404': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/NotFound' }
+        '409': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/DomainConflict' }
+        '422': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/ValidationError' }
   /tow/proposals/{proposalId}/counteroffer:
     $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1proposals~1{proposalId}~1counteroffer'
   /tow/proposals/{proposalId}/withdraw:
-    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1proposals~1{proposalId}~1withdraw'
+    post:
+      tags: [Tow Partner]
+      operationId: withdrawTowProposal
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/ProposalId'
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Proposal withdrawn (a retry by the owning partner returns the same withdrawn proposal)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TowProposalResponse' }
+        '401': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Forbidden' }
+        '404': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/NotFound' }
+        '409': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/DomainConflict' }
+        '422': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/ValidationError' }
   /tow/counteroffers/{counterofferId}/accept:
     $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1counteroffers~1{counterofferId}~1accept'
   /tow/counteroffers/{counterofferId}/reject:
@@ -214,15 +322,41 @@ paths:
               schema: { $ref: '#/components/schemas/TowOpportunityListResponse' }
         '409': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/DomainConflict' }
   /tow/partner/proposals:
-    $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1partner~1proposals'
+    get:
+      tags: [Tow Partner]
+      operationId: listPartnerTowProposals
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/TowProposalStatus' }
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/Page'
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Partner proposals
+          content:
+            application/json:
+              schema: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TowProposalListResponse' }
+        '401': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Forbidden' }
+        '422': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/ValidationError' }
   /tow/partner/jobs:
     get:
       tags: [Tow Partner]
       operationId: listPartnerTowJobs
       security: [{ bearerAuth: [] }]
       description: >-
-        Lists Tow requests assigned to the authenticated Tow partner, including
-        current in-flight work and historical jobs. Canonical REST recovery endpoint.
+        Lists the Tow jobs of the AUTHENTICATED Tow partner. The identity is taken
+        exclusively from the bearer token (`req.user.partner_id`): no query, path
+        or body field can select another partner's jobs, and a foreign partner's
+        job is never returned. Items are read from `tow_assignments` — the single
+        authority on occupancy/jobs, the same one the customer recovery path reads
+        — so the partner and the customer can never disagree about the final
+        price, the vehicle or the instant of a job. `from` and `to` are INCLUSIVE
+        bounds on `assignment.assigned_at` (the assignment instant), not on the
+        request creation instant; `state` filters the current Tow request state.
+        Newest assignment first, paginated by `page`/`limit`.
       parameters:
         - name: state
           in: query
@@ -234,13 +368,14 @@ paths:
         - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/Limit'
       responses:
         '200':
-          description: Assigned/in-flight/history Tow jobs for the partner
+          description: Assigned/in-flight/history Tow jobs for the authenticated partner
           content:
             application/json:
               schema:
                 $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TowRequestListResponse'
         '401': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Unauthorized' }
         '403': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Forbidden' }
+        '422': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/ValidationError' }
   /tow/partner/financial-summary:
     get:
       tags: [Tow Partner]
@@ -430,6 +565,57 @@ components:
       scheme: bearer
       bearerFormat: JWT
   schemas:
+    TowProposal:
+      type: object
+      required: [id, request_id, partner_id, tow_vehicle, route_quote, price, status, expires_at, created_at]
+      properties:
+        id: { type: string }
+        request_id: { type: string }
+        partner_id: { type: string }
+        partner:
+          type: object
+          properties:
+            display_name: { type: string }
+            rating: { type: number, minimum: 0, maximum: 5 }
+            review_count: { type: integer, minimum: 0 }
+        tow_vehicle: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TowVehicleSummary' }
+        route_quote: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/RouteQuote' }
+        price: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/Money' }
+        status: { $ref: '#/components/schemas/TowProposalStatus' }
+        expires_at: { type: string, format: date-time }
+        counteroffer:
+          oneOf:
+            - $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/Counteroffer'
+            - type: 'null'
+        created_at: { type: string, format: date-time }
+
+    TowProposalStatus:
+      type: string
+      enum: [ACTIVE, COUNTERED, ACCEPTED, REJECTED, WITHDRAWN, EXPIRED, CLOSED]
+
+    EnvelopeTowProposal:
+      type: object
+      required: [success, data]
+      properties: { success: { const: true }, data: { $ref: '#/components/schemas/TowProposal' } }
+    TowProposalResponse: { $ref: '#/components/schemas/EnvelopeTowProposal' }
+
+    ErrorResponse:
+      type: object
+      required: [success, message, error]
+      properties:
+        success: { const: false }
+        message: { type: string }
+        error:
+          type: object
+          required: [code]
+          properties:
+            code:
+              type: string
+              enum: [service_module_disabled, outstanding_financial_debt, partner_platform_fee_debt_limit, invalid_tow_state, invalid_tow_transition, not_request_owner, not_assigned_partner, vehicle_not_compatible, vehicle_not_operational, tow_document_required, tow_document_not_approved, proposal_already_active, proposal_expired, proposal_not_actionable, counteroffer_already_used, counteroffer_expired, request_already_assigned, payment_not_ready, payment_failed, payment_method_not_changeable, customer_no_show_not_allowed_yet, idempotency_conflict, conflict, validation_error, unauthorized, forbidden, not_found, external_dependency_unavailable]
+            details:
+              type: object
+              additionalProperties: true
+
     TowSettingsPatch:
       type: object
       additionalProperties: false

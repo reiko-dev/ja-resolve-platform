@@ -72,7 +72,7 @@ const CANONICAL_ERROR_CODES = [
   'service_module_disabled', 'outstanding_financial_debt', 'partner_platform_fee_debt_limit',
   'invalid_tow_state', 'invalid_tow_transition', 'not_request_owner', 'not_assigned_partner',
   'vehicle_not_compatible', 'vehicle_not_operational', 'tow_document_required',
-  'tow_document_not_approved', 'proposal_expired', 'proposal_not_actionable',
+  'tow_document_not_approved', 'proposal_already_active', 'proposal_expired', 'proposal_not_actionable',
   'counteroffer_already_used', 'counteroffer_expired', 'request_already_assigned',
   'payment_not_ready', 'payment_failed', 'payment_method_not_changeable',
   'customer_no_show_not_allowed_yet', 'idempotency_conflict', 'conflict',

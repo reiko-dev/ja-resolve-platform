@@ -1,0 +1,51 @@
+### npm run test:contract
+$ npm run test:contract
+
+> socorre-ai-backend@1.0.0 test:contract
+> jest tests/contract --runInBand
+
+PASS tests/contract/openapi.structure.test.js
+PASS tests/contract/consumerSmoke.test.js
+PASS tests/contract/towRefResolution.test.js
+::ffff:127.0.0.1 - - [21/Sep/2026:02:47:52 +0000] "POST /api/tow/requests/1/proposals HTTP/1.1" 422 157 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:47:52 +0000] "POST /api/tow/requests/1/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:47:52 +0000] "POST /api/tow/requests/2/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:47:52 +0000] "POST /api/tow/proposals/2/accept HTTP/1.1" 422 157 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:47:52 +0000] "POST /api/tow/proposals/2/accept HTTP/1.1" 200 1039 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:47:52 +0000] "POST /api/tow/requests/3/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:47:52 +0000] "POST /api/tow/proposals/3/withdraw HTTP/1.1" 422 157 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:47:52 +0000] "POST /api/tow/proposals/3/withdraw HTTP/1.1" 200 751 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:47:52 +0000] "POST /api/tow/requests/4/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:47:52 +0000] "POST /api/tow/proposals/4/accept HTTP/1.1" 200 1039 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:47:52 +0000] "POST /api/tow/proposals/4/withdraw HTTP/1.1" 409 110 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:47:52 +0000] "POST /api/tow/requests/5/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:47:52 +0000] "POST /api/tow/proposals/5/withdraw HTTP/1.1" 403 103 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:47:52 +0000] "POST /api/tow/proposals/999999/accept HTTP/1.1" 404 81 "-" "-"
+PASS tests/contract/towOperationContract.test.js
+::ffff:127.0.0.1 - - [21/Sep/2026:02:47:52 +0000] "POST /api/tow/requests/7/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:47:52 +0000] "POST /api/tow/proposals/6/accept HTTP/1.1" 200 1040 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:47:52 +0000] "GET /api/tow/partner/jobs HTTP/1.1" 401 60 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:47:52 +0000] "GET /api/tow/partner/jobs HTTP/1.1" 403 106 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:47:52 +0000] "GET /api/tow/partner/jobs?limit=101 HTTP/1.1" 422 125 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:47:52 +0000] "GET /api/tow/partner/jobs HTTP/1.1" 200 1091 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:47:52 +0000] "POST /api/tow/requests/8/proposals HTTP/1.1" 201 750 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:47:52 +0000] "GET /api/tow/partner/proposals HTTP/1.1" 200 801 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:47:52 +0000] "GET /api/tow/requests/8/proposals HTTP/1.1" 200 831 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:47:52 +0000] "GET /api/tow/requests/8/proposals?page=0 HTTP/1.1" 422 132 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:47:52 +0000] "POST /api/tow/requests/9/proposals HTTP/1.1" 201 750 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:47:52 +0000] "GET /api/tow/requests/9/proposals HTTP/1.1" 401 60 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:47:52 +0000] "POST /api/tow/requests/9/proposals HTTP/1.1" 401 60 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:47:52 +0000] "GET /api/tow/partner/proposals HTTP/1.1" 401 60 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:47:52 +0000] "POST /api/tow/proposals/8/accept HTTP/1.1" 401 60 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:47:52 +0000] "POST /api/tow/proposals/8/withdraw HTTP/1.1" 401 60 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:47:52 +0000] "GET /api/tow/partner/jobs HTTP/1.1" 401 60 "-" "-"
+PASS tests/contract/towSettingsPatch.test.js
+PASS tests/contract/consumerDiscovery.test.js
+
+Test Suites: 6 passed, 6 total
+Tests:       79 passed, 79 total
+Snapshots:   0 total
+Time:        3.852 s
+Ran all test suites matching /tests\/contract/i.
+
+exit=0

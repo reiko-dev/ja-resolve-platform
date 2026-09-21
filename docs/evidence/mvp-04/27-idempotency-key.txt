@@ -1,0 +1,80 @@
+$ npx jest tests/tow/mvp04/towIdempotencyKey.test.js --runInBand
+---
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:25 +0000] "POST /api/tow/requests/1/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:25 +0000] "POST /api/tow/proposals/1/accept HTTP/1.1" 422 157 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:25 +0000] "POST /api/tow/requests/2/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:25 +0000] "POST /api/tow/proposals/2/accept HTTP/1.1" 422 170 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:25 +0000] "POST /api/tow/requests/3/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:25 +0000] "POST /api/tow/proposals/3/accept HTTP/1.1" 422 170 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/requests/4/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/proposals/4/accept HTTP/1.1" 200 1040 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/requests/5/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/proposals/5/accept HTTP/1.1" 200 1040 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/requests/6/proposals HTTP/1.1" 201 750 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/proposals/999999/accept HTTP/1.1" 422 157 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/proposals/999999/accept HTTP/1.1" 404 81 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/requests/7/proposals HTTP/1.1" 201 750 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/proposals/7/accept HTTP/1.1" 200 1042 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/proposals/7/accept HTTP/1.1" 200 1042 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/requests/8/proposals HTTP/1.1" 201 750 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/proposals/8/accept HTTP/1.1" 200 1042 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/proposals/8/accept HTTP/1.1" 200 1042 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/requests/9/proposals HTTP/1.1" 201 750 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/proposals/9/accept HTTP/1.1" 200 1042 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/proposals/9/accept HTTP/1.1" 422 157 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/requests/10/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/proposals/10/withdraw HTTP/1.1" 422 157 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/requests/11/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/proposals/11/withdraw HTTP/1.1" 422 170 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/proposals/11/withdraw HTTP/1.1" 422 170 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/requests/12/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/proposals/12/withdraw HTTP/1.1" 200 755 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/requests/13/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/proposals/13/withdraw HTTP/1.1" 200 755 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/proposals/13/withdraw HTTP/1.1" 200 755 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/requests/14/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/proposals/14/withdraw HTTP/1.1" 200 755 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/proposals/14/withdraw HTTP/1.1" 200 755 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/requests/15/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/proposals/15/withdraw HTTP/1.1" 403 103 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/proposals/15/withdraw HTTP/1.1" 422 157 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/requests/16/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/proposals/16/accept HTTP/1.1" 200 1044 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/proposals/16/withdraw HTTP/1.1" 409 110 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/requests/17/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/requests/17/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/proposals/17/accept HTTP/1.1" 200 1044 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/proposals/18/withdraw HTTP/1.1" 409 110 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/requests/18/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/proposals/19/withdraw HTTP/1.1" 409 91 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/proposals/999999/withdraw HTTP/1.1" 422 157 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:26 +0000] "POST /api/tow/proposals/999999/withdraw HTTP/1.1" 404 81 "-" "-"
+PASS tests/tow/mvp04/towIdempotencyKey.test.js
+  MVP-04 EXT — required Idempotency-Key on accept and withdraw (EXT-MVP04-2)
+    accept
+      ✓ a missing Idempotency-Key is a 422 and assigns nothing (31 ms)
+      ✓ a too-short key is a 422 and assigns nothing (9 ms)
+      ✓ a too-long key is a 422 and assigns nothing (8 ms)
+      ✓ the 8 and 128 character boundaries are accepted (21 ms)
+      ✓ the key is validated before the proposal is even read (7 ms)
+      ✓ a replay with the same key returns the same assignment (11 ms)
+      ✓ a replay with a DIFFERENT valid key returns the same assignment (9 ms)
+      ✓ a missing key on an already assigned request is still a 422 (9 ms)
+    withdraw
+      ✓ a missing Idempotency-Key is a 422 and the proposal stays ACTIVE (7 ms)
+      ✓ a too-short or too-long key is a 422 and the proposal stays ACTIVE (8 ms)
+      ✓ the owning partner withdraws an ACTIVE proposal with a valid key (6 ms)
+      ✓ a retry with the same key returns the same withdrawn proposal (8 ms)
+      ✓ a retry with a DIFFERENT valid key returns the same withdrawn proposal (7 ms)
+      ✓ a foreign partner is 403 with a valid key and 422 without one (7 ms)
+      ✓ an ACCEPTED proposal is 409 proposal_not_actionable (8 ms)
+      ✓ a CLOSED proposal is 409 proposal_not_actionable (12 ms)
+      ✓ an expired ACTIVE proposal is 409 proposal_expired (6 ms)
+      ✓ an unknown proposal is 404 with a key and 422 without one (4 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       18 passed, 18 total
+Snapshots:   0 total
+Time:        0.781 s, estimated 1 s
+Ran all test suites matching /tests\/tow\/mvp04\/towIdempotencyKey.test.js/i.
+exit=0

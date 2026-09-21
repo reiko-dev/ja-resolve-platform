@@ -1,0 +1,109 @@
+$ npx jest tests/tow/mvp04/towPartnerJobs.test.js --runInBand
+---
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs HTTP/1.1" 401 60 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/requests/1/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/requests/1/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/proposals/1/accept HTTP/1.1" 200 1039 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs HTTP/1.1" 403 106 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs HTTP/1.1" 403 106 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/requests/2/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/requests/2/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/proposals/3/accept HTTP/1.1" 200 1039 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs?partner_id=4&partnerId=4&id=4 HTTP/1.1" 200 75 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs?partner_id=5 HTTP/1.1" 200 1090 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/requests/3/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/requests/3/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/proposals/5/accept HTTP/1.1" 200 1040 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs HTTP/1.1" 200 1091 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/requests/4/proposals HTTP/1.1" 201 750 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/requests/4/proposals HTTP/1.1" 201 750 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/proposals/7/accept HTTP/1.1" 200 1042 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs HTTP/1.1" 200 75 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/requests/5/proposals HTTP/1.1" 201 750 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/requests/5/proposals HTTP/1.1" 201 751 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/proposals/9/accept HTTP/1.1" 200 1042 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs HTTP/1.1" 200 75 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs HTTP/1.1" 200 75 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/requests/7/proposals HTTP/1.1" 201 751 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/requests/7/proposals HTTP/1.1" 201 751 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/proposals/11/accept HTTP/1.1" 200 1042 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/requests/7 HTTP/1.1" 200 1042 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs HTTP/1.1" 200 1093 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/requests/8/proposals HTTP/1.1" 201 751 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/requests/8/proposals HTTP/1.1" 201 751 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/proposals/13/accept HTTP/1.1" 200 1042 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs HTTP/1.1" 200 75 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs HTTP/1.1" 200 75 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/requests/9/proposals HTTP/1.1" 201 751 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/requests/9/proposals HTTP/1.1" 201 751 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/proposals/15/accept HTTP/1.1" 200 1042 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs?state=ASSIGNED HTTP/1.1" 200 1093 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs?state=SEARCHING HTTP/1.1" 200 75 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs?state=NEGOTIATING HTTP/1.1" 200 75 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs?state=COMPLETED HTTP/1.1" 200 75 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs?state=CANCELLED HTTP/1.1" 200 75 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/requests/10/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/requests/10/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/proposals/17/accept HTTP/1.1" 200 1044 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs?state=NOT_A_STATE HTTP/1.1" 422 239 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/requests/11/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/requests/11/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/proposals/19/accept HTTP/1.1" 200 1044 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs?from=2026-01-15T12%3A00%3A00.000Z&to=2026-01-15T12%3A00%3A00.000Z HTTP/1.1" 200 1095 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs?from=2026-01-15T12%3A00%3A00.000Z HTTP/1.1" 200 1095 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs?to=2026-01-15T12%3A00%3A00.000Z HTTP/1.1" 200 1095 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs?from=2026-01-15T12%3A00%3A00.001Z HTTP/1.1" 200 75 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs?to=2026-01-15T11%3A59%3A59.999Z HTTP/1.1" 200 75 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/requests/12/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/requests/12/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/proposals/21/accept HTTP/1.1" 200 1044 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs?from=not-an-instant HTTP/1.1" 422 125 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs?to=yesterday HTTP/1.1" 422 121 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs?from=2026-01-15T12%3A00%3A00.000Z&to=2026-01-15T11%3A00%3A00.000Z HTTP/1.1" 422 118 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/requests/13/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/requests/13/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/proposals/23/accept HTTP/1.1" 200 1044 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/requests/14/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/proposals/25/accept HTTP/1.1" 200 1044 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs HTTP/1.1" 200 2117 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs?limit=1&page=1 HTTP/1.1" 200 1094 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs?limit=1&page=2 HTTP/1.1" 200 1095 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs?limit=1&page=3 HTTP/1.1" 200 74 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs?state=COMPLETED HTTP/1.1" 200 1096 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs HTTP/1.1" 200 75 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs HTTP/1.1" 200 75 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/requests/15/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/requests/15/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "POST /api/tow/proposals/26/accept HTTP/1.1" 200 1044 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs?limit=101 HTTP/1.1" 422 125 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs?limit=0 HTTP/1.1" 422 125 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs?page=0 HTTP/1.1" 422 132 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:23 +0000] "GET /api/tow/partner/jobs?page=two HTTP/1.1" 422 116 "-" "-"
+PASS tests/tow/mvp04/towPartnerJobs.test.js
+  MVP-04 EXT — partner job list (EXT-MVP04-1)
+    authorization and identity
+      ✓ an anonymous caller is a 401 (13 ms)
+      ✓ a customer cannot list partner jobs (38 ms)
+      ✓ an admin cannot list partner jobs (2 ms)
+      ✓ the identity is the token, never the query (20 ms)
+    the job list
+      ✓ the winning partner sees exactly its assigned job (16 ms)
+      ✓ a partner that lost the request sees no job (13 ms)
+      ✓ an unrelated partner sees no job (12 ms)
+      ✓ a partner with no job at all gets an empty, schema-valid list (3 ms)
+      ✓ the customer and the partner agree on the very same assignment (14 ms)
+      ✓ an ASSIGNED job is never visible to a partner that did not win it (13 ms)
+    filters and pagination
+      ✓ state filters over the frozen request states (17 ms)
+      ✓ an unknown state is a 422 validation error (12 ms)
+      ✓ from and to are inclusive bounds on assignment.assigned_at (18 ms)
+      ✓ malformed or inverted bounds are 422 (12 ms)
+      ✓ pagination is over the partner assignments, not the request table (26 ms)
+      ✓ an out-of-range limit or page is a 422 (14 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       16 passed, 16 total
+Snapshots:   0 total
+Time:        1.528 s
+Ran all test suites matching /tests\/tow\/mvp04\/towPartnerJobs.test.js/i.
+exit=0

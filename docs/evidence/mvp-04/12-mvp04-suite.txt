@@ -1,0 +1,373 @@
+MVP-04 — EVIDENCE 12
+MVP-04 suite, offline harness (SQLite) — the PostgreSQL suite self-skips
+Command: cd socorre_ai_backend && npx jest tests/tow/mvp04 --runInBand --verbose
+================================================================================
+PASS tests/tow/mvp04/towMvp04Postgres.e2e.test.js
+  MVP-04 PostgreSQL — atomic assignment and concurrency
+    ○ skipped migration 005 applies from an empty schema and pins the atomicity authority
+    ○ skipped C1 — two concurrent accepts of different proposals yield exactly one assignment
+    ○ skipped C2 — N concurrent accepts of the SAME proposal collapse to one assignment
+    ○ skipped C3 — the UNIQUE constraint rejects a second assignment for the same request
+    ○ skipped C4 — one live job per partner is a partial unique index (occupancy)
+    ○ skipped C5 — disable x accept is deterministically serialized
+    ○ skipped C6 — concurrent creation by one partner for one request yields one proposal
+    ○ skipped C7 — a referenced vehicle is protected by RESTRICT, and the delete answers 409
+    ○ skipped C9 — a create blocked behind an uncommitted winner recovers through the index
+    ○ skipped C8 — concurrent same-key different-payload creates: one proposal, one 409
+  MVP-04 PostgreSQL suite (skipped)
+    ✓ enable with TOW_POSTGRES_E2E=1 and the disposable compose harness (1 ms)
+
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/1/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/2/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/3/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/4/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/4/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/4/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/5/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "GET /api/tow/partner/opportunities HTTP/1.1" 200 1484 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/6/proposals HTTP/1.1" 409 126 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/7/proposals HTTP/1.1" 422 157 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/8/proposals HTTP/1.1" 422 173 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/9/proposals HTTP/1.1" 422 164 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/10/proposals HTTP/1.1" 422 165 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/11/proposals HTTP/1.1" 422 171 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/12/proposals HTTP/1.1" 422 173 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/13/proposals HTTP/1.1" 422 174 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/14/proposals HTTP/1.1" 422 165 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/15/proposals HTTP/1.1" 422 169 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/16/proposals HTTP/1.1" 422 173 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/17/proposals HTTP/1.1" 422 164 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/not-an-id/proposals HTTP/1.1" 404 80 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/999999/proposals HTTP/1.1" 404 80 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/20/proposals HTTP/1.1" 404 80 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/21/proposals HTTP/1.1" 409 159 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/22/proposals HTTP/1.1" 409 161 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/23/proposals HTTP/1.1" 409 157 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/24/proposals HTTP/1.1" 201 751 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/25/proposals HTTP/1.1" 409 165 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/26/proposals HTTP/1.1" 409 174 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/27/proposals HTTP/1.1" 409 160 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/28/proposals HTTP/1.1" 503 110 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/29/proposals HTTP/1.1" 403 106 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/30/proposals HTTP/1.1" 403 106 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/31/proposals HTTP/1.1" 401 60 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/32/proposals HTTP/1.1" 201 751 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/32/proposals HTTP/1.1" 409 133 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/33/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/proposals/10/withdraw HTTP/1.1" 200 755 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/33/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/34/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/34/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/35/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/36/proposals HTTP/1.1" 409 127 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/37/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/38/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "GET /api/tow/partner/proposals HTTP/1.1" 200 803 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/39/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "GET /api/tow/partner/proposals?status=ACTIVE HTTP/1.1" 200 803 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "GET /api/tow/partner/proposals?status=ACCEPTED HTTP/1.1" 200 75 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "GET /api/tow/partner/proposals?status=pending HTTP/1.1" 422 182 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/41/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "GET /api/tow/partner/proposals HTTP/1.1" 200 75 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "GET /api/tow/partner/proposals HTTP/1.1" 403 106 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/42/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/42/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "GET /api/tow/requests/42/proposals HTTP/1.1" 200 1562 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/43/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "GET /api/tow/requests/43/proposals HTTP/1.1" 403 111 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "GET /api/tow/requests/999999/proposals HTTP/1.1" 404 80 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "GET /api/tow/requests/44 HTTP/1.1" 200 913 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/44/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "GET /api/tow/requests/44 HTTP/1.1" 200 932 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/45/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "GET /api/tow/requests/45 HTTP/1.1" 200 932 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/requests/46/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:51 +0000] "POST /api/tow/proposals/23/counteroffer HTTP/1.1" 404 68 "-" "-"
+PASS tests/tow/mvp04/towProposalCreate.test.js
+  MVP-04 — server-priced proposal creation
+    happy path
+      ✓ a single eligible partner creates a proposal priced by the backend (32 ms)
+      ✓ the route provider was called exactly once, after eligibility passed (7 ms)
+      ✓ the first proposal moves the request SEARCHING -> NEGOTIATING (6 ms)
+      ✓ multiple partners can hold simultaneous ACTIVE proposals (TOW-PROP-001) (14 ms)
+      ✓ the request stays visible in the partner opportunity feed after a proposal (8 ms)
+    module gate
+      ✓ a disabled module blocks creation with service_module_disabled and no provider call (6 ms)
+    input contract
+      ✓ a missing Idempotency-Key is a validation error (3 ms)
+      ✓ the body rejects the client-supplied field proposed_price (3 ms)
+      ✓ the body rejects the client-supplied field price (3 ms)
+      ✓ the body rejects the client-supplied field amount (3 ms)
+      ✓ the body rejects the client-supplied field amount_cents (3 ms)
+      ✓ the body rejects the client-supplied field route_distance (3 ms)
+      ✓ the body rejects the client-supplied field estimated_price (3 ms)
+      ✓ the body rejects the client-supplied field tariff (3 ms)
+      ✓ the body rejects the client-supplied field partner_id (3 ms)
+      ✓ the body rejects the client-supplied field tow_vehicle_id (3 ms)
+      ✓ a client cannot propose with a price even when it matches the server price (2 ms)
+      ✓ a non-numeric requestId is a 404, never a 500 (3 ms)
+      ✓ an unknown request is a 404 (2 ms)
+    eligibility revalidation (never tightened beyond MVP-03)
+      ✓ a partner outside the frozen radius is refused and consumes no provider call (4 ms)
+      ✓ a partner with no active vehicle is refused (3 ms)
+      ✓ an unavailable partner is refused (3 ms)
+      ✓ an offline partner is refused (3 ms)
+      ✓ CONTRACT_CONFLICT-1: an UNVERIFIED partner is NOT excluded (accepted MVP-03 semantics) (4 ms)
+      ✓ a partner whose required document is missing is refused (3 ms)
+      ✓ a partner whose required document is pending is refused (3 ms)
+      ✓ an incompatible vehicle class is refused (4 ms)
+      ✓ a provider failure yields external_dependency_unavailable and no proposal row (4 ms)
+    authorization
+      ✓ a customer cannot create a proposal (3 ms)
+      ✓ an admin cannot create a proposal (2 ms)
+      ✓ an unauthenticated request is refused (2 ms)
+    duplicate policy
+      ✓ a second ACTIVE proposal by the same partner is a stable conflict (7 ms)
+      ✓ after withdrawing, the same partner may propose again (8 ms)
+    idempotency
+      ✓ the same key with the same payload returns the same proposal, not a duplicate (6 ms)
+      ✓ the same key with a different payload is a 409 idempotency_conflict (5 ms)
+      ✓ the adapter persists the digest of the canonical fingerprint source (5 ms)
+    partner proposal list
+      ✓ the partner rehydrates their own proposals with pagination meta (6 ms)
+      ✓ the partner list filters by status (7 ms)
+      ✓ an invalid status filter is a validation error (2 ms)
+      ✓ a partner only sees their own proposals (6 ms)
+      ✓ a customer cannot read the partner proposal list (2 ms)
+    customer proposal list
+      ✓ the owner lists proposals for their request with the request state (8 ms)
+      ✓ a different customer cannot list someone else's proposals (5 ms)
+      ✓ an unknown request is a 404 for the owner path (1 ms)
+    truthful allowed_actions
+      ✓ the request advertises accept_proposal only when a live proposal exists (7 ms)
+      ✓ no MVP-05 or counteroffer action is ever advertised (5 ms)
+    counteroffer is not implemented
+      ✓ the counteroffer path does not exist (5 ms)
+
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/1/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "DELETE /api/tow/vehicles/1 HTTP/1.1" 409 134 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/2/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/proposals/2/accept HTTP/1.1" 200 1039 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "DELETE /api/tow/vehicles/2 HTTP/1.1" 409 134 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/3/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "DELETE /api/tow/vehicles/3 HTTP/1.1" 409 134 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "DELETE /api/tow/vehicles/4 HTTP/1.1" 200 47 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/5/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "DELETE /api/tow/vehicles/5 HTTP/1.1" 409 134 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "DELETE /api/tow/vehicles/6 HTTP/1.1" 200 47 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/6/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "DELETE /api/tow/vehicles/7 HTTP/1.1" 404 79 "-" "-"
+PASS tests/tow/mvp04/towVehicleReferenceGuard.test.js
+  MVP-04 — a referenced TowVehicle is not erasable
+    ✓ an ACTIVE proposal pins the vehicle (13 ms)
+    ✓ a live assignment pins the vehicle (9 ms)
+    ✓ a WITHDRAWN proposal is history, and history is not erasable either (7 ms)
+    ✓ a vehicle nobody referenced is still deletable (3 ms)
+    ✓ the OTHER partner keeps deleting its own untouched vehicle (12 ms)
+    ✓ a foreign vehicle stays a 404, never a 409 (ownership is checked first) (6 ms)
+
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/1/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/1/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/1/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/proposals/2/accept HTTP/1.1" 200 1039 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/2/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/2/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/proposals/4/accept HTTP/1.1" 200 1039 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "GET /api/tow/requests/2/proposals HTTP/1.1" 200 1553 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/3/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/3/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/proposals/6/accept HTTP/1.1" 200 1039 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "GET /api/tow/partner/proposals?status=ACCEPTED HTTP/1.1" 200 801 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "GET /api/tow/partner/proposals?status=CLOSED HTTP/1.1" 200 799 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/4/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/proposals/8/accept HTTP/1.1" 200 1040 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "GET /api/tow/requests/4 HTTP/1.1" 200 1040 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/5/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/proposals/9/accept HTTP/1.1" 200 1040 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/proposals/9/accept HTTP/1.1" 200 1040 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/6/proposals HTTP/1.1" 201 751 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/6/proposals HTTP/1.1" 201 751 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/proposals/10/accept HTTP/1.1" 200 1042 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/proposals/11/accept HTTP/1.1" 409 130 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/7/proposals HTTP/1.1" 201 751 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/proposals/12/accept HTTP/1.1" 200 1042 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/proposals/12/accept HTTP/1.1" 200 1042 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/8/proposals HTTP/1.1" 201 751 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/proposals/13/accept HTTP/1.1" 409 91 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/9/proposals HTTP/1.1" 201 751 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/proposals/14/accept HTTP/1.1" 200 1042 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/10/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/11/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/proposals/16/withdraw HTTP/1.1" 200 755 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/12/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/proposals/17/withdraw HTTP/1.1" 403 103 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/13/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/proposals/18/withdraw HTTP/1.1" 403 106 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/14/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/proposals/19/accept HTTP/1.1" 200 1044 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/proposals/19/withdraw HTTP/1.1" 409 110 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/15/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/proposals/20/withdraw HTTP/1.1" 409 91 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/proposals/999999/withdraw HTTP/1.1" 404 81 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/17/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/proposals/21/accept HTTP/1.1" 403 114 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/18/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/proposals/22/accept HTTP/1.1" 403 106 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/19/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/proposals/23/accept HTTP/1.1" 401 60 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/proposals/999999/accept HTTP/1.1" 404 81 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/21/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/proposals/24/accept HTTP/1.1" 409 126 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/22/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/proposals/25/accept HTTP/1.1" 200 1044 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/23/proposals HTTP/1.1" 201 752 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/proposals/26/accept HTTP/1.1" 409 150 "-" "-"
+PASS tests/tow/mvp04/towAssignmentAccept.test.js
+  MVP-04 — atomic assignment on accept
+    happy path
+      ✓ accepting one of three proposals assigns exactly one winner (19 ms)
+      ✓ the customer proposal list reflects the closed losers and the winner (11 ms)
+      ✓ the partner rehydration shows the ACCEPTED / CLOSED outcome (14 ms)
+      ✓ the request rehydration exposes the assignment after accept (8 ms)
+    idempotency
+      ✓ replaying the same accept returns the same assignment, never a second one (8 ms)
+      ✓ a DIFFERENT key for an already-assigned request is request_already_assigned (11 ms)
+      ✓ a second accept of the SAME proposal with a different key stays idempotent (9 ms)
+    action-time expiry
+      ✓ an expired proposal cannot be accepted, even while still stored ACTIVE (6 ms)
+      ✓ a proposal one millisecond before expiry is still acceptable (7 ms)
+      ✓ the expiry window follows the tow_proposal_expiry_minutes setting (5 ms)
+    withdraw
+      ✓ the owning partner withdraws an ACTIVE proposal (6 ms)
+      ✓ another partner cannot withdraw it (5 ms)
+      ✓ a customer cannot withdraw a partner proposal (6 ms)
+      ✓ an ACCEPTED proposal can no longer be withdrawn (10 ms)
+      ✓ an expired proposal can no longer be withdrawn (5 ms)
+      ✓ an unknown proposal is a 404 (2 ms)
+    authorization
+      ✓ a partner cannot accept a proposal (5 ms)
+      ✓ a different customer cannot accept (5 ms)
+      ✓ an unauthenticated accept is refused (4 ms)
+      ✓ an unknown proposal id is a 404 for the owner (3 ms)
+    module gate
+      ✓ a disabled module blocks accept with service_module_disabled (5 ms)
+    occupancy
+      ✓ a partner already on a live job cannot be assigned a second request (11 ms)
+
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/1/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/2/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/3/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/3/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "GET /api/tow/requests/3/proposals HTTP/1.1" 200 1554 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/4/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "GET /api/tow/partner/proposals HTTP/1.1" 200 799 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/5/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/proposals/6/withdraw HTTP/1.1" 200 751 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/6/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/6/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/proposals/7/accept HTTP/1.1" 200 1040 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/7/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/7/proposals HTTP/1.1" 409 133 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/999999/proposals HTTP/1.1" 404 80 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/8/proposals HTTP/1.1" 201 751 "-" "-"
+::ffff:127.0.0.1 - - [20/Sep/2026:23:13:52 +0000] "POST /api/tow/requests/9/proposals HTTP/1.1" 201 751 "-" "-"
+PASS tests/tow/mvp04/towProposalContract.test.js
+  MVP-04 — live proposal lifecycle conforms to the canonical OpenAPI contract
+    ✓ the canonical validators are compiled from the composed contract (not vacuously absent) (7 ms)
+    ✓ the ACTUAL 201 create body validates against TowProposalResponse (20 ms)
+    ✓ the live proposal carries exactly the contract members (no invented, no missing) (6 ms)
+    ✓ the ACTUAL 200 customer list validates against TowProposalListResponse (9 ms)
+    ✓ the ACTUAL 200 partner list validates against TowProposalListResponse (6 ms)
+    ✓ the ACTUAL 200 withdraw body validates against TowProposalResponse (6 ms)
+    ✓ the ACTUAL 200 accept body validates against TowRequestResponse with a real Assignment (10 ms)
+    ✓ the ACTUAL error bodies validate against ErrorResponse (8 ms)
+    ✓ proposal_already_active is part of the canonical error vocabulary (draft.6) (1 ms)
+    ✓ the contract validator rejects a live proposal missing a required member (in-suite negative control) (4 ms)
+    ✓ the contract validator rejects a client-priced proposal (in-suite negative control) (4 ms)
+    ✓ base and canonical proposal schemas do not diverge silently (1 ms)
+    ✓ the create operation body stays empty by contract (additionalProperties: false) (1 ms)
+
+PASS tests/tow/mvp04/towMvp04Architecture.test.js
+  MVP-04 ARCH — the database is the atomicity authority
+    ✓ migration 005 creates both canonical tables and drops only them (1 ms)
+    ✓ exactly one assignment per request is a UNIQUE constraint, not a code path (1 ms)
+    ✓ occupancy is enforced by partial unique indexes, never by a status column
+    ✓ the proposal idempotency key is unique per partner
+    ✓ the proposal status vocabulary is pinned by a CHECK constraint
+    ✓ migration 005 never mutates the legacy subsystem nor an earlier table (1 ms)
+    ✓ the migrations are registered everywhere the schema is pinned (2 ms)
+    ✓ the SQLite harness mirrors both canonical tables
+  MVP-04 ARCH — purity and legacy isolation of the new files
+    ✓ Domain/Application contain no an express import (1 ms)
+    ✓ Domain/Application contain no a knex import
+    ✓ Domain/Application contain no a crypto import (1 ms)
+    ✓ Domain/Application contain no an environment read (1 ms)
+    ✓ Domain/Application contain no a network call (1 ms)
+    ✓ the canonical flow never reads the legacy tables (3 ms)
+    ✓ occupancy is never derived from TowVehicle.active or partner availability (1 ms)
+    ✓ no scheduler, timer or cron is introduced (1 ms)
+    ✓ the proposal never re-derives a price from a local distance (2 ms)
+    ✓ no lock primitive leaks outside the persistence adapters (1 ms)
+  MVP-04 ARCH — ports, barrels and error vocabulary
+    ✓ the new ports are registered
+    ✓ the domain barrel exports the MVP-04 vocabulary
+    ✓ the application barrel exports the new services
+    ✓ the MVP-04 error codes map to their frozen HTTP statuses (1 ms)
+    ✓ the module gate is still the FIRST check of every write path
+  MVP-04 ARCH — scope discipline
+    ✓ exactly the five MVP-04 operations are routed
+    ✓ no counteroffer, tracking, payment or MVP-05 route leaked in
+    ✓ no MVP-05 table is referenced by the Tow module (2 ms)
+    ✓ the counteroffer status is never written by the runtime (1 ms)
+    ✓ the five MVP-04 operation ids exist in the canonical contract (1 ms)
+    ✓ the contract revision that adds proposal_already_active is recorded
+
+PASS tests/tow/mvp04/towProposalDomain.test.js
+  MVP-04 DOMAIN — proposal vocabulary
+    ✓ the canonical status enum matches the frozen contract
+    ✓ a new proposal is ACTIVE and ACTIVE is the only actionable status
+    ✓ the domain barrel exports the new proposal + assignment vocabulary (1 ms)
+    ✓ ids are accepted as integers or digit strings and rejected otherwise
+  MVP-04 DOMAIN — the create body is empty by contract
+    ✓ an empty body is accepted and normalized to an empty object
+    ✓ client-supplied price is rejected (1 ms)
+    ✓ client-supplied amount is rejected
+    ✓ client-supplied amount_cents is rejected
+    ✓ client-supplied proposed_price is rejected
+    ✓ client-supplied price_amount_cents is rejected
+    ✓ client-supplied currency is rejected (1 ms)
+    ✓ client-supplied estimated_price is rejected
+    ✓ client-supplied route_distance is rejected
+    ✓ client-supplied route_total_distance_meters is rejected
+    ✓ client-supplied distance_meters is rejected
+    ✓ client-supplied tariff is rejected
+    ✓ client-supplied pricing is rejected
+    ✓ client-supplied partner_id is rejected
+    ✓ client-supplied tow_vehicle_id is rejected
+    ✓ client-supplied vehicle_id is rejected
+    ✓ client-supplied status is rejected
+    ✓ client-supplied expires_at is rejected
+    ✓ the forbidden key list covers every client price/distance/identity field (1 ms)
+    ✓ an unknown key is rejected even when it looks harmless
+  MVP-04 DOMAIN — action-time expiry
+    ✓ a proposal is expired exactly when now is not before expires_at
+    ✓ expiry is evaluated at action time, never from a cached status
+    ✓ a non-ACTIVE proposal is not actionable and reports the stable code
+    ✓ a missing proposal is not actionable (never a 500)
+  MVP-04 DOMAIN — record and DTO shapes
+    ✓ the record freezes the whole snapshot and defaults to ACTIVE (1 ms)
+    ✓ the fingerprint source is the (partner, request, vehicle) triple
+    ✓ the DTO is contract-shaped: string ids, Money, RouteQuote, TowVehicleSummary (1 ms)
+    ✓ a proposal without a stored partner name omits the optional partner member
+    ✓ a stored total that disagrees with its legs is refused, never emitted
+  MVP-04 DOMAIN — assignment record and occupancy
+    ✓ the assignment freezes the winning snapshot and starts unreleased
+    ✓ the assignment never duplicates the proposal snapshot it points at
+    ✓ a released assignment no longer occupies
+    ✓ the DTO is the contract Assignment: partner, vehicle, final price, assigned_at
+
+Test Suites: 7 passed, 7 total
+Tests:       10 skipped, 155 passed, 165 total
+Snapshots:   0 total
+Time:        2.177 s, estimated 3 s
+Ran all test suites matching /tests\/tow\/mvp04/i.

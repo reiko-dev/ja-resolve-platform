@@ -1,0 +1,61 @@
+$ npx jest tests/contract/towOperationContract.test.js --runInBand
+---
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:24 +0000] "POST /api/tow/requests/1/proposals HTTP/1.1" 422 157 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:24 +0000] "POST /api/tow/requests/1/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:24 +0000] "POST /api/tow/requests/2/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:24 +0000] "POST /api/tow/proposals/2/accept HTTP/1.1" 422 157 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:24 +0000] "POST /api/tow/proposals/2/accept HTTP/1.1" 200 1039 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:24 +0000] "POST /api/tow/requests/3/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:24 +0000] "POST /api/tow/proposals/3/withdraw HTTP/1.1" 422 157 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:24 +0000] "POST /api/tow/proposals/3/withdraw HTTP/1.1" 200 751 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:24 +0000] "POST /api/tow/requests/4/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:24 +0000] "POST /api/tow/proposals/4/accept HTTP/1.1" 200 1039 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:24 +0000] "POST /api/tow/proposals/4/withdraw HTTP/1.1" 409 110 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:24 +0000] "POST /api/tow/requests/5/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:24 +0000] "POST /api/tow/proposals/5/withdraw HTTP/1.1" 403 103 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:24 +0000] "POST /api/tow/proposals/999999/accept HTTP/1.1" 404 81 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:24 +0000] "POST /api/tow/requests/7/proposals HTTP/1.1" 201 748 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:24 +0000] "POST /api/tow/proposals/6/accept HTTP/1.1" 200 1040 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:24 +0000] "GET /api/tow/partner/jobs HTTP/1.1" 401 60 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:24 +0000] "GET /api/tow/partner/jobs HTTP/1.1" 403 106 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:24 +0000] "GET /api/tow/partner/jobs?limit=101 HTTP/1.1" 422 125 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:24 +0000] "GET /api/tow/partner/jobs HTTP/1.1" 200 1091 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:24 +0000] "POST /api/tow/requests/8/proposals HTTP/1.1" 201 750 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:24 +0000] "GET /api/tow/partner/proposals HTTP/1.1" 200 801 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:24 +0000] "GET /api/tow/requests/8/proposals HTTP/1.1" 200 831 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:24 +0000] "GET /api/tow/requests/8/proposals?page=0 HTTP/1.1" 422 132 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:24 +0000] "POST /api/tow/requests/9/proposals HTTP/1.1" 201 750 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:24 +0000] "GET /api/tow/requests/9/proposals HTTP/1.1" 401 60 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:24 +0000] "POST /api/tow/requests/9/proposals HTTP/1.1" 401 60 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:24 +0000] "GET /api/tow/partner/proposals HTTP/1.1" 401 60 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:24 +0000] "POST /api/tow/proposals/8/accept HTTP/1.1" 401 60 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:24 +0000] "POST /api/tow/proposals/8/withdraw HTTP/1.1" 401 60 "-" "-"
+::ffff:127.0.0.1 - - [21/Sep/2026:02:52:24 +0000] "GET /api/tow/partner/jobs HTTP/1.1" 401 60 "-" "-"
+PASS tests/contract/towOperationContract.test.js
+  MVP-04 EXT — operation-level OpenAPI contract == runtime (EXT-MVP04-3)
+    contract -> runtime: declared requirements are real
+      ✓ the six MVP-04 operations are declared at the canonical paths and methods (4 ms)
+      ✓ the declared status surface of every MVP-04 operation is the frozen truthful one (1 ms)
+      ✓ create, accept and withdraw declare the canonical required Idempotency-Key header (1 ms)
+      ✓ accept and withdraw declare the 422 that the enforced header produces (1 ms)
+      ✓ partner jobs declares exactly the query subset validateListQuery implements (1 ms)
+      ✓ partner jobs documents from/to as INCLUSIVE bounds on assignment.assigned_at (1 ms)
+      ✓ the canonical revision is draft.7 and records the EXT-MVP04 corrections
+      ✓ the base contract was not rewritten by this revision (1 ms)
+    runtime -> contract: the real HTTP surface
+      ✓ createTowProposal: 422 without the header, 201 with it (31 ms)
+      ✓ acceptTowProposal: 422 without the header, 200 with it (13 ms)
+      ✓ withdrawTowProposal: 422 without the header, 200 with it (9 ms)
+      ✓ the declared 409 of withdraw is the real domain conflict (11 ms)
+      ✓ the declared 403 of withdraw is the real foreign-partner refusal (8 ms)
+      ✓ the declared 404 of accept is the real unknown proposal (3 ms)
+      ✓ listPartnerTowJobs: 401 anonymous, 403 customer, 200 partner, 422 bad query (14 ms)
+      ✓ the declared 200 of the proposal lists is the real partner/customer view (9 ms)
+      ✓ every MVP-04 operation declares a 401 for the anonymous caller (10 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       17 passed, 17 total
+Snapshots:   0 total
+Time:        0.744 s, estimated 1 s
+Ran all test suites matching /tests\/contract\/towOperationContract.test.js/i.
+exit=0

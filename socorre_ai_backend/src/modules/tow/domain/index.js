@@ -23,6 +23,9 @@ const settings = require('./settings');
 const towRequest = require('./tow-request');
 const idempotency = require('./idempotency');
 const matching = require('./matching');
+const ids = require('./ids');
+const towProposal = require('./tow-proposal');
+const assignment = require('./assignment');
 
 module.exports = {
   ...identity,
@@ -41,4 +44,7 @@ module.exports = {
   ...towRequest,
   ...idempotency,
   ...matching,
+  ...ids,
+  ...towProposal,
+  ...assignment,
 };

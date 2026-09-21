@@ -196,7 +196,7 @@ describe('Tow OpenAPI 3.1 — structural contract validation', () => {
   test('the base composition artifact is not a consumer entrypoint', () => {
     // Consumers must use the canonical entrypoint: it is the only document
     // carrying the frozen discovery/settings/route contracts.
-    expect(documents.canonical.info.version).toBe('1.0.0-draft.5');
+    expect(documents.canonical.info.version).toBe('1.0.0-draft.7');
     expect(BASE_FILE).not.toBe(CANONICAL_FILE);
     expect(composition.composed.info.version).toBe(documents.canonical.info.version);
   });

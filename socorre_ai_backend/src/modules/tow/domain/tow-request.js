@@ -27,6 +27,7 @@ const { MODULE_KEY } = require('./identity');
 const { VEHICLE_CLASSES, requiresWeight } = require('./vehicle-classes');
 const { validationError } = require('./errors');
 const { assertOperationalGeoPoint } = require('./geo');
+const { isRowId } = require('./ids');
 
 /** Canonical lifecycle states of a tow request (contract enum). */
 const TOW_REQUEST_STATES = Object.freeze([
@@ -49,6 +50,26 @@ const TOW_REQUEST_STATES = Object.freeze([
  * proposal flow, so `SEARCHING` is the only state this delivery can produce.
  */
 const INITIAL_TOW_REQUEST_STATE = 'SEARCHING';
+
+/**
+ * MVP-04 — the states in which a request still accepts NEW proposals.
+ *
+ * A request becomes `NEGOTIATING` the moment its first proposal exists (see
+ * `application/proposal-service.js`); it stays matchable, because a second
+ * partner may still propose until the customer accepts one. `ASSIGNED` and
+ * everything after it is closed to new offers.
+ */
+const OPEN_TOW_REQUEST_STATES = Object.freeze(['SEARCHING', 'NEGOTIATING']);
+
+/**
+ * MVP-04 — the ONLY action a customer may be offered on a request.
+ *
+ * Advertised exactly when the request is still open AND at least one live
+ * proposal exists. Counteroffer, payment, tracking and every MVP-05 action are
+ * deliberately absent: the contract freezes the vocabulary, and the module must
+ * never advertise what it does not implement.
+ */
+const REQUEST_ALLOWED_ACTIONS = Object.freeze({ ACCEPT_PROPOSAL: 'accept_proposal' });
 
 /** Canonical terminal reasons (contract enum). MVP-03 produces none of them. */
 const TERMINAL_REASONS = Object.freeze([
@@ -92,11 +113,26 @@ function isPlainObject(value) {
 /**
  * True for an id that can identify a row (`1`, `'1'`), false for anything a
  * persistence layer must never be asked to compare against an integer column.
+ * The rule is shared with the MVP-04 aggregates (`domain/ids.js`).
  */
 function isTowRequestId(value) {
-  if (typeof value === 'number') return Number.isInteger(value) && value > 0;
-  if (typeof value !== 'string') return false;
-  return /^\d+$/.test(value.trim()) && Number(value.trim()) > 0;
+  return isRowId(value);
+}
+
+/** @param {string} state @returns {boolean} true while new proposals are allowed */
+function isOpenTowRequestState(state) {
+  return OPEN_TOW_REQUEST_STATES.includes(state);
+}
+
+/**
+ * The truthful `allowed_actions` of a request.
+ *
+ * @param {{state: string, has_live_proposal: boolean}} input
+ * @returns {readonly string[]} frozen, possibly empty
+ */
+function allowedActionsForRequest({ state, has_live_proposal: hasLiveProposal } = {}) {
+  if (!isOpenTowRequestState(state) || hasLiveProposal !== true) return Object.freeze([]);
+  return Object.freeze([REQUEST_ALLOWED_ACTIONS.ACCEPT_PROPOSAL]);
 }
 
 function rejectUnknownKeys(value, allowed, field) {
@@ -267,22 +303,12 @@ function buildTowRequestRecord({ input, customerId, radiusKm, idempotencyKey, no
  * Normalizes any persisted timestamp representation to an ISO-8601 instant.
  * PostgreSQL hands back a `Date`; the SQLite harness hands back the TEXT
  * `'YYYY-MM-DD HH:MM:SS.mmm'`; an epoch-ms number is accepted too.
+ *
+ * The implementation moved to `domain/instants.js` in MVP-04 (the proposal and
+ * the assignment need exactly the same rule); it is re-exported here so every
+ * existing caller and the MVP-03 contract stay untouched.
  */
-function toIsoInstant(value) {
-  if (value === null || value === undefined) return null;
-  if (value instanceof Date) return value.toISOString();
-  if (typeof value === 'number') {
-    const fromNumber = new Date(value);
-    return Number.isFinite(fromNumber.getTime()) ? fromNumber.toISOString() : null;
-  }
-  const text = String(value).trim();
-  if (text.length === 0) return null;
-  const normalized = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d+)?$/.test(text)
-    ? `${text.replace(' ', 'T')}Z`
-    : text;
-  const parsed = new Date(normalized);
-  return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : text;
-}
+const { toIsoInstant } = require('./instants');
 
 /**
  * The contract DTO of a tow request.
@@ -297,7 +323,14 @@ function toIsoInstant(value) {
  *     action is legal yet. It is a truthful empty list, not a placeholder.
  *
  * @param {object} record persistence record (or persisted row projection)
- * @param {{max_radius_km: number}} options
+ * `assignment` and `allowed_actions` are INJECTED, never derived here: the
+ * assignment is the accepted proposal's row (loaded by the application service)
+ * and the allowed actions depend on whether a live proposal exists. Both
+ * default to the truthful empty value so a caller that has not loaded them
+ * advertises nothing rather than guessing.
+ *
+ * @param {object} record
+ * @param {{max_radius_km: number, assignment?: object|null, allowed_actions?: readonly string[]}} options
  */
 function buildTowRequestDto(record, options = {}) {
   if (!isPlainObject(record)) {
@@ -345,8 +378,8 @@ function buildTowRequestDto(record, options = {}) {
       can_start_service: false,
       pix: null,
     }),
-    assignment: null,
-    allowed_actions: Object.freeze([]),
+    assignment: options.assignment ?? null,
+    allowed_actions: Object.freeze(Array.isArray(options.allowed_actions) ? [...options.allowed_actions] : []),
     created_at: toIsoInstant(record.created_at),
     updated_at: toIsoInstant(record.updated_at),
   });
@@ -355,11 +388,15 @@ function buildTowRequestDto(record, options = {}) {
 module.exports = {
   TOW_REQUEST_STATES,
   INITIAL_TOW_REQUEST_STATE,
+  OPEN_TOW_REQUEST_STATES,
+  REQUEST_ALLOWED_ACTIONS,
   TERMINAL_REASONS,
   TOW_REQUEST_LIMITS,
   VEHICLE_YEAR_MIN,
   VEHICLE_YEAR_MAX,
   isTowRequestId,
+  isOpenTowRequestState,
+  allowedActionsForRequest,
   validateCreateTowRequestInput,
   buildTowRequestRecord,
   buildTowRequestDto,
