@@ -124,6 +124,9 @@ const TABLES = [
   // MVP-05. `tow_request_tracking` references both `tow_requests` and
   // `partners`, so it is appended after them.
   'tow_request_tracking',
+  // MVP-06. `tow_payments` references `tow_requests`, `tow_assignments` and
+  // `partners`, so it is appended after all three.
+  'tow_payments',
 ];
 
 const SCHEMA = [
@@ -915,6 +918,33 @@ const SCHEMA = [
     UNIQUE (tow_request_id),
     CHECK (latitude >= -90 AND latitude <= 90),
     CHECK (longitude >= -180 AND longitude <= 180)
+  )`,
+
+  // MVP-06 — ONE canonical CASH payment per request/assignment (mirrors
+  // database/migrations/007_mvp06_cash_payment.js). The legacy `payments` table
+  // is deliberately not reused: it stores `decimal(10,2)` BRL floats, uses a PSP
+  // status vocabulary and has no FK to the Tow aggregates. Statuses are the
+  // minimum model (PENDING/RECEIVED) and the amount is integer cents.
+  `CREATE TABLE IF NOT EXISTS tow_payments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tow_request_id INTEGER NOT NULL,
+    assignment_id INTEGER NOT NULL,
+    method VARCHAR(10) NOT NULL,
+    amount_cents INTEGER NOT NULL,
+    currency VARCHAR(3) NOT NULL DEFAULT 'BRL',
+    status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    received_at TEXT,
+    received_by_partner_id INTEGER,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (tow_request_id),
+    UNIQUE (assignment_id),
+    CHECK (method = 'CASH'),
+    CHECK (amount_cents >= 0),
+    CHECK (currency = 'BRL'),
+    CHECK (status IN ('PENDING', 'RECEIVED')),
+    CHECK ((status = 'PENDING' AND received_at IS NULL AND received_by_partner_id IS NULL)
+        OR (status = 'RECEIVED' AND received_at IS NOT NULL AND received_by_partner_id IS NOT NULL))
   )`,
 ];
 

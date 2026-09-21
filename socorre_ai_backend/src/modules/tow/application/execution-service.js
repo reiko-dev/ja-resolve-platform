@@ -54,6 +54,7 @@ const {
   EXECUTION_TARGET_STATE_BY_OPERATION,
 } = require('../domain');
 const { lockJobForPartner } = require('./job-lock');
+const { paymentSummaryFor } = require('./payment-summary');
 
 /** Operations whose contract body is a `LocationInput` acknowledgement. */
 const LOCATION_ACKNOWLEDGING_OPERATIONS = Object.freeze(['mark_arrived', 'finish_service']);
@@ -62,6 +63,7 @@ function createExecutionService({
   settingsService,
   towRequestRepository,
   assignmentRepository,
+  paymentRepository = null,
   unitOfWork,
   clock,
 }) {
@@ -137,6 +139,7 @@ function createExecutionService({
     return buildTowRequestDto(outcome.request, {
       max_radius_km: settings.tow_max_radius_km,
       assignment: outcome.assignment ? buildAssignmentDto(outcome.assignment) : null,
+      payment: await paymentSummaryFor(paymentRepository, outcome.request.id),
       allowed_actions: allowedActionsForRequest({
         state: outcome.request.state,
         has_live_proposal: false,

@@ -37,10 +37,11 @@ const { snapshotSchema, compareSnapshots, fingerprintOf } = require('../../../sc
 
 const describePostgres = postgres.isEnabled() ? describe : describe.skip;
 // PINNED explicitly: the exact baseline of this delivery (MVP-01 foundation,
-// MVP-03 tow requests, MVP-04 proposals/assignments), mirroring
+// MVP-03 tow requests, MVP-04 proposals/assignments, MVP-05 execution/tracking,
+// MVP-06 cash payment), mirroring
 // `PINNED_MIGRATIONS` of `scripts/tow/run-db-baseline-gate.js` and the offline
 // assertion in `tests/tow/baseline/dbBaselineSafety.test.js`. The directory read
-// below is a cross-check only, so a smuggled `007_*.js` cannot be absorbed
+// below is a cross-check only, so a smuggled `008_*.js` cannot be absorbed
 // silently.
 const BASELINE_MIGRATIONS = Object.freeze([
   '001_baseline_schema.js',
@@ -49,6 +50,7 @@ const BASELINE_MIGRATIONS = Object.freeze([
   '004_mvp03_tow_requests.js',
   '005_mvp04_proposals_assignments.js',
   '006_mvp05_service_execution_tracking.js',
+  '007_mvp06_cash_payment.js',
 ]);
 
 /** Disposable credentials: generated per run, never committed. */

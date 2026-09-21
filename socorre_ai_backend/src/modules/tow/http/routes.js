@@ -13,11 +13,17 @@
  * under the canonical `/requests/{requestId}` resource: the four partner
  * milestones, the two cancellations and the tracking read/write pair.
  *
- * Counteroffer, payments, ETA, tracking HISTORY, the legacy global
- * partner-location push endpoint and every other unimplemented operation stay
- * unrouted: an unimplemented operation must 404 rather than pretend. (That
- * legacy path is deliberately not spelled out here — the architecture suites
- * assert it never appears in this file, comments included.)
+ * MVP-06 adds EXACTLY three CASH payment routes, also under
+ * `/requests/{requestId}`: the customer's method selection, the assigned
+ * partner's cash receipt confirmation and the shared payment summary read.
+ *
+ * Counteroffer, ETA, tracking HISTORY, the legacy global partner-location push
+ * endpoint and every other unimplemented operation stay unrouted: an
+ * unimplemented operation must 404 rather than pretend. CARD/PIX are declared by
+ * the long-term contract but are NOT routed (Phase 2 / #33); only the `cash`
+ * member of `PaymentMethod` is accepted by the runtime. (The legacy path is
+ * deliberately not spelled out here — the architecture suites assert it never
+ * appears in this file, comments included.)
  */
 'use strict';
 
@@ -41,6 +47,7 @@ const { createProposalController } = require('./proposal-controller');
 const { createExecutionController } = require('./execution-controller');
 const { createTrackingController } = require('./tracking-controller');
 const { createCancellationController } = require('./cancellation-controller');
+const { createPaymentController } = require('./payment-controller');
 
 function createTowRouter({ services, uploadMiddleware }) {
   const router = express.Router();
@@ -58,6 +65,7 @@ function createTowRouter({ services, uploadMiddleware }) {
   const cancellationController = createCancellationController({
     cancellationService: services.cancellationService,
   });
+  const paymentController = createPaymentController({ paymentService: services.paymentService });
 
   router.get('/module-status', moduleController.getPublicStatus);
 
@@ -99,6 +107,15 @@ function createTowRouter({ services, uploadMiddleware }) {
   // partner), which is why it carries its own guard.
   router.get('/requests/:requestId/tracking', auth, requireCustomerOrTowPartner, trackingController.read);
   router.post('/requests/:requestId/tracking', auth, requireTowPartner, trackingController.write);
+
+  // MVP-06 — CASH payment. The customer chooses the method (only `cash` is
+  // implemented), the ASSIGNED partner records the cash handover on a COMPLETED
+  // Tow, and either party rehydrates the canonical payment summary. The amount
+  // is always the accepted assignment's frozen final price: `cash-received`
+  // accepts no body at all.
+  router.put('/requests/:requestId/payment-method', auth, requireCustomer, paymentController.selectMethod);
+  router.get('/requests/:requestId/payment', auth, requireCustomerOrTowPartner, paymentController.getSummary);
+  router.post('/requests/:requestId/cash-received', auth, requireTowPartner, paymentController.markCashReceived);
 
   // MVP-03 — partner opportunity feed (geographic matching).
   router.get('/partner/opportunities', auth, requireTowPartner, matchingController.listOpportunities);

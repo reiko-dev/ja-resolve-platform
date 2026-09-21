@@ -281,9 +281,13 @@ describe('MVP-04 ARCH — scope discipline', () => {
     }
   });
 
-  test('no MVP-05 table is referenced by the Tow module', () => {
+  test('no MVP-05 or MVP-06 table is referenced by the Tow module', () => {
+    // `tow_payments` was removed when MVP-06 landed: it is now a canonical table
+    // of this module, asserted positively in
+    // `tests/tow/mvp06/towMvp06Architecture.test.js`, which carries the bans for
+    // everything still unimplemented.
     const offenders = ALL_TOW_SRC_FILES
-      .filter((file) => /['"](tow_payments|tow_audit_events|tow_request_snapshots|tow_tracking)['"]/.test(readCode(file)))
+      .filter((file) => /['"](tow_audit_events|tow_request_snapshots|tow_tracking)['"]/.test(readCode(file)))
       .map(relative);
     expect(offenders).toEqual([]);
   });
@@ -311,7 +315,7 @@ describe('MVP-04 ARCH — scope discipline', () => {
   test('the contract revision that adds proposal_already_active is recorded', () => {
     const contract = read(CANONICAL_CONTRACT);
     expect(contract).toContain('proposal_already_active');
-    expect(contract).toContain('1.0.0-draft.8');
+    expect(contract).toContain('1.0.0-draft.9');
     const helper = read(path.join(BACKEND_ROOT, 'tests/helpers/towContract.js'));
     expect(helper).toContain("'proposal_already_active'");
   });

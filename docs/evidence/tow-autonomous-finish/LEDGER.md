@@ -8,11 +8,11 @@ Updated after every major phase. Never presents local evidence as GitHub Actions
 ## Ledger
 
 ```text
-CURRENT_PHASE          = PHASE B — MVP-06 implementation (post MVP-05 release)
-CURRENT_SHA            = (updated below)
+CURRENT_PHASE          = PHASE D/E — MVP-06 implemented, full regression GREEN, Muse review pending
+CURRENT_SHA            = feature/mvp-06-cash-readiness (uncommitted working tree at first commit)
 CURRENT_PR             = MVP-05 #39 MERGED; MVP-06 PR not yet opened
-LAST_COMPLETED_GATE    = MVP-05 accepted receipt + MVP-06 release bookkeeping
-NEXT_ACTION            = create feature/mvp-06-cash-readiness from MVP06_EXECUTION_BASE
+LAST_COMPLETED_GATE    = S01–S20 GREEN, F1–F6 PG GREEN, negative controls RED→GREEN, full Jest 1666 passed
+NEXT_ACTION            = commit, run verify:tow, freeze functional head, fresh Muse review
 BLOCKERS               = none
 ```
 
@@ -38,7 +38,9 @@ ISSUE_17               = CLOSED
 ### MVP-06
 
 ```text
-MVP06_EXECUTION_BASE   = (final main SHA after this bookkeeping commit)
+MVP05_ACCEPTED_MAIN    = 1d9f04bf26ffb0d51af99d2d59b162712f1ffd45
+MVP05_BOOKKEEPING      = dbb7cef5bb110de16450d70441ea733f40fb31a6
+MVP06_EXECUTION_BASE   = dbb7cef5bb110de16450d70441ea733f40fb31a6
 MVP06_BRANCH           = feature/mvp-06-cash-readiness
 MVP06_FUNCTIONAL_HEAD  = pending
 MVP06_MUSE_REVIEWED    = pending

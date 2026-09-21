@@ -43,6 +43,7 @@ const {
   allowedActionsForRequest,
   validateIdempotencyKey,
 } = require('../domain');
+const { paymentSummaryFor } = require('./payment-summary');
 
 function createAssignmentService({
   moduleService,
@@ -50,6 +51,7 @@ function createAssignmentService({
   towRequestRepository,
   towProposalRepository,
   assignmentRepository,
+  paymentRepository = null,
   unitOfWork,
   clock,
 }) {
@@ -175,6 +177,7 @@ function createAssignmentService({
     return buildTowRequestDto(outcome.request, {
       max_radius_km: settings.tow_max_radius_km,
       assignment: buildAssignmentDto(outcome.assignment),
+      payment: await paymentSummaryFor(paymentRepository, outcome.request.id),
       allowed_actions: allowedActionsForRequest({
         state: outcome.request.state,
         has_live_proposal: false,

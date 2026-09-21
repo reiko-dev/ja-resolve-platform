@@ -28,6 +28,7 @@ const { VEHICLE_CLASSES, requiresWeight } = require('./vehicle-classes');
 const { validationError } = require('./errors');
 const { assertOperationalGeoPoint } = require('./geo');
 const { isRowId } = require('./ids');
+const { emptyPaymentSummary } = require('./tow-payment');
 const {
   isCancellableTowRequestState,
   isTowExecutionState,
@@ -367,24 +368,18 @@ const { toIsoInstant } = require('./instants');
 /**
  * The contract DTO of a tow request.
  *
- * Truthfulness rules of MVP-03:
- *   - `payment` is NEUTRAL: no method, no amount, `can_start_service: false`.
- *     A price only exists after a partner opportunity is quoted (MVP-02 quote)
- *     and chosen — a flow this delivery does not implement.
- *   - `assignment` is always `null` and `matching.search_expires_at` is always
- *     `null`: there is no assignment and no expiry/scheduler in MVP-03.
- *   - `allowed_actions` is `[]`: the state machine is not implemented, so no
- *     action is legal yet. It is a truthful empty list, not a placeholder.
- *
- * @param {object} record persistence record (or persisted row projection)
- * `assignment` and `allowed_actions` are INJECTED, never derived here: the
- * assignment is the accepted proposal's row (loaded by the application service)
- * and the allowed actions depend on whether a live proposal exists. Both
- * default to the truthful empty value so a caller that has not loaded them
- * advertises nothing rather than guessing.
+ * Truthfulness rules:
+ *   - `payment` is a PROJECTION of the canonical `tow_payments` aggregate. It is
+ *     INJECTED by the application layer (`options.payment`), never derived here:
+ *     a caller that has not loaded it emits the truthful empty `NOT_SELECTED`
+ *     summary instead of guessing. There is no second payment truth and no
+ *     mutable financial flag on the request row.
+ *   - `assignment` is INJECTED for the same reason.
+ *   - `allowed_actions` is INJECTED and viewer-aware; it defaults to the
+ *     truthful empty list.
  *
  * @param {object} record
- * @param {{max_radius_km: number, assignment?: object|null, allowed_actions?: readonly string[]}} options
+ * @param {{max_radius_km: number, assignment?: object|null, allowed_actions?: readonly string[], payment?: object|null}} options
  */
 function buildTowRequestDto(record, options = {}) {
   if (!isPlainObject(record)) {
@@ -423,15 +418,7 @@ function buildTowRequestDto(record, options = {}) {
       max_radius_km: Number.isFinite(maxRadius) ? maxRadius : null,
       search_expires_at: null,
     }),
-    payment: Object.freeze({
-      request_id: String(record.id),
-      method: null,
-      status: 'NOT_SELECTED',
-      amount_cents: null,
-      currency: null,
-      can_start_service: false,
-      pix: null,
-    }),
+    payment: options.payment ?? emptyPaymentSummary(record.id),
     assignment: options.assignment ?? null,
     allowed_actions: Object.freeze(Array.isArray(options.allowed_actions) ? [...options.allowed_actions] : []),
     created_at: toIsoInstant(record.created_at),
