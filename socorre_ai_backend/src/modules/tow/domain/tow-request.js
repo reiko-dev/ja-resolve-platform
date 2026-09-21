@@ -28,6 +28,12 @@ const { VEHICLE_CLASSES, requiresWeight } = require('./vehicle-classes');
 const { validationError } = require('./errors');
 const { assertOperationalGeoPoint } = require('./geo');
 const { isRowId } = require('./ids');
+const {
+  isCancellableTowRequestState,
+  isTowExecutionState,
+  isTerminalTowRequestState,
+  progressActionForState,
+} = require('./tow-request-state-machine');
 
 /** Canonical lifecycle states of a tow request (contract enum). */
 const TOW_REQUEST_STATES = Object.freeze([
@@ -62,14 +68,34 @@ const INITIAL_TOW_REQUEST_STATE = 'SEARCHING';
 const OPEN_TOW_REQUEST_STATES = Object.freeze(['SEARCHING', 'NEGOTIATING']);
 
 /**
- * MVP-04 — the ONLY action a customer may be offered on a request.
+ * MVP-04/MVP-05 — the ONLY actions the module may advertise on a request.
  *
- * Advertised exactly when the request is still open AND at least one live
- * proposal exists. Counteroffer, payment, tracking and every MVP-05 action are
- * deliberately absent: the contract freezes the vocabulary, and the module must
- * never advertise what it does not implement.
+ * `accept_proposal` is the customer's MVP-04 action. The five MVP-05 tokens are
+ * the execution vocabulary: four partner progress steps and `cancel`, which
+ * either party may be offered while the request is still cancellable.
+ * Counteroffer, payment, rematch, rating and every other unimplemented action
+ * are deliberately absent: the contract freezes the vocabulary, and the module
+ * must never advertise what it does not implement.
  */
-const REQUEST_ALLOWED_ACTIONS = Object.freeze({ ACCEPT_PROPOSAL: 'accept_proposal' });
+const REQUEST_ALLOWED_ACTIONS = Object.freeze({
+  ACCEPT_PROPOSAL: 'accept_proposal',
+  START_EN_ROUTE: 'start_en_route',
+  MARK_ARRIVED: 'mark_arrived',
+  START_IN_TRANSIT: 'start_in_transit',
+  FINISH_SERVICE: 'finish_service',
+  CANCEL: 'cancel',
+});
+
+/**
+ * Who is looking at the request. `allowed_actions` is VIEWER-AWARE because the
+ * same state offers different things to the two parties: in `ARRIVED` the
+ * assigned partner may `start_in_transit` or `cancel`, while the customer may
+ * only `cancel` — the customer never drives the partner's milestones.
+ *
+ * `customer` is the default so every MVP-03/MVP-04 call site that predates the
+ * viewer keeps its exact previous answer.
+ */
+const REQUEST_VIEWERS = Object.freeze(['customer', 'partner']);
 
 /** Canonical terminal reasons (contract enum). MVP-03 produces none of them. */
 const TERMINAL_REASONS = Object.freeze([
@@ -125,14 +151,42 @@ function isOpenTowRequestState(state) {
 }
 
 /**
- * The truthful `allowed_actions` of a request.
+ * The truthful `allowed_actions` of a request, from the point of view of one
+ * party.
  *
- * @param {{state: string, has_live_proposal: boolean}} input
+ * The two halves of the lifecycle never claim each other's states:
+ *   - OPEN (`SEARCHING`/`NEGOTIATING`): the customer is offered
+ *     `accept_proposal` while at least one proposal is still live. A partner is
+ *     offered nothing here — proposing is the partner's move, but it is a write
+ *     against the REQUEST's proposal collection, not an action on the request,
+ *     and MVP-04 deliberately never advertised it.
+ *   - EXECUTION (`ASSIGNED`…`IN_TRANSIT`): the assigned partner is offered the
+ *     next progress step (`start_en_route`, `mark_arrived`, `start_in_transit`,
+ *     `finish_service`); both parties are offered `cancel` while the request is
+ *     still cancellable. The customer never sees a partner milestone.
+ *   - TERMINAL (`COMPLETED`/`CANCELLED`): nothing, for either party.
+ *
+ * The list is truthful, not aspirational: it never names an action that the
+ * caller cannot complete right now.
+ *
+ * @param {{state: string, has_live_proposal?: boolean, viewer?: 'customer'|'partner'}} input
  * @returns {readonly string[]} frozen, possibly empty
  */
-function allowedActionsForRequest({ state, has_live_proposal: hasLiveProposal } = {}) {
-  if (!isOpenTowRequestState(state) || hasLiveProposal !== true) return Object.freeze([]);
-  return Object.freeze([REQUEST_ALLOWED_ACTIONS.ACCEPT_PROPOSAL]);
+function allowedActionsForRequest({ state, has_live_proposal: hasLiveProposal, viewer = 'customer' } = {}) {
+  const actions = [];
+  const isCustomer = viewer === 'customer';
+
+  if (isOpenTowRequestState(state)) {
+    if (isCustomer && hasLiveProposal === true) actions.push(REQUEST_ALLOWED_ACTIONS.ACCEPT_PROPOSAL);
+  } else if (isTowExecutionState(state) && !isTerminalTowRequestState(state)) {
+    if (!isCustomer) {
+      const progress = progressActionForState(state);
+      if (progress) actions.push(progress);
+    }
+    if (isCancellableTowRequestState(state)) actions.push(REQUEST_ALLOWED_ACTIONS.CANCEL);
+  }
+
+  return Object.freeze(actions);
 }
 
 function rejectUnknownKeys(value, allowed, field) {
@@ -390,6 +444,7 @@ module.exports = {
   INITIAL_TOW_REQUEST_STATE,
   OPEN_TOW_REQUEST_STATES,
   REQUEST_ALLOWED_ACTIONS,
+  REQUEST_VIEWERS,
   TERMINAL_REASONS,
   TOW_REQUEST_LIMITS,
   VEHICLE_YEAR_MIN,

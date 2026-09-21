@@ -1313,6 +1313,7 @@ Events are invalidation/update signals. Consumers must be able to recover solely
 service_module_disabled
 outstanding_financial_debt
 partner_platform_fee_debt_limit
+partner_not_operational
 invalid_tow_state
 invalid_tow_transition
 not_request_owner

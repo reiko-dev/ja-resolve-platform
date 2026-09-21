@@ -48,6 +48,17 @@ const COLUMNS = Object.freeze([
   'matching_radius_km',
   'idempotency_key',
   'idempotency_fingerprint',
+  // MVP-05 — the execution milestones and the cancellation attribution. They
+  // live on the request row (not in a separate event table) so the state change
+  // and its evidence are one atomic write.
+  'en_route_at',
+  'arrived_at',
+  'in_transit_at',
+  'completed_at',
+  'cancelled_at',
+  'cancelled_by_actor_type',
+  'cancelled_by_actor_id',
+  'cancellation_reason',
   'created_at',
   'updated_at',
 ]);
@@ -127,6 +138,15 @@ function mapRow(row) {
     matching_radius_km: toNumber(row.matching_radius_km),
     idempotency_key: row.idempotency_key,
     idempotency_fingerprint: row.idempotency_fingerprint,
+    // MVP-05 milestones, raw (the DTO layer normalizes with `toIsoInstant`).
+    en_route_at: row.en_route_at ?? null,
+    arrived_at: row.arrived_at ?? null,
+    in_transit_at: row.in_transit_at ?? null,
+    completed_at: row.completed_at ?? null,
+    cancelled_at: row.cancelled_at ?? null,
+    cancelled_by_actor_type: row.cancelled_by_actor_type ?? null,
+    cancelled_by_actor_id: row.cancelled_by_actor_id ?? null,
+    cancellation_reason: row.cancellation_reason ?? null,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -254,6 +274,52 @@ function createTowRequestRepository(db) {
       return mapRow(updated);
     }
 
+    /**
+     * MVP-05 — ONE guarded execution write: the state, its milestone and (for a
+     * cancellation) its attribution, in a single UPDATE.
+     *
+     * The `state = from` predicate is the compare-and-swap. It is the second
+     * line of defence behind the row lock of the enclosing transaction, and the
+     * ONLY line on an engine where the lock is a no-op (the SQLite harness):
+     * if another writer already moved the request, this matches zero rows and
+     * the caller re-reads the winner's state instead of overwriting it.
+     *
+     * `milestoneColumn` comes from the domain state machine — the adapter never
+     * decides which column a transition owns. Writing the milestone in the same
+     * statement is what makes "the state changed but the timestamp was lost"
+     * unrepresentable.
+     *
+     * @returns {Promise<object|null>} the updated request, or `null` when the
+     * guarded predicate matched nothing.
+     */
+    async function applyExecutionTransition(id, {
+      from,
+      to,
+      milestoneColumn = null,
+      terminalReason = null,
+      cancellation = null,
+      updatedAt,
+    }) {
+      const instant = toIsoInstant(updatedAt);
+      const patch = {
+        state: to,
+        terminal_reason: terminalReason,
+        updated_at: instant,
+      };
+      if (milestoneColumn) patch[milestoneColumn] = instant;
+      if (cancellation) {
+        patch.cancelled_by_actor_type = cancellation.actor_type;
+        patch.cancelled_by_actor_id = cancellation.actor_id;
+        patch.cancellation_reason = cancellation.reason ?? null;
+      }
+
+      const [updated] = await connection('tow_requests')
+        .where({ id, state: from })
+        .update(patch)
+        .returning(COLUMNS);
+      return mapRow(updated);
+    }
+
     async function createIdempotent(record, { fingerprintSource } = {}) {
       const fingerprint = hashFingerprintSource(fingerprintSource);
 
@@ -308,6 +374,7 @@ function createTowRequestRepository(db) {
       lockById,
       markNegotiating,
       markAssigned,
+      applyExecutionTransition,
       withTransaction,
     };
   }

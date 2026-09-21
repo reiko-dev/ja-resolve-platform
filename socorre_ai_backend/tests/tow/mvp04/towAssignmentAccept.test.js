@@ -116,7 +116,10 @@ describe('MVP-04 — atomic assignment on accept', () => {
         final_price: EXPECTED_PRICE,
         assigned_at: '2026-01-15T12:00:00.000Z',
       });
-      expect(towRequestDto.allowed_actions).toEqual([]);
+      // MVP-05 EXT: the accept response is the CUSTOMER's view, and the customer
+      // may cancel a job that has not started transit. Before MVP-05 the list was
+      // empty because no action existed at all; `cancel` is now the honest one.
+      expect(towRequestDto.allowed_actions).toEqual(['cancel']);
 
       // Exactly one assignment row, with the frozen snapshot.
       const assignments = await testDb.db('tow_assignments').select('*');

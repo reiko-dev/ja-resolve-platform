@@ -1,0 +1,16 @@
+### MVP-05 PostgreSQL gate E1-E6 — 2026-09-21T05:56:42Z — DB_PORT=55434
+PASS tests/tow/mvp05/towMvp05Postgres.e2e.test.js
+  MVP-05 PostgreSQL — execution, tracking and cancellation
+    ✓ E1 — concurrent identical milestones apply once, without lost updates or deadlock (156 ms)
+    ✓ E2 — a milestone racing a cancellation leaves a coherent terminal row and one release (169 ms)
+    ✓ E3 — the two cancellations racing write ONE attribution and BOTH report it (153 ms)
+    ✓ E4 — concurrent tracking points keep ONE current point and the newer always wins (75 ms)
+    ✓ E5 — migration 006 pins its guards, and down() is exact (124 ms)
+    ✓ E6 — a transition blocked behind an uncommitted terminal writer reads the committed state (64 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       6 passed, 6 total
+Snapshots:   0 total
+Time:        2.744 s
+Ran all test suites matching /tests\/tow\/mvp05\/towMvp05Postgres.e2e.test.js/i.
+jest exit=0

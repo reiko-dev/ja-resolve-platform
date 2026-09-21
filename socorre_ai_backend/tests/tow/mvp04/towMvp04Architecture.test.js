@@ -266,11 +266,16 @@ describe('MVP-04 ARCH — scope discipline', () => {
     expect(ROUTES).toContain("router.get('/partner/jobs', auth, requireTowPartner");
   });
 
-  test('no counteroffer, tracking, payment or MVP-05 route leaked in', () => {
+  test('no counteroffer, destination, payment or presence route leaked in', () => {
+    // MVP-05 owns `/cancel`, `/tracking`, `/en-route`, `/arrived` and
+    // `/in-transit` now, and asserts them positively in
+    // `tests/tow/mvp05/towMvp05Architecture.test.js`. What stays banned here is
+    // what no delivery has implemented: counteroffer, destination change,
+    // completion/dispute/review, payments, partner presence, and the legacy
+    // `PUT /partner/location` push endpoint (MVP-05 tracks per request instead).
     for (const forbidden of [
-      '/counteroffer', '/assignment', '/cancel', '/destination', '/completion', '/dispute',
-      '/review', '/payments', '/partner/status', '/partner/location', '/tracking',
-      '/en-route', '/arrived', '/in-transit',
+      '/counteroffer', '/assignment', '/destination', '/completion', '/dispute',
+      '/review', '/payments', '/partner/status', '/partner/location',
     ]) {
       expect(ROUTES).not.toContain(forbidden);
     }
@@ -306,7 +311,7 @@ describe('MVP-04 ARCH — scope discipline', () => {
   test('the contract revision that adds proposal_already_active is recorded', () => {
     const contract = read(CANONICAL_CONTRACT);
     expect(contract).toContain('proposal_already_active');
-    expect(contract).toContain('1.0.0-draft.7');
+    expect(contract).toContain('1.0.0-draft.8');
     const helper = read(path.join(BACKEND_ROOT, 'tests/helpers/towContract.js'));
     expect(helper).toContain("'proposal_already_active'");
   });

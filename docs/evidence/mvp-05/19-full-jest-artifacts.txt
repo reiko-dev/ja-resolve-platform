@@ -1,0 +1,35 @@
+### Full-jest transport artifacts observed BEFORE the listening-server hardening
+
+Run 1 (recorded in the first capture of 20-full-jest.txt):
+  FAIL tests/tow/towDocumentFlow.test.js
+  ● tow — atualização de localização do parceiro › par válido responde 200 com o parceiro atualizado
+  Test Suites: 1 failed, 6 skipped, 92 passed, 93 of 99 total
+  Tests:       1 failed, 81 skipped, 1590 passed, 1672 total
+  → documented pre-existing legacy flake (MVP-03 §11, MVP-04 review); the same
+    suite is green in all three tests/tow runs of the same session.
+
+Run 2 (raw log /tmp/mvp05-full-jest-2.log) — excerpts:
+FAIL tests/contract/towMvp05OperationContract.test.js
+  ● MVP-05 — operation-level OpenAPI contract == runtime › runtime -> contract: the real HTTP surface › startTowEnRoute: 422 without the header, 403/404/409/401, then 200
+    Expected: false
+    Received: undefined
+    > 202 |       expect(response.body.success).toBe(false);
+  ● MVP-05 — operation-level OpenAPI contract == runtime › runtime -> contract: the real HTTP surface › cancelTowRequestByPartner: the reason is mandatory and IN_TRANSIT is refused
+    Parse Error: Expected HTTP/, RTSP/ or ICE/
+FAIL tests/contract/towMvp05OperationContract.test.js
+  ● MVP-05 — operation-level OpenAPI contract == runtime › runtime -> contract: the real HTTP surface › startTowEnRoute: 422 without the header, 403/404/409/401, then 200
+    Expected: false
+    Received: undefined
+    > 202 |       expect(response.body.success).toBe(false);
+  ● MVP-05 — operation-level OpenAPI contract == runtime › runtime -> contract: the real HTTP surface › cancelTowRequestByPartner: the reason is mandatory and IN_TRANSIT is refused
+    Parse Error: Expected HTTP/, RTSP/ or ICE/
+Test Suites: 1 failed, 6 skipped, 92 passed, 93 of 99 total
+Tests:       2 failed, 81 skipped, 1589 passed, 1672 total
+
+  Server-side proof that the 401 body WAS written (access log, same run):
+::ffff:127.0.0.1 - - [21/Sep/2026:05:53:21 +0000] "POST /api/tow/requests/1/en-route HTTP/1.1" 401 60 "-" "-"
+  → 60 bytes written; the client received an empty body. Client-side transport
+    artifact (the documented stale-401 signature), not a server defect.
+
+### After the hardening (one listening server per suite instead of one ephemeral
+### server per request): full jest GREEN, 93 suites / 1591 passed / 81 skipped / 0 failed.

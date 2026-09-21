@@ -1,0 +1,71 @@
+SUITE tow/mvp05/towMvp05ExecutionApi.test.js  status=failed
+  FAILED  MVP-05 — partner service execution RED-MVP05-1 — the assigned partner drives the whole legal lifecycle
+  FAILED  MVP-05 — partner service execution anonymous callers are rejected with 401 before any key or body check
+  FAILED  MVP-05 — partner service execution a customer token cannot drive partner execution (403 forbidden)
+  FAILED  MVP-05 — partner service execution a foreign tow partner is 403 not_assigned_partner on every transition
+  FAILED  MVP-05 — partner service execution an unknown request is 404 not_found for the assigned partner
+  FAILED  MVP-05 — partner service execution a non-canonical request id is a 404, never a 500
+  FAILED  MVP-05 — partner service execution illegal transitions are 409 invalid_tow_transition ASSIGNED cannot jump to ARRIVED, IN_TRANSIT or COMPLETED
+  FAILED  MVP-05 — partner service execution illegal transitions are 409 invalid_tow_transition EN_ROUTE cannot jump to IN_TRANSIT or COMPLETED
+  FAILED  MVP-05 — partner service execution illegal transitions are 409 invalid_tow_transition ARRIVED cannot jump to COMPLETED
+  FAILED  MVP-05 — partner service execution illegal transitions are 409 invalid_tow_transition a terminal request accepts no further progress
+  FAILED  MVP-05 — partner service execution idempotent replay of the same transition replaying en-route while already EN_ROUTE keeps ONE milestone
+  FAILED  MVP-05 — partner service execution idempotent replay of the same transition replaying finish keeps ONE completed_at and ONE release
+  FAILED  MVP-05 — partner service execution contract-mandated bodies and idempotency key arrived and finish require a valid LocationInput
+  FAILED  MVP-05 — partner service execution contract-mandated bodies and idempotency key a missing or malformed Idempotency-Key is 422 before any mutation
+  FAILED  MVP-05 — partner service execution contract-mandated bodies and idempotency key arrival/finish bodies are validated but never become tracking history
+
+SUITE tow/mvp05/towMvp05Cancellation.test.js  status=failed
+  FAILED  MVP-05 — basic cancellation RED-MVP05-5 — the owning customer cancels an ASSIGNED request
+  FAILED  MVP-05 — basic cancellation the assigned partner cancels at EN_ROUTE with the required reason
+  FAILED  MVP-05 — basic cancellation the customer can cancel at ARRIVED (still before IN_TRANSIT)
+  FAILED  MVP-05 — basic cancellation replaying the cancellation is a 200 read: one instant, one release
+  FAILED  MVP-05 — basic cancellation IN_TRANSIT and terminal states are not cancellable customer cancel after IN_TRANSIT is 409 invalid_tow_transition
+  FAILED  MVP-05 — basic cancellation IN_TRANSIT and terminal states are not cancellable partner cancel after IN_TRANSIT is 409 invalid_tow_transition
+  FAILED  MVP-05 — basic cancellation IN_TRANSIT and terminal states are not cancellable a COMPLETED request cannot be cancelled
+  FAILED  MVP-05 — basic cancellation IN_TRANSIT and terminal states are not cancellable an already CANCELLED request replay by the owner is 200, by a foreign actor is 403
+  FAILED  MVP-05 — basic cancellation an unassigned SEARCHING request is out of MVP-05 cancellation scope (409)
+  FAILED  MVP-05 — basic cancellation authz and validation the wrong role is rejected by the transport guard
+  FAILED  MVP-05 — basic cancellation authz and validation anonymous callers get 401 on both cancel routes
+  FAILED  MVP-05 — basic cancellation authz and validation an unknown request is 404 for the owner
+  FAILED  MVP-05 — basic cancellation authz and validation partner cancel requires a non-empty reason (RequiredReasonInput)
+  FAILED  MVP-05 — basic cancellation authz and validation customer cancel rejects an unknown body field and an over-long reason
+  FAILED  MVP-05 — basic cancellation authz and validation the cancel routes require the canonical Idempotency-Key
+
+SUITE tow/mvp05/towMvp05Tracking.test.js  status=failed
+  FAILED  MVP-05 — live tracking RED-MVP05-2 — the assigned partner writes a point and both parties read it
+  FAILED  MVP-05 — live tracking RED-MVP05-3 — the owning customer recovers tracking; nobody else does
+  FAILED  MVP-05 — live tracking a foreign customer cannot read another customer tracking (403 not_request_owner)
+  FAILED  MVP-05 — live tracking request A never exposes request B point
+  FAILED  MVP-05 — live tracking a new point replaces the current one: still ONE row, no history
+  FAILED  MVP-05 — live tracking before the first point the latest snapshot is null, never invented
+  FAILED  MVP-05 — live tracking stale / out-of-order points an older recorded_at is rejected with 409 stale_tracking_update
+  FAILED  MVP-05 — live tracking stale / out-of-order points an equal recorded_at is not older and is accepted deterministically
+  FAILED  MVP-05 — live tracking stale / out-of-order points a stale point never overwrites the row and never creates a second row
+  FAILED  MVP-05 — live tracking terminal states no write is accepted after COMPLETED; the last snapshot stays readable
+  FAILED  MVP-05 — live tracking tracking requires an assignment: an unassigned request has no writer
+  FAILED  MVP-05 — live tracking the tracking payload is validated against the contract TrackingPoint
+  FAILED  MVP-05 — live tracking the tracking write requires the canonical Idempotency-Key
+  FAILED  MVP-05 — live tracking an unrelated tow partner cannot write a point (403 not_assigned_partner)
+
+SUITE tow/mvp05/towMvp05GracefulDrain.test.js  status=failed
+  FAILED  MVP-05 — graceful drain RED-MVP05-6 — an already-assigned job finishes after the module is disabled
+  FAILED  MVP-05 — graceful drain tracking keeps working for an assigned job while the module is disabled
+  FAILED  MVP-05 — graceful drain cancellation keeps working for an assigned job while the module is disabled
+  PASSED  MVP-05 — graceful drain new business stays blocked while disabled
+  PASSED  MVP-05 — graceful drain the frozen drain contract still describes exactly this behaviour
+  PASSED  MVP-05 — graceful drain re-enabling the module restores new business
+
+SUITE tow/mvp05/towMvp05Release.test.js  status=failed
+  FAILED  MVP-05 — assignment release and job history RED-MVP05-4 — completing the service releases the assignment and frees the partner
+  PASSED  MVP-05 — assignment release and job history release never flips the vehicle or the partner availability flags
+  FAILED  MVP-05 — assignment release and job history cancelling releases with the CANCELLED reason
+  FAILED  MVP-05 — assignment release and job history the partner job list is history: a completed job is still returned
+  FAILED  MVP-05 — assignment release and job history a cancelled job is still returned, and the customer recovery agrees
+
+SUITE tow/mvp05/towMvp05Idempotency.test.js  status=failed
+  FAILED  MVP-05 — Idempotency-Key on execution, tracking and cancellation every MVP-05 mutation rejects a missing, short or over-long key with 422
+  FAILED  MVP-05 — Idempotency-Key on execution, tracking and cancellation an exactly-8-character key is accepted
+  FAILED  MVP-05 — Idempotency-Key on execution, tracking and cancellation a replay with a DIFFERENT valid key is still a read of the canonical state
+  FAILED  MVP-05 — Idempotency-Key on execution, tracking and cancellation the key is not a cross-request dedupe authority: state is
+  FAILED  MVP-05 — Idempotency-Key on execution, tracking and cancellation a stale transition with a fresh valid key is a conflict, never silently absorbed

@@ -18,10 +18,15 @@
  * The aggregate has no `release()` yet: releasing a job belongs to the
  * cancellation/completion flows, which are out of MVP-04 scope. The column and
  * the predicate exist so those flows cannot later invent a different rule.
+ *
+ * MVP-05 EXT: the release FLOW still lives in the application layer (it is a
+ * transaction over the request, the assignment and the clock), but the two
+ * invariants it obeys are defined here — `assertAssignedPartner` (who may drive
+ * or cancel a job) and `releasePatchFor` (what a release may write).
  */
 'use strict';
 
-const { validationError } = require('./errors');
+const { validationError, TowError } = require('./errors');
 const { isRowId } = require('./ids');
 const { toIsoInstant, requireIsoInstant } = require('./instants');
 
@@ -106,8 +111,35 @@ function buildAssignmentRecord({
 }
 
 /**
- * The public `Assignment` representation, embedded in `TowRequest`.
+ * MVP-05 — who may drive, track or cancel a job.
  *
+ * The ONLY authority is `tow_assignments.partner_id`: the partner that won the
+ * accept. A valid tow partner holding a different job is not "forbidden" in the
+ * generic sense — the caller is authenticated and authorized for the module —
+ * so the answer is the specific `not_assigned_partner` (403), which tells the
+ * client the truth without leaking the request's state.
+ *
+ * The check is deliberately OWNERSHIP-FIRST and is performed before any state
+ * inspection: a foreign partner must never be able to distinguish "the job is in
+ * ARRIVED" from "the job is COMPLETED" by the error it receives.
+ *
+ * @param {object|null} assignment the request's assignment row (released or not)
+ * @param {unknown} partnerId the authenticated partner's `partners.id`
+ * @throws {TowError} `not_assigned_partner` when the assignment is missing or
+ * belongs to somebody else
+ */
+function assertAssignedPartner(assignment, partnerId) {
+  if (!assignment || typeof assignment !== 'object') {
+    throw new TowError('not_assigned_partner', 'Tow request is not assigned to this partner');
+  }
+  if (String(assignment.partner_id) !== String(partnerId)) {
+    throw new TowError('not_assigned_partner', 'Tow request is assigned to another partner');
+  }
+  return assignment;
+}
+
+/**
+ * The public `Assignment` representation, embedded in `TowRequest`.
  * Exactly the four contract members: the customer sees who is coming, with what,
  * for how much, and since when. The internal ids and the release bookkeeping stay
  * inside the module.
@@ -133,6 +165,7 @@ function buildAssignmentDto(row) {
 module.exports = {
   isTowAssignmentId,
   isAssignmentOccupied,
+  assertAssignedPartner,
   buildAssignmentRecord,
   buildAssignmentDto,
 };

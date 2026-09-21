@@ -175,7 +175,11 @@ function createAssignmentService({
     return buildTowRequestDto(outcome.request, {
       max_radius_km: settings.tow_max_radius_km,
       assignment: buildAssignmentDto(outcome.assignment),
-      allowed_actions: allowedActionsForRequest({ state: outcome.request.state, has_live_proposal: false }),
+      allowed_actions: allowedActionsForRequest({
+        state: outcome.request.state,
+        has_live_proposal: false,
+        viewer: 'customer',
+      }),
     });
   }
 

@@ -78,10 +78,23 @@ function createTowRequestService({
     return new Set(ids.map(String));
   }
 
-  function actionsFor(row, liveIds) {
+  /**
+   * MVP-05 EXT — `allowed_actions` is VIEWER-AWARE.
+   *
+   * The same canonical row advertises different legal actions to the customer
+   * (who may cancel while the job is not yet in transit) and to the assigned
+   * partner (who drives the milestones and may also cancel before pickup). The
+   * viewer is a property of the CALLER, never of the row: it is supplied by the
+   * service method that already knows which principal it authenticated
+   * (`getForCustomer`/`listForCustomer` -> `customer`,
+   * `listJobsForPartner` -> `partner`), and it defaults to the customer because
+   * that is the narrower surface.
+   */
+  function actionsFor(row, liveIds, viewer = 'customer') {
     return allowedActionsForRequest({
       state: row.state,
       has_live_proposal: liveIds.has(String(row.id)),
+      viewer,
     });
   }
 
@@ -195,7 +208,7 @@ function createTowRequestService({
    *   - `state`  → the request state (canonical enum);
    *   - `page`/`limit` → the module pagination convention (1/20, max 100);
    *   - `from`/`to` → INCLUSIVE bounds on `assignment.assigned_at`, the only
-   *     timestamp a job owns (documented in the canonical contract, draft.7).
+   *     timestamp a job owns (documented in the canonical contract, draft.8).
    */
   async function listJobsForPartner({ partnerId, query } = {}) {
     const filters = validateListQuery(query);
@@ -220,7 +233,7 @@ function createTowRequestService({
           const towRequest = requestById.get(String(row.tow_request_id));
           return toDto(towRequest, settings, {
             assignment: buildAssignmentDto(row),
-            allowed_actions: actionsFor(towRequest, liveIds),
+            allowed_actions: actionsFor(towRequest, liveIds, 'partner'),
           });
         }),
       meta: { page: filters.page, limit: filters.limit, total },

@@ -26,6 +26,9 @@ const matching = require('./matching');
 const ids = require('./ids');
 const towProposal = require('./tow-proposal');
 const assignment = require('./assignment');
+const towRequestStateMachine = require('./tow-request-state-machine');
+const towExecutionInput = require('./tow-execution-input');
+const cancellation = require('./cancellation');
 
 module.exports = {
   ...identity,
@@ -47,4 +50,7 @@ module.exports = {
   ...ids,
   ...towProposal,
   ...assignment,
+  ...towRequestStateMachine,
+  ...towExecutionInput,
+  ...cancellation,
 };

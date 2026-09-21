@@ -1,0 +1,678 @@
+# MVP-05 RED run — captured BEFORE any implementation
+#
+# command : npx jest tests/tow/mvp05 --runInBand
+# workdir : socorre_ai_backend
+# base    : a3aa1d75aabd476182ef9b69ac5056b83e967ef2 (feature/mvp-05-service-execution-tracking)
+# result  : Test Suites: 6 failed, 6 total | Tests: 56 failed, 4 passed, 60 total
+# note    : access-log lines (::ffff:...) stripped; blank lines stripped
+
+FAIL tests/tow/mvp05/towMvp05ExecutionApi.test.js
+  ● MVP-05 — partner service execution › RED-MVP05-1 — the assigned partner drives the whole legal lifecycle
+    expect(received).toEqual(expected) // deep equality
+    - Expected  - 4
+    + Received  + 1
+    - Array [
+    -   "start_en_route",
+    -   "cancel",
+    - ]
+    + Array []
+      77 |     // nothing it cannot do (MVP-05 has no customer execution action).
+      78 |     expect(fixture.assigned.state).toBe('ASSIGNED');
+    > 79 |     expect(fixture.assigned.allowed_actions).toEqual(['start_en_route', 'cancel']);
+         |                                              ^
+      80 |
+      81 |     clock.advanceMinutes(2);
+      82 |     const started = await enRoute(app, towRequest.id, partnerAuth);
+      at Object.toEqual (tests/tow/mvp05/towMvp05ExecutionApi.test.js:79:46)
+  ● MVP-05 — partner service execution › anonymous callers are rejected with 401 before any key or body check
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 401
+    Received: 404
+      128 |     for (const call of [enRoute, arrived, inTransit, finish]) {
+      129 |       const response = await call(app, fixture.request.id, null, { auth: null, key: null });
+    > 130 |       expect(response.status).toBe(401);
+          |                               ^
+      131 |       expect(response.body.success).toBe(false);
+      132 |     }
+      133 |     const row = await testDb.db('tow_requests').where({ id: fixture.request.id }).first();
+      at Object.toBe (tests/tow/mvp05/towMvp05ExecutionApi.test.js:130:31)
+  ● MVP-05 — partner service execution › a customer token cannot drive partner execution (403 forbidden)
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 403
+    Received: 404
+      139 |     for (const call of [enRoute, arrived, inTransit, finish]) {
+      140 |       const response = await call(app, fixture.request.id, fixture.customerAuth);
+    > 141 |       expect(response.status).toBe(403);
+          |                               ^
+      142 |       expect(response.body.error.code).toBe('forbidden');
+      143 |     }
+      144 |     const row = await testDb.db('tow_requests').where({ id: fixture.request.id }).first();
+      at Object.toBe (tests/tow/mvp05/towMvp05ExecutionApi.test.js:141:31)
+  ● MVP-05 — partner service execution › a foreign tow partner is 403 not_assigned_partner on every transition
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 403
+    Received: 404
+      151 |     for (const call of [enRoute, arrived, inTransit, finish]) {
+      152 |       const response = await call(app, fixture.request.id, foreign);
+    > 153 |       expect(response.status).toBe(403);
+          |                               ^
+      154 |       expect(response.body.error.code).toBe('not_assigned_partner');
+      155 |     }
+      156 |     const row = await testDb.db('tow_requests').where({ id: fixture.request.id }).first();
+      at Object.toBe (tests/tow/mvp05/towMvp05ExecutionApi.test.js:153:31)
+  ● MVP-05 — partner service execution › an unknown request is 404 not_found for the assigned partner
+    TypeError: Cannot read properties of undefined (reading 'code')
+      162 |     const response = await enRoute(app, '999999', fixture.auths[0]);
+      163 |     expect(response.status).toBe(404);
+    > 164 |     expect(response.body.error.code).toBe('not_found');
+          |                                ^
+      165 |   });
+      166 |
+      167 |   test('a non-canonical request id is a 404, never a 500', async () => {
+      at Object.code (tests/tow/mvp05/towMvp05ExecutionApi.test.js:164:32)
+  ● MVP-05 — partner service execution › a non-canonical request id is a 404, never a 500
+    TypeError: Cannot read properties of undefined (reading 'code')
+      170 |       const response = await enRoute(app, bad, fixture.auths[0]);
+      171 |       expect(response.status).toBe(404);
+    > 172 |       expect(response.body.error.code).toBe('not_found');
+          |                                  ^
+      173 |     }
+      174 |   });
+      175 |
+      at Object.code (tests/tow/mvp05/towMvp05ExecutionApi.test.js:172:34)
+  ● MVP-05 — partner service execution › illegal transitions are 409 invalid_tow_transition › ASSIGNED cannot jump to ARRIVED, IN_TRANSIT or COMPLETED
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 409
+    Received: 404
+      179 |         const fixture = await scenario({ partnerCount: 1 });
+      180 |         const response = await call(app, fixture.request.id, fixture.auths[0]);
+    > 181 |         expect(response.status).toBe(409);
+          |                                 ^
+      182 |         expect(response.body.error.code).toBe('invalid_tow_transition');
+      183 |         expect(response.body.error.details).toMatchObject({ from: 'ASSIGNED' });
+      184 |         const row = await testDb.db('tow_requests').where({ id: fixture.request.id }).first();
+      at Object.toBe (tests/tow/mvp05/towMvp05ExecutionApi.test.js:181:33)
+  ● MVP-05 — partner service execution › illegal transitions are 409 invalid_tow_transition › EN_ROUTE cannot jump to IN_TRANSIT or COMPLETED
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 200
+    Received: 404
+      189 |     test('EN_ROUTE cannot jump to IN_TRANSIT or COMPLETED', async () => {
+      190 |       const fixture = await scenario({ partnerCount: 1 });
+    > 191 |       expect((await enRoute(app, fixture.request.id, fixture.auths[0])).status).toBe(200);
+          |                                                                                 ^
+      192 |       for (const call of [inTransit, finish]) {
+      193 |         const response = await call(app, fixture.request.id, fixture.auths[0]);
+      194 |         expect(response.status).toBe(409);
+      at Object.toBe (tests/tow/mvp05/towMvp05ExecutionApi.test.js:191:81)
+  ● MVP-05 — partner service execution › illegal transitions are 409 invalid_tow_transition › ARRIVED cannot jump to COMPLETED
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 409
+    Received: 404
+      205 |       await arrived(app, fixture.request.id, fixture.auths[0]);
+      206 |       const response = await finish(app, fixture.request.id, fixture.auths[0]);
+    > 207 |       expect(response.status).toBe(409);
+          |                               ^
+      208 |       expect(response.body.error.code).toBe('invalid_tow_transition');
+      209 |       const row = await testDb.db('tow_requests').where({ id: fixture.request.id }).first();
+      210 |       expect(row.state).toBe('ARRIVED');
+      at Object.toBe (tests/tow/mvp05/towMvp05ExecutionApi.test.js:207:31)
+  ● MVP-05 — partner service execution › illegal transitions are 409 invalid_tow_transition › a terminal request accepts no further progress
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 200
+    Received: 404
+      216 |       await arrived(app, fixture.request.id, fixture.auths[0]);
+      217 |       await inTransit(app, fixture.request.id, fixture.auths[0]);
+    > 218 |       expect((await finish(app, fixture.request.id, fixture.auths[0])).status).toBe(200);
+          |                                                                                ^
+      219 |
+      220 |       for (const call of [enRoute, arrived, inTransit, finish]) {
+      221 |         const response = await call(app, fixture.request.id, fixture.auths[0]);
+      at Object.toBe (tests/tow/mvp05/towMvp05ExecutionApi.test.js:218:80)
+  ● MVP-05 — partner service execution › idempotent replay of the same transition › replaying en-route while already EN_ROUTE keeps ONE milestone
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 200
+    Received: 404
+      237 |       clock.advanceMinutes(3);
+      238 |       const first = await enRoute(app, fixture.request.id, fixture.auths[0], { key: 'idem-mvp05-enroute-a001' });
+    > 239 |       expect(first.status).toBe(200);
+          |                            ^
+      240 |
+      241 |       clock.advanceMinutes(7);
+      242 |       const replay = await enRoute(app, fixture.request.id, fixture.auths[0], { key: 'idem-mvp05-enroute-b002' });
+      at Object.toBe (tests/tow/mvp05/towMvp05ExecutionApi.test.js:239:28)
+  ● MVP-05 — partner service execution › idempotent replay of the same transition › replaying finish keeps ONE completed_at and ONE release
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 200
+    Received: 404
+      262 |       await inTransit(app, fixture.request.id, fixture.auths[0]);
+      263 |       clock.advanceMinutes(1);
+    > 264 |       expect((await finish(app, fixture.request.id, fixture.auths[0], { key: 'idem-mvp05-finish-a0001' })).status).toBe(200);
+          |                                                                                                                    ^
+      265 |       clock.advanceMinutes(9);
+      266 |       const replay = await finish(app, fixture.request.id, fixture.auths[0], { key: 'idem-mvp05-finish-b0002' });
+      267 |       expect(replay.status).toBe(200);
+      at Object.toBe (tests/tow/mvp05/towMvp05ExecutionApi.test.js:264:116)
+  ● MVP-05 — partner service execution › contract-mandated bodies and idempotency key › arrived and finish require a valid LocationInput
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 422
+    Received: 404
+      281 |
+      282 |       const missing = await arrived(app, fixture.request.id, fixture.auths[0], { body: {} });
+    > 283 |       expect(missing.status).toBe(422);
+          |                              ^
+      284 |       expect(missing.body.error.code).toBe('validation_error');
+      285 |
+      286 |       const extra = await arrived(app, fixture.request.id, fixture.auths[0], {
+      at Object.toBe (tests/tow/mvp05/towMvp05ExecutionApi.test.js:283:30)
+  ● MVP-05 — partner service execution › contract-mandated bodies and idempotency key › a missing or malformed Idempotency-Key is 422 before any mutation
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 422
+    Received: 404
+      302 |       const fixture = await scenario({ partnerCount: 1 });
+      303 |       const noKey = await enRoute(app, fixture.request.id, fixture.auths[0], { key: null });
+    > 304 |       expect(noKey.status).toBe(422);
+          |                            ^
+      305 |       expect(noKey.body.error.code).toBe('validation_error');
+      306 |
+      307 |       const shortKey = await enRoute(app, fixture.request.id, fixture.auths[0], { key: 'short' });
+      at Object.toBe (tests/tow/mvp05/towMvp05ExecutionApi.test.js:304:28)
+  ● MVP-05 — partner service execution › contract-mandated bodies and idempotency key › arrival/finish bodies are validated but never become tracking history
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 200
+    Received: 404
+      318 |       const fixture = await scenario({ partnerCount: 1 });
+      319 |       await enRoute(app, fixture.request.id, fixture.auths[0]);
+    > 320 |       expect((await arrived(app, fixture.request.id, fixture.auths[0])).status).toBe(200);
+          |                                                                                 ^
+      321 |       expect(await testDb.db('tow_request_tracking').where({ tow_request_id: fixture.request.id })).toHaveLength(0);
+      322 |     });
+      323 |   });
+      at Object.toBe (tests/tow/mvp05/towMvp05ExecutionApi.test.js:320:81)
+FAIL tests/tow/mvp05/towMvp05Cancellation.test.js
+  ● MVP-05 — basic cancellation › RED-MVP05-5 — the owning customer cancels an ASSIGNED request
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 200
+    Received: 404
+      83 |
+      84 |     const response = await cancelByCustomer(app, fixture.request.id, fixture.customerAuth);
+    > 85 |     expect(response.status).toBe(200);
+         |                             ^
+      86 |     expect(response.body.success).toBe(true);
+      87 |     expect(response.body.data.financial_consequence).toEqual(ZERO_FINANCIAL_CONSEQUENCE);
+      88 |     expect(response.body.data.request.state).toBe('CANCELLED');
+      at Object.toBe (tests/tow/mvp05/towMvp05Cancellation.test.js:85:29)
+  ● MVP-05 — basic cancellation › the assigned partner cancels at EN_ROUTE with the required reason
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 200
+    Received: 404
+      120 |
+      121 |     const response = await cancelByPartner(app, fixture.request.id, fixture.auths[0]);
+    > 122 |     expect(response.status).toBe(200);
+          |                             ^
+      123 |     expect(response.body.data.financial_consequence).toEqual(ZERO_FINANCIAL_CONSEQUENCE);
+      124 |     expect(response.body.data.request.state).toBe('CANCELLED');
+      125 |     expect(response.body.data.request.terminal_reason).toBe('PARTNER_CANCELLED');
+      at Object.toBe (tests/tow/mvp05/towMvp05Cancellation.test.js:122:29)
+  ● MVP-05 — basic cancellation › the customer can cancel at ARRIVED (still before IN_TRANSIT)
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 200
+    Received: 404
+      141 |     await arrived(app, fixture.request.id, fixture.auths[0]);
+      142 |     const response = await cancelByCustomer(app, fixture.request.id, fixture.customerAuth, { body: null });
+    > 143 |     expect(response.status).toBe(200);
+          |                             ^
+      144 |     expect(response.body.data.request.state).toBe('CANCELLED');
+      145 |     const row = await testDb.db('tow_requests').where({ id: fixture.request.id }).first();
+      146 |     expect(row.cancellation_reason).toBeNull();
+      at Object.toBe (tests/tow/mvp05/towMvp05Cancellation.test.js:143:29)
+  ● MVP-05 — basic cancellation › replaying the cancellation is a 200 read: one instant, one release
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 200
+    Received: 404
+      151 |     const fixture = await scenario({ partnerCount: 1 });
+      152 |     clock.advanceMinutes(2);
+    > 153 |     expect((await cancelByCustomer(app, fixture.request.id, fixture.customerAuth, { key: 'idem-mvp05-cancel-a001' })).status).toBe(200);
+          |                                                                                                                               ^
+      154 |     clock.advanceMinutes(8);
+      155 |     const replay = await cancelByCustomer(app, fixture.request.id, fixture.customerAuth, { key: 'idem-mvp05-cancel-b002' });
+      156 |     expect(replay.status).toBe(200);
+      at Object.toBe (tests/tow/mvp05/towMvp05Cancellation.test.js:153:127)
+  ● MVP-05 — basic cancellation › IN_TRANSIT and terminal states are not cancellable › customer cancel after IN_TRANSIT is 409 invalid_tow_transition
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 409
+    Received: 404
+      173 |
+      174 |       const response = await cancelByCustomer(app, fixture.request.id, fixture.customerAuth);
+    > 175 |       expect(response.status).toBe(409);
+          |                               ^
+      176 |       expect(response.body.error.code).toBe('invalid_tow_transition');
+      177 |       expect(response.body.error.details).toMatchObject({ from: 'IN_TRANSIT' });
+      178 |
+      at Object.toBe (tests/tow/mvp05/towMvp05Cancellation.test.js:175:31)
+  ● MVP-05 — basic cancellation › IN_TRANSIT and terminal states are not cancellable › partner cancel after IN_TRANSIT is 409 invalid_tow_transition
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 409
+    Received: 404
+      190 |       await inTransit(app, fixture.request.id, fixture.auths[0]);
+      191 |       const response = await cancelByPartner(app, fixture.request.id, fixture.auths[0]);
+    > 192 |       expect(response.status).toBe(409);
+          |                               ^
+      193 |       expect(response.body.error.code).toBe('invalid_tow_transition');
+      194 |     });
+      195 |
+      at Object.toBe (tests/tow/mvp05/towMvp05Cancellation.test.js:192:31)
+  ● MVP-05 — basic cancellation › IN_TRANSIT and terminal states are not cancellable › a COMPLETED request cannot be cancelled
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 409
+    Received: 404
+      201 |       await finish(app, fixture.request.id, fixture.auths[0]);
+      202 |       const response = await cancelByCustomer(app, fixture.request.id, fixture.customerAuth);
+    > 203 |       expect(response.status).toBe(409);
+          |                               ^
+      204 |       expect(response.body.error.code).toBe('invalid_tow_transition');
+      205 |       const row = await testDb.db('tow_requests').where({ id: fixture.request.id }).first();
+      206 |       expect(row.terminal_reason).toBeNull();
+      at Object.toBe (tests/tow/mvp05/towMvp05Cancellation.test.js:203:31)
+  ● MVP-05 — basic cancellation › IN_TRANSIT and terminal states are not cancellable › an already CANCELLED request replay by the owner is 200, by a foreign actor is 403
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 200
+    Received: 404
+      213 |
+      214 |       const replay = await cancelByCustomer(app, fixture.request.id, fixture.customerAuth);
+    > 215 |       expect(replay.status).toBe(200);
+          |                             ^
+      216 |       expect(replay.body.data.request.state).toBe('CANCELLED');
+      217 |
+      218 |       const foreignCustomer = await cancelByCustomer(app, fixture.request.id, other.customerAuth);
+      at Object.toBe (tests/tow/mvp05/towMvp05Cancellation.test.js:215:29)
+  ● MVP-05 — basic cancellation › an unassigned SEARCHING request is out of MVP-05 cancellation scope (409)
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 409
+    Received: 404
+      233 |
+      234 |     const response = await cancelByCustomer(app, fixture.request.id, fixture.customerAuth);
+    > 235 |     expect(response.status).toBe(409);
+          |                             ^
+      236 |     expect(response.body.error.code).toBe('invalid_tow_transition');
+      237 |     expect(response.body.error.details).toMatchObject({ from: 'SEARCHING', to: 'CANCELLED' });
+      238 |   });
+      at Object.toBe (tests/tow/mvp05/towMvp05Cancellation.test.js:235:29)
+  ● MVP-05 — basic cancellation › authz and validation › the wrong role is rejected by the transport guard
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 403
+    Received: 404
+      242 |       const fixture = await scenario({ partnerCount: 1 });
+      243 |       const partnerOnCustomerRoute = await cancelByCustomer(app, fixture.request.id, fixture.auths[0]);
+    > 244 |       expect(partnerOnCustomerRoute.status).toBe(403);
+          |                                             ^
+      245 |       expect(partnerOnCustomerRoute.body.error.code).toBe('forbidden');
+      246 |
+      247 |       const customerOnPartnerRoute = await cancelByPartner(app, fixture.request.id, fixture.customerAuth);
+      at Object.toBe (tests/tow/mvp05/towMvp05Cancellation.test.js:244:45)
+  ● MVP-05 — basic cancellation › authz and validation › anonymous callers get 401 on both cancel routes
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 401
+    Received: 404
+      252 |     test('anonymous callers get 401 on both cancel routes', async () => {
+      253 |       const fixture = await scenario({ partnerCount: 1 });
+    > 254 |       expect((await cancelByCustomer(app, fixture.request.id, null, { auth: null })).status).toBe(401);
+          |                                                                                              ^
+      255 |       expect((await cancelByPartner(app, fixture.request.id, null, { auth: null })).status).toBe(401);
+      256 |     });
+      257 |
+      at Object.toBe (tests/tow/mvp05/towMvp05Cancellation.test.js:254:94)
+  ● MVP-05 — basic cancellation › authz and validation › an unknown request is 404 for the owner
+    TypeError: Cannot read properties of undefined (reading 'code')
+      260 |       const response = await cancelByCustomer(app, '999999', fixture.customerAuth);
+      261 |       expect(response.status).toBe(404);
+    > 262 |       expect(response.body.error.code).toBe('not_found');
+          |                                  ^
+      263 |     });
+      264 |
+      265 |     test('partner cancel requires a non-empty reason (RequiredReasonInput)', async () => {
+      at Object.code (tests/tow/mvp05/towMvp05Cancellation.test.js:262:34)
+  ● MVP-05 — basic cancellation › authz and validation › partner cancel requires a non-empty reason (RequiredReasonInput)
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 422
+    Received: 404
+      267 |       for (const body of [{}, { reason: '' }, { reason: '   ' }, { reason: 'x'.repeat(2001) }, { reason: 'ok', extra: 1 }]) {
+      268 |         const response = await cancelByPartner(app, fixture.request.id, fixture.auths[0], { body });
+    > 269 |         expect(response.status).toBe(422);
+          |                                 ^
+      270 |         expect(response.body.error.code).toBe('validation_error');
+      271 |       }
+      272 |       const row = await testDb.db('tow_requests').where({ id: fixture.request.id }).first();
+      at Object.toBe (tests/tow/mvp05/towMvp05Cancellation.test.js:269:33)
+  ● MVP-05 — basic cancellation › authz and validation › customer cancel rejects an unknown body field and an over-long reason
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 422
+    Received: 404
+      277 |       const fixture = await scenario({ partnerCount: 1 });
+      278 |       const unknown = await cancelByCustomer(app, fixture.request.id, fixture.customerAuth, { body: { why: 'x' } });
+    > 279 |       expect(unknown.status).toBe(422);
+          |                              ^
+      280 |       const long = await cancelByCustomer(app, fixture.request.id, fixture.customerAuth, { body: { reason: 'x'.repeat(1001) } });
+      281 |       expect(long.status).toBe(422);
+      282 |     });
+      at Object.toBe (tests/tow/mvp05/towMvp05Cancellation.test.js:279:30)
+  ● MVP-05 — basic cancellation › authz and validation › the cancel routes require the canonical Idempotency-Key
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 422
+    Received: 404
+      284 |     test('the cancel routes require the canonical Idempotency-Key', async () => {
+      285 |       const fixture = await scenario({ partnerCount: 1 });
+    > 286 |       expect((await cancelByCustomer(app, fixture.request.id, fixture.customerAuth, { key: null })).status).toBe(422);
+          |                                                                                                             ^
+      287 |       expect((await cancelByPartner(app, fixture.request.id, fixture.auths[0], { key: 'tiny' })).status).toBe(422);
+      288 |       const row = await testDb.db('tow_requests').where({ id: fixture.request.id }).first();
+      289 |       expect(row.state).toBe('ASSIGNED');
+      at Object.toBe (tests/tow/mvp05/towMvp05Cancellation.test.js:286:109)
+FAIL tests/tow/mvp05/towMvp05Tracking.test.js
+  ● MVP-05 — live tracking › RED-MVP05-2 — the assigned partner writes a point and both parties read it
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 202
+    Received: 404
+      79 |     clock.advanceMinutes(4);
+      80 |     const written = await postTracking(app, fixture.request.id, fixture.auths[0]);
+    > 81 |     expect(written.status).toBe(202);
+         |                            ^
+      82 |     expect(written.body).toEqual({
+      83 |       success: true,
+      84 |       data: {
+      at Object.toBe (tests/tow/mvp05/towMvp05Tracking.test.js:81:28)
+  ● MVP-05 — live tracking › RED-MVP05-3 — the owning customer recovers tracking; nobody else does
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 401
+    Received: 404
+      127 |
+      128 |     const anonymous = await getTracking(app, fixture.request.id, null, { auth: null });
+    > 129 |     expect(anonymous.status).toBe(401);
+          |                              ^
+      130 |
+      131 |     const foreignPartner = await getTracking(app, fixture.request.id, fixture.auths[1]);
+      132 |     expect(foreignPartner.status).toBe(403);
+      at Object.toBe (tests/tow/mvp05/towMvp05Tracking.test.js:129:30)
+  ● MVP-05 — live tracking › a foreign customer cannot read another customer tracking (403 not_request_owner)
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 403
+    Received: 404
+      144 |
+      145 |     const response = await getTracking(app, fixture.request.id, other.customerAuth);
+    > 146 |     expect(response.status).toBe(403);
+          |                             ^
+      147 |     expect(response.body.error.code).toBe('not_request_owner');
+      148 |     expect(response.body.data).toBeUndefined();
+      149 |   });
+      at Object.toBe (tests/tow/mvp05/towMvp05Tracking.test.js:146:29)
+  ● MVP-05 — live tracking › request A never exposes request B point
+    TypeError: Cannot read properties of undefined (reading 'latest')
+      158 |
+      159 |     const firstRead = await getTracking(app, first.request.id, first.customerAuth);
+    > 160 |     expect(firstRead.body.data.latest.latitude).toBe(TRACKING_POINT.latitude);
+          |                                ^
+      161 |     const secondRead = await getTracking(app, second.request.id, second.customerAuth);
+      162 |     expect(secondRead.body.data.latest.latitude).toBe(1.5);
+      163 |   });
+      at Object.latest (tests/tow/mvp05/towMvp05Tracking.test.js:160:32)
+  ● MVP-05 — live tracking › a new point replaces the current one: still ONE row, no history
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 202
+    Received: 404
+      169 |     clock.advanceMinutes(6);
+      170 |     const second = await postTracking(app, fixture.request.id, fixture.auths[0], { body: TRACKING_POINT_LATER });
+    > 171 |     expect(second.status).toBe(202);
+          |                           ^
+      172 |
+      173 |     const rows = await testDb.db('tow_request_tracking').where({ tow_request_id: fixture.request.id });
+      174 |     expect(rows).toHaveLength(1);
+      at Object.toBe (tests/tow/mvp05/towMvp05Tracking.test.js:171:27)
+  ● MVP-05 — live tracking › before the first point the latest snapshot is null, never invented
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 200
+    Received: 404
+      188 |     const fixture = await scenario({ partnerCount: 1 });
+      189 |     const read = await getTracking(app, fixture.request.id, fixture.customerAuth);
+    > 190 |     expect(read.status).toBe(200);
+          |                         ^
+      191 |     expect(read.body.data.latest).toBeNull();
+      192 |     expect(read.body.data.route.pickup.latitude).toBe(PICKUP.latitude);
+      193 |   });
+      at Object.toBe (tests/tow/mvp05/towMvp05Tracking.test.js:190:25)
+  ● MVP-05 — live tracking › stale / out-of-order points › an older recorded_at is rejected with 409 stale_tracking_update
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 409
+    Received: 404
+      201 |       clock.advanceMinutes(1);
+      202 |       const stale = await postTracking(app, fixture.request.id, fixture.auths[0], { body: TRACKING_POINT_STALE });
+    > 203 |       expect(stale.status).toBe(409);
+          |                            ^
+      204 |       expect(stale.body.success).toBe(false);
+      205 |       expect(stale.body.error.code).toBe('stale_tracking_update');
+      206 |       expect(stale.body.error.details).toMatchObject({ recorded_at: TRACKING_POINT_STALE.recorded_at });
+      at Object.toBe (tests/tow/mvp05/towMvp05Tracking.test.js:203:28)
+  ● MVP-05 — live tracking › stale / out-of-order points › an equal recorded_at is not older and is accepted deterministically
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 202
+    Received: 404
+      217 |         body: { ...TRACKING_POINT, latitude: -23.5 },
+      218 |       });
+    > 219 |       expect(same.status).toBe(202);
+          |                           ^
+      220 |       const row = await trackingRow(testDb.db, fixture.request.id);
+      221 |       expect(Number(row.latitude)).toBeCloseTo(-23.5, 6);
+      222 |     });
+      at Object.toBe (tests/tow/mvp05/towMvp05Tracking.test.js:219:27)
+  ● MVP-05 — live tracking › stale / out-of-order points › a stale point never overwrites the row and never creates a second row
+    select * from `tow_request_tracking` where `tow_request_id` = 11 - SQLITE_ERROR: no such table: tow_request_tracking
+  ● MVP-05 — live tracking › terminal states › no write is accepted after COMPLETED; the last snapshot stays readable
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 200
+    Received: 404
+      238 |       await arrived(app, fixture.request.id, fixture.auths[0]);
+      239 |       await inTransit(app, fixture.request.id, fixture.auths[0]);
+    > 240 |       expect((await finish(app, fixture.request.id, fixture.auths[0])).status).toBe(200);
+          |                                                                                ^
+      241 |
+      242 |       const late = await postTracking(app, fixture.request.id, fixture.auths[0], { body: TRACKING_POINT_LATER });
+      243 |       expect(late.status).toBe(409);
+      at Object.toBe (tests/tow/mvp05/towMvp05Tracking.test.js:240:80)
+  ● MVP-05 — live tracking › tracking requires an assignment: an unassigned request has no writer
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 403
+    Received: 404
+      259 |
+      260 |     const response = await postTracking(app, fixture.request.id, fixture.auths[0]);
+    > 261 |     expect(response.status).toBe(403);
+          |                             ^
+      262 |     expect(response.body.error.code).toBe('not_assigned_partner');
+      263 |     expect(await testDb.db('tow_request_tracking').where({ tow_request_id: fixture.request.id })).toHaveLength(0);
+      264 |   });
+      at Object.toBe (tests/tow/mvp05/towMvp05Tracking.test.js:261:29)
+  ● MVP-05 — live tracking › the tracking payload is validated against the contract TrackingPoint
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 422
+    Received: 404
+      276 |     for (const body of cases) {
+      277 |       const response = await postTracking(app, fixture.request.id, fixture.auths[0], { body });
+    > 278 |       expect(response.status).toBe(422);
+          |                               ^
+      279 |       expect(response.body.error.code).toBe('validation_error');
+      280 |     }
+      281 |     expect(await testDb.db('tow_request_tracking').where({ tow_request_id: fixture.request.id })).toHaveLength(0);
+      at Object.toBe (tests/tow/mvp05/towMvp05Tracking.test.js:278:31)
+  ● MVP-05 — live tracking › the tracking write requires the canonical Idempotency-Key
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 422
+    Received: 404
+      285 |     const fixture = await scenario({ partnerCount: 1 });
+      286 |     const noKey = await postTracking(app, fixture.request.id, fixture.auths[0], { key: null });
+    > 287 |     expect(noKey.status).toBe(422);
+          |                          ^
+      288 |     const short = await postTracking(app, fixture.request.id, fixture.auths[0], { key: 'tiny' });
+      289 |     expect(short.status).toBe(422);
+      290 |     expect(await testDb.db('tow_request_tracking').where({ tow_request_id: fixture.request.id })).toHaveLength(0);
+      at Object.toBe (tests/tow/mvp05/towMvp05Tracking.test.js:287:26)
+  ● MVP-05 — live tracking › an unrelated tow partner cannot write a point (403 not_assigned_partner)
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 403
+    Received: 404
+      294 |     const fixture = await scenario({ partnerCount: 2 });
+      295 |     const response = await postTracking(app, fixture.request.id, fixture.auths[1]);
+    > 296 |     expect(response.status).toBe(403);
+          |                             ^
+      297 |     expect(response.body.error.code).toBe('not_assigned_partner');
+      298 |   });
+      299 | });
+      at Object.toBe (tests/tow/mvp05/towMvp05Tracking.test.js:296:29)
+FAIL tests/tow/mvp05/towMvp05GracefulDrain.test.js
+  ● MVP-05 — graceful drain › RED-MVP05-6 — an already-assigned job finishes after the module is disabled
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 200
+    Received: 404
+      80 |     await disableModule();
+      81 |
+    > 82 |     expect((await enRoute(app, fixture.request.id, fixture.auths[0])).status).toBe(200);
+         |                                                                               ^
+      83 |     expect((await arrived(app, fixture.request.id, fixture.auths[0])).status).toBe(200);
+      84 |     expect((await inTransit(app, fixture.request.id, fixture.auths[0])).status).toBe(200);
+      85 |     const done = await finish(app, fixture.request.id, fixture.auths[0]);
+      at Object.toBe (tests/tow/mvp05/towMvp05GracefulDrain.test.js:82:79)
+  ● MVP-05 — graceful drain › tracking keeps working for an assigned job while the module is disabled
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 202
+    Received: 404
+       97 |
+       98 |     const written = await postTracking(app, fixture.request.id, fixture.auths[0]);
+    >  99 |     expect(written.status).toBe(202);
+          |                            ^
+      100 |     const read = await getTracking(app, fixture.request.id, fixture.customerAuth);
+      101 |     expect(read.status).toBe(200);
+      102 |     expect(read.body.data.latest.latitude).toBe(written.body.data.latitude);
+      at Object.toBe (tests/tow/mvp05/towMvp05GracefulDrain.test.js:99:28)
+  ● MVP-05 — graceful drain › cancellation keeps working for an assigned job while the module is disabled
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 200
+    Received: 404
+      108 |
+      109 |     const response = await cancelByCustomer(app, fixture.request.id, fixture.customerAuth);
+    > 110 |     expect(response.status).toBe(200);
+          |                             ^
+      111 |     expect(response.body.data.request.state).toBe('CANCELLED');
+      112 |     const released = await testDb.db('tow_assignments').where({ tow_request_id: fixture.request.id }).first();
+      113 |     expect(released.release_reason).toBe('CANCELLED');
+      at Object.toBe (tests/tow/mvp05/towMvp05GracefulDrain.test.js:110:29)
+FAIL tests/tow/mvp05/towMvp05Release.test.js
+  ● MVP-05 — assignment release and job history › RED-MVP05-4 — completing the service releases the assignment and frees the partner
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 200
+    Received: 404
+      106 |     await inTransit(app, fixture.request.id, fixture.auths[0]);
+      107 |     clock.advanceMinutes(30);
+    > 108 |     expect((await finish(app, fixture.request.id, fixture.auths[0])).status).toBe(200);
+          |                                                                              ^
+      109 |
+      110 |     const released = await testDb.db('tow_assignments').where({ tow_request_id: fixture.request.id }).first();
+      111 |     expect(released.released_at).toBe('2026-01-15T12:30:00.000Z');
+      at Object.toBe (tests/tow/mvp05/towMvp05Release.test.js:108:78)
+  ● MVP-05 — assignment release and job history › cancelling releases with the CANCELLED reason
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 200
+    Received: 404
+      153 |     const fixture = await scenario({ partnerCount: 1 });
+      154 |     clock.advanceMinutes(4);
+    > 155 |     expect((await cancelByCustomer(app, fixture.request.id, fixture.customerAuth)).status).toBe(200);
+          |                                                                                            ^
+      156 |     const released = await testDb.db('tow_assignments').where({ tow_request_id: fixture.request.id }).first();
+      157 |     expect(released.released_at).toBe('2026-01-15T12:04:00.000Z');
+      158 |     expect(released.release_reason).toBe('CANCELLED');
+      at Object.toBe (tests/tow/mvp05/towMvp05Release.test.js:155:92)
+  ● MVP-05 — assignment release and job history › the partner job list is history: a completed job is still returned
+    expect(received).toBe(expected) // Object.is equality
+    Expected: "COMPLETED"
+    Received: "ASSIGNED"
+      170 |     expect(all.body.data.meta.total).toBe(1);
+      171 |     expect(all.body.data.items[0].id).toBe(String(fixture.request.id));
+    > 172 |     expect(all.body.data.items[0].state).toBe('COMPLETED');
+          |                                          ^
+      173 |     // The released assignment is still the canonical job record.
+      174 |     expect(all.body.data.items[0].assignment.partner_id).toBe(String(fixture.partners[0].partner.id));
+      175 |
+      at Object.toBe (tests/tow/mvp05/towMvp05Release.test.js:172:42)
+  ● MVP-05 — assignment release and job history › a cancelled job is still returned, and the customer recovery agrees
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 1
+    Received: 0
+      189 |
+      190 |     const jobs = await listPartnerJobs(app, fixture.auths[0], { state: 'CANCELLED' });
+    > 191 |     expect(jobs.body.data.meta.total).toBe(1);
+          |                                       ^
+      192 |     expect(jobs.body.data.items[0].state).toBe('CANCELLED');
+      193 |     expect(jobs.body.data.items[0].terminal_reason).toBe('CUSTOMER_CANCELLED');
+      194 |
+      at Object.toBe (tests/tow/mvp05/towMvp05Release.test.js:191:39)
+FAIL tests/tow/mvp05/towMvp05Idempotency.test.js
+  ● MVP-05 — Idempotency-Key on execution, tracking and cancellation › every MVP-05 mutation rejects a missing, short or over-long key with 422
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 422
+    Received: 404
+      89 |       for (const key of [null, SHORT_7, VALID_129]) {
+      90 |         const response = await call(key);
+    > 91 |         expect(response.status).toBe(422);
+         |                                 ^
+      92 |         expect(response.body.success).toBe(false);
+      93 |         expect(response.body.error.code).toBe('validation_error');
+      94 |       }
+      at Object.toBe (tests/tow/mvp05/towMvp05Idempotency.test.js:91:33)
+  ● MVP-05 — Idempotency-Key on execution, tracking and cancellation › an exactly-8-character key is accepted
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 200
+    Received: 404
+      107 |     const fixture = await scenario({ partnerCount: 1 });
+      108 |     const response = await enRoute(app, fixture.request.id, fixture.auths[0], { key: VALID_8 });
+    > 109 |     expect(response.status).toBe(200);
+          |                             ^
+      110 |     const row = await testDb.db('tow_requests').where({ id: fixture.request.id }).first();
+      111 |     expect(row.en_route_at).toBe('2026-01-15T12:00:00.000Z');
+      112 |   });
+      at Object.toBe (tests/tow/mvp05/towMvp05Idempotency.test.js:109:29)
+  ● MVP-05 — Idempotency-Key on execution, tracking and cancellation › a replay with a DIFFERENT valid key is still a read of the canonical state
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 200
+    Received: 404
+      115 |     const fixture = await scenario({ partnerCount: 1 });
+      116 |     clock.advanceMinutes(1);
+    > 117 |     expect((await enRoute(app, fixture.request.id, fixture.auths[0], { key: 'idem-mvp05-key-a-000001' })).status).toBe(200);
+          |                                                                                                                   ^
+      118 |     clock.advanceMinutes(4);
+      119 |     const replay = await enRoute(app, fixture.request.id, fixture.auths[0], { key: 'idem-mvp05-key-b-000002' });
+      120 |     expect(replay.status).toBe(200);
+      at Object.toBe (tests/tow/mvp05/towMvp05Idempotency.test.js:117:115)
+  ● MVP-05 — Idempotency-Key on execution, tracking and cancellation › the key is not a cross-request dedupe authority: state is
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 200
+    Received: 404
+      130 |     const shared = 'idem-mvp05-shared-00001';
+      131 |
+    > 132 |     expect((await enRoute(app, first.request.id, first.auths[0], { key: shared })).status).toBe(200);
+          |                                                                                            ^
+      133 |     expect((await enRoute(app, second.request.id, second.auths[0], { key: shared })).status).toBe(200);
+      134 |
+      135 |     const firstRow = await testDb.db('tow_requests').where({ id: first.request.id }).first();
+      at Object.toBe (tests/tow/mvp05/towMvp05Idempotency.test.js:132:92)
+  ● MVP-05 — Idempotency-Key on execution, tracking and cancellation › a stale transition with a fresh valid key is a conflict, never silently absorbed
+    expect(received).toBe(expected) // Object.is equality
+    Expected: 409
+    Received: 404
+      144 |     await arrived(app, fixture.request.id, fixture.auths[0]);
+      145 |     const stale = await enRoute(app, fixture.request.id, fixture.auths[0], { key: 'idem-mvp05-key-fresh-0001' });
+    > 146 |     expect(stale.status).toBe(409);
+          |                          ^
+      147 |     expect(stale.body.error.code).toBe('invalid_tow_transition');
+      148 |   });
+      149 | });
+      at Object.toBe (tests/tow/mvp05/towMvp05Idempotency.test.js:146:26)
+Test Suites: 6 failed, 6 total
+Tests:       56 failed, 4 passed, 60 total
+Snapshots:   0 total
+Time:        2.405 s, estimated 4 s
+Ran all test suites matching /tests\/tow\/mvp05/i.

@@ -1,0 +1,62 @@
+### DB_PORT=55434 npm run verify:tow — 2026-09-21T05:57:55Z
+PASS tests/tow/socketService.tow.test.js
+PASS tests/tow/mvp01/towActivateConflictMapping.test.js
+PASS tests/tow/towProposalIdempotency.test.js
+
+Test Suites: 6 skipped, 58 passed, 58 of 64 total
+Tests:       81 skipped, 1134 passed, 1215 total
+Snapshots:   0 total
+Time:        22.913 s, estimated 27 s
+Ran all test suites matching /tests\/tow/i.
+ Network socorre-tow-test-55434-cb0d0933_tow-test-net Creating 
+ Network socorre-tow-test-55434-cb0d0933_tow-test-net Creating 
+ Network socorre-tow-test-55434-cb0d0933_tow-test-net Created 
+ Network socorre-tow-test-55434-cb0d0933_tow-test-net Created 
+ Container socorre-tow-test-55434-cb0d0933-tow-postgres-test-1 Creating 
+ Container socorre-tow-test-55434-cb0d0933-tow-postgres-test-1 Created 
+ Container socorre-tow-test-55434-cb0d0933-tow-postgres-test-1 Starting 
+ Container socorre-tow-test-55434-cb0d0933-tow-postgres-test-1 Started 
+ Container socorre-tow-test-55434-cb0d0933-tow-postgres-test-1 Waiting 
+ Container socorre-tow-test-55434-cb0d0933-tow-postgres-test-1 Healthy 
+PostgreSQL test container is healthy
+healthcheck: healthy
+
+=== [verify:tow] prepare database + migrations from zero ===
+[verify:tow] migrations against postgresql://tow_test@127.0.0.1:55434/socorre_ai_tow_test
+[verify:tow] migrations applied: 6 (batch 1)
+[verify:tow] tables in public: 36
+[verify:tow] database ready at 127.0.0.1:55434/socorre_ai_tow_test
+
+=== [verify:tow] PostgreSQL foundation gate ===
+::ffff:127.0.0.1 - - [21/Sep/2026:05:58:36 +0000] "GET /health HTTP/1.1" 200 179 "-" "-"
+PASS tests/tow/foundation/towPostgresFoundation.e2e.test.js
+  T00 PostgreSQL test foundation
+    ✓ the disposable container reports PostgreSQL 14 (5 ms)
+    ✓ migrations apply from a truly empty schema (990 ms)
+    ✓ the Tow safety guard fails closed for non-test targets
+    ✓ per-test isolation: truncate clears data and rollback leaves no leakage (175 ms)
+    ✓ docker compose publishes exactly the DB_PORT the guard and the client use (66 ms)
+    ✓ the Express app answers GET /health from the same PostgreSQL singleton (749 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       6 passed, 6 total
+Snapshots:   0 total
+Time:        2.383 s
+Ran all test suites matching /tests\/tow\/foundation\/towPostgresFoundation.e2e.test.js/i.
+ Container socorre-tow-test-55434-cb0d0933-tow-postgres-test-1 Stopping 
+ Container socorre-tow-test-55434-cb0d0933-tow-postgres-test-1 Stopped 
+ Container socorre-tow-test-55434-cb0d0933-tow-postgres-test-1 Removing 
+ Container socorre-tow-test-55434-cb0d0933-tow-postgres-test-1 Removed 
+ Network socorre-tow-test-55434-cb0d0933_tow-test-net Removing 
+ Network socorre-tow-test-55434-cb0d0933_tow-test-net Removed 
+PostgreSQL test environment destroyed (containers, volumes, network)
+
+=== [verify:tow] summary ===
+  PASS  OpenAPI 3.1 structure gate
+  PASS  contract suite (OpenAPI + patch semantics + discovery + consumer smoke)
+  PASS  focused Tow suite (offline)
+  PASS  prepare database + migrations from zero
+  PASS  PostgreSQL foundation gate
+
+[verify:tow] GREEN
+exit=0

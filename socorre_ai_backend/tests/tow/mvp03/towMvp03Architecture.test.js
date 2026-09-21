@@ -243,10 +243,14 @@ describe('MVP-03 ARCH — scope discipline', () => {
     // MVP-04 (proposals/assignment) is a LATER delivery and owns
     // `/proposals` and `/accept`; the assertions for those moved to
     // `tests/tow/mvp04/towMvp04Architecture.test.js` when MVP-04 landed, so this
-    // list was narrowed instead of deleted. Everything still banned here is a
-    // genuinely later surface (counteroffer, job lifecycle, payments).
+    // list was narrowed instead of deleted. MVP-05 (service execution,
+    // tracking, cancellation) has now landed too and owns `/cancel`; that
+    // surface is asserted positively in
+    // `tests/tow/mvp05/towMvp05Architecture.test.js`. Everything still banned
+    // here is a genuinely later surface (counteroffer, destination change,
+    // completion/dispute/review, payments, partner presence).
     for (const forbidden of [
-      '/counteroffer', '/assignment', '/cancel', '/destination',
+      '/counteroffer', '/assignment', '/destination',
       '/completion', '/dispute', '/review', '/payments', '/partner/status', '/partner/location',
     ]) {
       expect(ROUTES).not.toContain(forbidden);

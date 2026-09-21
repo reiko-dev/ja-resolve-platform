@@ -249,10 +249,11 @@ describe('MVP-04 EXT — operation-level OpenAPI contract == runtime (EXT-MVP04-
       expect(parameter('listPartnerTowJobs', 'to', 'query').schema.format).toBe('date-time');
     });
 
-    test('the canonical revision is draft.7 and records the EXT-MVP04 corrections', () => {
-      expect(composed.info.version).toBe('1.0.0-draft.7');
-      expect(canonical.info.version).toBe('1.0.0-draft.7');
+    test('the canonical revision is draft.8 and still records the EXT-MVP04 corrections', () => {
+      expect(composed.info.version).toBe('1.0.0-draft.8');
+      expect(canonical.info.version).toBe('1.0.0-draft.8');
       expect(canonical.info.description).toContain('draft.7');
+      expect(canonical.info.description).toContain('draft.8');
       expect(canonical.info.description).toContain('EXT-MVP04-1/2/3');
     });
 

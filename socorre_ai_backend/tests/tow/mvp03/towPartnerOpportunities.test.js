@@ -414,7 +414,15 @@ describe('MVP-03 — partner opportunities', () => {
   describe('request lifecycle scope', () => {
     test('a non-SEARCHING request is never offered', async () => {
       const created = await createRequest();
-      await testDb.db('tow_requests').where({ id: created.id }).update({ state: 'CANCELLED' });
+      // MVP-05 EXT: `tow_requests` now enforces terminal coherence
+      // (`(state = 'CANCELLED') = (cancelled_at IS NOT NULL)`), so a fabricated
+      // terminal row must carry its milestone. The assertion below is unchanged:
+      // the feed offers SEARCHING requests only.
+      await testDb.db('tow_requests').where({ id: created.id }).update({
+        state: 'CANCELLED',
+        cancelled_at: '2026-01-15T12:05:00.000Z',
+        terminal_reason: 'CUSTOMER_CANCELLED',
+      });
       const partner = await partnerWith({ partnerOverrides: NEAR_PARTNER });
 
       const response = await listOpportunities(partner);

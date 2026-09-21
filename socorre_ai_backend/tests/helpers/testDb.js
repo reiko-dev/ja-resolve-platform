@@ -121,6 +121,9 @@ const TABLES = [
   // real referential integrity is exercised on PostgreSQL instead.
   'tow_assignments',
   'tow_request_proposals',
+  // MVP-05. `tow_request_tracking` references both `tow_requests` and
+  // `partners`, so it is appended after them.
+  'tow_request_tracking',
 ];
 
 const SCHEMA = [
@@ -752,6 +755,13 @@ const SCHEMA = [
   // keep the harness's lexicographic/numeric affinity predictable; the adapter
   // coerces them back to numbers on read, exactly as it does for the strings
   // node-postgres returns for `numeric`.
+  //
+  // MVP-05 appends the five milestone instants and the cancellation attribution
+  // (mirrors database/migrations/006_mvp05_service_execution_tracking.js). The
+  // milestone-order, terminal-coherence and attribution CHECKs below are the
+  // SQLite mirror of the PostgreSQL constraints added by that migration: SQLite
+  // cannot add a CHECK to an existing table, so the offline harness declares
+  // them at creation time and PostgreSQL enforces them as constraints.
   `CREATE TABLE IF NOT EXISTS tow_requests (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     customer_id INTEGER NOT NULL,
@@ -774,9 +784,28 @@ const SCHEMA = [
     matching_radius_km DECIMAL(8, 2) NOT NULL,
     idempotency_key VARCHAR(128) NOT NULL,
     idempotency_fingerprint VARCHAR(64) NOT NULL,
+    en_route_at TEXT,
+    arrived_at TEXT,
+    in_transit_at TEXT,
+    completed_at TEXT,
+    cancelled_at TEXT,
+    cancelled_by_actor_type VARCHAR(20),
+    cancelled_by_actor_id INTEGER,
+    cancellation_reason TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (customer_id, idempotency_key)
+    UNIQUE (customer_id, idempotency_key),
+    CHECK (arrived_at IS NULL OR (en_route_at IS NOT NULL AND arrived_at >= en_route_at)),
+    CHECK (in_transit_at IS NULL OR (arrived_at IS NOT NULL AND in_transit_at >= arrived_at)),
+    CHECK (completed_at IS NULL OR (in_transit_at IS NOT NULL AND completed_at >= in_transit_at)),
+    CHECK (cancelled_at IS NULL OR en_route_at IS NULL OR cancelled_at >= en_route_at),
+    CHECK ((state = 'COMPLETED') = (completed_at IS NOT NULL)),
+    CHECK ((state = 'CANCELLED') = (cancelled_at IS NOT NULL)),
+    CHECK (cancelled_by_actor_type IS NULL OR cancelled_by_actor_type IN ('customer', 'partner')),
+    CHECK ((cancelled_by_actor_type IS NULL) = (cancelled_by_actor_id IS NULL)),
+    CHECK (cancelled_at IS NOT NULL OR (cancelled_by_actor_type IS NULL AND cancelled_by_actor_id IS NULL)),
+    CHECK (cancellation_reason IS NULL OR length(cancellation_reason) <= 2000),
+    CHECK (terminal_reason IS NULL OR state IN ('CANCELLED', 'COMPLETED'))
   )`,
 
   // MVP-04 — the negotiation record and the single assignment authority
@@ -866,6 +895,27 @@ const SCHEMA = [
 
   `CREATE UNIQUE INDEX IF NOT EXISTS tow_assignments_one_live_per_vehicle
     ON tow_assignments (tow_vehicle_id) WHERE released_at IS NULL`,
+
+  // MVP-05 — ONE current tracking position per canonical request (mirrors
+  // database/migrations/006_mvp05_service_execution_tracking.js). The legacy
+  // `real_time_tracking` table is deliberately not reused: it keeps a
+  // `location_history` trail and ETA/route columns that MVP-05 does not own.
+  // `observed_at` is the client instant (`recorded_at` in the contract) and
+  // `received_at` is the backend instant the point was accepted.
+  `CREATE TABLE IF NOT EXISTS tow_request_tracking (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tow_request_id INTEGER NOT NULL,
+    partner_id INTEGER NOT NULL,
+    latitude DECIMAL(10, 8) NOT NULL,
+    longitude DECIMAL(11, 8) NOT NULL,
+    observed_at TEXT NOT NULL,
+    received_at TEXT NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (tow_request_id),
+    CHECK (latitude >= -90 AND latitude <= 90),
+    CHECK (longitude >= -180 AND longitude <= 180)
+  )`,
 ];
 
 let schemaReady = null;
