@@ -63,6 +63,7 @@ the real Google Routes adapter and its two-leg parsing are covered by the accept
 | `PUT /tow/requests/{requestId}/payment-method` | owning customer selects `cash`; creates the payment as `CASH_SELECTED`; `card`/`pix` → 422 |
 | `POST /tow/requests/{requestId}/cash-received` | assigned partner confirms receipt on a `COMPLETED` tow; idempotent; **no body** |
 | `GET /tow/requests/{requestId}/payment` | owning customer or assigned partner rehydrates the canonical summary |
+| `GET /tow/requests/{requestId}/route` | owning customer OR assigned partner reads the `TowRouteSnapshot` (draft.11, B5): request pickup -> destination `route_quote` + Google-compatible `encoded_polyline`, recomputed on read, zero pricing |
 | `TowRequest.payment` (embedded in every recovery path) | truthful projection of the same single row |
 | `OPTIONS` — not applicable | — |
 
@@ -110,6 +111,7 @@ customer tracking visibility
 basic pre-IN_TRANSIT cancellation
 assignment release and partner/TowVehicle reuse
 CASH payment, cash_received confirmation, payment rehydration
+route visualization (authoritative pickup -> destination distance/duration + Google-compatible polyline)
 ```
 
 ### Contract
@@ -118,7 +120,8 @@ CASH payment, cash_received confirmation, payment rehydration
 | --- | --- |
 | initial canonical version | `1.0.0-draft.8` |
 | MVP-06 canonical version | `1.0.0-draft.9` (revision note records the implemented subset) |
-| current canonical version | `1.0.0-draft.10` (T5 sync: declares the three runtime-only routes and records the idempotency delta; no runtime change) |
+| T5 canonical version | `1.0.0-draft.10` (declares the three runtime-only routes and records the idempotency delta; no runtime change) |
+| current canonical version | `1.0.0-draft.11` (B5: `getTowRequestRoute` is implemented; declared-but-unrouted annotation replaced) |
 | base contract | byte-identical to the reviewed artifact (`1.0.0-draft.2`) |
 | OpenAPI validation | PASS, 69 operations, 0 unresolved refs, 0 dropped base methods |
 | implemented payment subset | `cash` only; `PaymentStatus` reachable: `NOT_SELECTED → CASH_SELECTED → CASH_RECEIVED` |
@@ -171,10 +174,12 @@ Also deliberately not advertised: `TowRequest.allowed_actions` does **not** list
 `mark_cash_received`; the authoritative signal is `TowRequest.payment.status`. See
 `docs/evidence/mvp-06/05-payment-authority.md` §9.
 
-Declared but **unrouted**: `GET /tow/requests/{requestId}/route` (`getTowRequestRoute`, canonical
-`docs/tow/tow-api-contract.openapi.yaml:247-265`, `TowRouteSnapshot` incl. `encoded_polyline`) has no route in
-`src/modules/tow/http/routes.js` and answers **404** at runtime. It stays declared for the long-term target
-(Phase 2 / #33) and is not narrowed; the MVP exposes only the tracking read's `{ pickup, destination }`.
+Route visualization is **implemented** (draft.11, B5): `GET /tow/requests/{requestId}/route`
+(`getTowRequestRoute`, canonical `docs/tow/tow-api-contract.openapi.yaml`, `TowRouteSnapshot` incl.
+`encoded_polyline`) is served to the owning customer or the assigned partner. The route is recomputed on read
+through the same backend RouteProvider the quote uses, carries no pricing member of any kind, and a provider
+failure is `503 external_dependency_unavailable` with no fabricated geometry. The tracking read still carries
+only `{ pickup, destination }` and remains the current-position read.
 
 ---
 

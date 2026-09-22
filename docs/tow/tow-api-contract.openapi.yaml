@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: JaResolve Tow Consumer API
-  version: 1.0.0-draft.10
+  version: 1.0.0-draft.11
   description: >-
     Normative consumer contract for Mobile Cliente, Mobile Parceiro and Dashboard.
     This entrypoint composes the reviewed draft.2 base contract with the frozen
@@ -124,11 +124,29 @@ info:
     `adminRejectTowVehicleDocument`: the header is accepted and ignored (no
     `422`, no dedupe semantics), and the long-term declaration is deliberately
     NOT narrowed here. (3) `GET /tow/requests/{requestId}/route`
-    (`getTowRequestRoute`) remains declared for the long-term target but is NOT
-    routed by the MVP runtime (it answers `404`); it is recorded as Phase 2 /
-    unrouted rather than removed, so the contract is not narrowed. No existing
-    path, parameter, response shape or enum member is removed or narrowed, and
-    the base contract stays byte-identical.
+    (`getTowRequestRoute`) was recorded
+    as declared-but-unrouted (Phase 2 / #33) rather than removed, so the contract
+    was not narrowed. It is now IMPLEMENTED — see the draft.11 revision note. No
+    existing path, parameter, response shape or enum member is removed or
+    narrowed, and the base contract stays byte-identical.
+    Revision draft.11 (B5 route visualization — the declared operation is now
+    implemented, additive): `GET /tow/requests/{requestId}/route`
+    (`getTowRequestRoute`) is no longer declared-but-unrouted. The owning
+    customer or the assigned Tow partner now reads the request's own
+    pickup -> destination route snapshot through this operation. The runtime
+    RECOMPUTES the route on read through the SAME `RouteProvider` that produces
+    the quote (the polyline is not persisted and no migration is added), returns
+    the authoritative `route_quote` legs/totals plus the Google-compatible
+    `encoded_polyline`, and performs NO pricing: the response carries no
+    `final_price`, no `amount_cents` and no price member of any kind, so it can
+    never be mistaken for the accepted proposal/assignment pricing snapshot.
+    `route_quote.provider_to_pickup` stays absent because the runtime owns no
+    canonical partner-origin geometry for this read (the frozen provider/truck
+    leg remains on the accepted pricing snapshot); a future delivery may add it
+    without changing this contract. A provider failure is
+    `503 external_dependency_unavailable` with no fabricated geometry. No path,
+    parameter, response shape or enum member is removed or narrowed, and the
+    base contract stays byte-identical.
 servers:
   - url: /api
 security: []
@@ -250,9 +268,14 @@ paths:
       operationId: getTowRequestRoute
       security: [{ bearerAuth: [] }]
       description: >-
-        Returns the authoritative route snapshot/geometry used by the Tow flow.
-        Before assignment, provider_to_pickup may be absent; after assignment it
-        reflects the frozen provider/truck to pickup leg plus pickup to destination.
+        Returns the request's own pickup -> destination route snapshot used for
+        visualization: the authoritative `route_quote` distance/duration plus the
+        Google-compatible `encoded_polyline` the mobile renders. The route is
+        recomputed on read through the backend RouteProvider and the endpoint
+        performs NO pricing. `route_quote.provider_to_pickup` is absent because
+        the runtime owns no canonical partner-origin geometry for this read; the
+        frozen provider/truck leg of an accepted proposal stays on the pricing
+        snapshot. Readable by the owning customer or the assigned Tow partner.
       parameters:
         - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/RequestId'
       responses:

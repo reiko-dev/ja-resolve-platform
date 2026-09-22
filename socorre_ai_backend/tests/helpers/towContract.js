@@ -17,10 +17,11 @@
  *   file. For those paths the canonical definition SHADOWS the base definition
  *   entirely; the composed document must therefore contain exactly one operation
  *   per (path, method) and must not double-count shadowed base operations.
- *   Verified shape on the current contract (draft.10): base 51 paths / 59
+ *   Verified shape on the current contract (draft.11): base 51 paths / 59
  *   operations, canonical 59 paths (30 `$ref` path items + 29 inline) / 34
  *   inline operations, 21 shadowed base paths (0 dropped methods), composed
- *   69 operations.
+ *   69 operations. (draft.11 implements the already-declared route operation;
+ *   it adds no path, method or operation.)
  *
  * No network access is required: every `$ref` is a local file reference.
  */

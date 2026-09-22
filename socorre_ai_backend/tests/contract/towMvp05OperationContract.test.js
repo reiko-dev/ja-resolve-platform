@@ -295,9 +295,9 @@ describe('MVP-05 — operation-level OpenAPI contract == runtime', () => {
       expect(baseCode.enum).not.toContain('partner_not_operational');
     });
 
-    test('the canonical revision records the MVP-05 revision note (draft.10 current)', () => {
-      expect(composed.info.version).toBe('1.0.0-draft.10');
-      expect(canonical.info.version).toBe('1.0.0-draft.10');
+    test('the canonical revision records the MVP-05 revision note (draft.11 current)', () => {
+      expect(composed.info.version).toBe('1.0.0-draft.11');
+      expect(canonical.info.version).toBe('1.0.0-draft.11');
       expect(canonical.info.description).toContain('draft.8');
       expect(canonical.info.description).toContain('MVP-05');
       expect(canonical.info.description).toContain('stale_tracking_update');

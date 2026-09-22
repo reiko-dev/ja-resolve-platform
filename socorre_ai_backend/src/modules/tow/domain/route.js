@@ -13,6 +13,7 @@
 
 const { validationError } = require('./errors');
 const { requireSafeNonNegativeInteger, addSafeIntegers } = require('./integers');
+const { requireIsoInstant } = require('./instants');
 
 function normalizeLeg(leg, field) {
   if (!leg || typeof leg !== 'object' || Array.isArray(leg)) {
@@ -70,4 +71,67 @@ function createRouteQuote({ provider_to_pickup: providerToPickup = null, pickup_
   });
 }
 
-module.exports = { createRouteQuote };
+/**
+ * The contract `GeoPoint` projection of a canonical request endpoint.
+ *
+ * This file deliberately does NOT import `domain/geo.js`: the geodesic/range
+ * primitives are owned by the matching authority (`MVP-03 ARCH — the pricing
+ * and route authority never import the matching primitive`). The application
+ * service validates the canonical points with `validateGeoPoint` BEFORE the
+ * provider call, so this function is a pure projection, exactly like
+ * `buildTowRequestDto`'s point projection.
+ */
+function snapshotGeoPoint(point, field) {
+  if (!point || typeof point !== 'object' || Array.isArray(point)) {
+    throw validationError(`${field} must be a canonical request point`, { field });
+  }
+  return Object.freeze({
+    latitude: Number(point.latitude),
+    longitude: Number(point.longitude),
+    formatted_address: point.formatted_address ?? null,
+  });
+}
+
+/**
+ * B5 — the contract `TowRouteSnapshot` DTO of
+ * `GET /tow/requests/{requestId}/route`.
+ *
+ * This is a VISUALIZATION projection, not a quote: `pickup`/`destination` are
+ * the canonical request's own endpoints, `route_quote` carries the provider's
+ * authoritative legs and totals, and `encoded_polyline` is the
+ * Google-compatible geometry of that same route. It deliberately carries no
+ * price member of any kind — the accepted proposal/assignment snapshot remains
+ * the ONLY pricing authority, and this DTO must never be mistaken for it.
+ *
+ * `provider_to_pickup` is included ONLY when the provider actually returned it.
+ * The declared base `RouteQuote` schema does not allow the member to be null, so
+ * an absent leg is an ABSENT member: never a fabricated zero, never a
+ * straight-line substitute and never a second route authority.
+ *
+ * @param {{request: object, route: object, generatedAt: unknown}} input
+ * @returns {Readonly<object>}
+ */
+function buildTowRouteSnapshot({ request, route, generatedAt } = {}) {
+  if (!request || typeof request !== 'object' || Array.isArray(request)) {
+    throw validationError('request must be a canonical tow request row', { field: 'request' });
+  }
+
+  const quote = createRouteQuote(route);
+
+  const routeQuote = {};
+  if (quote.provider_to_pickup) routeQuote.provider_to_pickup = quote.provider_to_pickup;
+  if (quote.pickup_to_destination) routeQuote.pickup_to_destination = quote.pickup_to_destination;
+  routeQuote.total_distance_meters = quote.total_distance_meters;
+  routeQuote.total_duration_seconds = quote.total_duration_seconds;
+
+  return Object.freeze({
+    request_id: String(request.id),
+    pickup: snapshotGeoPoint(request.pickup, 'pickup'),
+    destination: snapshotGeoPoint(request.destination, 'destination'),
+    route_quote: Object.freeze(routeQuote),
+    encoded_polyline: quote.encoded_polyline,
+    generated_at: requireIsoInstant(generatedAt, 'generated_at'),
+  });
+}
+
+module.exports = { createRouteQuote, buildTowRouteSnapshot };

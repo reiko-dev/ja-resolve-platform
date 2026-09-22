@@ -17,6 +17,11 @@
  * `/requests/{requestId}`: the customer's method selection, the assigned
  * partner's cash receipt confirmation and the shared payment summary read.
  *
+ * B5 adds EXACTLY one route: the request route snapshot
+ * (`GET /requests/{requestId}/route`), the visualization read served to the
+ * owning customer OR the assigned partner. It is recomputed on read through the
+ * RouteProvider port and carries no price member of any kind.
+ *
  * Counteroffer, ETA, tracking HISTORY, the legacy global partner-location push
  * endpoint and every other unimplemented operation stay unrouted: an
  * unimplemented operation must 404 rather than pretend. CARD/PIX are declared by
@@ -48,6 +53,7 @@ const { createExecutionController } = require('./execution-controller');
 const { createTrackingController } = require('./tracking-controller');
 const { createCancellationController } = require('./cancellation-controller');
 const { createPaymentController } = require('./payment-controller');
+const { createRouteController } = require('./route-controller');
 
 function createTowRouter({ services, uploadMiddleware }) {
   const router = express.Router();
@@ -66,6 +72,7 @@ function createTowRouter({ services, uploadMiddleware }) {
     cancellationService: services.cancellationService,
   });
   const paymentController = createPaymentController({ paymentService: services.paymentService });
+  const routeController = createRouteController({ routeService: services.routeService });
 
   router.get('/module-status', moduleController.getPublicStatus);
 
@@ -107,6 +114,13 @@ function createTowRouter({ services, uploadMiddleware }) {
   // partner), which is why it carries its own guard.
   router.get('/requests/:requestId/tracking', auth, requireCustomerOrTowPartner, trackingController.read);
   router.post('/requests/:requestId/tracking', auth, requireTowPartner, trackingController.write);
+
+  // B5 — route visualization. The request's own pickup -> destination snapshot
+  // is readable by the owner customer (checked as ownership) or by the assigned
+  // partner (checked against `tow_assignments`), exactly like the tracking read;
+  // it is recomputed on read and never priced. The application service owns both
+  // the authorization predicate and the provider call.
+  router.get('/requests/:requestId/route', auth, requireCustomerOrTowPartner, routeController.getRoute);
 
   // MVP-06 — CASH payment. The customer chooses the method (only `cash` is
   // implemented), the ASSIGNED partner records the cash handover on a COMPLETED

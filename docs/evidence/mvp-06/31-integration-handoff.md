@@ -8,10 +8,11 @@ Auth: `Authorization: Bearer <JWT>` on every operation below
 
 This is the concise consumer handoff. The durable capability list is
 `docs/evidence/mvp-06/TOW-MVP-READINESS.md`; the normative shapes are
-`docs/tow/tow-api-contract.openapi.yaml` (canonical, now `1.0.0-draft.10`: the
-draft.9 MVP-06 surface plus the T5 draft.10 declarations of the three
-runtime-only routes and the recorded idempotency delta; the base contract stays
-byte-identical).
+`docs/tow/tow-api-contract.openapi.yaml` (canonical, now `1.0.0-draft.11`: the
+draft.9 MVP-06 surface, the T5 draft.10 declarations of the three runtime-only
+routes and the recorded idempotency delta, plus the draft.11 B5 route
+visualization implementation — `GET /tow/requests/{requestId}/route` is no
+longer declared-but-unrouted; the base contract stays byte-identical).
 
 ---
 
@@ -37,6 +38,7 @@ byte-identical).
 | GET | `/tow/requests/{requestId}` | customer (owner) |
 | GET | `/tow/requests/{requestId}/proposals` | customer (owner) |
 | POST | `/tow/proposals/{proposalId}/accept` (`Idempotency-Key`) | customer (owner) |
+| GET | `/tow/requests/{requestId}/route` | owner customer OR assigned partner (draft.11) |
 
 ### Partner flow
 | Method | Path | Who |
@@ -186,12 +188,45 @@ fee debt · customer debt · wallet · settlement · payout · disputes · revie
 rematch · advanced cancellation economics · tracking history · live ETA/rerouting · Phase 2 hardening · the
 deferred security work of #31 (required before production go-live).
 
-One declared operation is **not routed**: `GET /tow/requests/{requestId}/route` (`getTowRequestRoute`,
-canonical `docs/tow/tow-api-contract.openapi.yaml:247-265`) has no route in
-`src/modules/tow/http/routes.js` and answers **404**. It stays declared because the contract is the long-term
-target (and `TowRouteSnapshot`/`encoded_polyline` are Phase 2 / #33 scope); route geometry must not be built
-against it in the MVP. The tracking read carries the only route data the MVP exposes
-(`{ pickup, destination }`).
+Route visualization **is** implemented (draft.11, B5): `GET /tow/requests/{requestId}/route`
+(`getTowRequestRoute`) is served by `src/modules/tow/http/routes.js` to the owning customer or the assigned
+partner. See §11 for the exact implemented semantics. The tracking read still carries only
+`{ pickup, destination }` and remains the CURRENT-POSITION read.
 
 `TowRequest.allowed_actions` does **not** advertise payment actions in this delivery; derive the cash UI from
 `payment.status` and the caller's role.
+
+## 11. Route snapshot (draft.11, B5 — implemented)
+
+`GET /tow/requests/{requestId}/route` returns exactly the canonical `TowRouteSnapshot`:
+
+```json
+{
+  "request_id": "<id>",
+  "pickup": { "latitude": -23.561684, "longitude": -46.655981, "formatted_address": "..." },
+  "destination": { "latitude": -23.6639, "longitude": -46.531, "formatted_address": "..." },
+  "route_quote": {
+    "pickup_to_destination": { "distance_meters": 7350, "duration_seconds": 1200 },
+    "total_distance_meters": 7350,
+    "total_duration_seconds": 1200
+  },
+  "encoded_polyline": "<Google-compatible encoded polyline>",
+  "generated_at": "2026-01-15T12:00:00.000Z"
+}
+```
+
+- **Who**: the owning customer OR the assigned Tow partner (the same two-principal rule as the tracking read).
+  A foreign customer is `403 not_request_owner`, a non-assigned partner `403 not_assigned_partner`, an
+  unknown/non-canonical id `404 not_found`, an anonymous caller `401`.
+- **Geometry**: the runtime **recomputes** the request's own pickup -> destination route on read through the
+  same backend RouteProvider the quote uses (nothing is persisted; no migration). `encoded_polyline` is the
+  Google-compatible geometry for exactly that route.
+- **No pricing**: the response carries no `final_price`, `amount_cents` or any price member — it can never be
+  used to re-derive or replace the accepted proposal/assignment price. The mobile only renders it; Google Maps
+  is the visualization, the backend is the route/price authority.
+- **Before and after assignment** the snapshot is the same REQUEST route. `route_quote.provider_to_pickup` is
+  absent because the runtime owns no canonical partner-origin geometry for this read; the frozen
+  provider/truck leg of an accepted proposal stays on the pricing snapshot. Do not expect a second leg or a
+  partner-specific polyline from this operation.
+- **Provider failure** is `503 external_dependency_unavailable` with **no** geometry — there is no straight-line
+  fallback.

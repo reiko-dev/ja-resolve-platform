@@ -7,6 +7,8 @@
  *          cancellation, plus the shared ownership-first transactional lock.
  * MVP-06 — adds the canonical CASH payment aggregate (method selection, cash
  *          receipt confirmation, payment rehydration).
+ * B5 — adds the route visualization read (`getTowRequestRoute`,
+ *      `TowRouteSnapshot`), recomputed on read through the RouteProvider port.
  */
 'use strict';
 
@@ -24,6 +26,7 @@ const { createExecutionService } = require('./execution-service');
 const { createTrackingService } = require('./tracking-service');
 const { createCancellationService } = require('./cancellation-service');
 const { createPaymentService } = require('./payment-service');
+const { createRouteService } = require('./route-service');
 const { lockJobForPartner, lockRequestForCustomer, requireCanonicalRequestId } = require('./job-lock');
 const { validateListQuery } = require('./list-query');
 
@@ -42,6 +45,7 @@ module.exports = {
   createTrackingService,
   createCancellationService,
   createPaymentService,
+  createRouteService,
   lockJobForPartner,
   lockRequestForCustomer,
   requireCanonicalRequestId,

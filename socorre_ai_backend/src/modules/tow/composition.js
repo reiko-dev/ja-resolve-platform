@@ -9,6 +9,8 @@
  *          cancellation services over the same UnitOfWork.
  * MVP-06 — wires the canonical CASH payment store and service, and injects the
  *          payment projection into every TowRequest DTO producer.
+ * B5 — wires the route visualization read over the SAME RouteProvider port the
+ *      quote uses (recompute on read; no geometry is persisted).
  *
  * Builds the application services from the infrastructure adapters. This is the
  * only place the pure layers meet Knex, HTTP, the filesystem and the system
@@ -31,6 +33,7 @@ const {
   createTrackingService,
   createCancellationService,
   createPaymentService,
+  createRouteService,
 } = require('./application');
 const { createModuleRepository } = require('./adapters/persistence/module-repository');
 const { createVehicleRepository } = require('./adapters/persistence/vehicle-repository');
@@ -176,6 +179,14 @@ function buildTowServices(options = {}) {
       assignmentRepository,
       towPaymentRepository,
       unitOfWork,
+      clock,
+    }),
+    // B5 — read-only route visualization over the same RouteProvider port the
+    // quote uses. No UnitOfWork: the read writes nothing.
+    routeService: createRouteService({
+      routeProvider,
+      towRequestRepository,
+      assignmentRepository,
       clock,
     }),
   };
