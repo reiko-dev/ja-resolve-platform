@@ -2,6 +2,14 @@ const express = require('express');
 const router = express.Router();
 const TowProposalController = require('../controllers/TowProposalController');
 const { auth, requireRole } = require('../middleware/auth');
+const { legacyTowProposalsDeprecation } = require('../middleware/legacyTowDeprecation');
+
+// B4 — the whole legacy `/api/tow-proposals` surface is DEPRECATED in favor of
+// the canonical `/api/tow/*` contract. Deprecation signals are header-only:
+// behavior, status codes and authorization stay untouched. Removal is gated on
+// external-consumer confirmation (docs/evidence/tow-zero-debt/
+// B4-legacy-removal-issue.md; docs/tow/T00-LEGACY-TO-TARGET-MAPPING.md).
+router.use(legacyTowProposalsDeprecation);
 
 // Middleware de autenticação para todas as rotas
 router.use(auth);

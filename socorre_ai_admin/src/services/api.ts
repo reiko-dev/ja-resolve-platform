@@ -331,7 +331,10 @@ class ApiService {
     return response.data;
   }
 
-  // Propostas de guincho (novo)
+  // B4 — legacy Tow surface, DEPRECATED (`Deprecation: true` on the backend).
+  // These three methods have no call site; do not wire them: proposals are not
+  // part of the canonical `/api/tow/*` admin contract. See
+  // docs/evidence/tow-zero-debt/B4-legacy-removal-issue.md.
   async getTowProposals(filters?: any): Promise<PaginatedResponse<any>> {
     const params = new URLSearchParams();
     if (filters) {

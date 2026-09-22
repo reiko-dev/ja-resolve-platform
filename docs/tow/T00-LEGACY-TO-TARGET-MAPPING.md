@@ -5,6 +5,16 @@
 > Companion: `docs/tow/T00-CURRENT-STATE-AUDIT.md` · Evidence: `docs/evidence/t00/`
 > Contract: `docs/tow/tow-api-contract.openapi.yaml` (66 composed operations)
 
+> **B4 (in force) — the legacy Tow HTTP surface is DEPRECATED.**
+> Canonical Tow API: `/api/tow/*`. The legacy surface in sections A/B below
+> (`/api/emergency-requests` when used for Tow, and `/api/tow-proposals*`) now
+> answers with `Deprecation: true`, a `Warning: 299` and a `Link` to the
+> canonical namespace (`src/middleware/legacyTowDeprecation.js`). Non-Tow uses
+> of `/api/emergency-requests` are untouched. Removal is gated on
+> external-consumer confirmation; the checklist lives in
+> `docs/evidence/tow-zero-debt/B4-legacy-removal-issue.md` (mobile repo).
+> `CANONICAL_TOW_API=/api/tow/*`, `LEGACY_TOW_API=DEPRECATED_EXTERNAL_COMPATIBILITY_SURFACE`.
+
 Purpose: give every T01–T18 task a single row per legacy artifact telling it what to keep, adapt,
 replace or deprecate, whether the change breaks existing consumers, and where the evidence lives.
 

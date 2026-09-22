@@ -11,6 +11,8 @@ Este documento define os **paths, DTOs, enums, error codes e semantics** que Mob
 
 O backend atual possui rotas históricas de `emergency-requests` e `tow-proposals`. T00 deve auditá-las. A implementação nova deve convergir para este contrato canônico; aliases legados, se temporariamente necessários, não devem virar dependência nova dos consumidores.
 
+**B4 (in force) — deprecated legacy surface.** `/api/tow/*` is the canonical API. The legacy Tow surface (`/api/tow-proposals*` and the Tow branches of `/api/emergency-requests*`) is deprecated in place: headers `Deprecation: true`, `Warning: 299` and `Link: </api/tow/module-status>; rel="successor-version"`. No first-party consumer was found; removal awaits external-consumer confirmation (`docs/evidence/tow-zero-debt/B4-legacy-removal-issue.md`). Do not add new consumer dependencies on those routes.
+
 Breaking change depois do merge deste contrato exige atualização explícita da especificação + contract tests.
 
 ---

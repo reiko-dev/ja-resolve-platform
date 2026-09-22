@@ -3,7 +3,18 @@ const router = express.Router();
 const EmergencyRequestController = require('../controllers/emergencyRequestController');
 const { auth, requireRole } = require('../middleware/auth');
 const { emergencyRequestSchemas, validate, emergencyRequestSchemaErrorCode } = require('../middleware/validation');
+const {
+  legacyTowCreateDeprecation,
+  legacyTowNearbyDeprecation,
+} = require('../middleware/legacyTowDeprecation');
 
+// B4 — this router is shared by the mechanical flow (KEPT) and by the legacy
+// Tow branches (DEPRECATED in favor of `/api/tow/*`, header-only, behavior
+// untouched). Non-Tow routes must not be annotated, so the signal is applied
+// only where the runtime really resolves a tow request: `POST /` with
+// `request_type: 'tow'`, `GET /nearby?type=tow`, and the `/:id` operations
+// whose loaded resource is `request_type === 'tow'` (see the controller).
+//
 // Guarda de boot do contrato mobile (docs/MOBILE-AUTH-TOW-CONTRACT-V1.md §4.4):
 // start/complete são endpoints oficiais do ciclo tow. Um merge/deploy que perca
 // os handlers deve falhar no start do processo, não responder 404 em produção.
@@ -35,9 +46,12 @@ router.get('/partner',
 );
 
 // Buscar solicitações próximas
+// B4 — `?type=tow` is the legacy Tow opportunity read; annotate only that
+// branch (mechanical nearby reads stay unannotated).
 router.get('/nearby',
   auth,
   requireRole(['partner', 'admin']),
+  legacyTowNearbyDeprecation,
   EmergencyRequestController.getNearby
 );
 
@@ -49,9 +63,12 @@ router.get('/stats',
 );
 
 // Criar nova solicitação de emergência
+// B4 — `request_type: 'tow'` is a deprecated Tow branch; the mechanical create
+// stays unannotated.
 router.post('/', 
   auth, 
   requireRole(['user']), 
+  legacyTowCreateDeprecation,
   validate(emergencyRequestSchemas.create, { codeResolver: emergencyRequestSchemaErrorCode }),
   EmergencyRequestController.create
 );

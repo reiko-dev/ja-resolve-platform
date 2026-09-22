@@ -6,6 +6,17 @@ const NotificationService = require('../services/NotificationServiceNew');
 const EmergencyRequestService = require('../services/EmergencyRequestService');
 const { emergencyRequestSchemas } = require('../middleware/validation');
 const { sendServiceError } = require('../services/ServiceError');
+const { applyLegacyTowDeprecationHeaders } = require('../middleware/legacyTowDeprecation');
+
+/**
+ * B4 — header-only deprecation signal for a legacy Tow resource. Mechanical
+ * requests (`request_type !== 'tow'`) are never annotated.
+ */
+function markLegacyTowResource(res, request) {
+  if (request && request.request_type === 'tow') {
+    applyLegacyTowDeprecationHeaders(res);
+  }
+}
 
 function invalidPayload(res, error) {
   return res.status(400).json({
@@ -62,6 +73,8 @@ class EmergencyRequestController {
       // G3: coordenadas inválidas/(0,0) são rejeitadas antes de qualquer INSERT.
       const { request, nearbyPartners } = await EmergencyRequestService.createRequest(req.user, req.body);
 
+      markLegacyTowResource(res, request);
+
       res.status(201).json({
         success: true,
         data: request,
@@ -96,6 +109,8 @@ class EmergencyRequestController {
           message: 'Solicitação não encontrada',
         });
       }
+
+      markLegacyTowResource(res, request);
 
       if (!EmergencyRequestController.canAccessRequest(req, request)) {
         return res.status(403).json({
@@ -274,6 +289,8 @@ class EmergencyRequestController {
         return res.status(404).json({ error: 'Emergência não encontrada' });
       }
 
+      markLegacyTowResource(res, emergency);
+
       if (emergency.user_id !== req.user.id && req.user.role !== 'admin') {
         return res.status(403).json({ error: 'Acesso negado' });
       }
@@ -300,6 +317,8 @@ class EmergencyRequestController {
       if (!emergency || (emergency.user_id !== req.user.id && req.user.role !== 'admin')) {
         return res.status(403).json({ error: 'Acesso negado' });
       }
+
+      markLegacyTowResource(res, emergency);
 
       const result = await EmergencyRequest.acceptProposal(id, proposal_id);
       if (!result) {
@@ -339,6 +358,8 @@ class EmergencyRequestController {
           message: 'Acesso negado',
         });
       }
+
+      markLegacyTowResource(res, emergency);
 
       // Repetição sequencial: o recurso já está no estado de destino.
       // Resposta idempotente sem nova mutação, notificação ou cobrança.
@@ -430,6 +451,8 @@ class EmergencyRequestController {
           message: 'Acesso negado',
         });
       }
+
+      markLegacyTowResource(res, emergency);
 
       // Repetição sequencial: conclusão já aplicada. Nenhum efeito novo
       // (mutação, cobrança, evento, notificação ou registro).
@@ -536,6 +559,8 @@ class EmergencyRequestController {
         });
       }
 
+      markLegacyTowResource(res, existingRequest);
+
       const isOwner = existingRequest.user_id === req.user.id;
       const isAdmin = req.user.role === 'admin';
       if (!isOwner && !isAdmin) {
@@ -585,6 +610,8 @@ class EmergencyRequestController {
           message: 'Solicitação não encontrada',
         });
       }
+
+      markLegacyTowResource(res, emergencyRequest);
 
       const isOwner = emergencyRequest.user_id === req.user.id;
       const isAdmin = req.user.role === 'admin';
@@ -682,6 +709,8 @@ class EmergencyRequestController {
         });
       }
 
+      markLegacyTowResource(res, emergencyRequest);
+
       const isOwner = emergencyRequest.user_id === req.user.id;
       const isAdmin = req.user.role === 'admin';
       if (!isOwner && !isAdmin) {
@@ -729,6 +758,8 @@ class EmergencyRequestController {
           message: 'Solicitação não encontrada',
         });
       }
+
+      markLegacyTowResource(res, emergencyRequest);
 
       if (!EmergencyRequestController.canAccessRequest(req, emergencyRequest)) {
         return res.status(403).json({
