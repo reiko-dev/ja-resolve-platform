@@ -331,33 +331,6 @@ class ApiService {
     return response.data;
   }
 
-  // B4 — legacy Tow surface, DEPRECATED (`Deprecation: true` on the backend).
-  // These three methods have no call site; do not wire them: proposals are not
-  // part of the canonical `/api/tow/*` admin contract. See
-  // docs/evidence/tow-zero-debt/B4-legacy-removal-issue.md.
-  async getTowProposals(filters?: any): Promise<PaginatedResponse<any>> {
-    const params = new URLSearchParams();
-    if (filters) {
-      Object.entries(filters).forEach(([key, value]) => {
-        if (value !== undefined && value !== null && value !== '') {
-          params.append(key, value.toString());
-        }
-      });
-    }
-    const response: AxiosResponse<PaginatedResponse<any>> = await this.api.get(`/tow-proposals?${params}`);
-    return response.data;
-  }
-
-  async getTowProposalById(id: number): Promise<ApiResponse<any>> {
-    const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/tow-proposals/${id}`);
-    return response.data;
-  }
-
-  async getTowProposalStats(): Promise<ApiResponse<any>> {
-    const response: AxiosResponse<ApiResponse<any>> = await this.api.get('/tow-proposals/stats');
-    return response.data;
-  }
-
   // Ordens de delivery (nova lógica)
   async getDeliveryOrders(filters?: any): Promise<PaginatedResponse<any>> {
     const params = new URLSearchParams();

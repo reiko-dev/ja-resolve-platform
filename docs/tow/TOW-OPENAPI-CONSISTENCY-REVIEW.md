@@ -1,5 +1,11 @@
 # Tow OpenAPI — Consistency Review
 
+> **SUPERSEDED / HISTORICAL — NOT CONTRACT AUTHORITY.** This document predates the
+> current contract and was written against `1.0.0-draft.4`; any counts below are
+> historical. Canonical contract: `docs/tow/tow-api-contract.openapi.yaml`
+> (`1.0.0-draft.11`, backend pinned at `8f6f622f`). Consumer integration handoff:
+> `docs/evidence/mvp-06/31-integration-handoff.md`.
+
 > Status: **PASS — contract freeze reviewed**  
 > Canonical entrypoint: `docs/tow/tow-api-contract.openapi.yaml`  
 > Composition file: `docs/tow/tow-api-contract.base.openapi.yaml`
@@ -23,9 +29,9 @@ Executed evidence:
 
 ```text
 OpenAPI version:                 3.1.0
-Contract version:                1.0.0-draft.4
-Canonical paths:                 56
-Composed operations:             66
+Contract version:                1.0.0-draft.4 (historical; current: 1.0.0-draft.11)
+Canonical paths:                 56 (historical; current: 59)
+Composed operations:             66 (historical; current: 69)
 $ref occurrences checked:        490
 External/local-file $refs:       124
 Unresolved refs:                 0

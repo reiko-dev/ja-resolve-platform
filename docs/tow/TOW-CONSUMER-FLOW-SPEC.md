@@ -1,5 +1,11 @@
 # JaResolve Tow — Consumer Flow Specification
 
+> **SUPERSEDED / HISTORICAL — NOT CONTRACT AUTHORITY.** This document predates the
+> current contract and was written against `1.0.0-draft.4`; any counts below are
+> historical. Canonical contract: `docs/tow/tow-api-contract.openapi.yaml`
+> (`1.0.0-draft.11`, backend pinned at `8f6f622f`). Consumer integration handoff:
+> `docs/evidence/mvp-06/31-integration-handoff.md`.
+
 > Status: **normative / frozen for mock implementation**  
 > Scope: Mobile Cliente, Mobile Parceiro e Dashboard  
 > Module: `module_key=tow`, `service_key=tow`, `partner_type=tow`  

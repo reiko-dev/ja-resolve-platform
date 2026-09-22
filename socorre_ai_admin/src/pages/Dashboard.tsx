@@ -150,7 +150,13 @@ const Dashboard: React.FC = () => {
         setRecentPartners(partnersResponse.data?.partners || []);
       }
       if (emergenciesResponse.success) {
-        setRecentEmergencies(emergenciesResponse.data?.requests || []);
+        // Same Phase 2 constraint as EmergencyRequests: never surface the
+        // deprecated legacy Tow rows (`adminListTowRequests` is unrouted).
+        setRecentEmergencies(
+          (emergenciesResponse.data?.requests || []).filter(
+            (request: EmergencyRequest) => request.request_type !== 'tow'
+          )
+        );
       }
       if (deliveriesResponse.success) {
         setRecentDeliveries(deliveriesResponse.data?.orders || []);

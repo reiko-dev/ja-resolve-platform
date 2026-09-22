@@ -1,5 +1,11 @@
 # JaResolve Tow — Consumer API Contract
 
+> **SUPERSEDED / HISTORICAL — NOT CONTRACT AUTHORITY.** This document predates the
+> current contract and was written against `1.0.0-draft.4`; any counts below are
+> historical. Canonical contract: `docs/tow/tow-api-contract.openapi.yaml`
+> (`1.0.0-draft.11`, backend pinned at `8f6f622f`). Consumer integration handoff:
+> `docs/evidence/mvp-06/31-integration-handoff.md`.
+
 > Contract version: `tow-v1-draft`  
 > Status: **Normative target contract for backend + early consumer implementation**  
 > Base path: `/api/tow`  

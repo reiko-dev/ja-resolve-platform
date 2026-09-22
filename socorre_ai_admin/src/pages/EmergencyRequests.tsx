@@ -87,7 +87,15 @@ const EmergencyRequests: React.FC = () => {
       const response = await apiService.getEmergencyRequests({ page, limit: 10, ...filters });
       
       if (response.success && response.data) {
-        setRequests(response.data.requests || []);
+        // Canonical admin Tow management is Phase 2 (`adminListTowRequests` is
+        // declared in the contract but unrouted). Until it ships, this list must
+        // not consume the deprecated legacy Tow surface: drop the
+        // `request_type === 'tow'` rows returned by GET /api/emergency-requests.
+        setRequests(
+          (response.data.requests || []).filter(
+            (request: EmergencyRequest) => request.request_type !== 'tow'
+          )
+        );
         setTotal(response.data.total || 0);
         setTotalPages(response.data.totalPages || 1);
       } else {
