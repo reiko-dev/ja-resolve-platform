@@ -37,7 +37,6 @@ export interface DashboardStats {
   totalStores: number;
   totalGasStations: number;
   totalAutoParts: number;
-  totalTowTrucks: number;
   verifiedPartners: number;
   availablePartners: number;
   onlinePartners: number;
@@ -54,11 +53,6 @@ export interface DashboardStats {
   completedEmergencyRequests: number;
   inProgressEmergencyRequests: number;
   
-  // Propostas de guincho (novo)
-  totalTowProposals: number;
-  pendingTowProposals: number;
-  acceptedTowProposals: number;
-  rejectedTowProposals: number;
   averageProposalResponseTime: number;
   proposalSuccessRate: number;
   
@@ -273,25 +267,7 @@ export interface EmergencyRequest {
   user_phone?: string;
   partner_name?: string;
   partner_phone?: string;
-  tow_proposals?: TowProposal[];
   accepted_proposal_id?: string;
-}
-
-export interface TowProposal {
-  id: number;
-  emergency_request_id: number;
-  partner_id: number;
-  partner_name: string;
-  partner_photo?: string;
-  partner_rating: number;
-  proposed_price: number;
-  estimated_time_minutes: number;
-  notes?: string;
-  status: 'pending' | 'accepted' | 'rejected' | 'withdrawn' | 'expired';
-  created_at: string;
-  expires_at?: string;
-  views_count?: number;
-  distance_km?: number;
 }
 
 export interface DeliveryOrder {

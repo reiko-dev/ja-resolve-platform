@@ -289,7 +289,9 @@ Fotos de serviço (coleta/entrega) não usam UPLOAD_DIR: elas dependem de SERVIC
 - scripts/homolog/nginx-homolog.conf.template: proxy do admin, API e site;
 - scripts/preflight-production.sh: validação de variáveis de produção;
 - docs/DEPLOY-READINESS.md: limites de infraestrutura;
-- docs/MOBILE-AUTH-TOW-CONTRACT-V1.md: contrato Mobile/backend.
+- docs/tow/tow-api-contract.openapi.yaml: contrato Tow canônico (`/api/tow/*`, `1.0.0-draft.11`);
+- docs/evidence/mvp-06/31-integration-handoff.md: handoff de integração do Tow MVP;
+- docs/MOBILE-AUTH-TOW-CONTRACT-V1.md: documento HISTÓRICO (legado `/emergency-requests` + `/tow-proposals`) — superseded, não usar como contrato.
 
 ## 14. Armazenamento privado das fotos de serviço
 

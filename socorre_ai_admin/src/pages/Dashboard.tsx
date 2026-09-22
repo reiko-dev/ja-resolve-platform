@@ -34,7 +34,6 @@ import {
 import {
   People,
   Business,
-  Assignment,
   AttachMoney,
   TrendingUp,
   Warning,
@@ -199,7 +198,6 @@ const Dashboard: React.FC = () => {
     { name: 'Motoboys', value: stats?.totalMotoboys || 0, color: '#002F6C' },
     { name: 'Postos de Combustível', value: stats?.totalGasStations || 0, color: '#FF9800' },
     { name: 'Auto Peças', value: stats?.totalAutoParts || 0, color: '#4CAF50' },
-    { name: 'Guinchos', value: stats?.totalTowTrucks || 0, color: '#9C27B0' },
   ];
 
   const serviceStatusData = [
@@ -534,15 +532,6 @@ const PartnersTab: React.FC<{
           subtitle="Com Delivery"
         />
       </Grid>
-      <Grid item xs={12} sm={6} md={2}>
-        <StatsCard
-          title="Guinchos"
-          value={stats?.totalTowTrucks || 0}
-          icon={<LocalShipping />}
-          color="#9C27B0"
-          subtitle="Disponíveis"
-        />
-      </Grid>
 
       {/* Gráfico de Tipos */}
       <Grid item xs={12} md={6}>
@@ -681,15 +670,6 @@ const ServicesTab: React.FC<{
           icon={<LocalHospital />}
           color="#E30613"
           subtitle={`Pendentes: ${stats?.pendingEmergencyRequests || 0}`}
-        />
-      </Grid>
-      <Grid item xs={12} sm={6} md={3}>
-        <StatsCard
-          title="Propostas"
-          value={stats?.totalTowProposals || 0}
-          icon={<Assignment />}
-          color="#002F6C"
-          subtitle={`Aceitas: ${stats?.acceptedTowProposals || 0}`}
         />
       </Grid>
       <Grid item xs={12} sm={6} md={3}>

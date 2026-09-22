@@ -4,7 +4,7 @@
 > Domain: Tow / Guincho  
 > Contract baseline: PR #9  
 > Epic: #10  
-> Current implementation baseline: `main @ aca472316cf90cb4e743b6ed4a78d53758ac991f` (Phase 1 complete: MVP-01..MVP-06 accepted; the historical per-section baselines below are plan-time snapshots)  
+> Current implementation baseline: `main @ a7d7cd17` (supersedes the plan-time `aca472316cf90cb4e743b6ed4a78d53758ac991f`; Phase 1 complete: MVP-01..MVP-06 accepted; the historical per-section baselines below are plan-time snapshots)  
 > Phase 1 executable issues: #13–#18  
 > Phase 2 hardening backlog: #33
 

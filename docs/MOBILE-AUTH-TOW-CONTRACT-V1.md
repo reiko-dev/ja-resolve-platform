@@ -1,5 +1,23 @@
 # Contrato mobile `auth+tow` v1
 
+> ## SUPERSEDED — HISTORICAL DOCUMENT (do not use as a contract)
+>
+> This document is **not** the current mobile contract. It records the legacy
+> Tow HTTP surface (`/api/emergency-requests` + `/api/tow-proposals`, with a
+> mandatory manual `final_price` on completion), which is deprecated.
+>
+> - Superseded as of backend `a7d7cd17`.
+> - Canonical Tow contract: `docs/tow/tow-api-contract.openapi.yaml`
+>   (version `1.0.0-draft.11`); integration handoff:
+>   `docs/evidence/mvp-06/31-integration-handoff.md`.
+> - The canonical mobile Tow contract is `/api/tow/*` and only `/api/tow/*`.
+> - `final_price` is **never** a mobile mutation input: the backend owns the
+>   amount. The legacy endpoints described below must not be used by mobile
+>   clients and this document does not reintroduce them.
+> - The live boot guards that still cite §4.4 (`src/routes/emergency-requests.js`,
+>   `src/controllers/emergencyRequestController.js`) protect the mechanical
+>   legacy handlers, not a current Tow mobile flow.
+
 Contrato único para os apps Flutter de cliente e parceiro. O backend continua sendo a fonte de verdade para autenticação, autorização, preços e transições de estado.
 
 ## 1. Transporte e autenticação

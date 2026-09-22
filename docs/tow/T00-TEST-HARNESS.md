@@ -82,10 +82,13 @@ Nunca commite `node_modules`; o lock da raiz é o único artefato de dependênci
   negativo que remove um method sombreado sem allowlist e exige `ok === false`. A lista de
   paths sombreados (`base=`, `composed=`, `dropped=`, `added=`) é impressa por
   `npm run validate:openapi` e registrada em `docs/evidence/t00/green-openapi-validation.txt`.
-- Contadores esperados (congelados em `TOW-OPENAPI-CONSISTENCY-REVIEW.md`):
-  56 paths canônicos, 51 paths na base, 56 paths compostos, 66 operations,
-  10 paths sombreados, 0 methods sombreados descartados sem allowlist, 0 `$ref` não
+- Contadores esperados (atualizados no baseline atual `a7d7cd17`; os valores do T00
+  foram 56/51/56 paths, 66 operations e 10 paths sombreados, congelados em
+  `TOW-OPENAPI-CONSISTENCY-REVIEW.md`):
+  59 paths canônicos, 51 paths na base, 59 paths compostos, 69 operations,
+  21 paths sombreados, 0 methods sombreados descartados sem allowlist, 0 `$ref` não
   resolvidos, 0 `operationId` ausente/duplicado.
+  (`npm run validate:openapi` no baseline atual imprime exatamente esses contadores.)
 
 O smoke de contrato de consumidor é dirigido **apenas** pelo documento OpenAPI composto:
 cada passo valida o request body contra o fixture e a resposta 2xx contra o schema tipado.

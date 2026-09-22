@@ -1,9 +1,20 @@
 # T00 — Legacy → Tow v1 Migration & Ownership Map
 
+> ## HISTORICAL — T00 execution-base snapshot
+>
+> This mapping describes the repository at execution base
+> `e1e7dd2d20d5da25df00d8106a904f14041654a1`. It is retained as evidence of the
+> migration plan, not as current state.
+>
+> Corrected facts at the current backend baseline `a7d7cd17`: the composed
+> contract is `1.0.0-draft.11` with **69 operations** and
+> `getTowRequestRoute` (`GET /tow/requests/{id}/route`) is **implemented**
+> (`src/modules/tow/http/routes.js:123`, B5).
+
 > Status: **COMPLETE — mapping artifact, no behavior changed**
 > Issue: #11 · Task: T00 · Execution base: `e1e7dd2d20d5da25df00d8106a904f14041654a1`
 > Companion: `docs/tow/T00-CURRENT-STATE-AUDIT.md` · Evidence: `docs/evidence/t00/`
-> Contract: `docs/tow/tow-api-contract.openapi.yaml` (66 composed operations)
+> Contract: `docs/tow/tow-api-contract.openapi.yaml` (66 composed operations at audit time; 69 at the current baseline)
 
 > **B4 (in force) — the legacy Tow HTTP surface is DEPRECATED.**
 > Canonical Tow API: `/api/tow/*`. The legacy surface in sections A/B below
@@ -47,7 +58,7 @@ replace or deprecate, whether the change breaks existing consumers, and where th
 | — | `reportTowCustomerNoShow` `POST /tow/requests/{id}/customer-no-show` | MISSING | `customer_no_show_not_allowed_yet` gate | n/a | T11 | contract op 43 |
 | — | `markTowCashReceived` `POST /tow/requests/{id}/cash-received` | MISSING | Cash flow + debt creation | n/a | T15 | contract op 42 |
 | — | `getTowTracking` / `postTowTrackingPoint` | MISSING | Tracking DTO; socket stays complementary | n/a | T10 | contract ops 54-55 |
-| — | `getTowRequestRoute` `GET /tow/requests/{id}/route` | MISSING | `RouteQuote` meters/seconds + geometry | n/a | T05 | contract op 53 |
+| — | `getTowRequestRoute` `GET /tow/requests/{id}/route` | IMPLEMENTED (B5) | `RouteQuote` meters/seconds + geometry; runtime at `src/modules/tow/http/routes.js:123` | n/a | T05 | contract op 53 |
 | — | `createTowDispute` `POST /tow/requests/{id}/disputes` | MISSING | Tow-scoped dispute | n/a | T17 | contract op 45 |
 | `POST /api/upload/emergency-requests/:id/photos` (+ GET) | `uploadTowVehicleDocument` `POST /tow/vehicles/{vehicleId}/documents` | REPLACE | Tow-vehicle-scoped, document type/status, admin approval | yes | T03, T17 | `src/routes/upload.js:19-20`; `g2PhotoContract.test.js:463-897` |
 

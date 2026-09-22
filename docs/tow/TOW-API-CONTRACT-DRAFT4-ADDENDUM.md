@@ -1,16 +1,33 @@
 # JaResolve Tow — Consumer API Contract Draft.4 Addendum
 
-> Status: **normative pre-implementation contract**  
-> Applies to: `tow-api-contract.openapi.yaml` version `1.0.0-draft.4`  
+> ## SUPERSEDED — HISTORICAL DOCUMENT (not the normative contract)
+>
+> The current contract is `docs/tow/tow-api-contract.openapi.yaml` version
+> `1.0.0-draft.11` (integration handoff:
+> `docs/evidence/mvp-06/31-integration-handoff.md`).
+>
+> Corrections against the implemented runtime (backend `a7d7cd17`):
+>
+> - `GET /api/tow/requests/:requestId/route` authorizes the **owner customer or
+>   the assigned Tow partner only** (`requireCustomerOrTowPartner`,
+>   `src/modules/tow/http/routes.js:123`); an admin context is not an
+>   authorization principal on this route.
+> - The runtime **never** emits `route_quote.provider_to_pickup`: the route
+>   read is the request's own pickup -> destination leg, recomputed on read
+>   (`src/modules/tow/application/route-service.js:27-36`). There is no
+>   post-assignment truck/partner leg in the response.
+
+> Status: **HISTORICAL — superseded by `1.0.0-draft.11`**  
+> Applies to: `tow-api-contract.openapi.yaml` version `1.0.0-draft.4` (historical)  
 > Purpose: freeze the remaining transport contracts required by Mobile Cliente, Mobile Parceiro and Dashboard.
 
-This addendum supplements `TOW-API-CONTRACT.md`. Where this addendum is more specific about the endpoints below, it is authoritative together with the canonical OpenAPI entrypoint.
+This addendum supplements `TOW-API-CONTRACT.md`. Where this addendum is more specific about the endpoints below, it is authoritative together with the canonical OpenAPI entrypoint. It is retained as a historical record only; for current behavior use `1.0.0-draft.11` and the runtime.
 
 ## 1. Customer route visualization
 
 ### GET `/api/tow/requests/:requestId/route`
 
-Auth: owner customer, assigned Tow partner or authorized admin context.
+Auth: owner customer or assigned Tow partner only.
 
 Returns the authoritative route snapshot used by the service:
 
@@ -41,7 +58,7 @@ Returns the authoritative route snapshot used by the service:
 
 The app may render Google Maps from this data. It must not recalculate authoritative Tow pricing from a client-side route.
 
-Before assignment, `provider_to_pickup` may be absent. After assignment, the route snapshot reflects the assigned truck/partner and destination contract.
+The runtime never emits `provider_to_pickup`: the route snapshot is always the request's own pickup -> destination leg, recomputed on read (`src/modules/tow/application/route-service.js:27-36`). There is no post-assignment truck/partner leg in the response.
 
 ## 2. Tow partner operational state
 

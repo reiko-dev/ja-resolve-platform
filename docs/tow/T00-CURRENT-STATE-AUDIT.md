@@ -1,8 +1,19 @@
 # T00 — Current-State Audit: legacy Tow surface vs. Tow v1 contract
 
+> ## HISTORICAL — T00 execution-base snapshot
+>
+> This audit describes the repository at execution base
+> `e1e7dd2d20d5da25df00d8106a904f14041654a1` (66 composed contract operations,
+> Tow v1 surface absent). It is retained as evidence, not as current state.
+>
+> Corrected facts at the current backend baseline `a7d7cd17`:
+> `docs/tow/tow-api-contract.openapi.yaml` is `1.0.0-draft.11` with **69
+> composed operations** and `GET /tow/requests/{id}/route` is **implemented**
+> (`src/modules/tow/http/routes.js:123`, B5).
+
 > Status: **COMPLETE — audit only, no business behavior changed**
 > Issue: #11 · Task: T00 · Execution base: `e1e7dd2d20d5da25df00d8106a904f14041654a1`
-> Contract under audit: `docs/tow/tow-api-contract.openapi.yaml` (composed, 66 operations)
+> Contract under audit: `docs/tow/tow-api-contract.openapi.yaml` (composed, 66 operations at audit time; 69 at the current baseline)
 > Companion artifact: `docs/tow/T00-LEGACY-TO-TARGET-MAPPING.md`
 > Work result: `docs/evidence/t00-work-result.yaml`
 
@@ -235,7 +246,7 @@ contract maps `validation_error` to 422. 409 only from `proposal_duplicate`
 | Partner location update with coordinate validation | `socketService.js:248-285` | PARTIAL |
 | `GET/POST /tow/requests/{id}/tracking` | absent | MISSING |
 | `PUT /tow/partner/location` | absent (only socket + `PUT /api/partners/:id/location`) | MISSING |
-| `GET /tow/requests/{id}/route` (geometry) | absent; no polyline/geometry anywhere | MISSING |
+| `GET /tow/requests/{id}/route` (geometry) | implemented in B5 — `src/modules/tow/http/routes.js:123` | IMPLEMENTED (was MISSING at audit time) |
 
 ### 3.11 Documents and uploads — **PARTIAL**
 
@@ -316,7 +327,7 @@ changes · **REPLACE** = superseded by a Tow v1 operation · **DEPRECATE** = ret
 | — | `POST /tow/requests/{id}/customer-no-show` | MISSING |
 | — | `POST /tow/requests/{id}/cash-received` | MISSING |
 | — | `GET|POST /tow/requests/{id}/tracking` | MISSING |
-| — | `GET /tow/requests/{id}/route` | MISSING |
+| — | `GET /tow/requests/{id}/route` | IMPLEMENTED (B5, `src/modules/tow/http/routes.js:123`) |
 | — | `POST /tow/requests/{id}/disputes` | MISSING |
 | — | `POST /tow/counteroffers/{id}/accept|reject` | MISSING |
 | — | `GET /tow/customer/debts`, `POST /tow/customer/debts/{id}/pay` | MISSING |
@@ -359,7 +370,7 @@ composed contract and the legacy code:
 
 | Capability | Contract operation(s) | Legacy today | Confirmed |
 | --- | --- | --- | --- |
-| Route (geometry/distance/duration) | `getTowRequestRoute` → `TowRouteResponse` with `RouteQuote` (meters/seconds, geometry) | No route endpoint, no polyline, no `duration_seconds` anywhere; only Haversine km and partner-provided minutes | **MISSING** |
+| Route (geometry/distance/duration) | `getTowRequestRoute` → `TowRouteResponse` with `RouteQuote` (meters/seconds, geometry) | At audit time: no route endpoint, no polyline, no `duration_seconds` anywhere — now implemented in B5 (`src/modules/tow/http/routes.js:123`) | **IMPLEMENTED (B5)** |
 | Partner status | `getTowPartnerStatus`, `patchTowPartnerStatus` → `PartnerTowStatusResponse` | No HTTP status resource; `partners.is_available`/subscription gates only | **MISSING** |
 | Partner location | `updateTowPartnerLocation` → `PartnerLocationInput` | `PUT /api/partners/:id/location` + socket `partner_location_updated` | **PARTIAL** |
 | Opportunity DTO | `listTowOpportunities` → `TowOpportunityListResponse` | `GET /api/emergency-requests/nearby` returns raw request rows with `distance` km | **MISSING** |
