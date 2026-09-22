@@ -39,7 +39,7 @@ describe('MVP-01 AUTHZ — admin-only and ownership', () => {
 
   beforeAll(async () => {
     await testDb.reset();
-    app = createApp();
+    app = createApp().listen(0);
 
     const admin = await testDb.createUser({ name: 'Admin Authz', role: 'admin', email: 'admin.authz@mvp01.test' });
     const alphaUser = await testDb.createUser({ name: 'Alpha Authz', role: 'partner', email: 'alpha.authz@mvp01.test' });
@@ -56,6 +56,7 @@ describe('MVP-01 AUTHZ — admin-only and ownership', () => {
   });
 
   afterAll(async () => {
+    await new Promise((resolve) => { app.closeAllConnections?.(); app.close(resolve); });
     await testDb.reset();
   });
 

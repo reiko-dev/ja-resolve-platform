@@ -22,12 +22,26 @@ function getPostgresConnection(environment) {
   const ssl =
     process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false;
 
+  const password = process.env.DB_PASSWORD || '';
+
+  // `database.js`/`knexfile.js` materialize every environment eagerly, so the
+  // guard keys off the ACTIVE `NODE_ENV`, not the requested config key.
+  if (
+    environment === 'production' &&
+    (process.env.NODE_ENV || 'development') === 'production' &&
+    password.trim() === ''
+  ) {
+    throw new Error(
+      'DB_PASSWORD must be set in production (NODE_ENV=production) unless DATABASE_URL (or PostgreSQL) supplies the credentials.'
+    );
+  }
+
   return {
     host: process.env.DB_HOST || 'localhost',
     port: Number(process.env.DB_PORT) || 5432,
     database,
     user: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || '',
+    password,
     ssl,
   };
 }

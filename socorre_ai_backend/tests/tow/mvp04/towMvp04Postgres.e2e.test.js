@@ -70,11 +70,12 @@ describePostgres('MVP-04 PostgreSQL — atomic assignment and concurrency', () =
     clock = createFakeClock('2026-01-15T12:00:00.000Z');
     routeProvider = createFakeRouteProvider();
     services = buildTowServices({ db, clock, routeProvider });
-    app = createApp({ tow: { clock, routeProvider } });
+    app = createApp({ tow: { clock, routeProvider } }).listen(0);
     appDb = require('../../../src/config/database');
   });
 
   afterAll(async () => {
+    if (app) await new Promise((resolve) => { app.closeAllConnections?.(); app.close(resolve); });
     if (appDb) await appDb.destroy();
     if (db) await db.destroy();
   });

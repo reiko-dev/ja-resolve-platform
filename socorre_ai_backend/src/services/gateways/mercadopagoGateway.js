@@ -2,7 +2,10 @@ class MercadoPagoGateway {
   async processPayment(paymentData) {
     try {
       // Simular processamento do Mercado Pago
-      console.log('Processando pagamento no Mercado Pago:', paymentData);
+      console.log('Processando pagamento no Mercado Pago:', {
+        method: paymentData && paymentData.method,
+        referenceId: paymentData && paymentData.referenceId
+      });
 
       // Simular delay de processamento
       await new Promise(resolve => setTimeout(resolve, 1200));

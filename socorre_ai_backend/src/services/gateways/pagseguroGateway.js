@@ -2,7 +2,10 @@ class PagSeguroGateway {
   async processPayment(paymentData) {
     try {
       // Simular processamento do PagSeguro
-      console.log('Processando pagamento no PagSeguro:', paymentData);
+      console.log('Processando pagamento no PagSeguro:', {
+        method: paymentData && paymentData.method,
+        referenceId: paymentData && paymentData.referenceId
+      });
 
       // Simular delay de processamento
       await new Promise(resolve => setTimeout(resolve, 1500));

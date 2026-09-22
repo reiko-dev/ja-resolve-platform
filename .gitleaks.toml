@@ -1,0 +1,47 @@
+title = "Socorre AI — secret scanning configuration"
+
+[extend]
+useDefault = true
+
+# 1. Never scan dependency trees, local build outputs or generated caches.
+#    These are gitignored and rebuilt from source.
+[[allowlists]]
+description = "Dependency trees, build outputs and generated caches (gitignored)."
+paths = [
+  '''(^|/)node_modules/''',
+  '''(^|/)\.dart_tool/''',
+  '''(^|/)build/''',
+  '''(^|/)dist/''',
+  '''(^|/)coverage/''',
+  '''(^|/)\.npm-cache/''',
+  '''(^|/)uploads/''',
+]
+
+# 2. Documentation and scripts that deliberately contain sanitized placeholders.
+[[allowlists]]
+description = "Sanitized examples and captured security evidence (placeholders only)."
+paths = [
+  '''(^|/)\.env\.example$''',
+  '''(^|/)env\.example$''',
+  '''(^|/)env\.production\.example$''',
+  '''(^|/)\.env\.test\.example$''',
+  '''(^|/)docs/evidence/t00/security-review\.txt$''',
+]
+
+# 3. Development-only placeholders and deterministic test fixtures. None of
+#    these values grant access to any environment.
+[[allowlists]]
+description = "Documented development placeholders and test fixtures."
+regexes = [
+  '''dev_jwt_secret_2025_change_in_production''',
+  '''socorre_ai_jwt_secret_dev_2024''',
+  '''test-jwt-secret-key''',
+  '''tow_test_password''',
+  '''partner123456''',
+  '''test123456''',
+  '''idem-[0-9a-z-]+''',
+  '''gauntlet-[0-9a-z-]+''',
+  '''your-private-key-here''',
+  '''sua_private_key_aqui''',
+  '''your_super_secret_jwt_key_here''',
+]

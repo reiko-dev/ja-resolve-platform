@@ -64,12 +64,13 @@ describe('MVP-03 — partner opportunities', () => {
     await testDb.reset();
     clock = createFakeClock(DEFAULT_INSTANT);
     routeProvider = createFakeRouteProvider();
-    app = createApp({ tow: { clock, routeProvider } });
+    app = createApp({ tow: { clock, routeProvider } }).listen(0);
     ({ services } = createMvp03Services({ clock, routeProvider }));
     customer = await createTowCustomerAuth({ name: 'Customer MVP03' });
   });
 
   afterAll(async () => {
+    await new Promise((resolve) => { app.closeAllConnections?.(); app.close(resolve); });
     await testDb.reset();
   });
 

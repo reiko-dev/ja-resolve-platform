@@ -1,5 +1,10 @@
 const http = require('http');
 require('dotenv').config();
+const { assertProductionSecrets } = require('./config/requiredSecrets');
+
+// Production boots only with explicit secrets; dev/test are untouched.
+assertProductionSecrets();
+
 const { createApp } = require('./app');
 const socketService = require('./services/socketService');
 

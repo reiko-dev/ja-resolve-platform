@@ -72,13 +72,14 @@ describePostgres('MVP-03 PostgreSQL — canonical TowRequest and matching', () =
     clock = createFakeClock('2026-01-15T12:00:00.000Z');
     routeProvider = createFakeRouteProvider();
     services = buildTowServices({ db, clock, routeProvider });
-    app = createApp({ tow: { clock, routeProvider } });
+    app = createApp({ tow: { clock, routeProvider } }).listen(0);
     // `createApp()` composes against the singleton connection; it must be
     // closed explicitly or Jest never exits (the pool keeps the loop alive).
     appDb = require('../../../src/config/database');
   });
 
   afterAll(async () => {
+    if (app) await new Promise((resolve) => { app.closeAllConnections?.(); app.close(resolve); });
     if (appDb) await appDb.destroy();
     if (db) await db.destroy();
   });

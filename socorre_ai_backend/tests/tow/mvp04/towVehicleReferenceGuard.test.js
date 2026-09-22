@@ -54,11 +54,12 @@ describe('MVP-04 — a referenced TowVehicle is not erasable', () => {
     await testDb.reset();
     clock = createFakeClock();
     routeProvider = createFakeRouteProvider();
-    app = createApp({ tow: { clock, routeProvider } });
+    app = createApp({ tow: { clock, routeProvider } }).listen(0);
     ({ services } = createMvp04Services({ clock, routeProvider }));
   });
 
   afterAll(async () => {
+    await new Promise((resolve) => { app.closeAllConnections?.(); app.close(resolve); });
     await testDb.reset();
   });
 

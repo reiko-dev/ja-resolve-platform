@@ -37,12 +37,13 @@ describe('MVP-03 — Tow request rehydration', () => {
   beforeAll(async () => {
     await testDb.reset();
     clock = createFakeClock(DEFAULT_INSTANT);
-    app = createApp({ tow: { clock, routeProvider: createFakeRouteProvider() } });
+    app = createApp({ tow: { clock, routeProvider: createFakeRouteProvider() } }).listen(0);
     owner = await createTowCustomerAuth({ name: 'Owner MVP03' });
     stranger = await createTowCustomerAuth({ name: 'Stranger MVP03' });
   });
 
   afterAll(async () => {
+    await new Promise((resolve) => { app.closeAllConnections?.(); app.close(resolve); });
     await testDb.reset();
   });
 

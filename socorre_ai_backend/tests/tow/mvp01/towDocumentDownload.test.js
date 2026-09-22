@@ -77,7 +77,7 @@ describe('MVP-01 EXT SEC — private Tow document storage + authenticated downlo
 
   beforeAll(async () => {
     await testDb.reset();
-    app = createApp();
+    app = createApp().listen(0);
 
     const admin = await testDb.createUser({ role: 'admin', email: 'admin.dl@mvp01.test' });
     const alphaUser = await testDb.createUser({ role: 'partner', email: 'alpha.dl@mvp01.test' });
@@ -99,6 +99,7 @@ describe('MVP-01 EXT SEC — private Tow document storage + authenticated downlo
   });
 
   afterAll(async () => {
+    await new Promise((resolve) => { app.closeAllConnections?.(); app.close(resolve); });
     await testDb.reset();
   });
 

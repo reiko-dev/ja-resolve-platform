@@ -45,11 +45,12 @@ describe('MVP-03 — Tow request creation', () => {
     await testDb.reset();
     clock = createFakeClock(DEFAULT_INSTANT);
     routeProvider = createFakeRouteProvider();
-    app = createApp({ tow: { clock, routeProvider } });
+    app = createApp({ tow: { clock, routeProvider } }).listen(0);
     services = buildTowServices({ db: testDb.db, clock, routeProvider });
   });
 
   afterAll(async () => {
+    await new Promise((resolve) => { app.closeAllConnections?.(); app.close(resolve); });
     await testDb.reset();
   });
 

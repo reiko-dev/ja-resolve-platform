@@ -50,13 +50,14 @@ describe('MVP-01 API — Tow foundation', () => {
 
   beforeAll(async () => {
     await testDb.reset();
-    app = createApp();
+    app = createApp().listen(0);
     admin = await testDb.createUser({ name: 'Admin MVP01', role: 'admin', email: 'admin.mvp01@mvp01.test' });
     alpha = await createPartnerFixture('alpha');
     beta = await createPartnerFixture('beta');
   });
 
   afterAll(async () => {
+    await new Promise((resolve) => { app.closeAllConnections?.(); app.close(resolve); });
     await testDb.reset();
   });
 

@@ -178,6 +178,29 @@ For the easiest setup:
 ./quick-start.sh
 ```
 
+### Compose Environment Variables
+
+`docker-compose.yml` and `docker-compose-simple.yml` no longer hardcode the
+database password or the JWT secret. They interpolate these variables with
+development-safe defaults (`${VAR:-default}`):
+
+| Variable | Default (development only) | Required in production |
+| --- | --- | --- |
+| `POSTGRES_PASSWORD` | `postgres` | yes |
+| `DB_PASSWORD` | `postgres` | yes |
+| `JWT_SECRET` | `dev_jwt_secret_2025_change_in_production` | yes |
+
+Copy the tracked template and edit it, or export the variables in the shell:
+
+```bash
+cp .env.example .env    # docker compose reads .env automatically
+```
+
+`JWT_SECRET` must be set explicitly in production: the backend refuses to start
+with `NODE_ENV=production` when it is missing. `DB_PASSWORD` is likewise
+required in production unless `DATABASE_URL` (or `PostgreSQL`) embeds the
+credentials.
+
 ### Cleanup Script
 To stop and clean up:
 ```bash

@@ -13,6 +13,7 @@
     "backend:start": "cd socorre_ai_backend && npm start",
     "admin:build": "cd socorre_ai_admin && npm run build",
     "dev": "concurrently \"npm run backend\" \"npm run admin\"",
+    "scan:secrets": "bash scripts/security/scan-secrets.sh",
     "install:all": "npm install && cd socorre_ai_backend && npm install && cd ../socorre_ai_admin && npm install"
   },
   "devDependencies": {

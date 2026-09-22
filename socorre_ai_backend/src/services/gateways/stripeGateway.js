@@ -2,7 +2,10 @@ class StripeGateway {
   async processPayment(paymentData) {
     try {
       // Simular processamento do Stripe
-      console.log('Processando pagamento no Stripe:', paymentData);
+      console.log('Processando pagamento no Stripe:', {
+        method: paymentData && paymentData.method,
+        referenceId: paymentData && paymentData.referenceId
+      });
 
       // Simular delay de processamento
       await new Promise(resolve => setTimeout(resolve, 1000));

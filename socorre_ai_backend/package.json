@@ -23,6 +23,7 @@
     "test:tow": "jest tests/tow --runInBand",
     "test:contract": "jest tests/contract --runInBand",
     "validate:openapi": "node scripts/tow/validate-openapi.js",
+    "scan:secrets": "bash ../scripts/security/scan-secrets.sh",
     "test:pg": "node scripts/tow/run-pg-gate.js",
     "test:pg:up": "node scripts/tow/test-env.js up",
     "test:pg:wait": "node scripts/tow/test-env.js wait",

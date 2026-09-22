@@ -70,11 +70,12 @@ describe('MVP-04 EXT — partner job list (EXT-MVP04-1)', () => {
     expect(typeof validateError).toBe('function');
     clock = createFakeClock();
     routeProvider = createFakeRouteProvider();
-    app = createApp({ tow: { clock, routeProvider } });
+    app = createApp({ tow: { clock, routeProvider } }).listen(0);
     ({ services } = createMvp04Services({ clock, routeProvider }));
   });
 
   afterAll(async () => {
+    await new Promise((resolve) => { app.closeAllConnections?.(); app.close(resolve); });
     await testDb.reset();
   });
 
