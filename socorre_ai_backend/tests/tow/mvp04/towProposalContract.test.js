@@ -113,7 +113,7 @@ describe('MVP-04 — live proposal lifecycle conforms to the canonical OpenAPI c
     expect(typeof validateProposalList).toBe('function');
     expect(typeof validateRequestResponse).toBe('function');
     expect(typeof validateError).toBe('function');
-    expect(composed.info.version).toBe('1.0.0-draft.9');
+    expect(composed.info.version).toBe('1.0.0-draft.10');
   });
 
   test('the ACTUAL 201 create body validates against TowProposalResponse', async () => {

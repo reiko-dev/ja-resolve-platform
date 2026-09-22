@@ -65,7 +65,12 @@ route_pickup_to_destination_distance_meters     integer NOT NULL DEFAULT 0
 route_pickup_to_destination_duration_seconds    integer NOT NULL DEFAULT 0
 route_total_distance_meters                     integer NOT NULL
 route_total_duration_seconds                    integer NOT NULL
-route_encoded_polyline                          text    NULL
+-- route_encoded_polyline was DROPPED from this design before implementation:
+-- migration 005 creates the six integer route metrics only and never created this
+-- column (verified: `grep route_encoded_polyline database/migrations/005_*` is
+-- empty). Polyline geometry is Phase 2 / #33 and `getTowRequestRoute` is
+-- declared-but-unrouted. As built, the four leg columns are NULLable and the two
+-- totals are NOT NULL.
 
 -- frozen tariff snapshot
 pricing_minimum_charge_cents            integer NOT NULL

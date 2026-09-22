@@ -4,7 +4,7 @@
 > Domain: Tow / Guincho  
 > Contract baseline: PR #9  
 > Epic: #10  
-> Current implementation baseline: `main @ 7ad3e56bab9bfc839dca88dc2832e425383b7741` (MVP-03 accepted; MVP-04 dispatch base)  
+> Current implementation baseline: `main @ aca472316cf90cb4e743b6ed4a78d53758ac991f` (Phase 1 complete: MVP-01..MVP-06 accepted; the historical per-section baselines below are plan-time snapshots)  
 > Phase 1 executable issues: #13–#18  
 > Phase 2 hardening backlog: #33
 
@@ -205,7 +205,9 @@ backend can answer:
 Issue: #14  
 Depends on: MVP-01 accepted  
 Size: M/L  
-Status: **READY / current delivery**
+Status: **ACCEPTED / Phase 1 complete** (this section was the "current delivery" when the plan was written;
+MVP-02 was accepted and Phase 1 closed at `main @ aca47231` — see
+`docs/evidence/mvp-06/TOW-MVP-READINESS.md`)
 
 Execution base: `c03e2d06d6680eef1f3f961c877985033da0d89f`  
 Branch: `feature/mvp-02-routes-pricing`

@@ -5,8 +5,10 @@
  * "which open tow requests are mine to see right now, and what would each one
  * pay?".
  *
- * The feed is request-driven: the candidates are the `SEARCHING` requests
- * (`towRequestRepository.listSearchingCandidates`), and each candidate is
+ * The feed is request-driven: the candidates are the OPEN requests
+ * (`towRequestRepository.listSearchingCandidates`; `SEARCHING` plus the
+ * `NEGOTIATING` requests MVP-04 keeps visible while competing proposals may
+ * still arrive), and each candidate is
  * evaluated against the authenticated partner by the pure domain policy
  * `evaluateTowMatch` (module → partner identity → availability/online →
  * operational coordinates → MVP-01 eligibility → geodesic radius). This
@@ -33,8 +35,9 @@
  *
  * Deliberately deferred (documented, not silently dropped): a bounding-box
  * pre-filter in SQL. The radius is per-request (a frozen column), so an
- * indexable expression does not exist; MVP-03 scans the newest `SEARCHING`
- * requests with a documented cap instead. See
+ * indexable expression does not exist; MVP-03 scans the OLDEST open
+ * (`SEARCHING`/`NEGOTIATING`) requests first (`created_at ASC`, anti-starvation)
+ * with a documented cap instead. See
  * `docs/evidence/mvp-03/01-current-state-delta.md` §3.
  */
 'use strict';
@@ -46,7 +49,7 @@ const {
 } = require('../domain');
 const { validateListQuery } = require('./list-query');
 
-/** Documented scan cap for the candidate query (newest `SEARCHING` first). */
+/** Documented scan cap for the candidate query (oldest open request first, `created_at ASC`). */
 const DEFAULT_CANDIDATE_SCAN_LIMIT = 500;
 
 function createMatchingService({

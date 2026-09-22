@@ -66,6 +66,29 @@ the real Google Routes adapter and its two-leg parsing are covered by the accept
 | `TowRequest.payment` (embedded in every recovery path) | truthful projection of the same single row |
 | `OPTIONS` — not applicable | — |
 
+### Runtime dependency: partner presence (matching requires legacy writes)
+
+Geographic matching is not self-contained. `GET /tow/partner/opportunities` decides from
+`partners.is_available`, `partners.is_online` and the partner's `latitude`/`longitude`
+(`src/modules/tow/domain/matching.js:79-89`). The accepted Tow module exposes **no `/tow/*` writer for those
+columns**: they are written only by the legacy partner surface `PUT /api/partners/:id/online-status`
+(`is_online`) and `PUT /api/partners/:id/location` (`latitude`/`longitude`), plus the legacy partner update for
+`is_available`. A partner with a false/absent availability flag or null coordinates sees an empty opportunity
+feed (no error). This is a hard prerequisite for any end-to-end partner demo and is recorded here because a
+contract-only consumer cannot infer it.
+
+### Runtime-only routes now declared (draft.10)
+
+Three routes the accepted runtime serves were absent from the frozen contract and are now declared additively
+in canonical `1.0.0-draft.10`: `POST /tow/vehicles/{vehicleId}/deactivate` (`deactivateTowVehicle`),
+`GET /tow/vehicles/{vehicleId}/documents/{documentId}/download` (`downloadTowVehicleDocument`, owning partner)
+and `GET /admin/tow/vehicle-documents/{documentId}/download` (`adminDownloadTowVehicleDocument`, admin). The
+downloads return private bytes (`application/octet-stream`, `Content-Disposition: attachment`) and are proven by
+`tests/tow/mvp01/towDocumentDownload.test.js`. The same revision records that six routed operations declare the
+`Idempotency-Key` header in the long-term contract while the accepted runtime accepts and ignores it
+(`activateTowVehicle`, `deleteTowVehicleDocument`, `adminToggleTowModule`, `adminPatchTowSettings`,
+`adminApproveTowVehicleDocument`, `adminRejectTowVehicleDocument`); the declaration is not narrowed.
+
 ### End-to-end capability
 
 ```text
@@ -94,9 +117,10 @@ CASH payment, cash_received confirmation, payment rehydration
 | Item | Value |
 | --- | --- |
 | initial canonical version | `1.0.0-draft.8` |
-| final canonical version | `1.0.0-draft.9` (revision note records the implemented subset) |
+| MVP-06 canonical version | `1.0.0-draft.9` (revision note records the implemented subset) |
+| current canonical version | `1.0.0-draft.10` (T5 sync: declares the three runtime-only routes and records the idempotency delta; no runtime change) |
 | base contract | byte-identical to the reviewed artifact (`1.0.0-draft.2`) |
-| OpenAPI validation | PASS, 66 operations, 0 unresolved refs, 0 dropped base methods |
+| OpenAPI validation | PASS, 69 operations, 0 unresolved refs, 0 dropped base methods |
 | implemented payment subset | `cash` only; `PaymentStatus` reachable: `NOT_SELECTED → CASH_SELECTED → CASH_RECEIVED` |
 | contract revision required? | no shapes changed; only the documented subset note |
 
@@ -146,6 +170,11 @@ historical credential remediation (#31)
 Also deliberately not advertised: `TowRequest.allowed_actions` does **not** list `select_payment_method` or
 `mark_cash_received`; the authoritative signal is `TowRequest.payment.status`. See
 `docs/evidence/mvp-06/05-payment-authority.md` §9.
+
+Declared but **unrouted**: `GET /tow/requests/{requestId}/route` (`getTowRequestRoute`, canonical
+`docs/tow/tow-api-contract.openapi.yaml:247-265`, `TowRouteSnapshot` incl. `encoded_polyline`) has no route in
+`src/modules/tow/http/routes.js` and answers **404** at runtime. It stays declared for the long-term target
+(Phase 2 / #33) and is not narrowed; the MVP exposes only the tracking read's `{ pickup, destination }`.
 
 ---
 

@@ -14,7 +14,8 @@
  *   - migration 007 pins its uniqueness, method, money and coherence rules;
  *   - the offline harness mirrors the table;
  *   - the three canonical contract operations exist in the contract, and the
- *     canonical revision is draft.9.
+ *     canonical revision carries the draft.9 MVP-06 note (draft.10 adds the
+ *     T5 runtime-route declarations on top).
  */
 'use strict';
 
@@ -283,9 +284,10 @@ describe('MVP-06 ARCH — contract authority', () => {
   const documents = loadRawDocuments();
   const { composed } = composeDocument(documents);
 
-  test('the canonical revision is draft.9 and records the MVP-06 subset', () => {
-    expect(documents.canonical.info.version).toBe('1.0.0-draft.9');
+  test('the canonical revision records the MVP-06 subset and the draft.10 sync', () => {
+    expect(documents.canonical.info.version).toBe('1.0.0-draft.10');
     expect(documents.canonical.info.description).toContain('draft.9');
+    expect(documents.canonical.info.description).toContain('draft.10');
     expect(documents.canonical.info.description).toContain('CASH');
     // The base contract is byte-frozen: it still declares draft.2.
     expect(documents.base.info.version).toBe('1.0.0-draft.2');
@@ -317,7 +319,7 @@ describe('MVP-06 ARCH — contract authority', () => {
     // A revision note in the canonical overlay must never mutate the base.
     const base = read(BASE_CONTRACT);
     expect(base).toContain('version: 1.0.0-draft.2');
-    expect(base).not.toContain('draft.9');
-    expect(read(OVERLAY_CONTRACT)).toContain('version: 1.0.0-draft.9');
+    expect(base).not.toContain('draft.10');
+    expect(read(OVERLAY_CONTRACT)).toContain('version: 1.0.0-draft.10');
   });
 });

@@ -3,7 +3,8 @@
 Issue: #18
 Contract files:
 `docs/tow/tow-api-contract.base.openapi.yaml` (base, `info.version` `1.0.0-draft.2`)
-`docs/tow/tow-api-contract.openapi.yaml` (canonical entrypoint, `info.version` **`1.0.0-draft.8`**)
+`docs/tow/tow-api-contract.openapi.yaml` (canonical entrypoint; `info.version` was **`1.0.0-draft.8`** when this
+audit was written, then `1.0.0-draft.9` for MVP-06 and `1.0.0-draft.10` for the T5 runtime-route sync)
 
 Composition: the canonical document overrides `info`/`openapi`/`servers`/`security`/`tags`, merges
 `components` canonical-over-base, inherits every `$ref`-only path item, and **replaces** an inline path item
@@ -194,5 +195,19 @@ silent mutation" rule. Existing assertions that pin the canonical version to `dr
 | `adminPreview/Create/Get/ProcessTowPayoutBatch` | PHASE2_ONLY | unrouted (404) |
 | `adminListTowRequests` payment filters | PHASE2_ONLY | admin payment filters not implemented |
 | counteroffer, dispute, review, no-show, rematch | PHASE2_ONLY | unrouted (404) |
+| `getTowRequestRoute` (`GET /tow/requests/{requestId}/route`, canonical `:247-265`) | PHASE2_ONLY / declared-not-routed | **unrouted (404)** — no route in `src/modules/tow/http/routes.js`; it stays declared (do not narrow) and `TowRouteSnapshot.encoded_polyline` is not persisted |
 
 No Phase 2 route is added and no Phase 2 table is created.
+
+## 6. T5 synchronization addendum (canonical `1.0.0-draft.10`)
+
+This audit represents the MVP-06 decision state. The later T5 docs/contract sync did not change any MVP-06
+semantics; it declared the three routes the accepted runtime already served and the audit had classified as
+not-in-contract: `POST /tow/vehicles/{vehicleId}/deactivate` (implemented since MVP-01),
+`GET /tow/vehicles/{vehicleId}/documents/{documentId}/download` and
+`GET /admin/tow/vehicle-documents/{documentId}/download` (both proven by
+`tests/tow/mvp01/towDocumentDownload.test.js`). The same revision records that the six routed operations whose
+base declaration requires `Idempotency-Key` (`activateTowVehicle`, `deleteTowVehicleDocument`,
+`adminToggleTowModule`, `adminPatchTowSettings`, `adminApproveTowVehicleDocument`,
+`adminRejectTowVehicleDocument`) accept and ignore the header at runtime. Validation after the revision: PASS,
+69 composed operations, 0 unresolved refs, base contract byte-identical.

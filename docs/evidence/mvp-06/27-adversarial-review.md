@@ -171,6 +171,9 @@ Latent defect found in the unique-violation recovery path — see finding **M6-0
 **Verdict: claim verified.**
 
 - The completion gate is a service-level guard inside the transaction: `payment-service.js:164-170`
+  (line numbers of the REVIEWED artifact `f8dd9a08`; after the M6-03 correction the guard sits at
+  `payment-service.js:170-176` on the corrected tree, which is also the line MUSE R2's negative control
+  cites — `28-muse-sparks-review-r2.md` NC-2)
   (`request.state !== 'COMPLETED'` → 409 `invalid_tow_state`), evaluated after ownership and after the request
   row lock, so it cannot race an uncommitted completion on PostgreSQL (`lockJobForPartner` locks the
   `tow_requests` row `FOR UPDATE`; `row-lock.js:30-32`).

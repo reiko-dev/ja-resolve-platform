@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: JaResolve Tow Consumer API
-  version: 1.0.0-draft.9
+  version: 1.0.0-draft.10
   description: >-
     Normative consumer contract for Mobile Cliente, Mobile Parceiro and Dashboard.
     This entrypoint composes the reviewed draft.2 base contract with the frozen
@@ -102,6 +102,31 @@ info:
     NOT yet advertise `select_payment_method` or `mark_cash_received`
     (documented omission, not a false claim): the authoritative signal is
     `TowRequest.payment.status` and `GET /tow/requests/{requestId}/payment`. No
+    path, parameter, response shape or enum member is removed or narrowed, and
+    the base contract stays byte-identical.
+    Revision draft.10 (T5 contract/runtime synchronization — docs-only, no
+    runtime change): three routes the accepted MVP runtime has always served
+    are now declared, and the accepted runtime deltas are recorded instead of
+    silently assumed. (1) The runtime-only operations are added additively:
+    `POST /tow/vehicles/{vehicleId}/deactivate` (`deactivateTowVehicle`, the
+    owning Tow partner's own vehicle; the counterpart of the already-declared
+    activate), `GET /tow/vehicles/{vehicleId}/documents/{documentId}/download`
+    (`downloadTowVehicleDocument`) and
+    `GET /admin/tow/vehicle-documents/{documentId}/download`
+    (`adminDownloadTowVehicleDocument`); the two downloads return the stored
+    bytes as `application/octet-stream` with `Content-Disposition: attachment`
+    to the owning partner / an admin only (401/403/404, never a public URL),
+    proven by `tests/tow/mvp01/towDocumentDownload.test.js`. (2) The accepted
+    MVP runtime does NOT validate the `Idempotency-Key` header on six routed
+    operations whose long-term base declaration requires it —
+    `activateTowVehicle`, `deleteTowVehicleDocument`, `adminToggleTowModule`,
+    `adminPatchTowSettings`, `adminApproveTowVehicleDocument` and
+    `adminRejectTowVehicleDocument`: the header is accepted and ignored (no
+    `422`, no dedupe semantics), and the long-term declaration is deliberately
+    NOT narrowed here. (3) `GET /tow/requests/{requestId}/route`
+    (`getTowRequestRoute`) remains declared for the long-term target but is NOT
+    routed by the MVP runtime (it answers `404`); it is recorded as Phase 2 /
+    unrouted rather than removed, so the contract is not narrowed. No existing
     path, parameter, response shape or enum member is removed or narrowed, and
     the base contract stays byte-identical.
 servers:
@@ -662,6 +687,52 @@ paths:
     $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1vehicles~1{vehicleId}~1documents'
   /tow/vehicles/{vehicleId}/documents/{documentId}:
     $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1vehicles~1{vehicleId}~1documents~1{documentId}'
+  /tow/vehicles/{vehicleId}/deactivate:
+    post:
+      tags: [Tow Vehicles]
+      operationId: deactivateTowVehicle
+      security: [{ bearerAuth: [] }]
+      description: >-
+        Deactivates the authenticated Tow partner's own vehicle (runtime
+        extension declared in draft.10; the counterpart of activate). The
+        vehicle remains owned and can be reactivated; occupancy is a separate
+        authority.
+      parameters:
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/VehicleId'
+      responses:
+        '200':
+          description: TowVehicle deactivated
+          content:
+            application/json:
+              schema: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TowVehicleResponse' }
+        '401': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Forbidden' }
+        '404': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/NotFound' }
+  /tow/vehicles/{vehicleId}/documents/{documentId}/download:
+    get:
+      tags: [Tow Vehicles]
+      operationId: downloadTowVehicleDocument
+      security: [{ bearerAuth: [] }]
+      description: >-
+        Authenticated byte transport for the owning Tow partner's own document
+        (runtime extension declared in draft.10). Returns the stored bytes as
+        `application/octet-stream` with `Content-Disposition: attachment`;
+        there is no public URL, and a foreign vehicle or document answers 404.
+      parameters:
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/VehicleId'
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/DocumentId'
+      responses:
+        '200':
+          description: Stored document bytes
+          headers:
+            Content-Disposition:
+              schema: { type: string }
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '401': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Forbidden' }
+        '404': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/NotFound' }
   /tow/customer/debts:
     $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1customer~1debts'
   /tow/customer/debts/{debtId}/pay:
@@ -720,6 +791,30 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/AdminVehicleDocumentDetailResponse' }
+        '404': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/NotFound' }
+  /admin/tow/vehicle-documents/{documentId}/download:
+    get:
+      tags: [Tow Admin]
+      operationId: adminDownloadTowVehicleDocument
+      security: [{ bearerAuth: [] }]
+      description: >-
+        Authenticated byte transport for a TowVehicle document, admin-only
+        (runtime extension declared in draft.10). Returns the stored bytes as
+        `application/octet-stream` with `Content-Disposition: attachment`;
+        there is no public URL.
+      parameters:
+        - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/DocumentId'
+      responses:
+        '200':
+          description: Stored document bytes
+          headers:
+            Content-Disposition:
+              schema: { type: string }
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '401': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Forbidden' }
         '404': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/NotFound' }
   /admin/tow/vehicle-documents/{documentId}/approve:
     $ref: './tow-api-contract.base.openapi.yaml#/paths/~1admin~1tow~1vehicle-documents~1{documentId}~1approve'
