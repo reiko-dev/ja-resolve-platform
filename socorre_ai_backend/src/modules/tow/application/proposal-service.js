@@ -332,6 +332,14 @@ function createProposalService({
     assertProposalActionable(proposal, now);
 
     const updated = await towProposalRepository.markWithdrawn(proposal.id, { decidedAt: now });
+    if (!updated) {
+      // No row lock on this path: a concurrent ACCEPT (or a duplicate withdraw)
+      // may have committed between the read above and the guarded update. The
+      // database decided; answer canonically instead of retrying blindly.
+      const current = await towProposalRepository.findById(proposal.id);
+      if (current && current.status === 'WITHDRAWN') return buildTowProposalDto(current);
+      throw new TowError('proposal_not_actionable', 'This proposal is no longer actionable');
+    }
     return buildTowProposalDto(updated);
   }
 

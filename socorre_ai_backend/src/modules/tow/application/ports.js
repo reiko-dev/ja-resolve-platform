@@ -60,7 +60,7 @@
  * @property {(requestIds: Array<number|string>) => Promise<Array<number|string>>} findLiveRequestIds
  * @property {(id: number|string) => Promise<object|null>} lockById
  * @property {(id: number|string, args: { decidedAt: Date|string }) => Promise<object|null>} markAccepted
- * @property {(id: number|string, args: { decidedAt: Date|string }) => Promise<object|null>} markWithdrawn
+ * @property {(id: number|string, args: { decidedAt: Date|string }) => Promise<object|null>} markWithdrawn  Guarded `ACTIVE -> WITHDRAWN`; resolves `null` when the row was concurrently accepted/closed.
  * @property {(requestId: number|string, args: { exceptProposalId: number|string, decidedAt: Date|string }) => Promise<number>} closeActiveForRequestExcept
  * @property {(trx: object) => object} withTransaction
  *

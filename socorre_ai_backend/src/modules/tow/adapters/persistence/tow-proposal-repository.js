@@ -313,9 +313,18 @@ function createTowProposalRepository(db) {
       return mapRow(updated);
     }
 
+    /**
+     * The guarded `ACTIVE -> WITHDRAWN` transition.
+     *
+     * The `status = 'ACTIVE'` predicate is load-bearing: withdraw runs without a
+     * row lock (unlike accept, which locks the proposal), so a concurrent accept
+     * that commits first must make this update a no-op instead of overwriting
+     * the winner with `WITHDRAWN` (lost update). Returns `null` when the
+     * transition did not apply; the caller re-reads and answers canonically.
+     */
     async function markWithdrawn(id, { decidedAt }) {
       const [updated] = await connection('tow_request_proposals')
-        .where({ id })
+        .where({ id, status: 'ACTIVE' })
         .update({
           status: 'WITHDRAWN',
           decided_at: toIsoInstant(decidedAt),

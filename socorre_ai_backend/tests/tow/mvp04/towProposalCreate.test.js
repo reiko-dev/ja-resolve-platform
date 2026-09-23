@@ -365,6 +365,26 @@ describe('MVP-04 — server-priced proposal creation', () => {
       expect(again.status).toBe(201);
       expect(again.body.data.status).toBe('ACTIVE');
     });
+
+    test('a withdraw can never overwrite a proposal accepted concurrently', async () => {
+      const { request: towRequest, auths } = await scenario({ partnerCount: 1 });
+      const created = await createProposal(auths[0], towRequest.id, { key: 'idem-mvp04-dup-000005' });
+
+      // Simulate the winning accept committing after withdraw's read but before
+      // its update: the guarded `ACTIVE -> WITHDRAWN` transition must be a
+      // no-op, so the loser can never restamp the winner.
+      await testDb.db('tow_request_proposals')
+        .where({ id: created.body.data.id })
+        .update({ status: 'ACCEPTED', decided_at: new Date().toISOString() });
+
+      const lost = await services.towProposalRepository.markWithdrawn(created.body.data.id, {
+        decidedAt: new Date(),
+      });
+      expect(lost).toBeNull();
+
+      const row = await testDb.db('tow_request_proposals').where({ id: created.body.data.id }).first();
+      expect(row.status).toBe('ACCEPTED');
+    });
   });
 
   describe('idempotency', () => {
