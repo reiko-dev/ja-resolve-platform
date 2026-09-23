@@ -17,12 +17,13 @@
  *   file. For those paths the canonical definition SHADOWS the base definition
  *   entirely; the composed document must therefore contain exactly one operation
  *   per (path, method) and must not double-count shadowed base operations.
- *   Verified shape on the current contract (draft.13): base 51 paths / 59
+ *   Verified shape on the current contract (draft.14): base 51 paths / 59
  *   operations, canonical 59 paths (30 `$ref` path items + 29 inline) / 34
  *   inline operations, 21 shadowed base paths (0 dropped methods), composed
  *   69 operations. (draft.13 adds the required `payment_method` to
  *   `CreateTowRequestInput` and the commercial `payment_method` to `TowRequest`
- *   as component overrides; it adds no path, method or operation.)
+ *   as component overrides; draft.14 documents the payment materialized at
+ *   accept. Neither adds a path, method or operation.)
  *
  * No network access is required: every `$ref` is a local file reference.
  */

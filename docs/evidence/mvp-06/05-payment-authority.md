@@ -2,6 +2,15 @@
 
 Issue: #18 · Branch: `feature/mvp-06-cash-readiness` · Date: 2026-09-21
 
+> **TOW ROUND REVISION (2026-09-23, contract draft.14).** The creation rule in §2 changed:
+> the commercial choice is now made ONCE, at creation (`POST /tow/requests` requires
+> `payment_method`), and the `POST /tow/proposals/{proposalId}/accept` transaction materializes
+> the `TowPayment` from that choice in the same commit that creates the assignment. The amount
+> authority (§1), the status mapping (§3), the method vocabulary (§4) and the idempotency
+> guarantees (§5) are unchanged. `PUT /tow/requests/{requestId}/payment-method` is now a
+> legacy/compatibility path only: the first-party flow never calls it, and for a request that
+> already owns its payment it returns the canonical row without writing.
+
 ## 1. Amount authority
 
 ```text
@@ -24,42 +33,59 @@ Rejected sources (all of them are provably absent):
 | a new Google quote | the route provider is never called on the payment path (asserted) |
 | legacy `payments.amount` decimal | a different table and a different money type |
 
-## 2. Creation rule (documented decision)
+## 2. Creation rule (Tow round, contract draft.14)
 
-The payment row is created **lazily on the first financial write**:
+The customer chooses the method **once**, before the request exists:
 
 ```text
-PUT  /tow/requests/{requestId}/payment-method   (customer selects cash)   -> creates PENDING
-POST /tow/requests/{requestId}/cash-received    (assigned partner)        -> creates RECEIVED
-                                                                             or transitions PENDING -> RECEIVED
-GET  /tow/requests/{requestId}/payment          (rehydration)             -> NEVER writes
+POST /tow/requests                              { payment_method: "cash" }  -> TowRequest.payment_method = cash
+POST /tow/proposals/{proposalId}/accept         (winning proposal)         -> creates PENDING
+                                                                               from the commercial choice
+POST /tow/requests/{requestId}/cash-received    (assigned partner)          -> transitions PENDING -> RECEIVED
+GET  /tow/requests/{requestId}/payment          (rehydration)               -> NEVER writes
 ```
+
+- **before the assignment** there is no payment row, truthfully: `assignment_id` and
+  `final_price_amount_cents` do not exist yet, and the commercial method stays visible on
+  `TowRequest.payment_method` / the opportunity item. `TowRequest.payment` projects `NOT_SELECTED`;
+- **at accept** the payment is materialized INSIDE the assignment transaction (`PENDING`,
+  `amount_cents = assignment.final_price_amount_cents`, `currency = assignment.final_price_currency`), so
+  `ASSIGNED` and `CASH_SELECTED` commit together or not at all. The consistency rule
+  `TowRequest.payment_method == TowPayment.method` is enforced by construction: the method comes from the
+  request, never from a second selection;
+- **the first-party journey never calls `PUT /tow/requests/{requestId}/payment-method`**. That operation
+  remains a legacy/compatibility path for historical requests (created before draft.13, `payment_method =
+  null`) and for idempotent recovery; for a request that already owns its payment it returns the canonical
+  row before any state check and writes nothing.
 
 Why this is the smallest architecture that satisfies the brief:
 
 - **one payment** — guaranteed by `UNIQUE(tow_request_id)` + `UNIQUE(assignment_id)`, not by a read-then-write;
-- **frozen accepted amount** — the amount is copied from the assignment at first write and never recomputed;
+- **frozen accepted amount** — the amount is copied from the assignment at accept and never recomputed;
 - **rehydratable status** — the row is the only state; a process restart re-reads it (attack `A4`);
 - **idempotent confirmation** — a retry finds the row and returns it unchanged, and the guarded
   `PENDING → RECEIVED` update (with `WHERE status = 'PENDING'`) cannot restamp `received_at`;
-- **no scheduler and no pre-creation** — nothing is created for a job that never reaches a financial step, so
-  no clock-driven state can exist.
+- **no scheduler** — nothing is created for a job that never reaches an assignment, so no clock-driven state
+  can exist.
 
 The alternative (`create at completion`) was rejected: it would fuse the payment into the completion
 transaction and make the separate `mark_cash_received` operation (the one the contract declares) impossible to
 implement truthfully. Because the assignment row survives release, the separate operation loses **no**
-authority.
+authority. The pre-draft.14 alternative (lazy creation on the first financial write) was superseded by the
+product rule that the method is chosen exactly once, at creation.
 
 ## 3. Status mapping
 
 | persisted `tow_payments.status` | consumer `PaymentSummary.status` | `can_start_service` |
 | --- | --- | --- |
-| (no row) | `NOT_SELECTED` | `false` |
-| `PENDING` | `CASH_SELECTED` | `true` |
-| `RECEIVED` | `CASH_RECEIVED` | `true` |
+| (no row: pre-assignment, or historical request without a choice) | `NOT_SELECTED` | `false` |
+| `PENDING` (materialized at accept) | `CASH_SELECTED` | `true` |
+| `RECEIVED` (partner confirmed) | `CASH_RECEIVED` | `true` |
 
 The persistence vocabulary is deliberately the minimum the delivery brief allows. Every other member of the
-frozen `PaymentStatus` enum describes CARD/PIX, refunds or settlement and is **unreachable** in MVP-06.
+frozen `PaymentStatus` enum describes CARD/PIX, refunds or settlement and is **unreachable** in this phase.
+Since draft.14, a NEW request can no longer be observed as `NOT_SELECTED` after a successful accept: the
+accept materializes `PENDING` (`CASH_SELECTED`) from the commercial choice.
 
 ## 4. Method
 

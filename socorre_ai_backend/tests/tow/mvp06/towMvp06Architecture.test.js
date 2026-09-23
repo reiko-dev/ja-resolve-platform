@@ -284,13 +284,14 @@ describe('MVP-06 ARCH — contract authority', () => {
   const documents = loadRawDocuments();
   const { composed } = composeDocument(documents);
 
-  test('the canonical revision records the MVP-06 subset and the draft.10/.11/.12/.13 revisions', () => {
-    expect(documents.canonical.info.version).toBe('1.0.0-draft.13');
+  test('the canonical revision records the MVP-06 subset and the draft.10-.14 revisions', () => {
+    expect(documents.canonical.info.version).toBe('1.0.0-draft.14');
     expect(documents.canonical.info.description).toContain('draft.9');
     expect(documents.canonical.info.description).toContain('draft.10');
     expect(documents.canonical.info.description).toContain('draft.11');
     expect(documents.canonical.info.description).toContain('draft.12');
     expect(documents.canonical.info.description).toContain('draft.13');
+    expect(documents.canonical.info.description).toContain('draft.14');
     expect(documents.canonical.info.description).toContain('CASH');
     // The base contract is byte-frozen: it still declares draft.2.
     expect(documents.base.info.version).toBe('1.0.0-draft.2');
@@ -326,6 +327,6 @@ describe('MVP-06 ARCH — contract authority', () => {
     expect(base).not.toContain('draft.11');
     expect(base).not.toContain('draft.12');
     expect(base).not.toContain('draft.13');
-    expect(read(OVERLAY_CONTRACT)).toContain('version: 1.0.0-draft.13');
+    expect(read(OVERLAY_CONTRACT)).toContain('version: 1.0.0-draft.14');
   });
 });

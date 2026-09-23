@@ -1,7 +1,8 @@
 # TOW LOCAL VALIDATION — MANUAL RUNBOOK (HUMAN OPERATOR)
 
 Status: `LOCAL_TOW_VALIDATION_READY_FOR_HUMAN_TEST`
-Contract: `1.0.0-draft.13` (Tow round — real routes, mandatory payment at creation, background tracking)
+Contract: `1.0.0-draft.14` (Tow round — real routes, mandatory payment at creation, payment materialized
+at accept, background tracking)
 Date: 2026-09-23
 Repo: `socorre-system` (backend). Mobile apps consumed from `socorre-v2` (debug builds run locally).
 
@@ -9,9 +10,12 @@ Repo: `socorre-system` (backend). Mobile apps consumed from `socorre-v2` (debug 
 > money, no production infrastructure. Human validation happens on locally run Flutter debug apps against
 > a disposable local Postgres and a local backend started in validation mode.
 
-> **Tow round (draft.13) changes the script below:**
+> **Tow round (draft.13/.14) changes the script below:**
 > - the Cliente chooses the payment method BEFORE creating the request (`CASH` is the only method; the
 >   request cannot be created without it — the backend answers `422 validation_error`);
+> - the customer chooses the method exactly ONCE: when the proposal is accepted, the backend
+>   materializes `TowPayment = CASH_SELECTED` automatically (same transaction as the assignment). The
+>   first-party flow never calls `PUT /tow/requests/{id}/payment-method`;
 > - visual/device validation MUST run with a real road route:
 >   `TOW_ROUTE_PROVIDER=google` + `GOOGLE_ROUTES_API_KEY=<server-side key>` in `.env.validation`;
 >   the `validation-fixture` provider is for deterministic automated tests only;
@@ -206,12 +210,16 @@ Two distinct authorities:
 - `TowRequest.payment_method` — the COMMERCIAL choice made by the Cliente BEFORE creating the request.
   It is REQUIRED: without it the backend answers `422 validation_error` and creates nothing. Only `cash`
   is implemented (`card`/`pix` answer `422 method_not_supported_in_mvp`).
-- `TowPayment` — the FINANCIAL execution, created only after assignment/price. Canonical states:
-  `NOT_SELECTED -> CASH_SELECTED -> CASH_RECEIVED`.
+- `TowPayment` — the FINANCIAL execution, materialized AUTOMATICALLY by the accept
+  (same transaction as the assignment): `NOT_SELECTED -> CASH_SELECTED -> CASH_RECEIVED`.
+  The Cliente never selects the method a second time; `PUT /payment-method` is a legacy path
+  and is NOT used by the apps.
 
 - The Cliente selects CASH in the creation form (step 5) and the request is created carrying
   `payment_method: cash`.
 - The Parceiro sees `payment_method` and the backend-calculated price on the opportunity BEFORE proposing.
+- On **Aceitar proposta**, the backend materializes `TowPayment = CASH_SELECTED` (PENDING) with the
+  frozen accepted amount. Before the accept, `TowRequest.payment` is truthfully `NOT_SELECTED`.
 - The Parceiro confirms cash received **after** `COMPLETED` (step 23).
 - No card, no PIX, no PSP, no real money, no settlement.
 
@@ -281,8 +289,8 @@ Two distinct authorities:
 - [ ] Opportunity Parceiro (origem, destino, veículo, pagamento CASH, distância e preço calculado)
 - [ ] Proposta (Parceiro envia sem digitar preço; aparece para o Cliente)
 - [ ] Aceite (proposta aceita vira vencedora; demais somem/recusadas)
-- [ ] Payment UX (`TowRequest.payment_method=cash` no create; execução
-      `NOT_SELECTED -> CASH_SELECTED -> CASH_RECEIVED`)
+- [ ] Payment UX (`TowRequest.payment_method=cash` no create; `NOT_SELECTED` antes do aceite;
+      aceite materializa `CASH_SELECTED`; confirmação do Parceiro vira `CASH_RECEIVED`; sem PUT manual)
 - [ ] Tracking (posição do Parceiro atualiza para o Cliente via socket + REST)
 - [ ] Milestones (A caminho / Cheguei / Iniciar transporte / Finalizar)
 - [ ] Conclusão (COMPLETED visível no Cliente; tracking encerra; confirmação de recebimento no Parceiro)
@@ -305,7 +313,7 @@ Two distinct authorities:
 | 6. Opportunity Parceiro | Mostra pagamento CASH, distância e preço calculado | | | |
 | 7. Proposta Parceiro | Proposta criada (sem preço digitado) e visível ao Cliente | | | |
 | 8. Aceite | Uma proposta vencedora; estado segue | | | |
-| 9. Pagamento CASH (execução) | `TowPayment` muda para CASH_SELECTED | | | |
+| 9. Pagamento CASH (execução) | Aceite materializa `TowPayment=CASH_SELECTED` automaticamente (sem PUT manual) | | | |
 | 10. Tracking | Posição atualiza no app do Cliente via socket e REST | | | |
 | 11. Milestones | A caminho / Cheguei / Iniciar / Finalizar funcionam | | | |
 | 12. Conclusão | COMPLETED no Cliente; tracking encerra; CASH_RECEIVED após confirmação | | | |

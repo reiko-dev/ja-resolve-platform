@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: JaResolve Tow Consumer API
-  version: 1.0.0-draft.13
+  version: 1.0.0-draft.14
   description: >-
     Normative consumer contract for Mobile Cliente, Mobile Parceiro and Dashboard.
     This entrypoint composes the reviewed draft.2 base contract with the frozen
@@ -193,6 +193,25 @@ info:
     `provider -> pickup -> destination` road distance) is unchanged. No path,
     parameter, response shape or enum member is removed or narrowed, and the
     base contract stays byte-identical.
+    Revision draft.14 (Tow round — payment lifecycle correction, no shape
+    change): the customer chooses the method ONCE, at creation, and the
+    `POST /tow/proposals/{proposalId}/accept` transaction now materializes the
+    `TowPayment` from that choice in the same commit that creates the
+    assignment. Before assignment there is still no payment row
+    (`TowRequest.payment.status = NOT_SELECTED`); after a successful accept a
+    NEW request always projects `payment.method = cash` and
+    `payment.status = CASH_SELECTED` with
+    `payment.amount_cents = assignment.final_price.amount_cents` and
+    `currency = BRL` — never `NOT_SELECTED`. Replaying the accept never creates
+    a second payment (`UNIQUE(tow_request_id)` / `UNIQUE(assignment_id)` stay
+    the authority). `PUT /tow/requests/{requestId}/payment-method` is NOT part
+    of the first-party flow: it remains a legacy/compatibility path for
+    historical requests (created before draft.13, whose `payment_method` is
+    `null`) and, for a request that already owns its payment, only returns the
+    canonical row without writing. `POST .../cash-received` keeps confirming
+    the partner handover after `COMPLETED` (PENDING -> RECEIVED) and still
+    accepts no amount/currency. No path, parameter, response shape or enum
+    member is removed or narrowed, and the base contract stays byte-identical.
 servers:
   - url: /api
 security: []
@@ -339,6 +358,18 @@ paths:
       tags: [Tow Customer]
       operationId: acceptTowProposal
       security: [{ bearerAuth: [] }]
+      description: >-
+        Atomically assigns the winning proposal and materializes the
+        `TowPayment` from the commercial `payment_method` chosen at creation
+        (`cash` in this phase), in the SAME transaction: `ASSIGNED` and
+        `CASH_SELECTED` commit together or not at all. The response projects
+        `payment.method = cash`, `payment.status = CASH_SELECTED` and
+        `payment.amount_cents = assignment.final_price.amount_cents`, and is
+        never `NOT_SELECTED` for a request created with the commercial choice.
+        Replaying the accept returns the same canonical payment and never
+        creates a second row. A request created before the commercial choice
+        existed (`payment_method = null`) materializes nothing and keeps its
+        truthful `NOT_SELECTED` projection.
       parameters:
         - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/ProposalId'
         - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/IdempotencyKey'
@@ -1057,6 +1088,9 @@ components:
             does NOT backfill a decision the customer never made. This is not
             the financial execution state: `payment` remains the projection of
             the canonical payment row and the two can never disagree in the MVP.
+            Since draft.14 this choice is what the accept transaction uses to
+            materialize the `TowPayment`: the customer never selects the method
+            a second time.
           oneOf:
             - $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/PaymentMethod'
             - type: 'null'
@@ -1068,7 +1102,18 @@ components:
           oneOf:
             - $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/Assignment'
             - type: 'null'
-        payment: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/PaymentSummary' }
+        payment:
+          description: >-
+            Projection of the single `tow_payments` row of this request. Before
+            the assignment it is the truthful empty `NOT_SELECTED` summary
+            (there is no `assignment_id` and no frozen final price yet). A
+            successful accept (draft.14) materializes the row from
+            `TowRequest.payment_method` in the same transaction that creates the
+            assignment, so a NEW request can never project `NOT_SELECTED` after
+            being assigned. `PENDING` projects as `CASH_SELECTED` and `RECEIVED`
+            as `CASH_RECEIVED`; the amount/currency are the assignment's frozen
+            final price and are never recomputed.
+          $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/PaymentSummary'
         allowed_actions:
           type: array
           uniqueItems: true

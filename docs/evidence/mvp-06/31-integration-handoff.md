@@ -1,5 +1,17 @@
 # Tow MVP — Integration handoff (Mobile Cliente / Mobile Parceiro)
 
+> **SUPERSEDED IN PART by the Tow round (contract `1.0.0-draft.14`, 2026-09-23).**
+> Do not follow this document's payment-selection instructions:
+> - `POST /tow/requests` now REQUIRES `payment_method` (`"cash"` is the only implemented member;
+>   missing/unsupported is `422 validation_error`);
+> - the customer chooses the method exactly ONCE: the `POST /tow/proposals/{proposalId}/accept`
+>   transaction materializes `TowPayment` as `CASH_SELECTED` (PENDING) with the assignment's frozen
+>   amount. The first-party flow must NOT call `PUT /tow/requests/{requestId}/payment-method`;
+> - `POST /tow/requests/{requestId}/cash-received` (after `COMPLETED`) is unchanged.
+> The authoritative source for the current round is
+> `docs/tow/tow-api-contract.openapi.yaml` (`1.0.0-draft.14`) plus the mobile handoff
+> `docs/tow-mobile-handoff/CHANGE-SPEC-REAL-ROUTES-PAYMENT-BACKGROUND-TRACKING.md` (in `socorre-v2`).
+
 Date: 2026-09-21
 MVP-06 accepted: PR #40 merged at `c5ca8cc112f39ca8b1d0952b7c1a9305619f24b4`
 Milestone: `TOW MVP BACKEND READY FOR INTEGRATION` (MVP subset only)
