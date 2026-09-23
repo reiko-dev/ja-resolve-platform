@@ -11,6 +11,9 @@
  *          payment projection into every TowRequest DTO producer.
  * B5 — wires the route visualization read over the SAME RouteProvider port the
  *      quote uses (recompute on read; no geometry is persisted).
+ * VALIDATION — the route adapter kind and the payment mode are resolved from
+ *      guarded config: the deterministic fixture and `mock` are explicit-env,
+ *      validation-only selections that production refuses at startup.
  *
  * Builds the application services from the infrastructure adapters. This is the
  * only place the pure layers meet Knex, HTTP, the filesystem and the system
@@ -48,6 +51,23 @@ const { createTowPaymentRepository } = require('./adapters/persistence/tow-payme
 const { createLocalFileStorage } = require('./adapters/storage/local-file-storage');
 const { createSystemClock } = require('./adapters/clock/system-clock');
 const { createGoogleRoutesAdapter } = require('./adapters/routes/google-routes-adapter');
+const { createValidationRoutesAdapter } = require('./adapters/routes/validation-routes-adapter');
+const { resolveTowPaymentMode } = require('../../config/towPaymentMode');
+const { assertTowRouteProviderSafe } = require('../../config/towRouteProvider');
+
+/**
+ * Maps the guarded `TOW_ROUTE_PROVIDER` kind to its adapter. `google` is the
+ * production default; `validation-fixture` is selected only by explicit env and
+ * is rejected in production by the same guard `createApp` uses. There is no
+ * fallback between the two.
+ */
+function createConfiguredRouteProvider(routesOptions = {}, env = process.env) {
+  const kind = assertTowRouteProviderSafe(env);
+  if (kind === 'validation-fixture') {
+    return createValidationRoutesAdapter(routesOptions);
+  }
+  return createGoogleRoutesAdapter(routesOptions);
+}
 
 function buildTowServices(options = {}) {
   // eslint-disable-next-line global-require
@@ -56,7 +76,8 @@ function buildTowServices(options = {}) {
   const storage = options.storage || createLocalFileStorage();
   // The adapter reads its key lazily on the first call, so an unset
   // GOOGLE_ROUTES_API_KEY degrades one operation instead of failing startup.
-  const routeProvider = options.routeProvider || createGoogleRoutesAdapter(options.routes);
+  const routeProvider = options.routeProvider || createConfiguredRouteProvider(options.routes);
+  const paymentMode = options.paymentMode || resolveTowPaymentMode();
 
   const moduleRepository = createModuleRepository(db);
   const vehicleRepository = createVehicleRepository(db);
@@ -87,6 +108,7 @@ function buildTowServices(options = {}) {
     clock,
     storage,
     routeProvider,
+    paymentMode,
     moduleRepository,
     vehicleRepository,
     documentRepository,
@@ -192,4 +214,4 @@ function buildTowServices(options = {}) {
   };
 }
 
-module.exports = { buildTowServices };
+module.exports = { buildTowServices, createConfiguredRouteProvider };

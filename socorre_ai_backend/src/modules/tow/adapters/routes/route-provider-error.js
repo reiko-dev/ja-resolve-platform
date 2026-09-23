@@ -15,6 +15,10 @@
 const REASONS = Object.freeze([
   'configuration_missing',
   'configuration_invalid',
+  // A caller-side malformed request (missing/non-numeric coordinates) is
+  // reported by the validation-only fixture adapter as `invalid_request`: the
+  // request never reached a provider, so no provider reason applies.
+  'invalid_request',
   'timeout',
   'network_failure',
   'provider_error',

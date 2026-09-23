@@ -2,7 +2,7 @@
  * MVP-05 — basic cancellation, by either principal of the job.
  *
  *   `POST /tow/requests/{requestId}/cancel`          owning customer
- *   `POST /tow/partner/jobs/{requestId}/cancel`      assigned partner
+ *   `POST /tow/requests/{requestId}/cancel-partner`  assigned partner
  *
  * Both routes are the SAME operation with a different owner predicate, so they
  * share one implementation and cannot drift apart. What differs is only:

@@ -30,7 +30,14 @@
     "test:pg:down": "node scripts/tow/test-env.js down",
     "test:pg:guard": "node scripts/tow/test-env.js guard",
     "verify:tow": "node scripts/tow/verify.js",
-    "verify:tow:offline": "node scripts/tow/verify.js --skip-postgres"
+    "verify:tow:offline": "node scripts/tow/verify.js --skip-postgres",
+    "start:validation": "node scripts/tow/validation-server.js",
+    "tow:validation:up": "node scripts/tow/validation-env.js up",
+    "tow:validation:down": "node scripts/tow/validation-env.js down",
+    "tow:validation:status": "node scripts/tow/validation-env.js status",
+    "tow:validation:reset": "node scripts/tow/validation-env.js reset",
+    "tow:validation:seed": "node scripts/tow/validation-env.js seed",
+    "tow:validation:smoke": "node scripts/tow/validation-smoke.js"
   },
   "dependencies": {
     "axios": "^1.14.0",

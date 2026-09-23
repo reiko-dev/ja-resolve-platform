@@ -1,9 +1,19 @@
 const http = require('http');
 require('dotenv').config();
 const { assertProductionSecrets } = require('./config/requiredSecrets');
+const {
+  resolveTowPaymentMode,
+  describeTowPaymentMode,
+  assertTowPaymentModeSafe,
+} = require('./config/towPaymentMode');
+const { assertTowRouteProviderSafe } = require('./config/towRouteProvider');
 
 // Production boots only with explicit secrets; dev/test are untouched.
 assertProductionSecrets();
+// The validation-only selections fail here too, so `node src/server.js` refuses
+// before the app (and its listeners/routes) is even imported.
+assertTowPaymentModeSafe();
+assertTowRouteProviderSafe();
 
 const { createApp } = require('./app');
 const socketService = require('./services/socketService');
@@ -42,6 +52,10 @@ function startServer({ port = DEFAULT_PORT, host = DEFAULT_HOST } = {}) {
     console.log(`🌍 Ambiente: ${process.env.NODE_ENV || 'development'}`);
     console.log(`📅 ${new Date().toLocaleString('pt-BR')}`);
     console.log(`🔌 WebSocket server ativo`);
+    console.log(`💳 Tow payment mode: ${describeTowPaymentMode(resolveTowPaymentMode())}`);
+    if (process.env.APP_ENV === 'validation') {
+      console.log('🧪 AMBIENTE DE VALIDAÇÃO — PAGAMENTOS SIMULADOS');
+    }
   });
 
   return server;

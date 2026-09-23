@@ -62,7 +62,16 @@ const AUTHORITY_FILES = [
   path.join(TOW_SRC, 'domain/pricing.js'),
   path.join(TOW_SRC, 'domain/route.js'),
   path.join(TOW_SRC, 'application/quote-service.js'),
-].concat(listFiles(path.join(TOW_SRC, 'adapters/routes'), (file) => file.endsWith('.js')));
+].concat(
+  // The validation-only fixture is NOT a pricing/route authority: it is a
+  // deterministic stand-in selected by explicit env and rejected in production
+  // (`tests/tow/validation` asserts both). Its whole purpose is to derive
+  // stable numbers from the geodesic primitive, so it is the one adapter
+  // allowed to import `geo`. The real authority — the Google adapter — stays
+  // covered by the assertions below.
+  listFiles(path.join(TOW_SRC, 'adapters/routes'), (file) => file.endsWith('.js'))
+    .filter((file) => path.basename(file) !== 'validation-routes-adapter.js')
+);
 
 describe('MVP-03 ARCH — geodesic ownership', () => {
   test('exactly one file owns the geodesic primitive', () => {

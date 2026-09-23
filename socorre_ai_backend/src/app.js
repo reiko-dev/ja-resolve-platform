@@ -7,6 +7,8 @@ require('dotenv').config();
 const { mountLegacyRoutes } = require('./bootstrap/legacyRoutes');
 const { getAllowedOrigins, isOriginAllowed } = require('./config/cors');
 const { getJwtSecret } = require('./config/jwt');
+const { assertTowPaymentModeSafe } = require('./config/towPaymentMode');
+const { assertTowRouteProviderSafe } = require('./config/towRouteProvider');
 const db = require('./config/database');
 
 /**
@@ -21,6 +23,12 @@ const db = require('./config/database');
  * clock and a recording RouteProvider so no test can reach Google.
  */
 function createApp(options = {}) {
+  // Validation-only selections must be impossible to construct in production:
+  // `TOW_PAYMENT_MODE=mock` and `TOW_ROUTE_PROVIDER=validation-fixture` throw
+  // here (startup failure), before any middleware or route exists.
+  assertTowPaymentModeSafe();
+  assertTowRouteProviderSafe();
+
   const app = express();
 
   // Nginx sits in front of Express in production: trust the first proxy
