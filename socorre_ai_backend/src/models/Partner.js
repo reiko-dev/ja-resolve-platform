@@ -344,12 +344,16 @@ class Partner {
   }
 
   // Atualizar status online
+  // Presence is persisted on `is_online` (the column Tow matching reads) plus
+  // the baseline `updated_at`; there is no `last_seen` column in the schema.
+  // Returns the affected-row count so the controller can keep answering 404
+  // for an unknown partner id (0 rows) and 200 for a real update.
   static async updateOnlineStatus(id, isOnline) {
-    await knex('partners')
+    return await knex('partners')
       .where('id', id)
       .update({
         is_online: isOnline,
-        last_seen: knex.fn.now()
+        updated_at: knex.fn.now()
       });
   }
 
@@ -434,7 +438,9 @@ class Partner {
       .where('partners.is_available', true)
       .where('partners.is_verified', true)
       .where('partners.is_online', true)
-      .orderBy('partners.last_seen', 'desc');
+      // `last_seen` does not exist in the baseline schema; `updated_at` is the
+      // closest existing signal of recent activity.
+      .orderBy('partners.updated_at', 'desc');
   }
 
   // Obter raio de busca por tipo
