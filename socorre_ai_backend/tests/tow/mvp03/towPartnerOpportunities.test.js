@@ -200,6 +200,54 @@ describe('MVP-03 — partner opportunities', () => {
       });
     });
 
+    test('two partners with different TowVehicle tariffs receive different backend prices', async () => {
+      await createRequest();
+      const cheap = await partnerWith({ partnerOverrides: NEAR_PARTNER });
+      const premiumTariff = {
+        minimum_charge_cents: 30000,
+        included_km: 5,
+        price_per_additional_km_cents: 1200,
+      };
+      const premium = await partnerWith({
+        partnerOverrides: { ...NEAR_PARTNER, cnpj: '11222333000199' },
+        vehicleOverrides: { plate: 'XYZ9Z99', pricing: premiumTariff },
+      });
+
+      const cheapFeed = await listOpportunities(cheap);
+      const premiumFeed = await listOpportunities(premium);
+      const cheapPrice = cheapFeed.body.data.items[0].proposed_price;
+      const premiumPrice = premiumFeed.body.data.items[0].proposed_price;
+
+      // Same request, same road distance, DIFFERENT TowVehicle tariff: the price
+      // is per-partner and computed only by the backend.
+      expect(cheapFeed.body.data.items[0].route_quote)
+        .toEqual(premiumFeed.body.data.items[0].route_quote);
+      expect(cheapPrice).toEqual({ amount_cents: 18480, currency: 'BRL' });
+      // 30000 + (14350 - 5000) * 1200 / 1000 = 30000 + 11220 = 41220
+      expect(premiumPrice).toEqual({ amount_cents: 41220, currency: 'BRL' });
+      expect(premiumPrice.amount_cents).not.toBe(cheapPrice.amount_cents);
+    });
+
+    test('the quoted distance is exactly provider -> pickup + pickup -> destination', async () => {
+      await createRequest();
+      const partner = await partnerWith({ partnerOverrides: NEAR_PARTNER });
+      routeProvider.providerToPickup = { distance_meters: 7000, duration_seconds: 900 };
+      routeProvider.pickupToDestination = { distance_meters: 7350, duration_seconds: 1200 };
+
+      const response = await listOpportunities(partner);
+      const quote = await services.quoteService.quoteTow({
+        provider: { latitude: NEAR_PARTNER.latitude, longitude: NEAR_PARTNER.longitude },
+        pickup: PICKUP,
+        destination: createTowRequestInput().destination,
+        tariff: TARIFF,
+      });
+
+      expect(quote.route_quote.provider_to_pickup.distance_meters).toBe(7000);
+      expect(quote.route_quote.pickup_to_destination.distance_meters).toBe(7350);
+      expect(response.body.data.items[0].route_quote.total_distance_meters).toBe(14350);
+      expect(response.body.data.items[0].proposed_price).toEqual(quote.calculated_price);
+    });
+
     test('exactly one RouteProvider call is made per eligible opportunity', async () => {
       await createRequest();
       const partner = await partnerWith({ partnerOverrides: NEAR_PARTNER });
