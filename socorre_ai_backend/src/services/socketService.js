@@ -327,6 +327,10 @@ class SocketService {
           .join('partners', 'tow_assignments.partner_id', 'partners.id')
           .where('tow_assignments.tow_request_id', requestId)
           .where('partners.user_id', socket.userId)
+          // Same `partner_type` guard as the REST middleware: a mechanic partner
+          // can never hold a tow assignment, but the room must mirror the REST
+          // read literally.
+          .where('partners.type', 'tow')
           .select('tow_assignments.id')
           .first();
         authorized = Boolean(assignment);
