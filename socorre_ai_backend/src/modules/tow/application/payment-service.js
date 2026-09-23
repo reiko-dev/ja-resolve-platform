@@ -18,14 +18,16 @@
  * legacy decimal column. `markCashReceived` accepts no body at all, which makes
  * a client-supplied amount impossible rather than merely ignored.
  *
- * Creation rule (documented decision, see `05-payment-authority.md`):
- *   The payment row is created lazily on the FIRST financial write — the
- *   customer selecting `cash`, or the assigned partner confirming receipt —
- *   whichever happens first. `getSummary` never writes. This guarantees one
- *   payment (enforced by `UNIQUE(tow_request_id)` / `UNIQUE(assignment_id)`), a
- *   frozen accepted amount, a rehydratable status and an idempotent
- *   confirmation, with the smallest possible architecture and no clock-driven
- *   pre-creation.
+ * Creation rule (Tow round, see `05-payment-authority.md`):
+ *   The commercial choice is made at creation (`TowRequest.payment_method`) and
+ *   the payment row is materialized AUTOMATICALLY by the accept transaction, in
+ *   the same commit that creates the assignment, as `PENDING` with the frozen
+ *   accepted amount. `selectMethod` (legacy) and `markCashReceived` remain
+ *   lazy-creation compatibility paths for historical requests; `getSummary`
+ *   never writes. This guarantees one payment (enforced by
+ *   `UNIQUE(tow_request_id)` / `UNIQUE(assignment_id)`), a frozen accepted
+ *   amount, a rehydratable status and an idempotent confirmation, with no
+ *   clock-driven pre-creation.
  *
  * Idempotency authority:
  *   The `Idempotency-Key` header is validated (422, 8–128 chars) BEFORE any
@@ -81,11 +83,22 @@ function createPaymentService({
   /** Amount authority: the frozen accepted price of the canonical assignment. */
 
   /**
-   * `PUT /tow/requests/{requestId}/payment-method`
+   * `PUT /tow/requests/{requestId}/payment-method` — LEGACY/COMPATIBILITY PATH.
    *
-   * The owning customer picks a method. MVP-06 implements only `cash`; the
-   * validation layer rejects `card`/`pix` and `payment_source_token` with 422
-   * BEFORE the transaction opens, so an unsupported method inserts zero rows.
+   * TOW ROUND: the customer chooses the method ONCE, at creation
+   * (`POST /tow/requests` requires `payment_method`), and the accept flow
+   * materializes the `TowPayment` from that choice. This operation is therefore
+   * NOT part of the first-party journey: it exists for historical requests
+   * created before the commercial choice and as an idempotent recovery path.
+   *
+   * It can never represent a NEW commercial decision:
+   *   - the body accepts only `cash` (the only implemented method), so it cannot
+   *     diverge from `TowRequest.payment_method`;
+   *   - when the payment row already exists (every request created since the
+   *     commercial choice), the transaction returns that canonical row before
+   *     any state check and writes nothing — it is a read;
+   *   - a historical request without a payment row still requires an assignment
+   *     (409 `invalid_tow_state` otherwise), exactly like MVP-06.
    */
   async function selectMethod({ customerId, requestId, payload, idempotencyKey } = {}) {
     validateIdempotencyKey(idempotencyKey);
