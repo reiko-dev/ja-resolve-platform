@@ -39,6 +39,7 @@ const {
   listPartnerJobs,
 } = require('../../helpers/tow/mvp06');
 const { createAssignedScenario } = require('../../helpers/tow/mvp05');
+const { createCanonicalRequest } = require('../../helpers/tow/mvp03');
 const { createTowCustomerAuth } = require('../../helpers/tow/auth');
 
 describe('MVP-06 — CASH payment', () => {
@@ -107,12 +108,19 @@ describe('MVP-06 — CASH payment', () => {
     test('the confirmation is rejected while the tow is not COMPLETED', async () => {
       const fixture = await assigned();
 
+      // The payment already exists (materialized at accept as PENDING); the
+      // rejected confirmation must not transition it.
+      const before = await paymentRow(testDb.db, fixture.request.id);
+      expect(String(before.status)).toBe('PENDING');
+
       const response = await cashReceived(app, fixture.request.id, fixture.auths[0]);
       expect(response.status).toBe(409);
       expect(response.body.error.code).toBe('invalid_tow_state');
 
       const row = await paymentRow(testDb.db, fixture.request.id);
-      expect(row ?? null).toBeNull();
+      expect(String(row.status)).toBe('PENDING');
+      expect(row.received_at).toBeNull();
+      expect(row.received_by_partner_id).toBeNull();
     });
   });
 
@@ -141,6 +149,8 @@ describe('MVP-06 — CASH payment', () => {
 
     test('a client-supplied amount is rejected and never becomes authority', async () => {
       const fixture = await completed();
+      const assignment = await services.assignmentRepository.findByRequestId(fixture.request.id);
+
       const response = await cashReceived(app, fixture.request.id, fixture.auths[0], {
         body: { amount_cents: 1, currency: 'BRL' },
       });
@@ -148,7 +158,9 @@ describe('MVP-06 — CASH payment', () => {
       expect(response.status).toBe(422);
       expect(response.body.error.code).toBe('validation_error');
       const row = await paymentRow(testDb.db, fixture.request.id);
-      expect(row ?? null).toBeNull();
+      expect(String(row.status)).toBe('PENDING');
+      expect(Number(row.amount_cents)).toBe(Number(assignment.final_price_amount_cents));
+      expect(Number(row.amount_cents)).not.toBe(1);
     });
   });
 
@@ -159,7 +171,9 @@ describe('MVP-06 — CASH payment', () => {
 
       expect(response.status).toBe(403);
       expect(response.body.error.code).toBe('not_assigned_partner');
-      expect(await paymentRow(testDb.db, fixture.request.id)).toBeUndefined();
+      const row = await paymentRow(testDb.db, fixture.request.id);
+      expect(String(row.status)).toBe('PENDING');
+      expect(row.received_at).toBeNull();
     });
 
     test('the customer cannot confirm cash', async () => {
@@ -167,7 +181,9 @@ describe('MVP-06 — CASH payment', () => {
       const response = await cashReceived(app, fixture.request.id, fixture.customerAuth);
 
       expect(response.status).toBe(403);
-      expect(await paymentRow(testDb.db, fixture.request.id)).toBeUndefined();
+      const row = await paymentRow(testDb.db, fixture.request.id);
+      expect(String(row.status)).toBe('PENDING');
+      expect(row.received_at).toBeNull();
     });
 
     test('an anonymous caller is rejected', async () => {
@@ -175,7 +191,9 @@ describe('MVP-06 — CASH payment', () => {
       const response = await cashReceived(app, fixture.request.id, null, { auth: null, key: null });
 
       expect(response.status).toBe(401);
-      expect(await paymentRow(testDb.db, fixture.request.id)).toBeUndefined();
+      const row = await paymentRow(testDb.db, fixture.request.id);
+      expect(String(row.status)).toBe('PENDING');
+      expect(row.received_at).toBeNull();
     });
 
     test('an unknown request is 404 and a non-canonical id is 404', async () => {
@@ -239,12 +257,21 @@ describe('MVP-06 — CASH payment', () => {
     });
 
     test('a request with no payment reports NOT_SELECTED with a null amount', async () => {
+      // Since the Tow round the payment is materialized at ACCEPT, so the
+      // truthful NOT_SELECTED projection belongs to the pre-assignment request
+      // (there is no assignment_id and no frozen final price yet).
       const fixture = await assigned();
-      const response = await getPayment(app, fixture.request.id, fixture.customerAuth);
+      const { request: openRequest } = await createCanonicalRequest({
+        services,
+        customer: fixture.customer,
+        clock,
+        idempotencyKey: 'idem-mvp06-open-000001',
+      });
 
+      const response = await getPayment(app, openRequest.id, fixture.customerAuth);
       expect(response.status).toBe(200);
       expect(response.body.data).toEqual({
-        request_id: String(fixture.request.id),
+        request_id: String(openRequest.id),
         method: null,
         status: 'NOT_SELECTED',
         amount_cents: null,
@@ -322,6 +349,9 @@ describe('MVP-06 — CASH payment', () => {
   describe('payment method selection', () => {
     test('card and pix are not implemented in the MVP subset', async () => {
       const fixture = await assigned();
+      // The canonical payment was materialized at accept; the rejected legacy
+      // selections must not touch it.
+      expect(await paymentRows(testDb.db, fixture.request.id)).toHaveLength(1);
       for (const method of ['card', 'pix']) {
         const response = await selectPaymentMethod(app, fixture.request.id, fixture.customerAuth, {
           method,
@@ -330,7 +360,9 @@ describe('MVP-06 — CASH payment', () => {
         expect(response.status).toBe(422);
         expect(response.body.error.code).toBe('validation_error');
       }
-      expect(await paymentRows(testDb.db, fixture.request.id)).toHaveLength(0);
+      const rows = await paymentRows(testDb.db, fixture.request.id);
+      expect(rows).toHaveLength(1);
+      expect(String(rows[0].status)).toBe('PENDING');
     });
 
     test('a foreign customer cannot select the method and an anonymous caller is rejected', async () => {
@@ -356,10 +388,13 @@ describe('MVP-06 — CASH payment', () => {
       expect(response.body.data.status).toBe('CASH_SELECTED');
     });
 
-    test('cash cannot be selected before any assignment exists', async () => {
+    test('cash cannot be selected before any assignment exists (historical path)', async () => {
       const fixture = await completed();
       // Rewind the canonical row to the pre-assignment shape the runtime can
       // actually produce: `SEARCHING` with no milestones and no assignment.
+      // The payment row is removed too: this models a HISTORICAL request, which
+      // is the only shape that reaches the legacy create path now that the
+      // accept materializes the payment from the commercial choice.
       await testDb.db('tow_requests').where({ id: fixture.request.id }).update({
         state: 'SEARCHING',
         completed_at: null,
@@ -368,6 +403,7 @@ describe('MVP-06 — CASH payment', () => {
         en_route_at: null,
       });
       await testDb.db('tow_assignments').where({ tow_request_id: fixture.request.id }).del();
+      await testDb.db('tow_payments').where({ tow_request_id: fixture.request.id }).del();
 
       const response = await selectPaymentMethod(app, fixture.request.id, fixture.customerAuth);
       expect(response.status).toBe(409);

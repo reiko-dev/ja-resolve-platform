@@ -90,7 +90,11 @@ describe('MVP-06 — Gauntlet attack pass', () => {
 
     expect(response.status).toBe(422);
     expect(response.body.error.code).toBe('validation_error');
-    expect(await paymentRows(testDb.db, fixture.request.id)).toHaveLength(0);
+    // The materialized payment is untouched by the rejected injection.
+    const rows = await paymentRows(testDb.db, fixture.request.id);
+    expect(rows).toHaveLength(1);
+    expect(String(rows[0].status)).toBe('PENDING');
+    expect(String(rows[0].currency)).toBe('BRL');
   });
 
   test('A2 — an amount in the query string cannot change the authoritative amount', async () => {
@@ -182,34 +186,38 @@ describe('MVP-06 — Gauntlet attack pass', () => {
     expect(Number(row.received_by_partner_id)).not.toBe(Number(fixture.partners[1].partner.id));
   });
 
-  test('A6 — a malformed Idempotency-Key inserts nothing on both writes', async () => {
+  test('A6 — a malformed Idempotency-Key mutates nothing on both writes', async () => {
     const fixture = await completed();
 
     const short = await cashReceived(app, fixture.request.id, fixture.auths[0], { key: 'short' });
     expect(short.status).toBe(422);
     expect(short.body.error.code).toBe('validation_error');
-    expect(await paymentRows(testDb.db, fixture.request.id)).toHaveLength(0);
+    expect(String((await paymentRows(testDb.db, fixture.request.id))[0].status)).toBe('PENDING');
 
     const missing = await require('supertest')(app)
       .post(`/api/tow/requests/${fixture.request.id}/cash-received`)
       .set(fixture.auths[0].headers)
       .send();
     expect(missing.status).toBe(422);
-    expect(await paymentRows(testDb.db, fixture.request.id)).toHaveLength(0);
+    expect(String((await paymentRows(testDb.db, fixture.request.id))[0].status)).toBe('PENDING');
 
     const assignedFixture = await createAssignedScenario({ app, services, clock });
     const shortSelect = await selectPaymentMethod(app, assignedFixture.request.id, assignedFixture.customerAuth, {
       key: 'nope',
     });
     expect(shortSelect.status).toBe(422);
-    expect(await paymentRows(testDb.db, assignedFixture.request.id)).toHaveLength(0);
+    const rows = await paymentRows(testDb.db, assignedFixture.request.id);
+    expect(rows).toHaveLength(1);
+    expect(String(rows[0].status)).toBe('PENDING');
   });
 
   test('A7 — the assigned partner cannot select the payment method (customer-only)', async () => {
     const fixture = await createAssignedScenario({ app, services, clock });
     const response = await selectPaymentMethod(app, fixture.request.id, fixture.auths[0]);
     expect(response.status).toBe(403);
-    expect(await paymentRows(testDb.db, fixture.request.id)).toHaveLength(0);
+    const rows = await paymentRows(testDb.db, fixture.request.id);
+    expect(rows).toHaveLength(1);
+    expect(String(rows[0].status)).toBe('PENDING');
   });
 
   test('A8 — a non-assigned partner cannot read the payment and sees no partner id', async () => {

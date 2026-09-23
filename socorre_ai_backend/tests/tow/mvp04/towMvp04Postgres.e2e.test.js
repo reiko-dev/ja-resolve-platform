@@ -34,6 +34,7 @@ const CUSTOMER_INPUT = Object.freeze({
   vehicle: { class: 'light_vehicle', make: 'Fiat', model: 'Argo', year: 2021, weight_kg: 1200, plate: 'ABC1D23' },
   problem_description: 'Carro não liga na garagem do prédio',
   observations: null,
+  payment_method: 'cash',
 });
 
 const TARIFF = Object.freeze({
