@@ -118,6 +118,19 @@
  * @typedef {Object} Clock
  * @property {() => Date} now
  *
+ * TOW ROUND — the realtime invalidation signal of the persisted tracking point.
+ *
+ * The socket is a FAST PATH, never an authority: the publisher receives the
+ * canonical request id and the backend instant of the stored point, and a
+ * consumer that misses the event recovers through
+ * `GET /tow/requests/{requestId}/tracking`. Publishing must never fail the
+ * write: the application calls it AFTER the transaction committed and swallows
+ * (with a safe log) any transport failure.
+ *
+ * @typedef {Object} TrackingEventPublisher
+ * @property {(event: { request_id: string, received_at: string }) => void} publishTrackingUpdated
+ *
+ *
  * MVP-02 — authoritative route distance.
  *
  * The application asks for the trip `origin -> pickup -> destination` and gets
@@ -144,6 +157,7 @@ const PORT_NAMES = Object.freeze([
   'FileStorage',
   'Clock',
   'RouteProvider',
+  'TrackingEventPublisher',
 ]);
 
 module.exports = { PORT_NAMES };

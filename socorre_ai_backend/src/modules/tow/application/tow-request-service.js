@@ -121,9 +121,12 @@ function createTowRequestService({
     });
 
     // 4. Atomic create-or-replay. The fingerprint source stays transient: the
-    //    adapter persists only its digest.
+    //    adapter persists only its digest. It is built from the RAW payload,
+    //    not from the already-normalized input, because the fingerprint source
+    //    normalizes internally — feeding it a normalized input would re-validate
+    //    the persistence vocabulary (`CASH`) as if it were a client value.
     const { row, same_payload: samePayload } = await towRequestRepository.createIdempotent(record, {
-      fingerprintSource: canonicalFingerprintSource(input),
+      fingerprintSource: canonicalFingerprintSource(payload),
     });
 
     if (!samePayload) {

@@ -11,6 +11,8 @@
  *          payment projection into every TowRequest DTO producer.
  * B5 — wires the route visualization read over the SAME RouteProvider port the
  *      quote uses (recompute on read; no geometry is persisted).
+ * TOW ROUND — wires the tracking invalidation publisher (Socket.IO adapter by
+ *      default; injectable for tests) into the tracking service.
  * VALIDATION — the route adapter kind and the payment mode are resolved from
  *      guarded config: the deterministic fixture and `mock` are explicit-env,
  *      validation-only selections that production refuses at startup.
@@ -52,6 +54,7 @@ const { createLocalFileStorage } = require('./adapters/storage/local-file-storag
 const { createSystemClock } = require('./adapters/clock/system-clock');
 const { createGoogleRoutesAdapter } = require('./adapters/routes/google-routes-adapter');
 const { createValidationRoutesAdapter } = require('./adapters/routes/validation-routes-adapter');
+const { createSocketTrackingPublisher } = require('./adapters/events/socket-tracking-publisher');
 const { resolveTowPaymentMode } = require('../../config/towPaymentMode');
 const { assertTowRouteProviderSafe } = require('../../config/towRouteProvider');
 
@@ -78,6 +81,11 @@ function buildTowServices(options = {}) {
   // GOOGLE_ROUTES_API_KEY degrades one operation instead of failing startup.
   const routeProvider = options.routeProvider || createConfiguredRouteProvider(options.routes);
   const paymentMode = options.paymentMode || resolveTowPaymentMode();
+  // TOW ROUND — the tracking invalidation publisher. Production uses the
+  // Socket.IO adapter; tests inject a spy (or `null` to disable publishing).
+  const trackingEvents = options.trackingEvents === undefined
+    ? createSocketTrackingPublisher()
+    : options.trackingEvents;
 
   const moduleRepository = createModuleRepository(db);
   const vehicleRepository = createVehicleRepository(db);
@@ -187,6 +195,7 @@ function buildTowServices(options = {}) {
       trackingRepository,
       unitOfWork,
       clock,
+      trackingEvents,
     }),
     cancellationService: createCancellationService({
       settingsService,

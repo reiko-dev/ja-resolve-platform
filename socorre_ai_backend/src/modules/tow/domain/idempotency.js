@@ -65,13 +65,21 @@ function validateIdempotencyKey(value) {
  * whose key order would depend on the caller's serialization — built from the
  * normalized input. Numeric fields are normalized to their canonical decimal
  * form so `-23.5` and `-23.50` are the same request.
+ *
+ * TOW ROUND — the tag was bumped to `v2` when the commercial `payment_method`
+ * became part of the normalized payload: a source format that ignored a field
+ * of the payload would let a future second method replay as a different
+ * commercial choice. Consequence, recorded honestly: a key persisted under
+ * `v1` (before this delivery) no longer matches, so a retry of a pre-upgrade
+ * attempt is a `409 idempotency_conflict` instead of a replay — the same answer
+ * the payload itself would get, since creation now requires `payment_method`.
  */
 function canonicalFingerprintSource(payload) {
   const input = validateCreateTowRequestInput(payload);
   const { pickup, destination, vehicle } = input;
 
   return JSON.stringify([
-    'tow-request-create-v1',
+    'tow-request-create-v2',
     [
       pickup.latitude,
       pickup.longitude,
@@ -92,6 +100,7 @@ function canonicalFingerprintSource(payload) {
     ],
     input.problem_description,
     input.observations ?? '',
+    input.payment_method,
   ]);
 }
 

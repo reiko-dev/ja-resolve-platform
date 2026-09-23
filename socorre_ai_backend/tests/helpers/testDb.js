@@ -765,6 +765,10 @@ const SCHEMA = [
   // SQLite mirror of the PostgreSQL constraints added by that migration: SQLite
   // cannot add a CHECK to an existing table, so the offline harness declares
   // them at creation time and PostgreSQL enforces them as constraints.
+  //
+  // TOW ROUND appends the commercial `payment_method` column and its CHECK
+  // (mirrors database/migrations/008_tow_request_payment_method.js). It stays
+  // nullable for historical rows; new rows are always `CASH`.
   `CREATE TABLE IF NOT EXISTS tow_requests (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     customer_id INTEGER NOT NULL,
@@ -784,6 +788,7 @@ const SCHEMA = [
     vehicle_plate VARCHAR(10),
     problem_description TEXT NOT NULL,
     observations TEXT,
+    payment_method VARCHAR(10),
     matching_radius_km DECIMAL(8, 2) NOT NULL,
     idempotency_key VARCHAR(128) NOT NULL,
     idempotency_fingerprint VARCHAR(64) NOT NULL,
@@ -808,7 +813,8 @@ const SCHEMA = [
     CHECK ((cancelled_by_actor_type IS NULL) = (cancelled_by_actor_id IS NULL)),
     CHECK (cancelled_at IS NOT NULL OR (cancelled_by_actor_type IS NULL AND cancelled_by_actor_id IS NULL)),
     CHECK (cancellation_reason IS NULL OR length(cancellation_reason) <= 2000),
-    CHECK (terminal_reason IS NULL OR state IN ('CANCELLED', 'COMPLETED'))
+    CHECK (terminal_reason IS NULL OR state IN ('CANCELLED', 'COMPLETED')),
+    CHECK (payment_method IS NULL OR payment_method IN ('CASH'))
   )`,
 
   // MVP-04 — the negotiation record and the single assignment authority

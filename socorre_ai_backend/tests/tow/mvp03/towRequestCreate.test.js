@@ -165,14 +165,17 @@ describe('MVP-03 — Tow request creation', () => {
       const customer = await createTowCustomerAuth();
       await post(createTowRequestInput(), { auth: customer });
 
-      const columns = Object.keys((await rows())[0]);
+      const persisted = (await rows())[0];
       for (const forbidden of [
         'estimated_price', 'final_price', 'price_breakdown', 'route_quote',
         'distance_meters', 'duration_seconds', 'partner_id', 'assigned_partner_id',
-        'selected_proposal_id', 'payment_status', 'payment_method', 'search_expires_at',
+        'selected_proposal_id', 'payment_status', 'search_expires_at',
       ]) {
-        expect(columns).not.toContain(forbidden);
+        expect(Object.keys(persisted)).not.toContain(forbidden);
       }
+      // The commercial choice is NOT a price: it is the persisted method the
+      // customer selected, in the module's own persistence vocabulary.
+      expect(persisted.payment_method).toBe('CASH');
     });
 
     test('creation never calls the route provider', async () => {

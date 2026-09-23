@@ -17,7 +17,7 @@ const { createFakeClock } = require('./clock');
 const { createTowPartner, createTowCustomer } = require('./factories');
 const { createFakeRouteProvider } = require('./gateways/mapsGateway');
 const { buildTowServices } = require('../../../src/modules/tow/composition');
-const { canonicalFingerprintSource } = require('../../../src/modules/tow/domain');
+const { canonicalFingerprintSource, normalizeTowRequestPaymentMethod } = require('../../../src/modules/tow/domain');
 
 const DEFAULT_INSTANT = '2026-01-15T12:00:00.000Z';
 
@@ -49,6 +49,9 @@ const VALID_CREATE_INPUT = Object.freeze({
   }),
   problem_description: 'Carro não liga na garagem do prédio',
   observations: 'Portão B, avisar na portaria',
+  // The commercial choice is part of the frozen create payload since the Tow
+  // round: a request cannot be born without it.
+  payment_method: 'cash',
 });
 
 /** Tariff that reproduces the MVP-02 quote fixture (18480 cents for the fake legs). */
@@ -171,6 +174,12 @@ async function createCanonicalRequest(options = {}) {
       vehicle: input.vehicle,
       problem_description: input.problem_description,
       observations: input.observations ?? null,
+      // The helper writes the aggregate directly, so the consumer vocabulary of
+      // the payload is normalized here exactly as `validateCreateTowRequestInput`
+      // would (`cash` -> `CASH`). `null` stays null: it models a historical row.
+      payment_method: input.payment_method === undefined || input.payment_method === null
+        ? null
+        : normalizeTowRequestPaymentMethod(input.payment_method),
       matching_radius_km: radiusKm,
       idempotency_key: idempotencyKey,
       created_at: clock.now(),

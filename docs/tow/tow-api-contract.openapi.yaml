@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: JaResolve Tow Consumer API
-  version: 1.0.0-draft.12
+  version: 1.0.0-draft.13
   description: >-
     Normative consumer contract for Mobile Cliente, Mobile Parceiro and Dashboard.
     This entrypoint composes the reviewed draft.2 base contract with the frozen
@@ -172,6 +172,27 @@ info:
     with `409 invalid_tow_state`. Replaying a cancellation remains a 200 read of
     the canonical row. No path, parameter, response shape or enum member is
     removed or narrowed, and the base contract stays byte-identical.
+    Revision draft.13 (Tow round — mandatory commercial payment choice at
+    creation, additive): `CreateTowRequestInput.payment_method` is now REQUIRED
+    and `TowRequest.payment_method` exposes the customer's commercial choice.
+    A new request can no longer be born `NOT_SELECTED`: `POST /tow/requests`
+    without `payment_method` answers `422 validation_error`, and the runtime
+    accepts exactly the `cash` member of the frozen `PaymentMethod` enum
+    (`card`/`pix` remain schema-valid for Phase 2 but answer `422` with reason
+    `method_not_supported_in_mvp`, exactly like `selectTowPaymentMethod`). The
+    field is the COMMERCIAL choice made before creation, not the financial
+    execution: `TowRequest.payment` remains the projection of the single
+    `tow_payments` row (created only after assignment, on the first financial
+    write) and the two can never disagree in this MVP. `TowRequest.payment_method`
+    is nullable in the schema because requests created before this revision
+    keep `NULL` (the migration deliberately does NOT backfill a decision the
+    customer never made); every NEW request carries `cash`. The partner
+    opportunity item already carries the full `request`, so the method is
+    visible to the Parceiro without a new member, and the authoritative
+    per-partner price (`proposed_price` from the TowVehicle tariff over
+    `provider -> pickup -> destination` road distance) is unchanged. No path,
+    parameter, response shape or enum member is removed or narrowed, and the
+    base contract stays byte-identical.
 servers:
   - url: /api
 security: []
@@ -1009,6 +1030,74 @@ components:
     TowProposalStatus:
       type: string
       enum: [ACTIVE, COUNTERED, ACCEPTED, REJECTED, WITHDRAWN, EXPIRED, CLOSED]
+
+    # draft.13 — the canonical TowRequest with the commercial payment choice.
+    # The composed document resolves every `TowRequest` reference here (the
+    # canonical component overrides the base one), so the base artifact stays
+    # byte-identical while the consumer contract gains the new member.
+    TowRequest:
+      type: object
+      required: [id, state, module_key, customer_id, pickup, destination, vehicle, payment_method, payment, allowed_actions, created_at, updated_at]
+      properties:
+        id: { type: string }
+        state: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TowRequestState' }
+        terminal_reason: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TerminalReason' }
+        module_key: { const: tow }
+        customer_id: { type: string }
+        pickup: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/GeoPoint' }
+        destination: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/GeoPoint' }
+        vehicle: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/CustomerVehicle' }
+        problem_description: { type: string }
+        observations: { type: [string, 'null'] }
+        payment_method:
+          description: >-
+            Commercial payment choice made by the customer BEFORE the request
+            was created. Every NEW request carries `cash`; `null` appears only
+            for requests created before draft.13, whose migration deliberately
+            does NOT backfill a decision the customer never made. This is not
+            the financial execution state: `payment` remains the projection of
+            the canonical payment row and the two can never disagree in the MVP.
+          oneOf:
+            - $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/PaymentMethod'
+            - type: 'null'
+        matching:
+          oneOf:
+            - $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/MatchingSummary'
+            - type: 'null'
+        assignment:
+          oneOf:
+            - $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/Assignment'
+            - type: 'null'
+        payment: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/PaymentSummary' }
+        allowed_actions:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            enum: [cancel, change_destination, accept_proposal, counteroffer, select_payment_method, confirm_completion, open_dispute, review, send_proposal, withdraw_proposal, accept_counteroffer, reject_counteroffer, start_en_route, mark_arrived, start_in_transit, finish_service, mark_cash_received, report_customer_no_show]
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    # draft.13 — the create payload now REQUIRES the commercial choice. The
+    # runtime accepts exactly `cash`; `card`/`pix` stay declared for Phase 2 and
+    # answer 422 `method_not_supported_in_mvp` until it lands.
+    CreateTowRequestInput:
+      type: object
+      additionalProperties: false
+      required: [pickup, destination, vehicle, problem_description, payment_method]
+      properties:
+        pickup: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/GeoPoint' }
+        destination: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/GeoPoint' }
+        vehicle: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/CustomerVehicle' }
+        problem_description: { type: string, minLength: 1, maxLength: 2000 }
+        observations: { type: [string, 'null'], maxLength: 4000 }
+        payment_method:
+          description: >-
+            Required. The method the customer chose before confirming the
+            request. Only `cash` is implemented in this MVP: a missing value is
+            `422 validation_error` (reason `missing`) and any other member is
+            `422 validation_error` (reason `method_not_supported_in_mvp`).
+          $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/PaymentMethod'
 
     EnvelopeTowProposal:
       type: object

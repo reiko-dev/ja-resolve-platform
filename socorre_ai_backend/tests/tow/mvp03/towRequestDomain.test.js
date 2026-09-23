@@ -74,7 +74,7 @@ describe('MVP-03 domain — frozen input shape', () => {
   test('a valid payload is normalized, frozen and carries only canonical keys', () => {
     const input = validateCreateTowRequestInput(createTowRequestInput());
     expect(Object.keys(input).sort()).toEqual([
-      'destination', 'observations', 'pickup', 'problem_description', 'vehicle',
+      'destination', 'observations', 'payment_method', 'pickup', 'problem_description', 'vehicle',
     ]);
     expect(input.pickup).toEqual({
       latitude: PICKUP.latitude,
@@ -326,6 +326,7 @@ describe('MVP-03 domain — idempotency contract', () => {
       problem_description: createTowRequestInput().problem_description,
       destination: createTowRequestInput().destination,
       pickup: createTowRequestInput().pickup,
+      payment_method: createTowRequestInput().payment_method,
     };
     expect(canonicalFingerprintSource(reordered)).toBe(first);
   });
@@ -403,6 +404,7 @@ describe('MVP-03 domain — canonical DTO', () => {
     },
     problem_description: 'Carro não liga na garagem do prédio',
     observations: 'Portão B, avisar na portaria',
+    payment_method: 'CASH',
     matching_radius_km: 15,
     created_at: new Date('2026-01-15T12:00:00.000Z'),
     updated_at: new Date('2026-01-15T12:00:00.000Z'),
@@ -431,6 +433,7 @@ describe('MVP-03 domain — canonical DTO', () => {
       },
       problem_description: 'Carro não liga na garagem do prédio',
       observations: 'Portão B, avisar na portaria',
+      payment_method: 'cash',
       matching: { current_radius_km: 15, max_radius_km: 50, search_expires_at: null },
       assignment: null,
       payment: {

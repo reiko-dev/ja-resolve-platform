@@ -78,6 +78,9 @@ class SocketService {
     socket.on('join_emergency', (data) => this.handleJoinEmergency(socket, data));
     socket.on('emergency_update', (data) => this.handleEmergencyUpdate(socket, data));
     socket.on('partner_location_update', (data) => this.handlePartnerLocationUpdate(socket, data));
+
+    // Eventos do Tow (canonical tow_requests / tow_assignments)
+    socket.on('join_tow_request', (data) => this.handleJoinTowRequest(socket, data));
     
     // Eventos de notificação
     socket.on('subscribe_notifications', () => this.handleSubscribeNotifications(socket));
@@ -294,6 +297,54 @@ class SocketService {
       .first();
   }
 
+  /**
+   * Tow — join the room of one canonical request.
+   *
+   * Authorization mirrors the REST tracking read exactly: the OWNING customer
+   * or the ASSIGNED partner (the `tow_assignments.partner_id` authority, which
+   * survives release like every other execution read). Everyone else gets the
+   * same refusal, so the room can never leak a foreign request's positions.
+   * The room name (`tow_request_<id>`) is what `sendTowTrackingUpdated` targets.
+   */
+  async handleJoinTowRequest(socket, data) {
+    try {
+      const raw = data && (data.requestId !== undefined ? data.requestId : data.request_id);
+      const requestId = Number(raw);
+      if (!Number.isSafeInteger(requestId) || requestId <= 0) {
+        socket.emit('error', { message: 'Solicitação Tow inválida' });
+        return;
+      }
+
+      const request = await db('tow_requests').where('id', requestId).first();
+      if (!request) {
+        socket.emit('error', { message: 'Solicitação Tow não encontrada ou acesso negado' });
+        return;
+      }
+
+      let authorized = String(request.customer_id) === String(socket.userId);
+      if (!authorized && socket.userRole === 'partner') {
+        const assignment = await db('tow_assignments')
+          .join('partners', 'tow_assignments.partner_id', 'partners.id')
+          .where('tow_assignments.tow_request_id', requestId)
+          .where('partners.user_id', socket.userId)
+          .select('tow_assignments.id')
+          .first();
+        authorized = Boolean(assignment);
+      }
+
+      if (!authorized) {
+        socket.emit('error', { message: 'Solicitação Tow não encontrada ou acesso negado' });
+        return;
+      }
+
+      socket.join(`tow_request_${requestId}`);
+      console.log(`Usuário ${socket.userId} entrou no tracking da solicitação Tow ${requestId}`);
+    } catch (error) {
+      console.error('Erro ao entrar no tracking da solicitação Tow:', error);
+      socket.emit('error', { message: 'Erro ao entrar no tracking da solicitação Tow' });
+    }
+  }
+
   handleSubscribeNotifications(socket) {
     socket.join(`notifications_${socket.userId}`);
     console.log(`Usuário ${socket.userId} se inscreveu em notificações`);
@@ -365,6 +416,24 @@ class SocketService {
 
   sendEmergencyUpdate(emergencyId, update) {
     this.io.to(`emergency_${emergencyId}`).emit('emergency_updated', update);
+  }
+
+  /**
+   * Tow — the `tow_tracking_updated` invalidation signal.
+   *
+   * Emitted ONLY after the canonical point was persisted (the Tow tracking
+   * service publishes it through its port) and ONLY to the request room. The
+   * payload is deliberately minimal: the canonical request id and the backend
+   * instant of the stored point. The client reconciles through
+   * `GET /tow/requests/{requestId}/tracking` — this event is never the
+   * position authority. A no-op when the realtime server is not initialized.
+   */
+  sendTowTrackingUpdated(requestId, payload = {}) {
+    if (!this.io) return;
+    this.io.to(`tow_request_${requestId}`).emit('tow_tracking_updated', {
+      request_id: String(requestId),
+      received_at: payload.received_at ?? null,
+    });
   }
 
   // Verificar se usuário está online

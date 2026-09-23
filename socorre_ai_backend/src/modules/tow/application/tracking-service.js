@@ -53,12 +53,16 @@ function createTrackingService({
   trackingRepository,
   unitOfWork,
   clock,
+  trackingEvents = null,
 }) {
   if (!towRequestRepository) throw new TypeError('createTrackingService requires a towRequestRepository port');
   if (!assignmentRepository) throw new TypeError('createTrackingService requires an assignmentRepository port');
   if (!trackingRepository) throw new TypeError('createTrackingService requires a trackingRepository port');
   if (!unitOfWork) throw new TypeError('createTrackingService requires a unitOfWork port');
   if (!clock) throw new TypeError('createTrackingService requires a clock port');
+  if (trackingEvents !== null && typeof trackingEvents.publishTrackingUpdated !== 'function') {
+    throw new TypeError('createTrackingService trackingEvents must expose publishTrackingUpdated');
+  }
 
   /** The contract's `TrackingPoint`: the stored observation, never the backend clock. */
   function toPointDto(point) {
@@ -81,6 +85,7 @@ function createTrackingService({
     const point = validateTrackingPoint(payload);
 
     const now = clock.now();
+    let canonicalRequestId = null;
     const outcome = await unitOfWork.run(async (trx) => {
       const requests = towRequestRepository.withTransaction(trx);
       const assignments = assignmentRepository.withTransaction(trx);
@@ -92,6 +97,7 @@ function createTrackingService({
         throw invalidStateError(request.state, 'Tracking is not accepted for a terminal tow request');
       }
 
+      canonicalRequestId = request.id;
       return tracking.upsertCurrentPoint({
         tow_request_id: request.id,
         partner_id: partnerId,
@@ -106,6 +112,28 @@ function createTrackingService({
       throw new TowError('stale_tracking_update', 'A newer tracking point is already stored', {
         details: { recorded_at: point.recorded_at },
       });
+    }
+
+    // TOW ROUND — the invalidation signal is published at the SAME point the
+    // position is persisted: after the transaction committed, only for the
+    // write that actually applied (a stale point already threw above), and
+    // never for a terminal request (the state guard runs inside the
+    // transaction, before the upsert). The payload carries the canonical
+    // request id and the BACKEND instant; the consumer still reconciles through
+    // REST. A transport failure is logged and swallowed: the persisted point is
+    // the authority, so the write must not fail because a socket is down.
+    if (trackingEvents !== null && outcome.applied) {
+      try {
+        trackingEvents.publishTrackingUpdated({
+          request_id: String(canonicalRequestId),
+          received_at: requireIso(outcome.point.received_at),
+        });
+      } catch (error) {
+        console.error(
+          'Tow tracking event publish failed:',
+          error && error.message ? error.message : error
+        );
+      }
     }
 
     return toPointDto(outcome.point);
