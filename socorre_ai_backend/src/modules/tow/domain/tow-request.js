@@ -316,6 +316,18 @@ function normalizeVehicle(value) {
  * @returns {'CASH'} the persistence vocabulary member
  */
 function normalizeTowRequestPaymentMethod(value) {
+  if (value === undefined || value === null) {
+    throw validationError('payment_method is required', { field: 'payment_method', reason: 'missing' });
+  }
+  if (typeof value !== 'string') {
+    throw validationError('payment_method must be a string', { field: 'payment_method' });
+  }
+  if (value !== PAYMENT_METHOD_DTO) {
+    throw validationError(
+      `payment_method "${value}" is not implemented by the Tow MVP subset; only "cash" is available`,
+      { field: 'payment_method', reason: 'method_not_supported_in_mvp', implemented: [PAYMENT_METHOD_DTO] }
+    );
+  }
   return PAYMENT_METHOD;
 }
 

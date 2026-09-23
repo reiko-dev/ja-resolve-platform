@@ -63,6 +63,7 @@ describe('TOW ROUND — payment_method is required and persisted at creation', (
   const { composed } = composeDocument(documents);
   const ajv = buildAjv(composed);
   const validateTowRequest = ajv.getSchema(schemaUri('#/components/schemas/TowRequest'));
+  const validateCreateInput = ajv.getSchema(schemaUri('#/components/schemas/CreateTowRequestInput'));
 
   let app;
   let services;
@@ -103,6 +104,28 @@ describe('TOW ROUND — payment_method is required and persisted at creation', (
   async function rows() {
     return testDb.db('tow_requests').select('*');
   }
+
+  describe('the composed contract requires the commercial choice', () => {
+    test('CreateTowRequestInput REQUIRES payment_method and the live payload satisfies it', () => {
+      const payload = createTowRequestInput();
+      expect(validateCreateInput(payload)).toBe(true);
+
+      delete payload.payment_method;
+      expect(validateCreateInput(payload)).toBe(false);
+      expect(validateCreateInput.errors.map((error) => error.params.missingProperty))
+        .toContain('payment_method');
+    });
+
+    test('the schema refuses an unsupported method and accepts the single implemented member', () => {
+      expect(validateCreateInput(createTowRequestInput({ payment_method: 'cash' }))).toBe(true);
+      expect(validateCreateInput(createTowRequestInput({ payment_method: 'CASH' }))).toBe(false);
+      expect(validateCreateInput(createTowRequestInput({ payment_method: 'dinheiro' }))).toBe(false);
+      // `card`/`pix` stay schema-valid for Phase 2: the RUNTIME is the gate that
+      // answers `422 method_not_supported_in_mvp` for them.
+      expect(validateCreateInput(createTowRequestInput({ payment_method: 'card' }))).toBe(true);
+      expect(validateCreateInput(createTowRequestInput({ payment_method: 'pix' }))).toBe(true);
+    });
+  });
 
   describe('domain — the frozen input shape', () => {
     test('payment_method is a required, normalized member of the create input', () => {
