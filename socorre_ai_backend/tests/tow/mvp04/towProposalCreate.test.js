@@ -519,24 +519,26 @@ describe('MVP-04 — server-priced proposal creation', () => {
   });
 
   describe('truthful allowed_actions', () => {
-    test('the request advertises accept_proposal only when a live proposal exists', async () => {
+    test('the customer sees cancel in the open phases, plus accept_proposal while a proposal is live', async () => {
       const { request: towRequest, auths, customer } = await scenario({ partnerCount: 1 });
       const customerAuth = authFor({ user: customer });
 
+      // ISSUE #6 — a SEARCHING request is cancellable by its owner, so the
+      // recovery read advertises `cancel` even before any proposal exists.
       const before = await request(app).get(`${REQUESTS}/${towRequest.id}`).set(customerAuth.headers);
       expect(before.status).toBe(200);
-      expect(before.body.data.allowed_actions).toEqual([]);
+      expect(before.body.data.allowed_actions).toEqual(['cancel']);
       expect(before.body.data.assignment).toBeNull();
 
       await createProposal(auths[0], towRequest.id);
 
       const after = await request(app).get(`${REQUESTS}/${towRequest.id}`).set(customerAuth.headers);
       expect(after.status).toBe(200);
-      expect(after.body.data.allowed_actions).toEqual(['accept_proposal']);
+      expect(after.body.data.allowed_actions).toEqual(['accept_proposal', 'cancel']);
       expect(after.body.data.assignment).toBeNull();
     });
 
-    test('no MVP-05 or counteroffer action is ever advertised', async () => {
+    test('no partner milestone, counteroffer or invented cancel alias is ever advertised', async () => {
       const { request: towRequest, auths, customer } = await scenario({ partnerCount: 1 });
       const customerAuth = authFor({ user: customer });
       await createProposal(auths[0], towRequest.id);

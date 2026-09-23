@@ -1,5 +1,5 @@
 /**
- * MVP-05 — basic cancellation, by either principal of the job.
+ * MVP-05 / ISSUE #6 — cancellation, by either principal of the job.
  *
  *   `POST /tow/requests/{requestId}/cancel`          owning customer
  *   `POST /tow/requests/{requestId}/cancel-partner`  assigned partner
@@ -12,6 +12,14 @@
  *     `tow_assignments.partner_id` (403 `not_assigned_partner`). The check runs
  *     BEFORE the state is read, so a foreign caller cannot use the error as a
  *     state oracle — an already-cancelled job answers 403, not 200;
+ *   - the SCOPE: ISSUE #6 grants the CUSTOMER every non-terminal phase —
+ *     `SEARCHING`, `NEGOTIATING`, `ASSIGNED`, `EN_ROUTE`, `ARRIVED`,
+ *     `IN_TRANSIT` — because a request not yet `COMPLETED`/`CANCELLED` is still
+ *     the customer's to withdraw and this delivery has no fee, debt, refund or
+ *     wallet to settle. The partner stays pre-transit
+ *     (`ASSIGNED`/`EN_ROUTE`/`ARRIVED`), exactly as the frozen partner
+ *     operation declares. `classifyCancellation(state, actorType)` is the whole
+ *     authority for that difference;
  *   - the REASON: the partner must supply one (`RequiredReasonInput`, 1..2000);
  *     the customer's is optional (<= 1000) and is stored as `null` when absent;
  *   - the ATTRIBUTION: `cancelled_by_actor_type` is `customer` or `partner`, and
@@ -19,18 +27,22 @@
  *
  * Everything else is shared and is the reason this file is short:
  *
- *   - the legality of the edge is the pure state machine's:
- *     `ASSIGNED|EN_ROUTE|ARRIVED -> CANCELLED`. Anything else — `IN_TRANSIT`,
- *     `COMPLETED`, or an unassigned `SEARCHING`/`NEGOTIATING` request — is a 409
- *     `invalid_tow_transition` carrying `details.from/to`;
+ *   - NO ASSIGNMENT IS REQUIRED for the customer: `SEARCHING`/`NEGOTIATING`
+ *     persist exactly like the execution phases, and the request is no longer
+ *     acceptable by a proposal (acceptance is state-guarded). A live proposal
+ *     is left untouched as history — this delivery owns no withdrawal-on-cancel
+ *     rule and close no proposal silently;
  *   - a replay while already `CANCELLED` is a 200 READ of the canonical row: the
  *     original `cancelled_at`, attribution and reason are returned unchanged,
  *     the milestone is never re-stamped and the assignment is never re-released;
  *   - the release happens in the SAME transaction as the state change, guarded by
  *     `released_at IS NULL`, so a cancelled job frees its partner exactly once
- *     and the assignment row survives as history;
+ *     and the assignment row survives as history. When there is no assignment
+ *     the guarded release is a no-op and no row is invented;
  *   - `financial_consequence` is the frozen zero of this delivery (no fee, no
- *     debt, no refund) — see `domain/cancellation.js`.
+ *     debt, no refund) — see `domain/cancellation.js`. A previously selected
+ *     CASH payment is NOT refunded, reversed or touched: cancelling only closes
+ *     the request, it never writes a financial row.
  *
  * No module gate: cancelling an already-assigned job is DRAIN work.
  */
@@ -44,7 +56,7 @@ const {
   buildAssignmentDto,
   allowedActionsForRequest,
   buildCancellationFinancialConsequence,
-  classifyTransition,
+  classifyCancellation,
   invalidTransitionError,
   milestoneColumnForState,
   terminalReasonForCancellation,
@@ -86,7 +98,7 @@ function createCancellationService({
 
       const request = await lock({ requests, assignments });
 
-      const verdict = classifyTransition(request.state, CANCELLED);
+      const verdict = classifyCancellation(request.state, actorType);
       if (verdict === TRANSITION_OUTCOMES.REPLAY) {
         return {
           request,
@@ -115,7 +127,7 @@ function createCancellationService({
         // Lost the CAS race (only reachable where row locks are absent): the
         // winner's commit is canonical, so replay it or report the conflict.
         const current = await requests.findById(request.id);
-        if (current && classifyTransition(current.state, CANCELLED) === TRANSITION_OUTCOMES.REPLAY) {
+        if (current && classifyCancellation(current.state, actorType) === TRANSITION_OUTCOMES.REPLAY) {
           return { request: current, assignment: await assignments.findByRequestId(request.id), applied: false };
         }
         throw invalidTransitionError(current ? current.state : request.state, CANCELLED);

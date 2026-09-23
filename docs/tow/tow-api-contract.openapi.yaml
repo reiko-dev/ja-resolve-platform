@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: JaResolve Tow Consumer API
-  version: 1.0.0-draft.11
+  version: 1.0.0-draft.12
   description: >-
     Normative consumer contract for Mobile Cliente, Mobile Parceiro and Dashboard.
     This entrypoint composes the reviewed draft.2 base contract with the frozen
@@ -147,6 +147,31 @@ info:
     `503 external_dependency_unavailable` with no fabricated geometry. No path,
     parameter, response shape or enum member is removed or narrowed, and the
     base contract stays byte-identical.
+    Revision draft.12 (ISSUE #6 — customer cancellation in every non-terminal
+    phase, behavioural): `POST /tow/requests/{requestId}/cancel`
+    (`cancelTowRequestByCustomer`) is now legal while the request is
+    `SEARCHING`, `NEGOTIATING`, `ASSIGNED`, `EN_ROUTE`, `ARRIVED` or
+    `IN_TRANSIT`; `COMPLETED` and `CANCELLED` remain terminal and answer
+    `409 invalid_tow_transition`. No assignment is required: cancelling a
+    `SEARCHING`/`NEGOTIATING` request persists the same terminal attribution and
+    `cancelled_at` milestone as the execution phases, and the assignment release
+    (guarded by `released_at IS NULL`, in the same transaction) is a no-op when
+    no partner was assigned. This SUPERSEDES the customer cancellation scope
+    recorded in the draft.8 note. `TowRequest.allowed_actions` reflects the
+    widening for the CUSTOMER viewer only: `cancel` is advertised in every
+    non-terminal state — including `SEARCHING`/`NEGOTIATING`, alongside
+    `accept_proposal` while a proposal is live — and in no terminal state.
+    `POST /tow/requests/{requestId}/cancel-partner`
+    (`cancelTowRequestByPartner`) is deliberately NOT widened: the assigned
+    partner keeps the frozen pre-transit scope (`ASSIGNED`, `EN_ROUTE`,
+    `ARRIVED`), and an `IN_TRANSIT` request still answers
+    `409 invalid_tow_transition`. No fee, debt, refund or wallet is created
+    anywhere: `financial_consequence` stays zero-valued, a previously selected
+    CASH payment is neither refunded nor reversed, and
+    `POST /tow/requests/{requestId}/tracking` keeps refusing a terminal request
+    with `409 invalid_tow_state`. Replaying a cancellation remains a 200 read of
+    the canonical row. No path, parameter, response shape or enum member is
+    removed or narrowed, and the base contract stays byte-identical.
 servers:
   - url: /api
 security: []
@@ -342,15 +367,22 @@ paths:
       operationId: cancelTowRequestByCustomer
       security: [{ bearerAuth: [] }]
       description: >-
-        The OWNING customer cancels a request that has not started transit
-        (`ASSIGNED`, `EN_ROUTE`, `ARRIVED`). The body is optional
-        (`reason`, max 1000). The terminal attribution
-        (`terminal_reason` `CUSTOMER_CANCELLED`, `cancelled_by_actor_type`
-        `customer`, `cancelled_by_actor_id` = the customer's user id) and the
-        assignment release (`release_reason` `CANCELLED`) happen in the same
-        transaction as the state change; MVP-05 records no fee, debt or refund,
-        so `financial_consequence` is always zero-valued. Replaying the
-        cancellation is a 200 that changes nothing.
+        The OWNING customer cancels a request in ANY non-terminal state
+        (`SEARCHING`, `NEGOTIATING`, `ASSIGNED`, `EN_ROUTE`, `ARRIVED`,
+        `IN_TRANSIT`); `COMPLETED` and `CANCELLED` are terminal and answer
+        `409 invalid_tow_transition`. No assignment is required: cancelling a
+        `SEARCHING`/`NEGOTIATING` request writes the same terminal attribution
+        and `cancelled_at` milestone as the execution phases, and when a partner
+        IS assigned the release (`release_reason` `CANCELLED`) happens in the
+        same transaction as the state change, guarded by `released_at IS NULL`
+        so a retry never releases twice. The body is optional (`reason`, max
+        1000), and the terminal attribution (`terminal_reason`
+        `CUSTOMER_CANCELLED`, `cancelled_by_actor_type` `customer`,
+        `cancelled_by_actor_id` = the customer's user id) is persisted with the
+        state. No fee, debt, refund or wallet is created:
+        `financial_consequence` is always zero-valued and a previously selected
+        CASH payment is left untouched. Replaying the cancellation is a 200 that
+        changes nothing.
       parameters:
         - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/RequestId'
         - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/IdempotencyKey'
@@ -487,8 +519,10 @@ paths:
       security: [{ bearerAuth: [] }]
       description: >-
         `ARRIVED` -> `IN_TRANSIT`, written with the backend instant
-        (`in_transit_at`). After this transition the request can no longer be
-        cancelled: `cancel` answers `invalid_tow_transition`.
+        (`in_transit_at`). The ASSIGNED PARTNER can no longer cancel after this
+        transition (`cancel-partner` answers `invalid_tow_transition`), but the
+        OWNING CUSTOMER still can: `cancel` stays legal through `IN_TRANSIT`
+        until the request reaches a terminal state.
       parameters:
         - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/RequestId'
         - $ref: './tow-api-contract.base.openapi.yaml#/components/parameters/IdempotencyKey'
@@ -536,7 +570,10 @@ paths:
       description: >-
         The ASSIGNED partner cancels a request that has not started transit
         (`ASSIGNED`, `EN_ROUTE`, `ARRIVED`) and MUST give a reason
-        (`RequiredReasonInput`, 1-2000 characters). Attribution is
+        (`RequiredReasonInput`, 1-2000 characters). This scope is deliberately
+        NOT widened by the customer's any-phase cancellation: an `IN_TRANSIT`
+        request answers `409 invalid_tow_transition`, and a request with no
+        assignment answers `403 not_assigned_partner`. Attribution is
         `terminal_reason` `PARTNER_CANCELLED`, `cancelled_by_actor_type`
         `partner`, `cancelled_by_actor_id` = the partner id; the assignment is
         released with `release_reason` `CANCELLED`. `financial_consequence` is

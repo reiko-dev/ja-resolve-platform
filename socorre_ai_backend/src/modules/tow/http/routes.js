@@ -104,8 +104,10 @@ function createTowRouter({ services, uploadMiddleware }) {
   router.post('/requests/:requestId/in-transit', auth, requireTowPartner, executionController.startInTransit);
   router.post('/requests/:requestId/finish', auth, requireTowPartner, executionController.finishService);
 
-  // MVP-05 — basic cancellation. Both routes are legal only before IN_TRANSIT;
-  // the customer path checks ownership, the partner path checks the assignment.
+  // MVP-05 / ISSUE #6 — cancellation. The customer route is legal in EVERY
+  // non-terminal state (the domain classifier is the authority); the partner
+  // route keeps its frozen pre-transit scope. The customer path checks
+  // ownership, the partner path checks the assignment.
   router.post('/requests/:requestId/cancel', auth, requireCustomer, cancellationController.cancelByCustomer);
   router.post('/requests/:requestId/cancel-partner', auth, requireTowPartner, cancellationController.cancelByPartner);
 

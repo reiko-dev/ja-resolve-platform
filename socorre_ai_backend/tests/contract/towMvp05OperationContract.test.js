@@ -295,10 +295,11 @@ describe('MVP-05 — operation-level OpenAPI contract == runtime', () => {
       expect(baseCode.enum).not.toContain('partner_not_operational');
     });
 
-    test('the canonical revision records the MVP-05 revision note (draft.11 current)', () => {
-      expect(composed.info.version).toBe('1.0.0-draft.11');
-      expect(canonical.info.version).toBe('1.0.0-draft.11');
+    test('the canonical revision records the MVP-05 revision notes (draft.12 current)', () => {
+      expect(composed.info.version).toBe('1.0.0-draft.12');
+      expect(canonical.info.version).toBe('1.0.0-draft.12');
       expect(canonical.info.description).toContain('draft.8');
+      expect(canonical.info.description).toContain('draft.12');
       expect(canonical.info.description).toContain('MVP-05');
       expect(canonical.info.description).toContain('stale_tracking_update');
       // The frozen base is not rewritten by this revision.
@@ -461,7 +462,7 @@ describe('MVP-05 — operation-level OpenAPI contract == runtime', () => {
       expect(illegal.status).toBe(409);
     });
 
-    test('cancelTowRequestByPartner: the reason is mandatory and IN_TRANSIT is refused', async () => {
+    test('cancelTowRequestByPartner: the reason is mandatory and IN_TRANSIT is refused (customer is not)', async () => {
       const fixture = await scenario();
       const { request: towRequest, auths } = fixture;
       const partnerAuth = auths[0];
@@ -487,16 +488,21 @@ describe('MVP-05 — operation-level OpenAPI contract == runtime', () => {
         fee_due_cents: 0, currency: 'BRL', customer_debt_created: false,
       });
 
-      // Once transit started, neither party may cancel.
+      // Once transit started, the PARTNER route is refused while the owning
+      // customer may still cancel (ISSUE #6).
       const moving = await scenario();
       await driveTo(app, moving, 'IN_TRANSIT');
-      const lateCustomer = await cancelByCustomer(app, moving.request.id, moving.customerAuth);
-      expectDeclared('cancelTowRequestByCustomer', lateCustomer);
-      expect(lateCustomer.status).toBe(409);
-      expect(lateCustomer.body.error.code).toBe('invalid_tow_transition');
       const latePartner = await cancelByPartner(app, moving.request.id, moving.auths[0]);
       expectDeclared('cancelTowRequestByPartner', latePartner);
       expect(latePartner.status).toBe(409);
+      expect(latePartner.body.error.code).toBe('invalid_tow_transition');
+
+      const lateCustomer = await cancelByCustomer(app, moving.request.id, moving.customerAuth);
+      expectDeclared('cancelTowRequestByCustomer', lateCustomer);
+      expect(lateCustomer.status).toBe(200);
+      expect(validateCancellationResponse(lateCustomer.body)).toBe(true);
+      expect(lateCustomer.body.data.request.state).toBe('CANCELLED');
+      expect(lateCustomer.body.data.request.terminal_reason).toBe('CUSTOMER_CANCELLED');
     });
 
     test('getTowTracking: 200 for both readers, 401/403/404 otherwise', async () => {

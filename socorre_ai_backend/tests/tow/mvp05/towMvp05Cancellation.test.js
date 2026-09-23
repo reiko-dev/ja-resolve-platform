@@ -1,10 +1,12 @@
 /**
- * MVP-05 — basic cancellation before `IN_TRANSIT`.
+ * MVP-05 — basic cancellation, widened by ISSUE #6.
  *
- * Customer owner cancel (`POST /cancel`) and assigned partner cancel
- * (`POST /cancel-partner`) on ASSIGNED / EN_ROUTE / ARRIVED, with the truthful
- * zero-fee financial envelope, backend-clock milestones, actor attribution,
- * release of the assignment and idempotent replay.
+ * The owning customer (`POST /cancel`) cancels in EVERY non-terminal phase —
+ * SEARCHING, NEGOTIATING, ASSIGNED, EN_ROUTE, ARRIVED, IN_TRANSIT — while the
+ * assigned partner (`POST /cancel-partner`) keeps the frozen pre-transit scope
+ * (ASSIGNED / EN_ROUTE / ARRIVED). The truthful zero-fee financial envelope,
+ * backend-clock milestones, actor attribution, release of the assignment and
+ * idempotent replay are asserted once, here, for both principals.
  *
  * RED-first: written before the routes, services, columns and tables exist.
  */
@@ -169,26 +171,31 @@ describe('MVP-05 — basic cancellation', () => {
     expect(assignments[0].released_at).toBe('2026-01-15T12:02:00.000Z');
   });
 
-  describe('IN_TRANSIT and terminal states are not cancellable', () => {
-    test('customer cancel after IN_TRANSIT is 409 invalid_tow_transition', async () => {
+  describe('IN_TRANSIT closes the partner route but not the customer route (ISSUE #6)', () => {
+    test('the customer cancels after IN_TRANSIT: the job closes and the partner is released', async () => {
       const fixture = await scenario({ partnerCount: 1 });
       await enRoute(app, fixture.request.id, fixture.auths[0]);
       await arrived(app, fixture.request.id, fixture.auths[0]);
       await inTransit(app, fixture.request.id, fixture.auths[0]);
+      clock.advanceMinutes(3);
 
       const response = await cancelByCustomer(app, fixture.request.id, fixture.customerAuth);
-      expect(response.status).toBe(409);
-      expect(response.body.error.code).toBe('invalid_tow_transition');
-      expect(response.body.error.details).toMatchObject({ from: 'IN_TRANSIT' });
+      expect(response.status).toBe(200);
+      expect(response.body.data.financial_consequence).toEqual(ZERO_FINANCIAL_CONSEQUENCE);
+      expect(response.body.data.request.state).toBe('CANCELLED');
+      expect(response.body.data.request.terminal_reason).toBe('CUSTOMER_CANCELLED');
+      expect(response.body.data.request.allowed_actions).toEqual([]);
 
       const row = await testDb.db('tow_requests').where({ id: fixture.request.id }).first();
-      expect(row.state).toBe('IN_TRANSIT');
-      expect(row.cancelled_at).toBeNull();
+      expect(row.state).toBe('CANCELLED');
+      expect(row.in_transit_at).toBe('2026-01-15T12:00:00.000Z');
+      expect(row.cancelled_at).toBe('2026-01-15T12:03:00.000Z');
       const assignment = await testDb.db('tow_assignments').where({ tow_request_id: fixture.request.id }).first();
-      expect(assignment.released_at).toBeNull();
+      expect(assignment.released_at).toBe('2026-01-15T12:03:00.000Z');
+      expect(assignment.release_reason).toBe('CANCELLED');
     });
 
-    test('partner cancel after IN_TRANSIT is 409 invalid_tow_transition', async () => {
+    test('the partner can no longer cancel after IN_TRANSIT (frozen partner scope)', async () => {
       const fixture = await scenario({ partnerCount: 1 });
       await enRoute(app, fixture.request.id, fixture.auths[0]);
       await arrived(app, fixture.request.id, fixture.auths[0]);
@@ -196,6 +203,13 @@ describe('MVP-05 — basic cancellation', () => {
       const response = await cancelByPartner(app, fixture.request.id, fixture.auths[0]);
       expect(response.status).toBe(409);
       expect(response.body.error.code).toBe('invalid_tow_transition');
+      expect(response.body.error.details).toMatchObject({ from: 'IN_TRANSIT', to: 'CANCELLED' });
+
+      const row = await testDb.db('tow_requests').where({ id: fixture.request.id }).first();
+      expect(row.state).toBe('IN_TRANSIT');
+      expect(row.cancelled_at).toBeNull();
+      const assignment = await testDb.db('tow_assignments').where({ tow_request_id: fixture.request.id }).first();
+      expect(assignment.released_at).toBeNull();
     });
 
     test('a COMPLETED request cannot be cancelled', async () => {
@@ -231,15 +245,25 @@ describe('MVP-05 — basic cancellation', () => {
     });
   });
 
-  test('an unassigned SEARCHING request is out of MVP-05 cancellation scope (409)', async () => {
+  test('an unassigned SEARCHING request is cancellable by the owning customer (ISSUE #6)', async () => {
     const fixture = await scenario({ partnerCount: 1 });
     await testDb.db('tow_assignments').where({ tow_request_id: fixture.request.id }).del();
     await testDb.db('tow_requests').where({ id: fixture.request.id }).update({ state: 'SEARCHING' });
 
     const response = await cancelByCustomer(app, fixture.request.id, fixture.customerAuth);
-    expect(response.status).toBe(409);
-    expect(response.body.error.code).toBe('invalid_tow_transition');
-    expect(response.body.error.details).toMatchObject({ from: 'SEARCHING', to: 'CANCELLED' });
+    expect(response.status).toBe(200);
+    expect(response.body.data.financial_consequence).toEqual(ZERO_FINANCIAL_CONSEQUENCE);
+    expect(response.body.data.request.state).toBe('CANCELLED');
+    expect(response.body.data.request.terminal_reason).toBe('CUSTOMER_CANCELLED');
+    expect(response.body.data.request.assignment).toBeNull();
+
+    const row = await testDb.db('tow_requests').where({ id: fixture.request.id }).first();
+    expect(row.state).toBe('CANCELLED');
+    expect(row.cancelled_at).toBe('2026-01-15T12:00:00.000Z');
+    expect(row.cancelled_by_actor_type).toBe('customer');
+    // No partner existed, so no assignment row may be invented by the release.
+    const assignment = await testDb.db('tow_assignments').where({ tow_request_id: fixture.request.id }).first();
+    expect(assignment).toBeUndefined();
   });
 
   describe('authz and validation', () => {

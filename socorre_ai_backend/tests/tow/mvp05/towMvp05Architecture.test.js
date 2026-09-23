@@ -177,8 +177,10 @@ describe('MVP-05 ARCH — graceful drain is structural, not incidental', () => {
 
 describe('MVP-05 ARCH — the state machine graph is the only transition authority', () => {
   test('the execution graph is exported and covers exactly the four milestones', () => {
-    // One edge per milestone, plus the cancellation edge from every state where
-    // cancelling is still legal — and none from IN_TRANSIT or a terminal state.
+    // One forward edge per milestone, plus the cancellation edge from every
+    // execution state where cancelling is still legal — including IN_TRANSIT
+    // since ISSUE #6 (the customer may withdraw a loaded job), and none from a
+    // terminal state.
     const forward = Object.fromEntries(
       Object.entries(domain.TOW_EXECUTION_TRANSITIONS)
         .map(([from, edges]) => [from, Object.entries(edges).find(([to]) => to !== 'CANCELLED')])
@@ -196,10 +198,9 @@ describe('MVP-05 ARCH — the state machine graph is the only transition authori
       ARRIVED: 'start_in_transit',
       IN_TRANSIT: 'finish_service',
     });
-    for (const from of ['ASSIGNED', 'EN_ROUTE', 'ARRIVED']) {
+    for (const from of ['ASSIGNED', 'EN_ROUTE', 'ARRIVED', 'IN_TRANSIT']) {
       expect(domain.TOW_EXECUTION_TRANSITIONS[from].CANCELLED).toBe('cancel');
     }
-    expect(domain.TOW_EXECUTION_TRANSITIONS.IN_TRANSIT.CANCELLED).toBeUndefined();
     expect(domain.TOW_EXECUTION_TRANSITIONS.COMPLETED).toEqual({});
     expect(domain.TOW_EXECUTION_TRANSITIONS.CANCELLED).toEqual({});
   });
@@ -218,15 +219,30 @@ describe('MVP-05 ARCH — the state machine graph is the only transition authori
     expect(source).toMatch(/Object\.(entries|keys|values)\(TOW_EXECUTION_TRANSITIONS\)/);
   });
 
-  test('the cancellation graph refuses IN_TRANSIT and every terminal state', () => {
-    expect(domain.CANCELLABLE_TOW_REQUEST_STATES).toEqual(['ASSIGNED', 'EN_ROUTE', 'ARRIVED']);
-    for (const state of ['IN_TRANSIT', 'COMPLETED']) {
-      expect(domain.classifyTransition(state, 'CANCELLED')).toBe(domain.TRANSITION_OUTCOMES.ILLEGAL);
+  test('the cancellation classifier is actor-aware and never opens a terminal (ISSUE #6)', () => {
+    // The customer owns the request until it is terminal ...
+    expect(domain.CANCELLABLE_TOW_REQUEST_STATES).toEqual([
+      'SEARCHING', 'NEGOTIATING', 'ASSIGNED', 'EN_ROUTE', 'ARRIVED', 'IN_TRANSIT',
+    ]);
+    for (const state of domain.CANCELLABLE_TOW_REQUEST_STATES) {
+      expect(domain.classifyCancellation(state, 'customer')).toBe(domain.TRANSITION_OUTCOMES.APPLY);
     }
+    // ... while the partner keeps the frozen pre-transit scope.
+    expect(domain.CANCELLABLE_TOW_REQUEST_STATES_BY_ACTOR.partner)
+      .toEqual(['ASSIGNED', 'EN_ROUTE', 'ARRIVED']);
     for (const state of ['ASSIGNED', 'EN_ROUTE', 'ARRIVED']) {
-      expect(domain.classifyTransition(state, 'CANCELLED')).toBe(domain.TRANSITION_OUTCOMES.APPLY);
+      expect(domain.classifyCancellation(state, 'partner')).toBe(domain.TRANSITION_OUTCOMES.APPLY);
     }
-    expect(domain.classifyTransition('CANCELLED', 'CANCELLED')).toBe(domain.TRANSITION_OUTCOMES.REPLAY);
+    for (const state of ['SEARCHING', 'NEGOTIATING', 'IN_TRANSIT']) {
+      expect(domain.classifyCancellation(state, 'partner')).toBe(domain.TRANSITION_OUTCOMES.ILLEGAL);
+    }
+    // Terminal vocabulary: a replay is a read; COMPLETED is a hard conflict.
+    expect(domain.classifyCancellation('CANCELLED', 'customer')).toBe(domain.TRANSITION_OUTCOMES.REPLAY);
+    expect(domain.classifyCancellation('CANCELLED', 'partner')).toBe(domain.TRANSITION_OUTCOMES.REPLAY);
+    expect(domain.classifyCancellation('COMPLETED', 'customer')).toBe(domain.TRANSITION_OUTCOMES.ILLEGAL);
+    expect(domain.classifyCancellation('COMPLETED', 'partner')).toBe(domain.TRANSITION_OUTCOMES.ILLEGAL);
+    // The graph-level classifier stays edge-only and is never the actor policy.
+    expect(domain.classifyTransition('IN_TRANSIT', 'CANCELLED')).toBe(domain.TRANSITION_OUTCOMES.APPLY);
     expect(domain.classifyTransition('COMPLETED', 'COMPLETED')).toBe(domain.TRANSITION_OUTCOMES.REPLAY);
     expect(domain.classifyTransition('COMPLETED', 'CANCELLED')).toBe(domain.TRANSITION_OUTCOMES.ILLEGAL);
   });

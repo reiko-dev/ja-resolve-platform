@@ -157,18 +157,22 @@ function isOpenTowRequestState(state) {
  *
  * The two halves of the lifecycle never claim each other's states:
  *   - OPEN (`SEARCHING`/`NEGOTIATING`): the customer is offered
- *     `accept_proposal` while at least one proposal is still live. A partner is
- *     offered nothing here — proposing is the partner's move, but it is a write
- *     against the REQUEST's proposal collection, not an action on the request,
- *     and MVP-04 deliberately never advertised it.
+ *     `accept_proposal` while at least one proposal is still live, and `cancel`
+ *     unconditionally — a request is never hostage to a negotiation (ISSUE #6).
+ *     A partner is offered nothing here: proposing is the partner's move, but it
+ *     is a write against the REQUEST's proposal collection, not an action on the
+ *     request, and MVP-04 deliberately never advertised it.
  *   - EXECUTION (`ASSIGNED`…`IN_TRANSIT`): the assigned partner is offered the
  *     next progress step (`start_en_route`, `mark_arrived`, `start_in_transit`,
  *     `finish_service`); both parties are offered `cancel` while the request is
- *     still cancellable. The customer never sees a partner milestone.
+ *     still cancellable for THEM. The customer never sees a partner milestone.
  *   - TERMINAL (`COMPLETED`/`CANCELLED`): nothing, for either party.
  *
- * The list is truthful, not aspirational: it never names an action that the
- * caller cannot complete right now.
+ * `cancel` is offered from the actor-aware cancellable scope
+ * (`isCancellableTowRequestState`): every non-terminal state for the customer,
+ * the pre-transit execution states only for the partner. The list is truthful,
+ * not aspirational: it never names an action that the caller cannot complete
+ * right now.
  *
  * @param {{state: string, has_live_proposal?: boolean, viewer?: 'customer'|'partner'}} input
  * @returns {readonly string[]} frozen, possibly empty
@@ -176,6 +180,7 @@ function isOpenTowRequestState(state) {
 function allowedActionsForRequest({ state, has_live_proposal: hasLiveProposal, viewer = 'customer' } = {}) {
   const actions = [];
   const isCustomer = viewer === 'customer';
+  const actorType = isCustomer ? 'customer' : 'partner';
 
   if (isOpenTowRequestState(state)) {
     if (isCustomer && hasLiveProposal === true) actions.push(REQUEST_ALLOWED_ACTIONS.ACCEPT_PROPOSAL);
@@ -184,7 +189,10 @@ function allowedActionsForRequest({ state, has_live_proposal: hasLiveProposal, v
       const progress = progressActionForState(state);
       if (progress) actions.push(progress);
     }
-    if (isCancellableTowRequestState(state)) actions.push(REQUEST_ALLOWED_ACTIONS.CANCEL);
+  }
+
+  if (!isTerminalTowRequestState(state) && isCancellableTowRequestState(state, actorType)) {
+    actions.push(REQUEST_ALLOWED_ACTIONS.CANCEL);
   }
 
   return Object.freeze(actions);

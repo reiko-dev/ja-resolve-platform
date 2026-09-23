@@ -15,6 +15,7 @@ const {
   validateCreateTowRequestInput,
   buildTowRequestRecord,
   buildTowRequestDto,
+  allowedActionsForRequest,
   validateIdempotencyKey,
   canonicalFingerprintSource,
   validateGeoPoint,
@@ -447,10 +448,14 @@ describe('MVP-03 domain — canonical DTO', () => {
     });
   });
 
-  test('allowed_actions advertises nothing MVP-03 does not implement', () => {
+  test('allowed_actions is injected; ISSUE #6 makes cancel truthful in SEARCHING', () => {
+    // The raw DTO never guesses a viewer: with no injection it stays empty.
     const dto = buildTowRequestDto(record, { max_radius_km: 50 });
     expect(dto.allowed_actions).toEqual([]);
-    for (const action of ['cancel', 'change_destination', 'accept_proposal', 'counteroffer']) {
+    // ... while the domain authority advertises the owning customer's real
+    // action for this state. Unimplemented actions stay out either way.
+    expect(allowedActionsForRequest({ state: 'SEARCHING', viewer: 'customer' })).toEqual(['cancel']);
+    for (const action of ['change_destination', 'accept_proposal', 'counteroffer']) {
       expect(dto.allowed_actions).not.toContain(action);
     }
   });

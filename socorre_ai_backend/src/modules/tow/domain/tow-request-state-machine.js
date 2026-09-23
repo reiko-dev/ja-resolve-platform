@@ -1,14 +1,15 @@
 /**
  * MVP-05 — the TowRequest execution state machine.
  *
- * This file is the SINGLE authority on which execution edge is legal. Nothing
+ * This file is the SINGLE authority on which execution edge is legal and, since
+ * ISSUE #6, on which cancellation operation is legal for WHICH actor. Nothing
  * else in the module may restate the graph: the application services ask this
  * module, and the persistence layer only enforces the answer with a guarded
  * write. That is what keeps the HTTP surface, the transaction and the tests
  * from drifting apart.
  *
- * The graph of this delivery (a strict sequence, plus cancellation before the
- * vehicle is loaded):
+ * The execution graph of this delivery (a strict sequence, plus the cancellation
+ * edges the owning customer may exercise from ANY non-terminal state):
  *
  *   ASSIGNED   -> EN_ROUTE     `start_en_route`    milestone `en_route_at`
  *   EN_ROUTE   -> ARRIVED      `mark_arrived`      milestone `arrived_at`
@@ -17,22 +18,28 @@
  *   ASSIGNED   -> CANCELLED    `cancel`            milestone `cancelled_at`
  *   EN_ROUTE   -> CANCELLED    `cancel`
  *   ARRIVED    -> CANCELLED    `cancel`
+ *   IN_TRANSIT -> CANCELLED    `cancel`
  *
  * Everything else is ILLEGAL, and deliberately so:
  *   - no SKIPPING (`ASSIGNED -> ARRIVED`, `ASSIGNED -> COMPLETED`,
  *     `EN_ROUTE -> IN_TRANSIT`, `ARRIVED -> COMPLETED`): a milestone is evidence
  *     that the previous one happened, so it can never be written out of order;
- *   - no cancellation once the vehicle is loaded (`IN_TRANSIT -> CANCELLED`):
- *     the service is being performed, and this delivery has no fee, refund,
- *     debt or rematch to settle that with;
  *   - NOTHING leaves `COMPLETED` or `CANCELLED`: both are terminal, and a
  *     terminal job is history, not a state to be reopened.
  *
- * The states `SEARCHING` and `NEGOTIATING` are NOT part of this graph: they
- * belong to MVP-03/MVP-04, where the only legal action is `accept_proposal`.
- * A request reaches this graph exclusively through the MVP-04 assignment, and
- * `allowedActionsForRequest` below is the one place that answers for BOTH
- * halves of the lifecycle without either half claiming the other's states.
+ * CANCELLATION is actor-aware, which is why the graph alone never decides it:
+ * `IN_TRANSIT -> CANCELLED` exists for the OWNING CUSTOMER (the vehicle can be
+ * unloaded and the job closed), while the ASSIGNED PARTNER keeps its frozen
+ * pre-transit scope (`ASSIGNED`/`EN_ROUTE`/`ARRIVED` only). `classifyCancellation`
+ * is the function the cancellation service must ask; it reads
+ * `CANCELLABLE_TOW_REQUEST_STATES_BY_ACTOR` and never the caller's intent.
+ *
+ * The states `SEARCHING` and `NEGOTIATING` are NOT execution states: they belong
+ * to MVP-03/MVP-04, where the customer's other legal action is
+ * `accept_proposal`. They ARE cancellable by the owning customer (a request is
+ * never hostage to a negotiation), and `allowedActionsForRequest` below is the
+ * one place that answers for BOTH halves of the lifecycle without either half
+ * claiming the other's states.
  */
 'use strict';
 
@@ -47,7 +54,7 @@ const TOW_EXECUTION_TRANSITIONS = Object.freeze({
   ASSIGNED: Object.freeze({ EN_ROUTE: 'start_en_route', CANCELLED: 'cancel' }),
   EN_ROUTE: Object.freeze({ ARRIVED: 'mark_arrived', CANCELLED: 'cancel' }),
   ARRIVED: Object.freeze({ IN_TRANSIT: 'start_in_transit', CANCELLED: 'cancel' }),
-  IN_TRANSIT: Object.freeze({ COMPLETED: 'finish_service' }),
+  IN_TRANSIT: Object.freeze({ COMPLETED: 'finish_service', CANCELLED: 'cancel' }),
   COMPLETED: Object.freeze({}),
   CANCELLED: Object.freeze({}),
 });
@@ -100,8 +107,30 @@ const PROGRESS_ACTION_BY_STATE = Object.freeze(
   }, {})
 );
 
-/** The states from which a cancellation is still legal. */
-const CANCELLABLE_TOW_REQUEST_STATES = Object.freeze(['ASSIGNED', 'EN_ROUTE', 'ARRIVED']);
+/**
+ * The states from which a cancellation is still legal, PER CANCELLING ACTOR.
+ *
+ * ISSUE #6 — the owning customer may withdraw the request in any NON-TERMINAL
+ * phase, including the two negotiation states and after the vehicle is loaded.
+ * There is no fee, debt, refund or wallet in this delivery, so dropping the
+ * request is free wherever it happens; the job simply closes as `CANCELLED`
+ * instead of `COMPLETED`.
+ *
+ * The assigned partner's scope is NOT widened: an abandoned loaded vehicle is a
+ * rider-safety problem, and the partner cancellation remains the pre-transit
+ * operation the contract froze.
+ */
+const CANCELLABLE_TOW_REQUEST_STATES_BY_ACTOR = Object.freeze({
+  customer: Object.freeze(['SEARCHING', 'NEGOTIATING', 'ASSIGNED', 'EN_ROUTE', 'ARRIVED', 'IN_TRANSIT']),
+  partner: Object.freeze(['ASSIGNED', 'EN_ROUTE', 'ARRIVED']),
+});
+
+/**
+ * The canonical (owning customer) cancellable scope. Kept as the unqualified
+ * name because the customer is the principal the lifecycle serves; the partner
+ * scope is the narrower subset above.
+ */
+const CANCELLABLE_TOW_REQUEST_STATES = CANCELLABLE_TOW_REQUEST_STATES_BY_ACTOR.customer;
 
 /** The canonical `terminal_reason` each cancelling party produces. */
 const TERMINAL_REASON_BY_CANCELLING_ACTOR = Object.freeze({
@@ -127,9 +156,16 @@ function isTerminalTowRequestState(state) {
   return TERMINAL_TOW_REQUEST_STATES.includes(state);
 }
 
-/** True while `cancel` is still a legal action for either party. */
-function isCancellableTowRequestState(state) {
-  return CANCELLABLE_TOW_REQUEST_STATES.includes(state);
+/**
+ * True while `cancel` is still a legal action for `actorType`.
+ *
+ * Defaults to the owning customer — the default viewer of every DTO producer —
+ * so a caller that does not name an actor never advertises the partner's
+ * narrower scope by omission.
+ */
+function isCancellableTowRequestState(state, actorType = 'customer') {
+  const states = CANCELLABLE_TOW_REQUEST_STATES_BY_ACTOR[actorType];
+  return Boolean(states && states.includes(state));
 }
 
 /** The milestone column a transition to `to` writes, or `null` if `to` is unknown. */
@@ -163,12 +199,49 @@ function progressActionForState(state) {
  */
 const TRANSITION_OUTCOMES = Object.freeze({ APPLY: 'APPLY', REPLAY: 'REPLAY', ILLEGAL: 'ILLEGAL' });
 
-/** @returns {'APPLY'|'REPLAY'|'ILLEGAL'} */
+/**
+ * The graph-level classifier. Used by the MILESTONE operations
+ * (`execution-service`), which are actor-independent: the assigned partner is
+ * the only writer and the graph alone decides the edge.
+ *
+ * Cancellation must NOT use this function: the CANCELLED edges in the graph are
+ * the union of what a request can be cancelled FROM, and the partner's scope is
+ * narrower than the customer's. `classifyCancellation(from, actorType)` is the
+ * authority the cancellation service asks.
+ *
+ * @returns {'APPLY'|'REPLAY'|'ILLEGAL'}
+ */
 function classifyTransition(from, to) {
   if (from === to) return TRANSITION_OUTCOMES.REPLAY;
   const edges = TOW_EXECUTION_TRANSITIONS[from];
   if (!edges || !Object.prototype.hasOwnProperty.call(edges, to)) return TRANSITION_OUTCOMES.ILLEGAL;
   return TRANSITION_OUTCOMES.APPLY;
+}
+
+/**
+ * The cancellation-specific classifier, ACTOR-AWARE and terminal-safe.
+ *
+ *   - `REPLAY`  — already `CANCELLED`: the retry returns the canonical row and
+ *                 writes nothing (no second instant, no second release), for
+ *                 either actor that still owns/held the job;
+ *   - `APPLY`   — the request is in one of the actor's cancellable states:
+ *                 `SEARCHING`/`NEGOTIATING`/`ASSIGNED`/`EN_ROUTE`/`ARRIVED`/
+ *                 `IN_TRANSIT` for the customer, `ASSIGNED`/`EN_ROUTE`/`ARRIVED`
+ *                 for the partner;
+ *   - `ILLEGAL` — everything else, including any terminal that is not
+ *                 `CANCELLED` (`COMPLETED`) and any out-of-scope state: 409
+ *                 `invalid_tow_transition` carrying `details.from/to`.
+ *
+ * @param {string} from current request state
+ * @param {'customer'|'partner'} actorType
+ * @returns {'APPLY'|'REPLAY'|'ILLEGAL'}
+ */
+function classifyCancellation(from, actorType = 'customer') {
+  if (from === 'CANCELLED') return TRANSITION_OUTCOMES.REPLAY;
+  if (isTerminalTowRequestState(from)) return TRANSITION_OUTCOMES.ILLEGAL;
+  return isCancellableTowRequestState(from, actorType)
+    ? TRANSITION_OUTCOMES.APPLY
+    : TRANSITION_OUTCOMES.ILLEGAL;
 }
 
 /**
@@ -220,6 +293,7 @@ module.exports = {
   EXECUTION_TARGET_STATE_BY_OPERATION,
   PROGRESS_ACTION_BY_STATE,
   CANCELLABLE_TOW_REQUEST_STATES,
+  CANCELLABLE_TOW_REQUEST_STATES_BY_ACTOR,
   TERMINAL_REASON_BY_CANCELLING_ACTOR,
   RELEASE_REASON_BY_TERMINAL_STATE,
   CANCELLATION_ACTOR_TYPES,
@@ -230,6 +304,7 @@ module.exports = {
   milestoneColumnForState,
   progressActionForState,
   classifyTransition,
+  classifyCancellation,
   invalidTransitionError,
   invalidStateError,
   terminalReasonForCancellation,

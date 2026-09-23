@@ -136,11 +136,17 @@ function createTowRequestService({
     // MVP-06: a replay is a READ of the same canonical row. If the request has
     // since been assigned and/or paid, the response must project exactly what
     // the recovery endpoints project — never a stale empty assignment/payment.
+    // The same truthfulness applies to `allowed_actions`: a fresh SEARCHING
+    // request is cancellable by its owner (ISSUE #6), and a replay of a row that
+    // has since received proposals must offer `accept_proposal` exactly as the
+    // recovery read does.
     const assignment = assignmentRepository
       ? await assignmentRepository.findByRequestId(row.id)
       : null;
+    const liveIds = await liveRequestIds([row]);
     return toDto(row, settings, {
       assignment: assignment ? buildAssignmentDto(assignment) : null,
+      allowed_actions: actionsFor(row, liveIds),
       payment: await paymentSummaryFor(paymentRepository, row.id),
     });
   }

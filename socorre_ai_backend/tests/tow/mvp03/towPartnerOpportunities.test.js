@@ -139,7 +139,17 @@ describe('MVP-03 — partner opportunities', () => {
         'request',
         'route_quote',
       ]);
-      expect(opportunity.request).toEqual(created);
+      // Same canonical row, different VIEWER: `allowed_actions` is viewer-aware,
+      // and the owner's ISSUE #6 `cancel` is not offered to the partner viewer
+      // (a partner has no request-level action in SEARCHING). The rest of the
+      // projection must be identical.
+      const opportunityRequest = { ...opportunity.request };
+      delete opportunityRequest.allowed_actions;
+      const createdRequest = { ...created };
+      delete createdRequest.allowed_actions;
+      expect(opportunityRequest).toEqual(createdRequest);
+      expect(opportunity.request.allowed_actions).toEqual([]);
+      expect(created.allowed_actions).toEqual(['cancel']);
       expect(opportunity.proposed_price).toEqual({ amount_cents: 18480, currency: 'BRL' });
       expect(opportunity.route_quote).toEqual({
         total_distance_meters: 14350,

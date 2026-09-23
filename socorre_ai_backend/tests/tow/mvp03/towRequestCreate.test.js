@@ -118,7 +118,9 @@ describe('MVP-03 — Tow request creation', () => {
         module_key: 'tow',
         customer_id: String(customer.user.id),
         assignment: null,
-        allowed_actions: [],
+        // ISSUE #6 — a fresh SEARCHING request is cancellable by its owner, and
+        // the creation projection must agree with the recovery read.
+        allowed_actions: ['cancel'],
         problem_description: 'Carro não liga na garagem do prédio',
       });
       expect(dto.matching).toEqual({ current_radius_km: 15, max_radius_km: 50, search_expires_at: null });
