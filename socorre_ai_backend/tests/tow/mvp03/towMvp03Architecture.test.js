@@ -282,8 +282,18 @@ describe('MVP-03 ARCH — scope discipline', () => {
   });
 
   test('the module exposes no scheduler, expiry or radius-progression code', () => {
+    // TOW ROUND: the ONLY tolerated one-shot timer is the bounded retry delay of
+    // the address resolver adapter (`maxAttempts <= 2`, `retryDelayMs` short).
+    // It is not a scheduler: no recurring work, no expiry, no radius
+    // progression. Every other file must not own a timer, and `setInterval` /
+    // `cron` / `schedule` stay banned everywhere.
+    const ONE_SHOT_TIMER_ALLOWLIST = ['src/modules/tow/adapters/address/google-geocoding-adapter.js'];
     const offenders = ALL_TOW_SRC_FILES
-      .filter((file) => /\b(setInterval|setTimeout|cron|schedule)\b/.test(readCode(file)))
+      .filter((file) => {
+        const source = readCode(file);
+        if (/\b(setInterval|cron|schedule)\b/.test(source)) return true;
+        return /\bsetTimeout\b/.test(source) && !ONE_SHOT_TIMER_ALLOWLIST.includes(relative(file));
+      })
       .map(relative);
     expect(offenders).toEqual([]);
   });

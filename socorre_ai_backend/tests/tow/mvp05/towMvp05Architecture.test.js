@@ -105,8 +105,16 @@ describe('MVP-05 ARCH — the eight MVP-05 routes, and nothing else', () => {
   });
 
   test('no WebSocket or scheduler surface exists anywhere in the module', () => {
+    // TOW ROUND: the address resolver adapter owns ONE bounded `setTimeout` as
+    // its retry delay (maxAttempts <= 2). No WebSocket/socket.io, no recurring
+    // timer and no cron exists anywhere — including that file.
+    const ONE_SHOT_TIMER_ALLOWLIST = ['src/modules/tow/adapters/address/google-geocoding-adapter.js'];
     const offenders = ALL_TOW_SRC_FILES
-      .filter((file) => /\b(WebSocket|socket\.io|setInterval|setTimeout|cron|schedule)\b/.test(readCode(file)))
+      .filter((file) => {
+        const source = readCode(file);
+        if (/\b(WebSocket|socket\.io|setInterval|cron|schedule)\b/.test(source)) return true;
+        return /\bsetTimeout\b/.test(source) && !ONE_SHOT_TIMER_ALLOWLIST.includes(relative(file));
+      })
       .map(relative);
     expect(offenders).toEqual([]);
   });

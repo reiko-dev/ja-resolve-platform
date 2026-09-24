@@ -176,8 +176,16 @@ describe('MVP-04 ARCH — purity and legacy isolation of the new files', () => {
   });
 
   test('no scheduler, timer or cron is introduced', () => {
+    // TOW ROUND: the address resolver adapter owns ONE bounded `setTimeout` as
+    // its retry delay (maxAttempts <= 2). Every other file — and every recurring
+    // timer anywhere — stays banned.
+    const ONE_SHOT_TIMER_ALLOWLIST = ['src/modules/tow/adapters/address/google-geocoding-adapter.js'];
     const offenders = ALL_TOW_SRC_FILES
-      .filter((file) => /\b(setInterval|setTimeout|cron|schedule)\b/.test(readCode(file)))
+      .filter((file) => {
+        const source = readCode(file);
+        if (/\b(setInterval|cron|schedule)\b/.test(source)) return true;
+        return /\bsetTimeout\b/.test(source) && !ONE_SHOT_TIMER_ALLOWLIST.includes(relative(file));
+      })
       .map(relative);
     expect(offenders).toEqual([]);
   });
