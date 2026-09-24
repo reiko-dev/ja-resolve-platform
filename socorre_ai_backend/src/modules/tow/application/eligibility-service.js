@@ -10,20 +10,22 @@
 const { MODULE_KEY, TowError, evaluateEligibility } = require('../domain');
 
 function createEligibilityService({
-  moduleRepository,
+  catalogService,
   vehicleRepository,
   documentRepository,
   partnerRepository,
   clock,
 }) {
-  if (!moduleRepository) throw new TypeError('createEligibilityService requires a moduleRepository port');
+  if (!catalogService) throw new TypeError('createEligibilityService requires a catalogService port');
   if (!vehicleRepository) throw new TypeError('createEligibilityService requires a vehicleRepository port');
   if (!documentRepository) throw new TypeError('createEligibilityService requires a documentRepository port');
   if (!partnerRepository) throw new TypeError('createEligibilityService requires a partnerRepository port');
   if (!clock) throw new TypeError('createEligibilityService requires a clock port');
 
   async function evaluate({ partnerId, requested, vehicleId = null } = {}) {
-    const moduleStatus = await moduleRepository.getByKey(MODULE_KEY);
+    // PLATFORM SERVICE CATALOG — the gate is the platform registry row for
+    // `service_key=tow`; `ensureService` preserves the legacy lazy default.
+    const moduleStatus = await catalogService.ensureService(MODULE_KEY);
     const partner = await partnerRepository.findById(partnerId);
     const vehicle = vehicleId
       ? await vehicleRepository.findByPartnerAndId(partnerId, vehicleId)

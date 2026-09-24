@@ -227,6 +227,17 @@ info:
     precise status travels in `error.details.status`); requests already created
     keep their lifecycle. No path, parameter, response shape or enum member is
     removed or narrowed, and the base contract stays byte-identical.
+    PLATFORM SERVICE CATALOG (additive to draft.15): the catalog is now
+    platform-level and identified by a stable `key`. `GET /service-catalog` is
+    the canonical public catalog — a successful response is the authoritative,
+    COMPLETE catalog, `DELETED` services are omitted and a consumer must not
+    substitute a local default for an absent service. The initial keys are
+    `mechanic`, `tire_repair`, `electrical`, `tow`, `store`, `gas_station`.
+    `/tow/services` and `/tow/module-status` stay as COMPATIBILITY projections
+    over the SAME registry rows (the Tow lifecycle has one authority), and
+    `GET/PATCH /admin/service-catalog/{key}` changes the lifecycle of ANY
+    service key using the canonical `{ status, reason }` (or the released
+    `{ enabled, reason }` for compatibility).
 servers:
   - url: /api
 security: []
@@ -236,6 +247,7 @@ tags:
   - name: Tow Partner
   - name: Tow Vehicles
   - name: Tow Admin
+  - name: Service Catalog
 paths:
   /tow/module-status:
     $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1module-status'
@@ -259,6 +271,85 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ServiceCatalogResponse' }
+
+  # PLATFORM SERVICE CATALOG — the canonical catalog. `/tow/services` above is
+  # the released COMPATIBILITY projection over the same registry rows.
+  /service-catalog:
+    get:
+      tags: [Service Catalog]
+      operationId: listPlatformServiceCatalog
+      security: []
+      description: >-
+        The canonical platform service catalog, unauthenticated on purpose: the
+        apps must know which services exist and their lifecycle status before
+        logging in. Ordered by `sort_order`. A successful response is the
+        authoritative, COMPLETE catalog: `DELETED` services are omitted and an
+        absent service must NOT be rendered as available. `ACTIVE` allows
+        starting new business; `INACTIVE`/`SOON` stay visible with the
+        `disabled_reason` and block new business; `DELETED` is hidden and blocks
+        new business. `key` is the stable identity (`mechanic`, `tire_repair`,
+        `electrical`, `tow`, `store`, `gas_station`).
+      responses:
+        '200':
+          description: Public platform service catalog
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ServiceCatalogResponse' }
+
+  /admin/service-catalog:
+    get:
+      tags: [Service Catalog]
+      operationId: adminListServiceCatalog
+      security: [{ bearerAuth: [] }]
+      description: >-
+        Administrative view of the whole platform service registry, `DELETED`
+        included (administration needs the history).
+      responses:
+        '200':
+          description: Every registered service
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminServiceCatalogResponse' }
+        '401': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Forbidden' }
+
+  /admin/service-catalog/{key}:
+    get:
+      tags: [Service Catalog]
+      operationId: adminGetServiceCatalogItem
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ServiceKey'
+      responses:
+        '200':
+          description: One registered service
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminServiceCatalogItemResponse' }
+        '401': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Forbidden' }
+        '404': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/NotFound' }
+    patch:
+      tags: [Service Catalog]
+      operationId: adminPatchServiceCatalogItem
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ServiceKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ToggleServiceCatalogItemInput' }
+      responses:
+        '200':
+          description: The service after the lifecycle transition
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminServiceCatalogItemResponse' }
+        '401': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/Forbidden' }
+        '404': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/NotFound' }
+        '422': { $ref: './tow-api-contract.base.openapi.yaml#/components/responses/ValidationError' }
 
   /tow/requests:
     get:
@@ -1068,6 +1159,14 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+  parameters:
+    # PLATFORM SERVICE CATALOG — the stable service identity.
+    ServiceKey:
+      name: key
+      in: path
+      required: true
+      description: Stable platform service key (e.g. `tow`, `mechanic`).
+      schema: { type: string }
   schemas:
     TowProposal:
       type: object
@@ -1104,9 +1203,11 @@ components:
       enum: [ACTIVE, INACTIVE, SOON, DELETED]
     ServiceCatalogItem:
       type: object
-      required: [id, name, status, disabled_reason, sort_order]
+      required: [id, key, name, status, disabled_reason, sort_order]
       properties:
         id: { type: string }
+        # PLATFORM SERVICE CATALOG — the stable identity consumed by the apps.
+        key: { type: string }
         name: { type: string }
         status: { $ref: '#/components/schemas/ServiceStatus' }
         disabled_reason: { type: [string, 'null'] }
@@ -1124,6 +1225,50 @@ components:
               type: array
               items: { $ref: '#/components/schemas/ServiceCatalogItem' }
     ServiceCatalogResponse: { $ref: '#/components/schemas/EnvelopeServiceCatalog' }
+
+    # PLATFORM SERVICE CATALOG — the admin projection adds the derived legacy
+    # `enabled` and the audit fields. DELETED items are listed here.
+    AdminServiceCatalogItem:
+      allOf:
+        - $ref: '#/components/schemas/ServiceCatalogItem'
+        - type: object
+          required: [enabled, updated_by, updated_at]
+          properties:
+            enabled: { type: boolean }
+            updated_by: { type: [integer, 'null'] }
+            updated_at: { type: [string, 'null'], format: date-time }
+    EnvelopeAdminServiceCatalog:
+      type: object
+      required: [success, data]
+      properties:
+        success: { const: true }
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: '#/components/schemas/AdminServiceCatalogItem' }
+    AdminServiceCatalogResponse: { $ref: '#/components/schemas/EnvelopeAdminServiceCatalog' }
+    AdminServiceCatalogItemResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { const: true }
+        data: { $ref: '#/components/schemas/AdminServiceCatalogItem' }
+
+    # PLATFORM SERVICE CATALOG — the per-key lifecycle input. The canonical
+    # member is `status`; the released boolean `enabled` stays accepted for
+    # compatibility. The RUNTIME requires exactly one of the two (422 when
+    # neither is present) and `status` takes precedence when both are.
+    ToggleServiceCatalogItemInput:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        status: { $ref: '#/components/schemas/ServiceStatus' }
+        enabled: { type: boolean }
+        reason: { type: string, minLength: 1 }
 
     # draft.15 — the module status now publishes the canonical service status.
     # `enabled` stays published as the derived projection (status === 'ACTIVE').

@@ -22,10 +22,17 @@ function serializeModule(row) {
   };
 }
 
-/** One item of the public service catalog consumed by the apps. */
+/**
+ * One item of the public service catalog consumed by the apps.
+ *
+ * COMPATIBILITY projection of the platform catalog (`GET /api/service-catalog`
+ * is canonical). `key` is the stable identity and is additive to the released
+ * `{ id, name, status, disabled_reason, sort_order }` shape.
+ */
 function serializeServiceCatalogItem(row) {
   return {
     id: String(row.id),
+    key: row.key,
     name: row.name,
     status: row.status,
     disabled_reason: row.disabled_reason ?? null,

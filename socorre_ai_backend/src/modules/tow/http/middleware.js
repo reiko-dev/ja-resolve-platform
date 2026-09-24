@@ -4,16 +4,12 @@
 'use strict';
 
 const { PARTNER_TYPE } = require('../domain');
+// Platform-level admin guard (shared with the service catalog); re-exported
+// here so every existing Tow route keeps its import path.
+const { requireAdmin } = require('../../../middleware/requireAdmin');
 
 function forbidden(res, message) {
   return res.status(403).json({ success: false, message, error: { code: 'forbidden' } });
-}
-
-function requireAdmin(req, res, next) {
-  if (!req.user || req.user.role !== 'admin') {
-    return forbidden(res, 'Acesso negado. Apenas administradores podem acessar esta rota.');
-  }
-  return next();
 }
 
 function requireTowPartner(req, res, next) {

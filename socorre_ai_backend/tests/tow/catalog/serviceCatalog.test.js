@@ -86,10 +86,12 @@ describe('SERVICE CATALOG — lifecycle status and public catalog', () => {
       expect(response.status).toBe(200);
       expect(response.body.data.items).toEqual([{
         id: expect.any(String),
+        key: 'tow',
         name: 'Guincho',
         status: 'ACTIVE',
         disabled_reason: null,
-        sort_order: 0,
+        // The canonical catalog order for Tow (migration 010).
+        sort_order: 40,
       }]);
     });
 

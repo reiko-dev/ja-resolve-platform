@@ -377,8 +377,8 @@ describePostgres('T01 PostgreSQL — clean baseline', () => {
       const report = await collectReport(db);
       for (const table of REQUIRED_TABLES) {
         // `users` (admin), `system_settings` (structural defaults) and
-        // `service_modules` (structural module registry: exactly one row) are
-        // configuration, not functional data.
+        // `service_modules` (structural platform service registry: the initial
+        // services) are configuration, not functional data.
         if (table === 'users' || table === 'system_settings' || table === 'service_modules') continue;
         expect({ table, count: report.counts[table] }).toEqual({ table, count: 0 });
       }
