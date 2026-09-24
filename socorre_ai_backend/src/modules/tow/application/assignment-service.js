@@ -56,7 +56,6 @@ const {
 const { paymentSummaryFor } = require('./payment-summary');
 
 function createAssignmentService({
-  moduleService,
   settingsService,
   towRequestRepository,
   towProposalRepository,
@@ -65,7 +64,6 @@ function createAssignmentService({
   unitOfWork,
   clock,
 }) {
-  if (!moduleService) throw new TypeError('createAssignmentService requires a moduleService');
   if (!settingsService) throw new TypeError('createAssignmentService requires a settingsService');
   if (!towRequestRepository) throw new TypeError('createAssignmentService requires a towRequestRepository port');
   if (!towProposalRepository) throw new TypeError('createAssignmentService requires a towProposalRepository port');
@@ -202,10 +200,7 @@ function createAssignmentService({
   }
 
   async function accept({ customerId, proposalId, idempotencyKey } = {}) {
-    // 1. Module gate FIRST: a disabled module never assigns, and never replays.
-    await moduleService.assertNewBusinessAllowed();
-
-    // 2. The canonical `Idempotency-Key` header is REQUIRED (8–128 chars). It is
+    // 1. The canonical `Idempotency-Key` header is REQUIRED (8–128 chars). It is
     //    validated with the SAME domain validator the create paths use — never a
     //    second length policy — and BEFORE the transaction is opened, so a
     //    missing or malformed header inserts zero assignment rows and changes no
@@ -215,7 +210,7 @@ function createAssignmentService({
     //    assignment.
     validateIdempotencyKey(idempotencyKey);
 
-    // 3. A non-canonical id can never match a row.
+    // 2. A non-canonical id can never match a row.
     if (!isTowProposalId(proposalId)) throw new TowError('not_found', 'Tow proposal not found');
 
     const now = clock.now();

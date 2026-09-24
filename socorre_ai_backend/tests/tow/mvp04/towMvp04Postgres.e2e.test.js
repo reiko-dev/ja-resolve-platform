@@ -388,7 +388,10 @@ describePostgres('MVP-04 PostgreSQL — atomic assignment and concurrency', () =
     expect(await assignmentRows()).toHaveLength(2);
   });
 
-  test('C5 — disable x accept is deterministically serialized', async () => {
+  test('C5 — disabling the service never blocks an existing accept', async () => {
+    // SERVICE CATALOG — the catalog status gates NEW requests only. A
+    // negotiation opened while ACTIVE must reach ASSIGNED even when the service
+    // is disabled concurrently: there is no module gate on the accept path.
     const customer = await createCustomer('C5 Customer');
     const partner = await createTowPartner('C5 Partner');
     const towRequest = await createRequest(customer, 'pg-c5-request-000001');
@@ -396,23 +399,14 @@ describePostgres('MVP-04 PostgreSQL — atomic assignment and concurrency', () =
 
     const [acceptResponse] = await Promise.all([
       accept(customer, proposal.id, 'pg-c5-accept-000001'),
-      services.moduleService.setEnabled({ enabled: false, reason: 'MVP-04 PG concurrency' }),
+      services.moduleService.setEnabled({ enabled: false, reason: 'MVP-04 PG lifecycle' }),
     ]);
 
-    // Either the assignment won the race ...
-    if (acceptResponse.status === 200) {
-      expect(acceptResponse.body.data.state).toBe('ASSIGNED');
-      expect(await assignmentRows()).toHaveLength(1);
-      const [row] = await db('tow_requests').where({ id: towRequest.id }).select('state');
-      expect(row.state).toBe('ASSIGNED');
-    } else {
-      // ... or the module gate won. Never a partial assignment.
-      expect(acceptResponse.status).toBe(409);
-      expect(acceptResponse.body.error.code).toBe('service_module_disabled');
-      expect(await assignmentRows()).toHaveLength(0);
-      const [row] = await db('tow_requests').where({ id: towRequest.id }).select('state');
-      expect(row.state).not.toBe('ASSIGNED');
-    }
+    expect(acceptResponse.status).toBe(200);
+    expect(acceptResponse.body.data.state).toBe('ASSIGNED');
+    expect(await assignmentRows()).toHaveLength(1);
+    const [row] = await db('tow_requests').where({ id: towRequest.id }).select('state');
+    expect(row.state).toBe('ASSIGNED');
   });
 
   test('C6 — concurrent creation by one partner for one request yields one proposal', async () => {

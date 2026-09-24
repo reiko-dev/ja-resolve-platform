@@ -166,12 +166,15 @@ describe('MVP-05 ARCH — graceful drain is structural, not incidental', () => {
     expect(offenders).toEqual([]);
   });
 
-  test('the request/proposal write paths still DO consult the gate', () => {
-    // The other half of the same contract: disable must still refuse new work.
+  test('the catalog gate lives ONLY in the request-creation path', () => {
+    // SERVICE CATALOG — the other half of the drain contract: disable still
+    // refuses NEW requests, but never an existing request's lifecycle.
     const requestService = readCode(path.join(TOW_SRC, 'application/tow-request-service.js'));
     const proposalService = readCode(path.join(TOW_SRC, 'application/proposal-service.js'));
+    const assignmentService = readCode(path.join(TOW_SRC, 'application/assignment-service.js'));
     expect(requestService).toContain('assertNewBusinessAllowed');
-    expect(proposalService).toContain('assertNewBusinessAllowed');
+    expect(proposalService).not.toContain('assertNewBusinessAllowed');
+    expect(assignmentService).not.toContain('assertNewBusinessAllowed');
   });
 
   test('the module gate exposes the drain contract the tests pin', () => {

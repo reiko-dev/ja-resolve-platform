@@ -30,7 +30,6 @@ const {
   cancelByCustomer,
   postTracking,
   getTracking,
-  PROPOSAL_IDEMPOTENCY_KEY,
 } = require('../../helpers/tow/mvp05');
 
 describe('MVP-05 — graceful drain', () => {
@@ -118,7 +117,11 @@ describe('MVP-05 — graceful drain', () => {
     expect(released.release_reason).toBe('CANCELLED');
   });
 
-  test('new business stays blocked while disabled', async () => {
+  test('new business stays blocked while disabled (creation only)', async () => {
+    // SERVICE CATALOG — the catalog status gates NEW requests only. This test
+    // pins the gate at creation; the post-creation lifecycle (opportunities,
+    // proposal, accept) is proven by
+    // `tests/tow/catalog/serviceLifecyclePreserved.test.js`.
     const fixture = await scenario({ partnerCount: 2 });
     await disableModule();
     const providerCalls = routeProvider.callCount();
@@ -131,15 +134,7 @@ describe('MVP-05 — graceful drain', () => {
     expect(created.status).toBe(409);
     expect(created.body.error.code).toBe('service_module_disabled');
 
-    const proposed = await request(app)
-      .post(`/api/tow/requests/${fixture.request.id}/proposals`)
-      .set(fixture.auths[1].headers)
-      .set('Idempotency-Key', PROPOSAL_IDEMPOTENCY_KEY)
-      .send({});
-    expect(proposed.status).toBe(409);
-    expect(proposed.body.error.code).toBe('service_module_disabled');
-
-    // No provider work is attempted for blocked new business.
+    // No provider work is attempted for a blocked creation.
     expect(routeProvider.callCount()).toBe(providerCalls);
   });
 

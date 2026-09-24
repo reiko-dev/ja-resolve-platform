@@ -177,7 +177,6 @@ function buildTowServices(options = {}) {
       clock,
     }),
     matchingService: createMatchingService({
-      moduleService,
       settingsService,
       partnerRepository,
       vehicleRepository,
@@ -188,7 +187,6 @@ function buildTowServices(options = {}) {
       ...(options.matching || {}),
     }),
     proposalService: createProposalService({
-      moduleService,
       settingsService,
       partnerRepository,
       vehicleRepository,
@@ -199,7 +197,6 @@ function buildTowServices(options = {}) {
       clock,
     }),
     assignmentService: createAssignmentService({
-      moduleService,
       settingsService,
       towRequestRepository,
       towProposalRepository,

@@ -161,18 +161,17 @@ describe('MVP-04 — server-priced proposal creation', () => {
     });
   });
 
-  describe('module gate', () => {
-    test('a disabled module blocks creation with service_module_disabled and no provider call', async () => {
+  describe('service catalog lifecycle', () => {
+    test('a disabled service does NOT block a proposal on an existing request', async () => {
+      // SERVICE CATALOG — the status gates NEW requests at creation only. A
+      // request created while ACTIVE must still accept proposals afterwards.
       const { request: towRequest, auths } = await scenario({ partnerCount: 1 });
-      // The canonical way to disable the module: the row is created on first
-      // read and then flipped, exactly like the MVP-03 gate test does.
-      await services.moduleService.setEnabled({ enabled: false, reason: 'MVP-04 gate test' });
+      await services.moduleService.setEnabled({ enabled: false, reason: 'MVP-04 lifecycle' });
 
       const response = await createProposal(auths[0], towRequest.id);
-      expect(response.status).toBe(409);
-      expect(response.body.error.code).toBe('service_module_disabled');
-      expect(routeProvider.callCount('computeRoute')).toBe(0);
-      expect(await testDb.db('tow_request_proposals').select('*')).toHaveLength(0);
+      expect(response.status).toBe(201);
+      expect(response.body.data.request_id).toBe(String(towRequest.id));
+      expect(await testDb.db('tow_request_proposals').select('*')).toHaveLength(1);
     });
   });
 

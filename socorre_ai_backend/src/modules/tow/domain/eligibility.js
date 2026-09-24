@@ -11,9 +11,15 @@
  * Pure function over already-loaded data. Application services load the inputs
  * through ports and delegate here; controllers never compute this.
  *
- * Check order matters: module availability is reported first (a disabled module
- * must always surface `service_module_disabled`, even for a non-tow partner),
- * then partner identity, then vehicle/documents/compatibility.
+ * SERVICE CATALOG — the module/catalog check is OPT-IN. It is evaluated ONLY
+ * when the caller supplies a `moduleStatus` (the MVP-01 operational eligibility
+ * seam, where a disabled module must surface `service_module_disabled` even for
+ * a non-tow partner). Post-creation flows (matching, opportunities, proposals)
+ * deliberately do NOT pass it: once a request exists, the current catalog status
+ * must never invalidate it. The status gates NEW requests at creation only.
+ *
+ * Check order when the module is supplied: module availability first, then
+ * partner identity, then vehicle/documents/compatibility.
  */
 'use strict';
 
@@ -25,8 +31,8 @@ const {
 } = require('./documents');
 const { isCompatible } = require('./compatibility');
 
-function evaluateEligibility({ partner, moduleStatus, vehicle, documents, requested, now } = {}) {
-  if (!isModuleEnabled(moduleStatus)) {
+function evaluateEligibility({ partner, moduleStatus = null, vehicle, documents, requested, now } = {}) {
+  if (moduleStatus !== null && moduleStatus !== undefined && !isModuleEnabled(moduleStatus)) {
     return { eligible: false, code: 'service_module_disabled', reasons: ['module_disabled'] };
   }
 

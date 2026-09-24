@@ -541,16 +541,19 @@ describe('MVP-03 — partner opportunities', () => {
     });
   });
 
-  describe('module gate', () => {
-    test('a disabled module returns 409 and never quotes', async () => {
-      await createRequest();
+  describe('service catalog lifecycle', () => {
+    test('a disabled service does NOT gate the feed for an existing request', async () => {
+      // SERVICE CATALOG — the status gates NEW requests at creation only. A
+      // request created while ACTIVE keeps matching after the service is
+      // disabled, otherwise it would be stranded in SEARCHING forever.
+      const created = await createRequest();
       const partner = await partnerWith({ partnerOverrides: NEAR_PARTNER });
-      await services.moduleService.setEnabled({ enabled: false, reason: 'MVP-03 opportunity gate' });
+      await services.moduleService.setEnabled({ enabled: false, reason: 'MVP-03 lifecycle' });
 
       const response = await listOpportunities(partner);
-      expect(response.status).toBe(409);
-      expect(response.body.error.code).toBe('service_module_disabled');
-      expect(routeProvider.callCount()).toBe(0);
+      expect(response.status).toBe(200);
+      expect(response.body.data.items.map((item) => item.request.id)).toEqual([created.id]);
+      expect(routeProvider.callCount()).toBe(1);
     });
   });
 

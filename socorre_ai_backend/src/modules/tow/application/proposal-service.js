@@ -8,8 +8,10 @@
  *   - `withdraw`          `POST /tow/proposals/{proposalId}/withdraw`
  *
  * Guarantees enforced here:
- *   - the MODULE GATE runs FIRST, before validation and before any provider
- *     call: a disabled module is a 409 with ZERO Google calls;
+ *   - SERVICE CATALOG — the catalog status is NOT a gate here: a proposal is a
+ *     step of a request that already exists, so it keeps working when the
+ *     service becomes INACTIVE/SOON/DELETED. The status gates NEW requests at
+ *     creation only (`tow-request-service.create`);
  *   - the price is NEVER an input. The body must be empty; a client that names a
  *     price, a distance or an identity is refused with 422 before anything is
  *     read or called;
@@ -66,7 +68,6 @@ const { validateListQuery } = require('./list-query');
 const PROPOSAL_FILTER_STATUSES = TOW_PROPOSAL_STATUSES;
 
 function createProposalService({
-  moduleService,
   settingsService,
   partnerRepository,
   vehicleRepository,
@@ -76,7 +77,6 @@ function createProposalService({
   quoteService,
   clock,
 }) {
-  if (!moduleService) throw new TypeError('createProposalService requires a moduleService');
   if (!settingsService) throw new TypeError('createProposalService requires a settingsService');
   if (!partnerRepository) throw new TypeError('createProposalService requires a partnerRepository port');
   if (!vehicleRepository) throw new TypeError('createProposalService requires a vehicleRepository port');
@@ -123,27 +123,23 @@ function createProposalService({
   }
 
   async function createForPartner({ partnerId, requestId, idempotencyKey, body } = {}) {
-    // 1. Module gate FIRST: a disabled module must fail identically for a brand
-    //    new attempt and for a replay, and must never reach the provider.
-    const moduleStatus = await moduleService.assertNewBusinessAllowed();
-
-    // 2. The frozen input shape (empty) and the key window.
+    // 1. The frozen input shape (empty) and the key window.
     validateCreateTowProposalInput(body);
     const key = validateIdempotencyKey(idempotencyKey);
 
-    // 3. A non-canonical id can never match a row: 404 without touching the DB.
+    // 2. A non-canonical id can never match a row: 404 without touching the DB.
     if (!isTowRequestId(requestId)) throw notFound();
     const towRequest = await towRequestRepository.findById(requestId);
     if (!towRequest) throw notFound();
 
-    // 4. Eligibility revalidation, identical to the opportunity feed. Resolved
+    // 3. Eligibility revalidation, identical to the opportunity feed. Resolved
     //    before the replay so the CURRENT vehicle is known: the replay must be
     //    able to prove it was made with that same vehicle.
     const now = clock.now();
     const partner = await partnerRepository.findById(partnerId);
     const vehicle = partner ? await vehicleRepository.findActiveByPartner(partner.id) : null;
 
-    // 5. Replay BEFORE any quote: an attempt that already succeeded returns its
+    // 4. Replay BEFORE any quote: an attempt that already succeeded returns its
     //    own result without re-pricing. `partnerId` is the authenticated
     //    identity, never a client field.
     if (vehicle) {
@@ -168,13 +164,12 @@ function createProposalService({
     const match = assertMatchable(evaluateTowMatch({
       request: towRequest,
       partner,
-      moduleStatus,
       vehicle,
       documents,
       now,
     }));
 
-    // 6. The request must still be open to new offers.
+    // 5. The request must still be open to new offers.
     if (!isOpenTowRequestState(towRequest.state)) {
       throw new TowError(
         towRequest.state === 'ASSIGNED' ? 'request_already_assigned' : 'proposal_not_actionable',
@@ -183,7 +178,7 @@ function createProposalService({
       );
     }
 
-    // 7. One live proposal per (request, partner) — the partial index is the
+    // 6. One live proposal per (request, partner) — the partial index is the
     //    structural guarantee, this is the honest error.
     const active = await towProposalRepository.findActiveForPartnerAndRequest({
       partnerId: partner.id,
@@ -193,7 +188,7 @@ function createProposalService({
       throw new TowError('proposal_already_active', 'This partner already has an active proposal for this request');
     }
 
-    // 8. The authoritative quote — the ONLY price source, and the first provider
+    // 7. The authoritative quote — the ONLY price source, and the first provider
     //    call of the whole operation.
     const settings = await settingsService.get();
     const quote = await quoteService.quoteTow({
@@ -232,7 +227,7 @@ function createProposalService({
       updated_at: now,
     });
 
-    // 9. Atomic create-or-replay. The fingerprint source stays transient: the
+    // 8. Atomic create-or-replay. The fingerprint source stays transient: the
     //    adapter persists only its digest.
     const {
       row,
@@ -255,7 +250,7 @@ function createProposalService({
       throw new TowError('idempotency_conflict', 'Idempotency-Key was already used with a different payload');
     }
 
-    // 10. First proposal opens the negotiation. Guarded in SQL and idempotent by
+    // 9. First proposal opens the negotiation. Guarded in SQL and idempotent by
     //     construction: a concurrent second partner changes 0 rows.
     if (created) {
       await towRequestRepository.markNegotiating(towRequest.id, { updatedAt: now });
@@ -305,9 +300,6 @@ function createProposalService({
   }
 
   async function withdraw({ partnerId, proposalId, idempotencyKey } = {}) {
-    // The module gate is first on every write path, withdraw included.
-    await moduleService.assertNewBusinessAllowed();
-
     // The canonical `Idempotency-Key` header is REQUIRED (8–128 chars) and is
     // validated with the SAME domain validator the create path uses, BEFORE the
     // proposal is even read. A missing or malformed header therefore never

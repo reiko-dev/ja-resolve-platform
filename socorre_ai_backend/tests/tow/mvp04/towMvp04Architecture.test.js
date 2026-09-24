@@ -239,23 +239,21 @@ describe('MVP-04 ARCH — ports, barrels and error vocabulary', () => {
     expect(ERROR_STATUS.service_module_disabled).toBe(409);
   });
 
-  test('the module gate is still the FIRST check of every write path', () => {
+  test('the catalog gate lives ONLY in the request-creation path', () => {
+    // SERVICE CATALOG — the status gates NEW requests only. Once a request
+    // exists, proposal/accept must keep working even if the service becomes
+    // INACTIVE/SOON/DELETED, so those services must NOT consult the gate.
     const proposalService = readCode(path.join(TOW_SRC, 'application/proposal-service.js'));
     const assignmentService = readCode(path.join(TOW_SRC, 'application/assignment-service.js'));
-    expect(proposalService).toMatch(/assertNewBusinessAllowed/);
-    expect(assignmentService).toMatch(/assertNewBusinessAllowed/);
-    // Before any provider/pricing work in the create path.
-    expect(proposalService.indexOf('assertNewBusinessAllowed'))
-      .toBeLessThan(proposalService.indexOf('quoteTow'));
-    // The accept path delegates its transactional body to `acceptWithin`, which is
-    // declared first, so the whole-file offsets say nothing: the gate must run
-    // inside `accept` BEFORE the unit of work is opened (a disabled module must
-    // not even start a transaction).
-    const acceptBody = assignmentService.slice(assignmentService.indexOf('async function accept('));
-    expect(acceptBody.indexOf('assertNewBusinessAllowed')).toBeGreaterThanOrEqual(0);
-    expect(acceptBody.indexOf('assertNewBusinessAllowed'))
-      .toBeLessThan(acceptBody.indexOf('unitOfWork.run'));
-    // ... and the transactional body is reachable only through `accept`.
+    const matchingService = readCode(path.join(TOW_SRC, 'application/matching-service.js'));
+    const requestService = readCode(path.join(TOW_SRC, 'application/tow-request-service.js'));
+
+    expect(proposalService).not.toMatch(/assertNewBusinessAllowed/);
+    expect(assignmentService).not.toMatch(/assertNewBusinessAllowed/);
+    expect(matchingService).not.toMatch(/assertNewBusinessAllowed/);
+    expect(requestService).toMatch(/assertNewBusinessAllowed/);
+
+    // The transactional body is reachable only through `accept`.
     expect(assignmentService.match(/acceptWithin\(/g)).toHaveLength(2);
   });
 });

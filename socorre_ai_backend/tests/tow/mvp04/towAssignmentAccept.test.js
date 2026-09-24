@@ -380,17 +380,19 @@ describe('MVP-04 — atomic assignment on accept', () => {
     });
   });
 
-  describe('module gate', () => {
-    test('a disabled module blocks accept with service_module_disabled', async () => {
+  describe('service catalog lifecycle', () => {
+    test('a disabled service does NOT block accepting an existing proposal', async () => {
+      // SERVICE CATALOG — the status gates NEW requests at creation only. A
+      // negotiation opened while ACTIVE must still be able to reach ASSIGNED.
       const { request: towRequest, auths, customer } = await scenario({ partnerCount: 1 });
       const customerAuth = authFor({ user: customer });
       const created = await propose(auths[0], towRequest.id);
-      await testDb.db('service_modules').where({ module_key: 'tow' }).update({ enabled: false });
+      await testDb.db('service_modules').where({ module_key: 'tow' }).update({ enabled: false, status: 'INACTIVE' });
 
       const response = await accept(customerAuth, created.id);
-      expect(response.status).toBe(409);
-      expect(response.body.error.code).toBe('service_module_disabled');
-      expect(await testDb.db('tow_assignments').select('*')).toHaveLength(0);
+      expect(response.status).toBe(200);
+      expect(response.body.data.state).toBe('ASSIGNED');
+      expect(await testDb.db('tow_assignments').select('*')).toHaveLength(1);
     });
   });
 
