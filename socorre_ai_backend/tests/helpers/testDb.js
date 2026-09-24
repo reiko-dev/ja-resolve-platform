@@ -707,10 +707,14 @@ const SCHEMA = [
     service_key VARCHAR(50) NOT NULL,
     partner_type VARCHAR(50) NOT NULL,
     enabled INTEGER NOT NULL DEFAULT 1,
+    name VARCHAR(150),
+    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+    sort_order INTEGER NOT NULL DEFAULT 0,
     disabled_reason TEXT,
     updated_by INTEGER,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    CHECK (status IN ('ACTIVE', 'INACTIVE', 'SOON', 'DELETED'))
   )`,
 
   `CREATE TABLE IF NOT EXISTS tow_vehicles (

@@ -13,9 +13,23 @@ function serializeModule(row) {
   return {
     module_key: row.module_key,
     service_key: row.service_key,
+    // SERVICE CATALOG — the canonical lifecycle. `enabled` stays published as the
+    // derived compatibility projection (ACTIVE => true).
+    status: row.status,
     enabled: row.enabled === true,
     disabled_reason: row.disabled_reason ?? null,
     updated_at: toIso(row.updated_at),
+  };
+}
+
+/** One item of the public service catalog consumed by the apps. */
+function serializeServiceCatalogItem(row) {
+  return {
+    id: String(row.id),
+    name: row.name,
+    status: row.status,
+    disabled_reason: row.disabled_reason ?? null,
+    sort_order: row.sort_order,
   };
 }
 
@@ -137,6 +151,7 @@ function serializeOpportunity(opportunity) {
 module.exports = {
   serializeModule,
   serializeAdminModule,
+  serializeServiceCatalogItem,
   serializeVehicle,
   serializeVehicleSummary,
   serializeDocument,

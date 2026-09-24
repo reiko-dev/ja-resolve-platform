@@ -41,7 +41,7 @@ const describePostgres = postgres.isEnabled() ? describe : describe.skip;
 // MVP-06 cash payment, the Tow round's commercial payment_method column),
 // mirroring `PINNED_MIGRATIONS` of `scripts/tow/run-db-baseline-gate.js` and the
 // offline assertion in `tests/tow/baseline/dbBaselineSafety.test.js`. The
-// directory read below is a cross-check only, so a smuggled `009_*.js` cannot be
+// directory read below is a cross-check only, so a smuggled `010_*.js` cannot be
 // absorbed silently.
 const BASELINE_MIGRATIONS = Object.freeze([
   '001_baseline_schema.js',
@@ -52,6 +52,7 @@ const BASELINE_MIGRATIONS = Object.freeze([
   '006_mvp05_service_execution_tracking.js',
   '007_mvp06_cash_payment.js',
   '008_tow_request_payment_method.js',
+  '009_service_catalog_status.js',
 ]);
 
 /** Disposable credentials: generated per run, never committed. */

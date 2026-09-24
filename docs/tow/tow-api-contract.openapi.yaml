@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: JaResolve Tow Consumer API
-  version: 1.0.0-draft.14
+  version: 1.0.0-draft.15
   description: >-
     Normative consumer contract for Mobile Cliente, Mobile Parceiro and Dashboard.
     This entrypoint composes the reviewed draft.2 base contract with the frozen
@@ -212,6 +212,21 @@ info:
     the partner handover after `COMPLETED` (PENDING -> RECEIVED) and still
     accepts no amount/currency. No path, parameter, response shape or enum
     member is removed or narrowed, and the base contract stays byte-identical.
+    Revision draft.15 (SERVICE CATALOG — additive): the platform service
+    registry gains a canonical product lifecycle
+    (`ACTIVE` | `INACTIVE` | `SOON` | `DELETED`) exposed by the new public
+    `GET /tow/services` (`listTowServices`) as
+    `{ id, name, status, disabled_reason, sort_order }`, ordered by
+    `sort_order` and hiding `DELETED` services. `ModuleStatus` gains the
+    canonical `status` member (the legacy `enabled` boolean stays published as
+    the derived projection `status === 'ACTIVE'`), and
+    `ToggleTowModuleInput` accepts the canonical `{ status, reason }` in
+    addition to the released `{ enabled, reason }` (exactly one of the two).
+    The lifecycle governs NEW requests only: `ACTIVE` allows creation and every
+    other status answers the established `409 service_module_disabled` (the
+    precise status travels in `error.details.status`); requests already created
+    keep their lifecycle. No path, parameter, response shape or enum member is
+    removed or narrowed, and the base contract stays byte-identical.
 servers:
   - url: /api
 security: []
@@ -224,6 +239,26 @@ tags:
 paths:
   /tow/module-status:
     $ref: './tow-api-contract.base.openapi.yaml#/paths/~1tow~1module-status'
+
+  /tow/services:
+    get:
+      tags: [Tow Customer, Tow Partner]
+      operationId: listTowServices
+      security: []
+      description: >-
+        SERVICE CATALOG — the platform services catalog consumed by the apps,
+        unauthenticated on purpose (the apps must know which services exist and
+        their lifecycle status before logging in). Ordered by `sort_order`.
+        `DELETED` services are hidden; every other status is visible with its
+        `disabled_reason`. `status` is the product lifecycle: `ACTIVE` allows
+        starting new requests, `INACTIVE`/`SOON` block them temporarily,
+        `DELETED` blocks them and is hidden.
+      responses:
+        '200':
+          description: Public service catalog
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ServiceCatalogResponse' }
 
   /tow/requests:
     get:
@@ -1061,6 +1096,61 @@ components:
     TowProposalStatus:
       type: string
       enum: [ACTIVE, COUNTERED, ACCEPTED, REJECTED, WITHDRAWN, EXPIRED, CLOSED]
+
+    # draft.15 — SERVICE CATALOG. The canonical lifecycle of a platform service
+    # and the public catalog item consumed by the apps.
+    ServiceStatus:
+      type: string
+      enum: [ACTIVE, INACTIVE, SOON, DELETED]
+    ServiceCatalogItem:
+      type: object
+      required: [id, name, status, disabled_reason, sort_order]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        status: { $ref: '#/components/schemas/ServiceStatus' }
+        disabled_reason: { type: [string, 'null'] }
+        sort_order: { type: integer }
+    EnvelopeServiceCatalog:
+      type: object
+      required: [success, data]
+      properties:
+        success: { const: true }
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: '#/components/schemas/ServiceCatalogItem' }
+    ServiceCatalogResponse: { $ref: '#/components/schemas/EnvelopeServiceCatalog' }
+
+    # draft.15 — the module status now publishes the canonical service status.
+    # `enabled` stays published as the derived projection (status === 'ACTIVE').
+    ModuleStatus:
+      type: object
+      required: [module_key, service_key, status, enabled, updated_at]
+      properties:
+        module_key: { const: tow }
+        service_key: { const: tow }
+        status: { $ref: '#/components/schemas/ServiceStatus' }
+        enabled: { type: boolean }
+        disabled_reason: { type: [string, 'null'] }
+        updated_at: { type: string, format: date-time }
+
+    # draft.15 — the toggle accepts the canonical lifecycle status in addition to
+    # the released boolean. The RUNTIME requires exactly one of `enabled`/`status`
+    # (422 otherwise); the schema keeps both optional so a released
+    # `{ enabled, reason }` body and a canonical `{ status, reason }` body are
+    # both valid, and `status` takes precedence when both are present.
+    ToggleTowModuleInput:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        enabled: { type: boolean }
+        status: { $ref: '#/components/schemas/ServiceStatus' }
+        reason: { type: string, minLength: 1 }
 
     # draft.13 — the canonical TowRequest with the commercial payment choice.
     # The composed document resolves every `TowRequest` reference here (the

@@ -323,7 +323,7 @@ describe('MVP-04 ARCH — scope discipline', () => {
   test('the contract revision that adds proposal_already_active is recorded', () => {
     const contract = read(CANONICAL_CONTRACT);
     expect(contract).toContain('proposal_already_active');
-    expect(contract).toContain('1.0.0-draft.14');
+    expect(contract).toContain('1.0.0-draft.15');
     const helper = read(path.join(BACKEND_ROOT, 'tests/helpers/towContract.js'));
     expect(helper).toContain("'proposal_already_active'");
   });

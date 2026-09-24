@@ -178,6 +178,9 @@ async function ensureTowModuleEnabled(db, now) {
     await db('service_modules').where({ id: existing.id }).update({
       service_key: MODULE_ROW.service_key,
       partner_type: MODULE_ROW.partner_type,
+      name: 'Guincho',
+      // The canonical lifecycle is the authority; `enabled` is kept in sync.
+      status: 'ACTIVE',
       enabled: true,
       disabled_reason: null,
       updated_at: now,
@@ -186,6 +189,9 @@ async function ensureTowModuleEnabled(db, now) {
   }
   await db('service_modules').insert({
     ...MODULE_ROW,
+    name: 'Guincho',
+    status: 'ACTIVE',
+    sort_order: 0,
     enabled: true,
     created_at: now,
     updated_at: now,
