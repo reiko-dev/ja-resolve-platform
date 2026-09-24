@@ -31,6 +31,11 @@ function missingProductionSecrets(env = process.env) {
   if (!hasValue(env.GOOGLE_ROUTES_API_KEY)) {
     missing.push('GOOGLE_ROUTES_API_KEY');
   }
+  // The address resolver is optional, but once explicitly enabled it must have
+  // its OWN server-side key: the adapter never falls back to another Google key.
+  if (String(env.TOW_ADDRESS_RESOLVER || '').trim() === 'google' && !hasValue(env.GOOGLE_GEOCODING_API_KEY)) {
+    missing.push('GOOGLE_GEOCODING_API_KEY');
+  }
   return missing;
 }
 

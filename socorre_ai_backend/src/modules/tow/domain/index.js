@@ -30,6 +30,7 @@ const towRequestStateMachine = require('./tow-request-state-machine');
 const towExecutionInput = require('./tow-execution-input');
 const cancellation = require('./cancellation');
 const towPayment = require('./tow-payment');
+const address = require('./address');
 
 module.exports = {
   ...identity,
@@ -55,4 +56,5 @@ module.exports = {
   ...towExecutionInput,
   ...cancellation,
   ...towPayment,
+  ...address,
 };
