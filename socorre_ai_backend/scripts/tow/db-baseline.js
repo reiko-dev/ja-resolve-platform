@@ -30,6 +30,7 @@ const path = require('path');
 const { BACKEND_DIR, createConnection, resolvePurpose, loadPurposeEnv } = require('./db-connection');
 const { resolveAdminCredentials, seedAdmin, describeSeedResult } = require('./admin-seed');
 const { SETTINGS } = require('../../database/migrations/002_baseline_settings');
+const { INITIAL_SERVICES } = require('../../src/modules/service-catalog/domain/initial-services');
 
 const MIGRATIONS_DIR = path.resolve(BACKEND_DIR, 'database', 'migrations');
 const SEEDS_DIR = path.resolve(BACKEND_DIR, 'database', 'seeds');
@@ -81,8 +82,9 @@ const INFRASTRUCTURE_TABLES = ['knex_migrations', 'knex_migrations_lock'];
  *   - `users`           -> exactly the default administrator;
  *   - `system_settings` -> structural default configuration inserted by
  *                          migration 002 (not functional data);
- *   - `service_modules` -> the structural Tow module registry row seeded by
- *                          migration 003 (`tow`/`tow`/`tow`, enabled). It is
+ *   - `service_modules` -> the structural platform service registry: the Tow
+ *                          module row (migration 003) plus the initial platform
+ *                          services provisioned by migration 010. It is
  *                          configuration, not functional business data: it
  *                          creates no user/partner/request/order/payment.
  */
@@ -173,13 +175,16 @@ function baselineViolations(report, expectations = {}) {
     if (missing.length > 0) violations.push(`"system_settings" is missing keys: ${missing.join(', ')}`);
   }
 
-  // The module registry is structural: exactly the canonical Tow row. This
-  // keeps the "no functional data" guarantee sharp while allowing the module
-  // configuration row (migration 003) to exist.
-  if (report.counts.service_modules !== undefined && report.counts.service_modules !== 1) {
-    violations.push(
-      `"service_modules" must contain exactly 1 row (the canonical Tow module), found ${report.counts.service_modules}`
-    );
+  // The service registry is structural: exactly the initial platform services.
+  // This keeps the "no functional data" guarantee sharp while allowing the
+  // registry configuration rows (migrations 003/010) to exist.
+  if (report.counts.service_modules !== undefined) {
+    const expectedServices = INITIAL_SERVICES.length;
+    if (report.counts.service_modules !== expectedServices) {
+      violations.push(
+        `"service_modules" must contain exactly ${expectedServices} rows (the initial platform services), found ${report.counts.service_modules}`
+      );
+    }
   }
 
   for (const table of report.tables) {

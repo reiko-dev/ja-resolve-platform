@@ -20,7 +20,7 @@ function fakeRepositories({
   documents = [],
 } = {}) {
   return {
-    moduleRepository: { getByKey: async () => module },
+    catalogService: { ensureService: async () => module },
     partnerRepository: { findById: jest.fn(async () => partner) },
     vehicleRepository: { findActiveByPartner: async () => vehicle },
     documentRepository: { listByVehicle: async () => documents },
@@ -83,7 +83,7 @@ describe('MVP-01 UNIT — eligibility service', () => {
     const update = jest.fn();
     const remove = jest.fn();
     const repositories = {
-      moduleRepository: { getByKey: async () => ({ enabled: true }) },
+      catalogService: { ensureService: async () => ({ enabled: true }) },
       partnerRepository: { findById: jest.fn(async () => ({ id: 1, type })) },
       vehicleRepository: { findActiveByPartner: async () => vehicle, update, remove },
       documentRepository: { listByVehicle: async () => [approvedDoc] },

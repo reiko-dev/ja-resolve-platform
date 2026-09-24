@@ -1,8 +1,16 @@
 /**
- * MVP-01 — persistence adapter for the platform service registry (Knex).
- * SERVICE CATALOG — `status` is the canonical lifecycle; `enabled` is a derived
- * compatibility projection written in sync on every write, so old readers keep
- * answering while the status stays the single authority.
+ * PLATFORM SERVICE CATALOG — persistence adapter for the platform service
+ * registry (`service_modules`, Knex).
+ *
+ * `service_modules` remains the single registry table: the platform catalog
+ * does NOT create a second source of truth. `status` is the canonical
+ * lifecycle; `enabled` is a derived compatibility projection written in sync on
+ * every write, so old readers keep answering while the status stays the
+ * authority.
+ *
+ * `module_key` is the unique identity of a registry row; for a catalog-only
+ * service (no dedicated backend module) it equals `service_key` and
+ * `partner_type`.
  */
 'use strict';
 
@@ -14,7 +22,7 @@ function toNumber(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function mapModuleRow(row) {
+function mapCatalogRow(row) {
   if (!row) return null;
   const status = serviceStatusOf({
     status: row.status,
@@ -22,6 +30,7 @@ function mapModuleRow(row) {
   });
   return {
     id: row.id,
+    key: row.module_key,
     module_key: row.module_key,
     service_key: row.service_key,
     partner_type: row.partner_type,
@@ -37,11 +46,11 @@ function mapModuleRow(row) {
   };
 }
 
-function createModuleRepository(db) {
-  if (!db) throw new TypeError('createModuleRepository requires a knex instance');
+function createCatalogRepository(db) {
+  if (!db) throw new TypeError('createCatalogRepository requires a knex instance');
 
   async function getByKey(key) {
-    return mapModuleRow(await db('service_modules').where({ module_key: key }).first());
+    return mapCatalogRow(await db('service_modules').where({ module_key: key }).first());
   }
 
   async function createDefault(row) {
@@ -49,27 +58,47 @@ function createModuleRepository(db) {
     try {
       const [created] = await db('service_modules')
         .insert({
-          module_key: row.module_key,
-          service_key: row.service_key,
-          partner_type: row.partner_type,
+          module_key: row.key,
+          service_key: row.service_key || row.key,
+          partner_type: row.partner_type || row.key,
           name: row.name ?? null,
           status,
           sort_order: row.sort_order ?? 0,
           enabled: serviceStatusToEnabled(status),
         })
         .returning('*');
-      return mapModuleRow(created);
+      return mapCatalogRow(created);
     } catch (error) {
       // Idempotent under a race: the unique module_key makes the loser re-read.
-      const existing = await getByKey(row.module_key);
+      const existing = await getByKey(row.key);
       if (existing) return existing;
       throw error;
     }
   }
 
   /**
-   * The ONLY write path of the registry: `status` and its derived `enabled`
-   * projection move together, so the two can never disagree.
+   * Provisioning primitive: inserts the row only when the key is absent and
+   * NEVER touches an existing row (status, name and ordering are preserved).
+   */
+  async function insertIfMissing(row) {
+    await db('service_modules')
+      .insert({
+        module_key: row.key,
+        service_key: row.service_key || row.key,
+        partner_type: row.partner_type || row.key,
+        name: row.name ?? null,
+        status: row.status || 'ACTIVE',
+        sort_order: row.sort_order ?? 0,
+        enabled: serviceStatusToEnabled(row.status || 'ACTIVE'),
+      })
+      .onConflict('module_key')
+      .ignore();
+    return getByKey(row.key);
+  }
+
+  /**
+   * The ONLY status write path of the registry: `status` and its derived
+   * `enabled` projection move together, so the two can never disagree.
    */
   async function setStatus({ key, status, reason = null, updatedBy = null }) {
     await db('service_modules')
@@ -95,15 +124,15 @@ function createModuleRepository(db) {
   }
 
   /** The whole registry, catalog order. DELETED filtering is a product rule. */
-  async function listServices() {
+  async function listAll() {
     const rows = await db('service_modules')
       .select('*')
       .orderBy('sort_order', 'asc')
       .orderBy('module_key', 'asc');
-    return rows.map(mapModuleRow);
+    return rows.map(mapCatalogRow);
   }
 
-  return { getByKey, createDefault, setStatus, setEnabled, listServices };
+  return { getByKey, createDefault, insertIfMissing, setStatus, setEnabled, listAll };
 }
 
-module.exports = { createModuleRepository, mapModuleRow };
+module.exports = { createCatalogRepository, mapCatalogRow };

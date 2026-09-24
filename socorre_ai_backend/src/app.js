@@ -166,6 +166,15 @@ function createApp(options = {}) {
   app.use('/api/tow', towModule.publicRouter);
   app.use('/api/admin/tow', towModule.adminRouter);
 
+  // PLATFORM SERVICE CATALOG — the platform-level lifecycle of every service,
+  // consumed by the apps before login. `/api/service-catalog` is canonical;
+  // `/api/tow/services` and `/api/tow/module-status` stay as compatibility
+  // projections (see docs/tow/tow-api-contract.openapi.yaml).
+  const { createServiceCatalogModule } = require('./modules/service-catalog/http/mount');
+  const serviceCatalogModule = createServiceCatalogModule(options.serviceCatalog || {});
+  app.use('/api/service-catalog', serviceCatalogModule.publicRouter);
+  app.use('/api/admin/service-catalog', serviceCatalogModule.adminRouter);
+
   // Trilhas legadas mantidas por compatibilidade controlada.
   mountLegacyRoutes(app);
 

@@ -44,7 +44,7 @@ const {
   createPaymentService,
   createRouteService,
 } = require('./application');
-const { createModuleRepository } = require('./adapters/persistence/module-repository');
+const { buildServiceCatalogServices } = require('../service-catalog/composition');
 const { createVehicleRepository } = require('./adapters/persistence/vehicle-repository');
 const { createDocumentRepository } = require('./adapters/persistence/document-repository');
 const { createSettingsRepository } = require('./adapters/persistence/settings-repository');
@@ -111,7 +111,10 @@ function buildTowServices(options = {}) {
     ? createSocketTrackingPublisher()
     : options.trackingEvents;
 
-  const moduleRepository = createModuleRepository(db);
+  // PLATFORM SERVICE CATALOG — the registry is platform-level; Tow consumes the
+  // row for `service_key=tow` and never owns a second repository.
+  const serviceCatalog = buildServiceCatalogServices({ db });
+  const { catalogService } = serviceCatalog;
   const vehicleRepository = createVehicleRepository(db);
   const documentRepository = createDocumentRepository(db);
   const settingsRepository = createSettingsRepository(db);
@@ -122,7 +125,7 @@ function buildTowServices(options = {}) {
   const trackingRepository = createTrackingRepository(db);
   const towPaymentRepository = createTowPaymentRepository(db);
 
-  const moduleService = createModuleService({ moduleRepository });
+  const moduleService = createModuleService({ catalogService });
   const settingsService = createSettingsService({ settingsRepository, clock });
   const quoteService = createQuoteService({ routeProvider, vehicleRepository, clock });
 
@@ -143,7 +146,7 @@ function buildTowServices(options = {}) {
     paymentMode,
     // TOW ROUND — `null` when `TOW_ADDRESS_RESOLVER=none` (the default).
     addressResolver,
-    moduleRepository,
+    catalogService,
     vehicleRepository,
     documentRepository,
     settingsRepository,
@@ -159,7 +162,7 @@ function buildTowServices(options = {}) {
     documentService: createDocumentService({ documentRepository, vehicleRepository, storage, clock }),
     settingsService,
     eligibilityService: createEligibilityService({
-      moduleRepository,
+      catalogService,
       vehicleRepository,
       documentRepository,
       partnerRepository,

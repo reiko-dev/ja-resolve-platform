@@ -1,15 +1,20 @@
 /**
  * MVP-01 — Tow module application service.
- * SERVICE CATALOG — owns the persisted registry, the canonical lifecycle status
- * and the public catalog projection. The domain's availability policy remains
- * the only decision "may new business start?".
+ *
+ * SERVICE CATALOG — the registry, the lifecycle status and the public catalog
+ * are PLATFORM-level and owned by `modules/service-catalog`. This service is
+ * the Tow module's consumption seam for `service_key=tow`: it keeps the frozen
+ * Tow surface (module status, legacy toggle, public catalog projection) while
+ * every read/write is delegated to the platform catalog, so there is exactly
+ * one authority and one writer.
+ *
+ * Every platform failure is translated into the Tow error vocabulary so the
+ * released `error.code` envelope of the Tow endpoints does not change.
  */
 'use strict';
 
 const {
   MODULE_KEY,
-  SERVICE_KEY,
-  PARTNER_TYPE,
   TowError,
   validationError,
   validateServiceStatus,
@@ -17,20 +22,21 @@ const {
   GRACEFUL_DRAIN_CONTRACT,
 } = require('../domain');
 
-function createModuleService({ moduleRepository }) {
-  if (!moduleRepository) throw new TypeError('createModuleService requires a moduleRepository port');
+/** Translate a platform catalog error into the frozen Tow error vocabulary. */
+function toTowError(error) {
+  if (error instanceof TowError) return error;
+  if (error && typeof error.code === 'string') {
+    return new TowError(error.code, error.message, { details: error.details });
+  }
+  return error;
+}
 
+function createModuleService({ catalogService }) {
+  if (!catalogService) throw new TypeError('createModuleService requires a catalogService port');
+
+  /** The Tow registry row; lazily created exactly as before. */
   async function getStatus() {
-    const existing = await moduleRepository.getByKey(MODULE_KEY);
-    if (existing) return existing;
-    return moduleRepository.createDefault({
-      module_key: MODULE_KEY,
-      service_key: SERVICE_KEY,
-      partner_type: PARTNER_TYPE,
-      name: 'Guincho',
-      status: 'ACTIVE',
-      sort_order: 0,
-    });
+    return catalogService.ensureService(MODULE_KEY);
   }
 
   /**
@@ -38,46 +44,54 @@ function createModuleService({ moduleRepository }) {
    * The reason stays mandatory exactly as the frozen operation declares.
    */
   async function setEnabled({ enabled, reason, adminUserId = null } = {}) {
-    if (typeof enabled !== 'boolean') {
-      throw validationError('enabled must be a boolean', { field: 'enabled' });
-    }
-    if (typeof reason !== 'string' || reason.trim().length === 0) {
-      throw validationError('reason is required', { field: 'reason' });
-    }
+    try {
+      if (typeof enabled !== 'boolean') {
+        throw validationError('enabled must be a boolean', { field: 'enabled' });
+      }
+      if (typeof reason !== 'string' || reason.trim().length === 0) {
+        throw validationError('reason is required', { field: 'reason' });
+      }
 
-    const current = await getStatus();
-    // Idempotent: a repeated toggle never rewrites metadata nor duplicates rows.
-    if (current.enabled === enabled) return current;
+      const current = await getStatus();
+      // Idempotent: a repeated toggle never rewrites metadata nor duplicates rows.
+      if (current.enabled === enabled) return current;
 
-    return moduleRepository.setEnabled({
-      key: MODULE_KEY,
-      enabled,
-      reason: reason.trim(),
-      updatedBy: adminUserId,
-    });
+      return await catalogService.setEnabled({
+        key: MODULE_KEY,
+        enabled,
+        reason: reason.trim(),
+        updatedBy: adminUserId,
+      });
+    } catch (error) {
+      throw toTowError(error);
+    }
   }
 
   /**
-   * The canonical lifecycle transition. A reason is required to move a service
-   * AWAY from ACTIVE (the catalog shows why it is unavailable) and is cleared
-   * when it becomes ACTIVE again. Idempotent: a repeated status is a read.
+   * The canonical lifecycle transition for Tow. A reason is required to move
+   * AWAY from ACTIVE and is cleared when it becomes ACTIVE again. Idempotent:
+   * a repeated status is a read.
    */
   async function setStatus({ status, reason, adminUserId = null } = {}) {
-    const next = validateServiceStatus(status);
-    const trimmedReason = typeof reason === 'string' ? reason.trim() : '';
-    if (next !== 'ACTIVE' && trimmedReason.length === 0) {
-      throw validationError('reason is required', { field: 'reason' });
+    try {
+      const next = validateServiceStatus(status);
+      const trimmedReason = typeof reason === 'string' ? reason.trim() : '';
+      if (next !== 'ACTIVE' && trimmedReason.length === 0) {
+        throw validationError('reason is required', { field: 'reason' });
+      }
+
+      const current = await getStatus();
+      if (current.status === next) return current;
+
+      return await catalogService.setStatus({
+        key: MODULE_KEY,
+        status: next,
+        reason: trimmedReason.length === 0 ? null : trimmedReason,
+        updatedBy: adminUserId,
+      });
+    } catch (error) {
+      throw toTowError(error);
     }
-
-    const current = await getStatus();
-    if (current.status === next) return current;
-
-    return moduleRepository.setStatus({
-      key: MODULE_KEY,
-      status: next,
-      reason: trimmedReason.length === 0 ? null : trimmedReason,
-      updatedBy: adminUserId,
-    });
   }
 
   async function assertNewBusinessAllowed() {
@@ -93,26 +107,22 @@ function createModuleService({ moduleRepository }) {
   }
 
   /**
-   * The PUBLIC service catalog consumed by the apps: DELETED services are hidden
-   * (they may stay in the registry for history/administration), the rest are
-   * ordered by `sort_order`. `status` and `disabled_reason` are the product truth
-   * — the apps never infer availability from `enabled`.
+   * COMPATIBILITY projection of the platform catalog for `GET /tow/services`.
+   * The canonical catalog is `GET /api/service-catalog`; this path is kept so
+   * released mobile builds keep working, and it exposes the same items plus the
+   * stable `key` (additive).
    */
   async function listCatalog() {
-    // The platform's own service always exists in the catalog: this is the same
-    // lazy default `getStatus` uses (migration 003 seeds the row on a real
-    // database, so this only matters for a registry that was never touched).
     await getStatus();
-    const rows = await moduleRepository.listServices();
-    return rows
-      .filter((row) => row.status !== 'DELETED')
-      .map((row) => Object.freeze({
-        id: String(row.id),
-        name: row.name || row.service_key,
-        status: row.status,
-        disabled_reason: row.disabled_reason ?? null,
-        sort_order: row.sort_order,
-      }));
+    const rows = await catalogService.listCatalog();
+    return rows.map((row) => Object.freeze({
+      id: String(row.id),
+      key: row.key,
+      name: row.name || row.key,
+      status: row.status,
+      disabled_reason: row.disabled_reason ?? null,
+      sort_order: row.sort_order,
+    }));
   }
 
   return {
