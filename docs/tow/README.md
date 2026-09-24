@@ -68,59 +68,69 @@ Historical issues #19–#29 are retained as design evidence but are superseded a
 5. GitHub Issue #33
    - deferred production-hardening backlog.
 
+### Realtime reliability / current backend hardening
+
+6. `TOW-REALTIME-RELIABILITY-PLAN.md`
+   - current backend-first execution plan for Redis-backed Partner presence;
+   - tracking freshness;
+   - Socket.IO opportunity invalidation;
+   - FCM background notifications;
+   - Hostinger deployment, health and observability;
+   - optional live-presence matching gate is explicitly deferred until mobile evidence exists.
+
 ### Domain / business target
 
-6. `TOW-PRICING-CONTRACT.md`
+7. `TOW-PRICING-CONTRACT.md`
    - pricing autoritativo por rota real;
    - excedente proporcional por metro;
    - `ROUND_HALF_UP` no boundary monetário;
    - `ceil(excess_km)` proibido.
 
-7. `TOW-SERVICE-SPECIFICATION.md`
+8. `TOW-SERVICE-SPECIFICATION.md`
    - complete long-term functional target.
 
-8. `TOW-BUSINESS-RULE-MATRIX.md`
+9. `TOW-BUSINESS-RULE-MATRIX.md`
    - target invariants/test matrix.
 
-9. `TOW-MODULE-CONTRACT.md`
+10. `TOW-MODULE-CONTRACT.md`
    - canonical module identity and graceful drain.
 
 ### Consumer target contract
 
-10. `tow-api-contract.openapi.yaml`
+11. `tow-api-contract.openapi.yaml`
     - canonical long-term OpenAPI 3.1 target.
 
-11. `TOW-API-CONTRACT.md`
+12. `TOW-API-CONTRACT.md`
 
-12. `TOW-API-CONTRACT-DRAFT4-ADDENDUM.md`
+13. `TOW-API-CONTRACT-DRAFT4-ADDENDUM.md`
 
-13. `TOW-CONSUMER-FLOW-SPEC.md`
+14. `TOW-CONSUMER-FLOW-SPEC.md`
 
-14. `TOW-CONSUMER-FLOW-COVERAGE.md`
+15. `TOW-CONSUMER-FLOW-COVERAGE.md`
 
-15. `TOW-OPENAPI-CONTRACT-DECISIONS.md`
+16. `TOW-OPENAPI-CONTRACT-DECISIONS.md`
 
-16. `TOW-OPENAPI-CONSISTENCY-REVIEW.md`
+17. `TOW-OPENAPI-CONSISTENCY-REVIEW.md`
 
-17. `TOW-CONSUMER-CONTRACT-SMOKE-RESULT.md`
+18. `TOW-CONSUMER-CONTRACT-SMOKE-RESULT.md`
 
-18. `TOW-CONTRACT-FREEZE-REVIEW.md`
+19. `TOW-CONTRACT-FREEZE-REVIEW.md`
 
 The PR #9 OpenAPI remains a **superset target**. MVP readiness applies only to the subset explicitly implemented by #13–#18.
 
 ### Accepted foundation
 
-19. `T00-CURRENT-STATE-AUDIT.md`
+20. `T00-CURRENT-STATE-AUDIT.md`
 
-20. `T00-TEST-HARNESS.md`
+21. `T00-TEST-HARNESS.md`
 
-21. `TOW-DOCKER-TEST-STRATEGY.md`
+22. `TOW-DOCKER-TEST-STRATEGY.md`
 
-22. `T01-DATABASE-BASELINE-DECISION.md`
+23. `T01-DATABASE-BASELINE-DECISION.md`
 
-23. `database-baseline.md`
+24. `database-baseline.md`
 
-24. `database-schema.md`
+25. `database-schema.md`
 
 Current accepted implementation baseline:
 
@@ -193,15 +203,26 @@ This remains the production-hardening/full-contract milestone.
 ## Current next task
 
 ```text
-NONE — Tow MVP Phase 1 is COMPLETE.
+REALTIME RELIABILITY BACKEND DISPATCH — ACTIVE IN THIS FEATURE PR.
 
+Tow MVP Phase 1 remains COMPLETE.
 MVP-06 accepted (PR #40, merge c5ca8cc1, receipt #5763421609).
-TOW MVP BACKEND READY FOR INTEGRATION for the implemented MVP subset:
-docs/evidence/mvp-06/TOW-MVP-READINESS.md
 
-Next decisions require a new explicit dispatch:
-  Phase 2 / #33 production hardening  (DEFERRED)
-  Security / #31 credential remediation (DEFERRED, required before production go-live)
+Execution source:
+  docs/tow/TOW-REALTIME-RELIABILITY-PLAN.md
+
+Initial sequence:
+  RT-00 current-state audit
+  → RT-01 Redis foundation
+  → RT-02 Partner presence (observational; no matching gate)
+  → RT-03 tracking freshness
+  → RT-04 opportunity invalidation
+  → RT-05 FCM
+  → RT-06 observability
+  → mobile integration checkpoint
+  → RT-08 optional live-presence gate under separate dispatch
+
+Phase 2 / #33 and Security / #31 remain separately governed.
 ```
 
 #31 remains deferred for dev/test functional work and must be resolved before production security sign-off/go-live.
