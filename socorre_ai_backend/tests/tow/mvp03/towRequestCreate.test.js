@@ -123,7 +123,8 @@ describe('MVP-03 — Tow request creation', () => {
         allowed_actions: ['cancel'],
         problem_description: 'Carro não liga na garagem do prédio',
       });
-      expect(dto.matching).toEqual({ current_radius_km: 15, max_radius_km: 50, search_expires_at: null });
+      // TOW ROUND — the canonical default initial radius is 40 km.
+      expect(dto.matching).toEqual({ current_radius_km: 40, max_radius_km: 50, search_expires_at: null });
       expect(dto.payment).toEqual({
         request_id: dto.id,
         method: null,
@@ -151,7 +152,7 @@ describe('MVP-03 — Tow request creation', () => {
       expect(persisted[0]).toMatchObject({
         customer_id: customer.user.id,
         state: 'SEARCHING',
-        matching_radius_km: 15,
+        matching_radius_km: 40,
         idempotency_key: IDEMPOTENCY_KEY,
         vehicle_class: 'light_vehicle',
         vehicle_make: 'Fiat',
@@ -191,7 +192,25 @@ describe('MVP-03 — Tow request creation', () => {
       expectCreated(response, customer);
       expect(response.body.data.matching.current_radius_km).toBe(30);
       expect((await rows())[0].matching_radius_km).toBe(30);
-      await services.settingsService.patch({ tow_initial_radius_km: 15 });
+      await services.settingsService.patch({ tow_initial_radius_km: 40 });
+    });
+
+    test('a later settings change never mutates an existing request radius', async () => {
+      const customer = await createTowCustomerAuth();
+      const created = await post(createTowRequestInput(), { auth: customer });
+      expectCreated(created, customer);
+      expect(created.body.data.matching.current_radius_km).toBe(40);
+
+      await services.settingsService.patch({ tow_initial_radius_km: 20 });
+      try {
+        const read = await request(app).get(`${ENDPOINT}/${created.body.data.id}`).set(customer.headers);
+        expect(read.status).toBe(200);
+        // The radius is FROZEN at creation: the later setting never re-scopes it.
+        expect(read.body.data.matching.current_radius_km).toBe(40);
+        expect((await rows())[0].matching_radius_km).toBe(40);
+      } finally {
+        await services.settingsService.patch({ tow_initial_radius_km: 40 });
+      }
     });
 
     test('an optional year, weight and plate may be omitted', async () => {

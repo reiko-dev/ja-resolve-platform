@@ -221,7 +221,8 @@ describe('MVP-04 — server-priced proposal creation', () => {
     test('a partner outside the frozen radius is refused and consumes no provider call', async () => {
       const { request: towRequest, auths } = await scenario({
         partnerCount: 1,
-        partnerOverrides: [{ partnerOverrides: { latitude: -23.561684 - 0.16, longitude: -46.655981 } }],
+        // ~50 km south of the pickup: outside the frozen 40 km default radius.
+        partnerOverrides: [{ partnerOverrides: { latitude: -23.561684 - 0.45, longitude: -46.655981 } }],
       });
       const response = await createProposal(auths[0], towRequest.id);
       // Hidden from the opportunity feed => not addressable. A partner must not

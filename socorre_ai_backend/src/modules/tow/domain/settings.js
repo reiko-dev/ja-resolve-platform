@@ -14,7 +14,11 @@
 const { validationError } = require('./errors');
 
 const TOW_SETTING_DEFINITIONS = Object.freeze([
-  Object.freeze({ key: 'tow_initial_radius_km', type: 'number', exclusiveMin: 0, max: 100, default: 15 }),
+  // TOW ROUND — product decision: the initial matching radius is 40 km (the max
+  // stays 50 km). The value is a DEFAULT only: an explicitly persisted
+  // `tow_initial_radius_km` row always wins, and the radius is frozen into each
+  // request at creation, so existing rows are never re-scoped.
+  Object.freeze({ key: 'tow_initial_radius_km', type: 'number', exclusiveMin: 0, max: 100, default: 40 }),
   Object.freeze({ key: 'tow_max_radius_km', type: 'number', exclusiveMin: 0, max: 100, default: 50 }),
   Object.freeze({ key: 'tow_proposal_expiry_minutes', type: 'integer', min: 1, max: 1440, default: 10 }),
 ]);

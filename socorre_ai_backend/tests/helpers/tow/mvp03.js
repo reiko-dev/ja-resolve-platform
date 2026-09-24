@@ -158,7 +158,7 @@ async function createCanonicalRequest(options = {}) {
     services,
     customer,
     clock = createFakeClock(DEFAULT_INSTANT),
-    radiusKm = 15,
+    radiusKm = 40,
     input = createTowRequestInput(),
     idempotencyKey = IDEMPOTENCY_KEY,
     state = 'SEARCHING',

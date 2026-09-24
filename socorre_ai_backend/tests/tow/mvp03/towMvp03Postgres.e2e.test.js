@@ -40,10 +40,10 @@ const TARIFF = Object.freeze({
   price_per_additional_km_cents: 800,
 });
 
-/** ~14.45 km south of the canonical pickup: inside a 15 km radius. */
+/** ~14.5 km south of the canonical pickup: inside the default 40 km radius. */
 const NEAR = Object.freeze({ latitude: CUSTOMER_INPUT.pickup.latitude - 0.13, longitude: CUSTOMER_INPUT.pickup.longitude });
-/** ~17.8 km south of the canonical pickup: outside a 15 km radius. */
-const FAR = Object.freeze({ latitude: CUSTOMER_INPUT.pickup.latitude - 0.16, longitude: CUSTOMER_INPUT.pickup.longitude });
+/** ~50 km south of the canonical pickup: outside the default 40 km radius. */
+const FAR = Object.freeze({ latitude: CUSTOMER_INPUT.pickup.latitude - 0.45, longitude: CUSTOMER_INPUT.pickup.longitude });
 
 describePostgres('MVP-03 PostgreSQL — canonical TowRequest and matching', () => {
   let db;
@@ -218,12 +218,12 @@ describePostgres('MVP-03 PostgreSQL — canonical TowRequest and matching', () =
     expect(response.status).toBe(201);
     expect(response.body.data.pickup.latitude).toBeCloseTo(CUSTOMER_INPUT.pickup.latitude, 8);
     expect(response.body.data.pickup.longitude).toBeCloseTo(CUSTOMER_INPUT.pickup.longitude, 8);
-    expect(response.body.data.matching).toEqual({ current_radius_km: 15, max_radius_km: 50, search_expires_at: null });
+    expect(response.body.data.matching).toEqual({ current_radius_km: 40, max_radius_km: 50, search_expires_at: null });
 
     const [row] = await db('tow_requests').select('*');
     expect(Number(row.pickup_latitude)).toBeCloseTo(CUSTOMER_INPUT.pickup.latitude, 8);
     expect(Number(row.pickup_longitude)).toBeCloseTo(CUSTOMER_INPUT.pickup.longitude, 8);
-    expect(Number(row.matching_radius_km)).toBe(15);
+    expect(Number(row.matching_radius_km)).toBe(40);
   });
 
   test('concurrent identical requests collapse to exactly one row', async () => {
