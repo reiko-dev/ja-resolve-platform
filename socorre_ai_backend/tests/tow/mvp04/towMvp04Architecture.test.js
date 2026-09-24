@@ -176,8 +176,16 @@ describe('MVP-04 ARCH — purity and legacy isolation of the new files', () => {
   });
 
   test('no scheduler, timer or cron is introduced', () => {
+    // TOW ROUND: the address resolver adapter owns ONE bounded `setTimeout` as
+    // its retry delay (maxAttempts <= 2). Every other file — and every recurring
+    // timer anywhere — stays banned.
+    const ONE_SHOT_TIMER_ALLOWLIST = ['src/modules/tow/adapters/address/google-geocoding-adapter.js'];
     const offenders = ALL_TOW_SRC_FILES
-      .filter((file) => /\b(setInterval|setTimeout|cron|schedule)\b/.test(readCode(file)))
+      .filter((file) => {
+        const source = readCode(file);
+        if (/\b(setInterval|cron|schedule)\b/.test(source)) return true;
+        return /\bsetTimeout\b/.test(source) && !ONE_SHOT_TIMER_ALLOWLIST.includes(relative(file));
+      })
       .map(relative);
     expect(offenders).toEqual([]);
   });
@@ -231,23 +239,21 @@ describe('MVP-04 ARCH — ports, barrels and error vocabulary', () => {
     expect(ERROR_STATUS.service_module_disabled).toBe(409);
   });
 
-  test('the module gate is still the FIRST check of every write path', () => {
+  test('the catalog gate lives ONLY in the request-creation path', () => {
+    // SERVICE CATALOG — the status gates NEW requests only. Once a request
+    // exists, proposal/accept must keep working even if the service becomes
+    // INACTIVE/SOON/DELETED, so those services must NOT consult the gate.
     const proposalService = readCode(path.join(TOW_SRC, 'application/proposal-service.js'));
     const assignmentService = readCode(path.join(TOW_SRC, 'application/assignment-service.js'));
-    expect(proposalService).toMatch(/assertNewBusinessAllowed/);
-    expect(assignmentService).toMatch(/assertNewBusinessAllowed/);
-    // Before any provider/pricing work in the create path.
-    expect(proposalService.indexOf('assertNewBusinessAllowed'))
-      .toBeLessThan(proposalService.indexOf('quoteTow'));
-    // The accept path delegates its transactional body to `acceptWithin`, which is
-    // declared first, so the whole-file offsets say nothing: the gate must run
-    // inside `accept` BEFORE the unit of work is opened (a disabled module must
-    // not even start a transaction).
-    const acceptBody = assignmentService.slice(assignmentService.indexOf('async function accept('));
-    expect(acceptBody.indexOf('assertNewBusinessAllowed')).toBeGreaterThanOrEqual(0);
-    expect(acceptBody.indexOf('assertNewBusinessAllowed'))
-      .toBeLessThan(acceptBody.indexOf('unitOfWork.run'));
-    // ... and the transactional body is reachable only through `accept`.
+    const matchingService = readCode(path.join(TOW_SRC, 'application/matching-service.js'));
+    const requestService = readCode(path.join(TOW_SRC, 'application/tow-request-service.js'));
+
+    expect(proposalService).not.toMatch(/assertNewBusinessAllowed/);
+    expect(assignmentService).not.toMatch(/assertNewBusinessAllowed/);
+    expect(matchingService).not.toMatch(/assertNewBusinessAllowed/);
+    expect(requestService).toMatch(/assertNewBusinessAllowed/);
+
+    // The transactional body is reachable only through `accept`.
     expect(assignmentService.match(/acceptWithin\(/g)).toHaveLength(2);
   });
 });
@@ -315,7 +321,7 @@ describe('MVP-04 ARCH — scope discipline', () => {
   test('the contract revision that adds proposal_already_active is recorded', () => {
     const contract = read(CANONICAL_CONTRACT);
     expect(contract).toContain('proposal_already_active');
-    expect(contract).toContain('1.0.0-draft.12');
+    expect(contract).toContain('1.0.0-draft.15');
     const helper = read(path.join(BACKEND_ROOT, 'tests/helpers/towContract.js'));
     expect(helper).toContain("'proposal_already_active'");
   });

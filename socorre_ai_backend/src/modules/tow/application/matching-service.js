@@ -16,8 +16,10 @@
  * query authority.
  *
  * Guarantees enforced here:
- *   - the module gate runs FIRST: a disabled module is a 409 with ZERO provider
- *     calls, for a partner with or without candidates;
+ *   - SERVICE CATALOG — the catalog status is NOT a gate here: the feed serves
+ *     requests that already exist, and their lifecycle must survive the service
+ *     becoming INACTIVE/SOON/DELETED. The status gates NEW requests at creation
+ *     only (`tow-request-service.create`);
  *   - the radius is the radius FROZEN on each request, never the live setting;
  *   - a request reaches the RouteProvider ONLY after it has been matched, so an
  *     ineligible or out-of-radius request can never consume a provider call;
@@ -53,7 +55,6 @@ const { validateListQuery } = require('./list-query');
 const DEFAULT_CANDIDATE_SCAN_LIMIT = 500;
 
 function createMatchingService({
-  moduleService,
   settingsService,
   partnerRepository,
   vehicleRepository,
@@ -63,7 +64,6 @@ function createMatchingService({
   clock,
   candidateScanLimit = DEFAULT_CANDIDATE_SCAN_LIMIT,
 }) {
-  if (!moduleService) throw new TypeError('createMatchingService requires a moduleService');
   if (!settingsService) throw new TypeError('createMatchingService requires a settingsService');
   if (!partnerRepository) throw new TypeError('createMatchingService requires a partnerRepository port');
   if (!vehicleRepository) throw new TypeError('createMatchingService requires a vehicleRepository port');
@@ -75,15 +75,13 @@ function createMatchingService({
   async function listOpportunitiesForPartner({ partnerId, query } = {}) {
     const filters = validateListQuery(query, { states: [] });
 
-    // 1. Module gate first: disabled means 409 and no provider call at all.
-    const moduleStatus = await moduleService.assertNewBusinessAllowed();
-
-    // 2. The authenticated partner's own operational context.
+    // 1. The authenticated partner's own operational context.
     const partner = await partnerRepository.findById(partnerId);
     const vehicle = partner ? await vehicleRepository.findActiveByPartner(partner.id) : null;
     const documents = vehicle ? await documentRepository.listByVehicle(vehicle.id) : [];
 
-    // 3. Candidates, then the pure domain decision.
+    // 2. Candidates, then the pure domain decision. No catalog-status gate: the
+    //    feed serves requests that already exist.
     const candidates = await towRequestRepository.listSearchingCandidates({ limit: candidateScanLimit });
     const now = clock.now();
     const matches = [];
@@ -91,7 +89,6 @@ function createMatchingService({
       const evaluation = evaluateTowMatch({
         request,
         partner,
-        moduleStatus,
         vehicle,
         documents,
         now,

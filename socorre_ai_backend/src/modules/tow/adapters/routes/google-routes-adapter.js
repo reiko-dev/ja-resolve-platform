@@ -41,7 +41,17 @@ function waypoint(point) {
   return { location: { latLng: { latitude: point.latitude, longitude: point.longitude } } };
 }
 
+/**
+ * `distanceMeters` is an int32 in Google's protobuf JSON, and protobuf JSON
+ * OMITS default (zero) scalars. A zero-length leg is a legitimate answer — the
+ * partner standing exactly on the pickup (`origin == intermediate waypoint`),
+ * or `pickup == destination` — and it arrives with the field ABSENT while
+ * `duration` is the explicit `"0s"` string. Absence therefore means 0 meters by
+ * wire contract, never a malformed response. An explicit `null` or any other
+ * non-integer value stays a hard failure: only the omitted default is tolerated.
+ */
 function parseDistanceMeters(value, field) {
+  if (value === undefined) return 0;
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
     throw malformed(`${field}.distance_meters`);
   }

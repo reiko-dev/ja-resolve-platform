@@ -16,23 +16,22 @@
  *     price comes from the RouteProvider quote (MVP-02), computed per
  *     opportunity by the application service;
  *   - eligibility is composed by `domain/eligibility.js` (MVP-01) — it is never
- *     re-implemented here. Module availability stays first so a disabled module
- *     always reports `service_module_disabled`.
+ *     re-implemented here. The MODULE/CATALOG status is deliberately NOT
+ *     evaluated: a request that already exists must keep matching even if the
+ *     service becomes INACTIVE/SOON/DELETED afterwards. The catalog status gates
+ *     NEW requests at creation only (`tow-request-service.create`).
  *
  * Exclusion codes are DIAGNOSTIC: they explain why a partner was left out and
- * are never returned to the partner. Only the module gate produces an HTTP
- * error (409 `service_module_disabled`).
+ * are never returned to the partner; the caller answers the canonical 404/409.
  */
 'use strict';
 
-const { isModuleEnabled } = require('./availability');
 const { PARTNER_TYPE } = require('./identity');
 const { evaluateEligibility } = require('./eligibility');
 const { isOperationalGeoPoint, geodesicDistanceMeters, isWithinRadius } = require('./geo');
 
 /** Diagnostic exclusion codes (never serialized to a client). */
 const MATCH_EXCLUSION_CODES = Object.freeze({
-  MODULE_DISABLED: 'service_module_disabled',
   PARTNER_MISSING: 'partner_not_operational',
   OUTSIDE_RADIUS: 'outside_radius',
 });
@@ -65,11 +64,10 @@ function operationalLocation(partner) {
  *   compatibility?: {compatible: boolean, code: string|null, reasons: readonly string[],
  *   vehicle_class_supported: boolean, weight_within_capacity: boolean}}}
  */
-function evaluateTowMatch({ request, partner, moduleStatus, vehicle, documents, now } = {}) {
-  if (!isModuleEnabled(moduleStatus)) {
-    return excluded(MATCH_EXCLUSION_CODES.MODULE_DISABLED, ['module_disabled']);
-  }
-
+function evaluateTowMatch({ request, partner, vehicle, documents, now } = {}) {
+  // SERVICE CATALOG — no module/catalog check here on purpose: this policy only
+  // ever runs for a request that already exists, and the catalog status gates
+  // NEW requests at creation, never an existing request's lifecycle.
   if (!partner) {
     return excluded(MATCH_EXCLUSION_CODES.PARTNER_MISSING, ['partner_missing']);
   }
@@ -90,7 +88,6 @@ function evaluateTowMatch({ request, partner, moduleStatus, vehicle, documents, 
 
   const eligibility = evaluateEligibility({
     partner,
-    moduleStatus,
     vehicle,
     documents,
     requested: { class: request.vehicle.class, weight_kg: request.vehicle.weight_kg },

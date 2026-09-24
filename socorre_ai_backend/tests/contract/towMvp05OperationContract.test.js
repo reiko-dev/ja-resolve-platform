@@ -295,11 +295,14 @@ describe('MVP-05 — operation-level OpenAPI contract == runtime', () => {
       expect(baseCode.enum).not.toContain('partner_not_operational');
     });
 
-    test('the canonical revision records the MVP-05 revision notes (draft.12 current)', () => {
-      expect(composed.info.version).toBe('1.0.0-draft.12');
-      expect(canonical.info.version).toBe('1.0.0-draft.12');
+    test('the canonical revision records the MVP-05 revision notes (draft.15 current)', () => {
+      expect(composed.info.version).toBe('1.0.0-draft.15');
+      expect(canonical.info.version).toBe('1.0.0-draft.15');
       expect(canonical.info.description).toContain('draft.8');
       expect(canonical.info.description).toContain('draft.12');
+      expect(canonical.info.description).toContain('draft.13');
+      expect(canonical.info.description).toContain('draft.14');
+      expect(canonical.info.description).toContain('draft.15');
       expect(canonical.info.description).toContain('MVP-05');
       expect(canonical.info.description).toContain('stale_tracking_update');
       // The frozen base is not rewritten by this revision.

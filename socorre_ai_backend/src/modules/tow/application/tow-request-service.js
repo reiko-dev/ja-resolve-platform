@@ -26,6 +26,17 @@
  *     is not theirs — the legacy contract of the module and the honest answer
  *     for a support flow.
  *
+ * TOW ROUND — HYBRID ADDRESS RESOLUTION:
+ *   - a client-sent `formatted_address` is preserved verbatim (only the existing
+ *     trim/500-char normalization applies) and the resolver is NOT called;
+ *   - when an endpoint arrives without an address (absent/null/""/whitespace),
+ *     the optional `AddressResolver` port is asked once, best-effort. A provider
+ *     failure is logged with a safe reason and the create proceeds with `null`:
+ *     geocoding is enrichment, never an operational requirement;
+ *   - a known `(customer_id, idempotency_key)` retry skips the resolver
+ *     entirely; the atomic create-or-replay and the RAW-payload fingerprint keep
+ *     the public idempotency semantics unchanged.
+ *
  * MVP-04 EXT: reads now report the ASSIGNMENT and the truthful `allowed_actions`.
  * Both are resolved in batch for a page of requests (two queries, never one per
  * row): the assignment comes from `tow_assignments` — the only authority on
@@ -45,6 +56,7 @@ const {
   buildTowRequestDto,
   buildAssignmentDto,
   allowedActionsForRequest,
+  formatResolvedAddress,
 } = require('../domain');
 const { validateListQuery } = require('./list-query');
 const { paymentSummaryFor, paymentSummariesFor } = require('./payment-summary');
@@ -56,12 +68,65 @@ function createTowRequestService({
   towProposalRepository = null,
   assignmentRepository = null,
   paymentRepository = null,
+  addressResolver = null,
   clock,
 }) {
   if (!moduleService) throw new TypeError('createTowRequestService requires a moduleService');
   if (!settingsService) throw new TypeError('createTowRequestService requires a settingsService');
   if (!towRequestRepository) throw new TypeError('createTowRequestService requires a towRequestRepository port');
   if (!clock) throw new TypeError('createTowRequestService requires a clock port');
+  if (addressResolver !== null && typeof addressResolver.resolve !== 'function') {
+    throw new TypeError('createTowRequestService addressResolver must expose resolve');
+  }
+
+  /**
+   * TOW ROUND — best-effort reverse geocoding of ONE endpoint that arrived
+   * without a usable address.
+   *
+   * Never throws and never blocks the create: a provider failure is logged with
+   * a safe reason (never a key, URL or payload) and the endpoint keeps
+   * `formatted_address = null`. The domain formatter decides whether the
+   * provider answer is a usable address (`NO_ADDRESS` -> null) — coordinates are
+   * never turned into an address.
+   */
+  async function resolveMissingAddress(point) {
+    try {
+      const candidate = await addressResolver.resolve({
+        latitude: point.latitude,
+        longitude: point.longitude,
+      });
+      return formatResolvedAddress(candidate);
+    } catch (error) {
+      const reason = error && typeof error.reason === 'string' ? error.reason : 'unexpected';
+      console.error(`tow_address_resolution_failed reason=${reason}`);
+      return null;
+    }
+  }
+
+  /**
+   * Enriches ONLY the endpoints whose `formatted_address` is absent (the create
+   * normalization already collapsed null/""/whitespace to null). A client-sent
+   * address is preserved verbatim and never sent to the provider. Pickup and
+   * destination resolve independently: one failure cannot affect the other.
+   */
+  async function enrichMissingAddresses(input) {
+    const pickupMissing = input.pickup.formatted_address === null;
+    const destinationMissing = input.destination.formatted_address === null;
+    if (!pickupMissing && !destinationMissing) return input;
+
+    const [pickupAddress, destinationAddress] = await Promise.all([
+      pickupMissing ? resolveMissingAddress(input.pickup) : Promise.resolve(input.pickup.formatted_address),
+      destinationMissing
+        ? resolveMissingAddress(input.destination)
+        : Promise.resolve(input.destination.formatted_address),
+    ]);
+
+    return Object.freeze({
+      ...input,
+      pickup: Object.freeze({ ...input.pickup, formatted_address: pickupAddress }),
+      destination: Object.freeze({ ...input.destination, formatted_address: destinationAddress }),
+    });
+  }
 
   function toDto(row, settings, extras = {}) {
     return buildTowRequestDto(row, {
@@ -112,8 +177,22 @@ function createTowRequestService({
 
     // 3. The radius is a creation-time snapshot, not a live reference.
     const settings = await settingsService.get();
+
+    // 3b. TOW ROUND — address enrichment is best-effort and ONLY for endpoints
+    //     that arrived without an address. A known (customer, key) retry is
+    //     detected first so a replay never spends a geocoding call; the atomic
+    //     create-or-replay below remains the idempotency authority and the
+    //     fingerprint keeps being built from the RAW payload.
+    let resolvedInput = input;
+    const needsAddress = input.pickup.formatted_address === null
+      || input.destination.formatted_address === null;
+    if (addressResolver !== null && needsAddress) {
+      const known = await towRequestRepository.findByCustomerAndKey(customerId, key);
+      if (!known) resolvedInput = await enrichMissingAddresses(input);
+    }
+
     const record = buildTowRequestRecord({
-      input,
+      input: resolvedInput,
       customerId,
       radiusKm: settings.tow_initial_radius_km,
       idempotencyKey: key,
@@ -121,9 +200,12 @@ function createTowRequestService({
     });
 
     // 4. Atomic create-or-replay. The fingerprint source stays transient: the
-    //    adapter persists only its digest.
+    //    adapter persists only its digest. It is built from the RAW payload,
+    //    not from the already-normalized input, because the fingerprint source
+    //    normalizes internally — feeding it a normalized input would re-validate
+    //    the persistence vocabulary (`CASH`) as if it were a client value.
     const { row, same_payload: samePayload } = await towRequestRepository.createIdempotent(record, {
-      fingerprintSource: canonicalFingerprintSource(input),
+      fingerprintSource: canonicalFingerprintSource(payload),
     });
 
     if (!samePayload) {

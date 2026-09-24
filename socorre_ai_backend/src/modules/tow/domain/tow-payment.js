@@ -120,6 +120,52 @@ function buildTowPaymentDto(row) {
 }
 
 /**
+ * TOW ROUND — the TowPayment materialized automatically when a proposal wins.
+ *
+ * The commercial choice made BEFORE creation (`TowRequest.payment_method`) is
+ * the only source of the method here: the accept flow never asks the customer
+ * again, and the first-party journey never depends on the legacy
+ * `PUT /tow/requests/{requestId}/payment-method`. This function is the single
+ * place the two authorities are joined, so the consistency rule
+ * (`TowRequest.payment_method == TowPayment.method`) cannot drift.
+ *
+ * A historical request (created before the commercial choice existed) carries
+ * `null`; no method was ever chosen, so NOTHING is materialized and the request
+ * keeps projecting the truthful `NOT_SELECTED` summary — the compatibility path
+ * may still select cash explicitly.
+ *
+ * The amount/currency are copied verbatim from the assignment's frozen final
+ * price (the only money authority of the module); this function never reads a
+ * tariff, a route or a request body.
+ *
+ * @param {{request: object, assignment: object, now: Date|string}} input
+ * @returns {object|null} frozen `tow_payments` record, or null for a historical request
+ */
+function buildTowPaymentRecordAtAssignment({ request, assignment, now } = {}) {
+  const method = request ? request.payment_method : null;
+  if (method === null || method === undefined) return null;
+
+  if (method !== PAYMENT_METHOD) {
+    throw validationError('the request commercial method is not part of the Tow payment vocabulary', {
+      field: 'payment_method',
+    });
+  }
+  if (!assignment || typeof assignment !== 'object') {
+    throw validationError('assignment is required to materialize the Tow payment', { field: 'assignment' });
+  }
+
+  return buildTowPaymentRecord({
+    tow_request_id: assignment.tow_request_id,
+    assignment_id: assignment.id,
+    amount_cents: assignment.final_price_amount_cents,
+    currency: assignment.final_price_currency,
+    status: 'PENDING',
+    created_at: now,
+    updated_at: now,
+  });
+}
+
+/**
  * Validates `SelectPaymentMethodInput` for the MVP subset.
  *
  * The frozen schema accepts `card | pix | cash` and an optional
@@ -274,6 +320,7 @@ module.exports = {
   canStartService,
   emptyPaymentSummary,
   buildTowPaymentDto,
+  buildTowPaymentRecordAtAssignment,
   validateSelectPaymentMethodInput,
   validateCashReceivedInput,
   buildTowPaymentRecord,

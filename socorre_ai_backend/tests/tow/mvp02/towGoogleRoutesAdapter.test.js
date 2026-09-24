@@ -181,6 +181,36 @@ describe('MVP-02 UNIT — Google Routes adapter', () => {
       expect(result.pickup_to_destination).toEqual({ distance_meters: 7350, duration_seconds: 1200 });
     });
 
+    test('accepts the OMITTED distance of a zero-length leg as 0 meters', async () => {
+      // Verified against the real Google Routes API: when the partner stands
+      // exactly on the pickup (origin == intermediate waypoint), protobuf JSON
+      // omits the default int32 and leg[0] arrives as `{ duration: "0s" }` with
+      // no `distanceMeters` key. That is a legitimate zero-length leg, not a
+      // malformed response, and the quote must still be priceable.
+      const { adapter } = createAdapter({
+        httpClient: createStubHttpClient(googleRoute({
+          legs: [{ duration: '0s' }, leg({ distanceMeters: 9737, duration: '2036s' })],
+        })),
+      });
+
+      const result = await adapter.computeRoute({ origin: PROVIDER, destination: DESTINATION, pickup: PROVIDER });
+
+      expect(result.provider_to_pickup).toEqual({ distance_meters: 0, duration_seconds: 0 });
+      expect(result.pickup_to_destination).toEqual({ distance_meters: 9737, duration_seconds: 2036 });
+    });
+
+    test('an explicit null distance stays a malformed_response failure', async () => {
+      const { adapter } = createAdapter({
+        httpClient: createStubHttpClient(googleRoute({
+          legs: [{ distanceMeters: null, duration: '0s' }, leg()],
+        })),
+      });
+
+      const error = await captureError(adapter.computeRoute({ origin: PROVIDER, destination: DESTINATION, pickup: PICKUP }));
+      expect(error).toBeInstanceOf(RouteProviderError);
+      expect(error.reason).toBe('malformed_response');
+    });
+
     test('never rounds or truncates a leg distance', async () => {
       const { adapter } = createAdapter({
         httpClient: createStubHttpClient(googleRoute({
@@ -393,7 +423,6 @@ describe('MVP-02 UNIT — Google Routes adapter', () => {
       ['string distance', { routes: [{ legs: [{ distanceMeters: '7000', duration: '900s' }, leg()] }] }],
       ['negative distance', { routes: [{ legs: [{ distanceMeters: -1, duration: '900s' }, leg()] }] }],
       ['fractional distance', { routes: [{ legs: [{ distanceMeters: 1.5, duration: '900s' }, leg()] }] }],
-      ['missing distance', { routes: [{ legs: [{ duration: '900s' }, leg()] }] }],
       ['missing duration', { routes: [{ legs: [{ distanceMeters: 7000 }, leg()] }] }],
       ['unparseable duration', { routes: [{ legs: [{ distanceMeters: 7000, duration: 'soon' }, leg()] }] }],
       ['negative duration', { routes: [{ legs: [{ distanceMeters: 7000, duration: '-5s' }, leg()] }] }],

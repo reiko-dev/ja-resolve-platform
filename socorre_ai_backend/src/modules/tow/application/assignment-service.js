@@ -29,6 +29,15 @@
  * The response is the full `TowRequestResponse`: the customer sees the request
  * in its new `ASSIGNED` state, with the frozen final price and an empty
  * `allowed_actions` (nothing further is legal on an assigned request).
+ *
+ * TOW ROUND — the accept is ALSO where the `TowPayment` is materialized. The
+ * customer chose the commercial method once, at creation
+ * (`TowRequest.payment_method`), so the moment the assignment exists the payment
+ * is created in the SAME transaction as `PENDING` (`CASH_SELECTED`), with the
+ * assignment's frozen amount and currency. The first-party flow never calls
+ * `PUT /tow/requests/{requestId}/payment-method`; that operation remains as a
+ * legacy/compatibility path and, for a request that already owns its payment,
+ * only ever returns the canonical row.
  */
 'use strict';
 
@@ -39,6 +48,7 @@ const {
   buildTowRequestDto,
   buildAssignmentRecord,
   buildAssignmentDto,
+  buildTowPaymentRecordAtAssignment,
   assertProposalActionable,
   allowedActionsForRequest,
   validateIdempotencyKey,
@@ -46,7 +56,6 @@ const {
 const { paymentSummaryFor } = require('./payment-summary');
 
 function createAssignmentService({
-  moduleService,
   settingsService,
   towRequestRepository,
   towProposalRepository,
@@ -55,7 +64,6 @@ function createAssignmentService({
   unitOfWork,
   clock,
 }) {
-  if (!moduleService) throw new TypeError('createAssignmentService requires a moduleService');
   if (!settingsService) throw new TypeError('createAssignmentService requires a settingsService');
   if (!towRequestRepository) throw new TypeError('createAssignmentService requires a towRequestRepository port');
   if (!towProposalRepository) throw new TypeError('createAssignmentService requires a towProposalRepository port');
@@ -71,7 +79,39 @@ function createAssignmentService({
    * deadlock the single-connection SQLite harness), so every read and every write
    * below goes through these handles.
    */
-  async function acceptWithin({ customerId, proposalId, now }, { requests, proposals, assignmentRepository }) {
+  /**
+   * TOW ROUND — materialize the `TowPayment` of the assignment INSIDE the accept
+   * transaction, from the commercial method the customer chose at creation.
+   *
+   * Before assignment the request truthfully carries no payment row (there is no
+   * `assignment_id` and no frozen final price yet). The moment the assignment
+   * exists, both authorities exist, so the payment is created as `PENDING`
+   * (`CASH_SELECTED` in the consumer DTO) with the assignment's frozen amount and
+   * currency. The customer never selects the method again.
+   *
+   * Uniqueness is the DATABASE's (`UNIQUE(tow_request_id)` /
+   * `UNIQUE(assignment_id)`): a replay — or the healing of an assignment created
+   * before this delivery — resolves to the canonical row and never to a second
+   * payment. A historical request without a commercial choice materializes
+   * nothing and keeps projecting `NOT_SELECTED`.
+   */
+  async function materializePayment({ request, assignment, payments, now }) {
+    if (!payments) return null;
+    const record = buildTowPaymentRecordAtAssignment({ request, assignment, now });
+    if (!record) return null;
+
+    // The caller holds the request row lock (the serialization point every
+    // payment writer goes through), so this read cannot race another writer of
+    // THIS request: it is the replay fast path. The INSERT below remains the
+    // database-authoritative backstop for anything else.
+    const existing = await payments.findByRequestId(record.tow_request_id);
+    if (existing) return existing;
+
+    const { row } = await payments.createForAssignment(record);
+    return row;
+  }
+
+  async function acceptWithin({ customerId, proposalId, now }, { requests, proposals, assignmentRepository, payments }) {
     const proposal = await proposals.findById(proposalId);
     if (!proposal) throw new TowError('not_found', 'Tow proposal not found');
 
@@ -93,9 +133,14 @@ function createAssignmentService({
 
     // Replayed accept. Checked BEFORE the state guards on purpose: the request of
     // a successful accept is `ASSIGNED`, which would otherwise be reported as a
-    // conflict instead of the idempotent replay the contract promises.
+    // conflict instead of the idempotent replay the contract promises. The replay
+    // still converges to the materialized payment (a legacy assignment created
+    // before this delivery heals here; an existing row is returned untouched).
     const existing = await assignmentRepository.findByProposalId(proposal.id);
-    if (existing) return { assignment: existing, request: lockedRequest };
+    if (existing) {
+      await materializePayment({ request: lockedRequest, assignment: existing, payments, now });
+      return { assignment: existing, request: lockedRequest };
+    }
 
     if (lockedRequest.state === 'ASSIGNED') {
       throw new TowError('request_already_assigned', 'This tow request is already assigned to another proposal');
@@ -146,14 +191,16 @@ function createAssignmentService({
     await proposals.markAccepted(locked.id, { decidedAt: now });
     await proposals.closeActiveForRequestExcept(lockedRequest.id, { exceptProposalId: locked.id, decidedAt: now });
 
+    // TOW ROUND — the job now owns an assignment_id and a frozen final price, so
+    // the commercial choice becomes a financial execution row in the SAME
+    // transaction: `ASSIGNED` and `CASH_SELECTED` commit together or not at all.
+    await materializePayment({ request: lockedRequest, assignment: row, payments, now });
+
     return { assignment: row, request: assignedRequest || lockedRequest };
   }
 
   async function accept({ customerId, proposalId, idempotencyKey } = {}) {
-    // 1. Module gate FIRST: a disabled module never assigns, and never replays.
-    await moduleService.assertNewBusinessAllowed();
-
-    // 2. The canonical `Idempotency-Key` header is REQUIRED (8–128 chars). It is
+    // 1. The canonical `Idempotency-Key` header is REQUIRED (8–128 chars). It is
     //    validated with the SAME domain validator the create paths use — never a
     //    second length policy — and BEFORE the transaction is opened, so a
     //    missing or malformed header inserts zero assignment rows and changes no
@@ -163,7 +210,7 @@ function createAssignmentService({
     //    assignment.
     validateIdempotencyKey(idempotencyKey);
 
-    // 3. A non-canonical id can never match a row.
+    // 2. A non-canonical id can never match a row.
     if (!isTowProposalId(proposalId)) throw new TowError('not_found', 'Tow proposal not found');
 
     const now = clock.now();
@@ -171,6 +218,7 @@ function createAssignmentService({
       requests: towRequestRepository.withTransaction(trx),
       proposals: towProposalRepository.withTransaction(trx),
       assignmentRepository: assignmentRepository.withTransaction(trx),
+      payments: paymentRepository ? paymentRepository.withTransaction(trx) : null,
     }));
 
     const settings = await settingsService.get();

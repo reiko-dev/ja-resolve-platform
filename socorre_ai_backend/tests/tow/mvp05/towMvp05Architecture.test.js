@@ -105,8 +105,16 @@ describe('MVP-05 ARCH — the eight MVP-05 routes, and nothing else', () => {
   });
 
   test('no WebSocket or scheduler surface exists anywhere in the module', () => {
+    // TOW ROUND: the address resolver adapter owns ONE bounded `setTimeout` as
+    // its retry delay (maxAttempts <= 2). No WebSocket/socket.io, no recurring
+    // timer and no cron exists anywhere — including that file.
+    const ONE_SHOT_TIMER_ALLOWLIST = ['src/modules/tow/adapters/address/google-geocoding-adapter.js'];
     const offenders = ALL_TOW_SRC_FILES
-      .filter((file) => /\b(WebSocket|socket\.io|setInterval|setTimeout|cron|schedule)\b/.test(readCode(file)))
+      .filter((file) => {
+        const source = readCode(file);
+        if (/\b(WebSocket|socket\.io|setInterval|cron|schedule)\b/.test(source)) return true;
+        return /\bsetTimeout\b/.test(source) && !ONE_SHOT_TIMER_ALLOWLIST.includes(relative(file));
+      })
       .map(relative);
     expect(offenders).toEqual([]);
   });
@@ -158,12 +166,15 @@ describe('MVP-05 ARCH — graceful drain is structural, not incidental', () => {
     expect(offenders).toEqual([]);
   });
 
-  test('the request/proposal write paths still DO consult the gate', () => {
-    // The other half of the same contract: disable must still refuse new work.
+  test('the catalog gate lives ONLY in the request-creation path', () => {
+    // SERVICE CATALOG — the other half of the drain contract: disable still
+    // refuses NEW requests, but never an existing request's lifecycle.
     const requestService = readCode(path.join(TOW_SRC, 'application/tow-request-service.js'));
     const proposalService = readCode(path.join(TOW_SRC, 'application/proposal-service.js'));
+    const assignmentService = readCode(path.join(TOW_SRC, 'application/assignment-service.js'));
     expect(requestService).toContain('assertNewBusinessAllowed');
-    expect(proposalService).toContain('assertNewBusinessAllowed');
+    expect(proposalService).not.toContain('assertNewBusinessAllowed');
+    expect(assignmentService).not.toContain('assertNewBusinessAllowed');
   });
 
   test('the module gate exposes the drain contract the tests pin', () => {

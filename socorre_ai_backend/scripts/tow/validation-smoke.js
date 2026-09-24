@@ -9,19 +9,26 @@
  *   (b) GET  /api/tow/module-status                   module enabled
  *   (c) POST /api/auth/login                          customer + partner tokens
  *   (d) GET  /api/tow/vehicles                        seeded active vehicle
- *   (e) POST /api/tow/requests                        SEARCHING, idempotent
+ *   (e) POST /api/tow/requests                        SEARCHING, payment_method=cash, idempotent
  *   (f) GET  /api/tow/requests/{id}/route             non-empty encoded polyline
- *   (g) GET  /api/tow/partner/opportunities           feed contains the request
+ *   (g) GET  /api/tow/partner/opportunities           feed contains the request + cash + price
  *   (h) POST /api/tow/requests/{id}/proposals         partner proposes (server price)
  *   (i) POST /api/tow/proposals/{id}/accept           customer accepts -> ASSIGNED
+ *                                                     + TowPayment materialized (CASH_SELECTED)
+ *   (i.1) POST /api/tow/requests/{id}/tracking        assigned partner publishes a point -> 202
+ *   (i.2) GET  /api/tow/requests/{id}/tracking        customer reads the persisted latest point
  *   (j) POST .../en-route|arrived|in-transit|finish   partner drives -> COMPLETED
- *   (k) PUT  /api/tow/requests/{id}/payment-method    customer selects cash
- *   (l) POST /api/tow/requests/{id}/cash-received     partner confirms -> CASH_RECEIVED
- *   (m) GET  /api/tow/requests/{id}                   COMPLETED + CASH_RECEIVED
+ *   (k) POST /api/tow/requests/{id}/cash-received     partner confirms -> CASH_RECEIVED
+ *   (l) GET  /api/tow/requests/{id}                   COMPLETED + CASH_RECEIVED
  *
  * The scenario is closed by the deterministic reset+seed below (the canonical
  * state machine is the only authority on legal transitions; the smoke asserts
- * exactly the contract's MVP-06 CASH sequence).
+ * exactly the contract's CASH sequence).
+ *
+ * TOW ROUND: the first-party journey NEVER calls
+ * `PUT /api/tow/requests/{id}/payment-method`. The customer chose `cash` at
+ * creation and the accept materialized the TowPayment from that choice; the PUT
+ * remains a legacy/compatibility path only.
  *
  * On success it performs the deterministic cleanup by calling the SAME
  * reset+seed path as `validation-env reset` (imported, never duplicated) and
@@ -210,6 +217,9 @@ async function main() {
       plate: 'SMK1B23',
     },
     problem_description: 'Smoke de validação: veículo não liga, guincho para oficina.',
+    // The commercial choice is REQUIRED since draft.13: a create without it is a
+    // 422 and persists nothing.
+    payment_method: 'cash',
   };
   const createdResponse = await call('(e) POST /api/tow/requests', {
     method: 'post',
@@ -223,7 +233,12 @@ async function main() {
   assertStep('(e) POST /api/tow/requests', createdResponse.status === 201, `unexpected HTTP ${createdResponse.status}`);
   assertStep('(e) POST /api/tow/requests', Boolean(requestId), 'created request has no id');
   assertStep('(e) POST /api/tow/requests', created.state === 'SEARCHING', `state=${created.state}`);
-  pass('(e) POST /api/tow/requests', `id=${requestId} state=SEARCHING`);
+  assertStep(
+    '(e) POST /api/tow/requests',
+    created.payment_method === 'cash',
+    `payment_method=${created.payment_method} (expected "cash")`
+  );
+  pass('(e) POST /api/tow/requests', `id=${requestId} state=SEARCHING payment_method=cash`);
 
   // (f) route snapshot with geometry from the validation fixture provider
   const routeResponse = await call('(f) GET /api/tow/requests/{id}/route', {
@@ -248,15 +263,28 @@ async function main() {
   });
   const items = (opportunitiesResponse.data && opportunitiesResponse.data.data
     && opportunitiesResponse.data.data.items) || [];
-  const found = Array.isArray(items) && items.some(
-    (item) => item && item.request && String(item.request.id) === String(requestId)
+  const opportunity = Array.isArray(items)
+    ? items.find((item) => item && item.request && String(item.request.id) === String(requestId))
+    : null;
+  assertStep(
+    '(g) GET /api/tow/partner/opportunities',
+    Boolean(opportunity),
+    `request ${requestId} is not in the partner feed (${items.length} item(s))`
   );
   assertStep(
     '(g) GET /api/tow/partner/opportunities',
-    found,
-    `request ${requestId} is not in the partner feed (${items.length} item(s))`
+    opportunity.request.payment_method === 'cash',
+    `opportunity payment_method=${opportunity.request.payment_method} (expected "cash")`
   );
-  pass('(g) GET /api/tow/partner/opportunities', `request ${requestId} matched`);
+  assertStep(
+    '(g) GET /api/tow/partner/opportunities',
+    Boolean(opportunity.proposed_price && Number.isFinite(Number(opportunity.proposed_price.amount_cents))),
+    'opportunity carries no backend-computed proposed_price'
+  );
+  pass(
+    '(g) GET /api/tow/partner/opportunities',
+    `request ${requestId} matched payment_method=cash amount_cents=${opportunity.proposed_price.amount_cents}`
+  );
 
   // (h) partner proposal. The server prices it from the seeded vehicle; the
   //     partner never sends an amount.
@@ -299,7 +327,58 @@ async function main() {
     accepted && accepted.state === 'ASSIGNED',
     `state=${accepted && accepted.state}`
   );
-  pass('(i) POST /api/tow/proposals/{id}/accept', 'state=ASSIGNED');
+  assertStep(
+    '(i) POST /api/tow/proposals/{id}/accept',
+    accepted.payment && accepted.payment.status === 'CASH_SELECTED',
+    `payment status=${accepted.payment && accepted.payment.status} (expected CASH_SELECTED materialized at accept)`
+  );
+  assertStep(
+    '(i) POST /api/tow/proposals/{id}/accept',
+    accepted.payment
+      && String(accepted.payment.amount_cents) === String(proposal.price.amount_cents),
+    `payment amount=${accepted.payment && accepted.payment.amount_cents} != proposed ${proposal.price.amount_cents}`
+  );
+  pass('(i) POST /api/tow/proposals/{id}/accept', 'state=ASSIGNED payment=CASH_SELECTED');
+
+  // (i.1)/(i.2) live tracking: the ASSIGNED partner publishes a GPS point and
+  // the owning customer reads the persisted latest point. The socket event is
+  // only a fast path — this REST pair is the authority the smoke can assert.
+  const trackingPoint = {
+    latitude: PARTNER_PROFILE.latitude,
+    longitude: PARTNER_PROFILE.longitude,
+    recorded_at: new Date().toISOString(),
+  };
+  const trackingWrite = await call('(i.1) POST /api/tow/requests/{id}/tracking', {
+    method: 'post',
+    url: `/api/tow/requests/${requestId}/tracking`,
+    token: partner.token,
+    data: trackingPoint,
+    idempotencyKey: scenarioIdempotencyKey('tracking'),
+  });
+  assertStep(
+    '(i.1) POST /api/tow/requests/{id}/tracking',
+    trackingWrite.status === 202,
+    `unexpected HTTP ${trackingWrite.status}`
+  );
+  const trackingRead = await call('(i.2) GET /api/tow/requests/{id}/tracking', {
+    method: 'get',
+    url: `/api/tow/requests/${requestId}/tracking`,
+    token: customer.token,
+  });
+  const tracking = trackingRead.data && trackingRead.data.data;
+  assertStep(
+    '(i.2) GET /api/tow/requests/{id}/tracking',
+    trackingRead.status === 200,
+    `unexpected HTTP ${trackingRead.status}`
+  );
+  assertStep(
+    '(i.2) GET /api/tow/requests/{id}/tracking',
+    Boolean(tracking && tracking.latest)
+      && Number(tracking.latest.latitude) === Number(trackingPoint.latitude)
+      && Number(tracking.latest.longitude) === Number(trackingPoint.longitude),
+    'customer tracking read does not match the persisted point'
+  );
+  pass('(i.1/i.2) tracking', `latest recorded_at=${tracking.latest.recorded_at}`);
 
   // (j) the assigned partner drives the four frozen milestones.
   const milestones = [
@@ -341,63 +420,48 @@ async function main() {
     pass(step, `HTTP ${response.status}`);
   }
 
-  // (k) customer selects the simulated cash payment (the only method of the MVP).
-  const selectResponse = await call('(k) PUT /api/tow/requests/{id}/payment-method', {
-    method: 'put',
-    url: `/api/tow/requests/${requestId}/payment-method`,
-    token: customer.token,
-    data: { method: 'cash' },
-    idempotencyKey: scenarioIdempotencyKey('paymethod'),
-  });
-  const selected = selectResponse.data && selectResponse.data.data;
-  assertStep('(k) PUT /api/tow/requests/{id}/payment-method', selectResponse.status === 200, `unexpected HTTP ${selectResponse.status}`);
-  assertStep(
-    '(k) PUT /api/tow/requests/{id}/payment-method',
-    selected && selected.status === 'CASH_SELECTED',
-    `payment status=${selected && selected.status}`
-  );
-  pass('(k) PUT /api/tow/requests/{id}/payment-method', `status=${selected.status}`);
-
-  // (l) the assigned partner confirms the cash handover on the COMPLETED Tow.
-  const receivedResponse = await call('(l) POST /api/tow/requests/{id}/cash-received', {
+  // (k) the assigned partner confirms the cash handover on the COMPLETED Tow.
+  //     The payment row already exists (materialized by the accept as PENDING);
+  //     the first-party journey never calls `PUT /payment-method`.
+  const receivedResponse = await call('(k) POST /api/tow/requests/{id}/cash-received', {
     method: 'post',
     url: `/api/tow/requests/${requestId}/cash-received`,
     token: partner.token,
     idempotencyKey: scenarioIdempotencyKey('cashreceived'),
   });
   const received = receivedResponse.data && receivedResponse.data.data;
-  assertStep('(l) POST /api/tow/requests/{id}/cash-received', receivedResponse.status === 200, `unexpected HTTP ${receivedResponse.status}`);
+  assertStep('(k) POST /api/tow/requests/{id}/cash-received', receivedResponse.status === 200, `unexpected HTTP ${receivedResponse.status}`);
   assertStep(
-    '(l) POST /api/tow/requests/{id}/cash-received',
+    '(k) POST /api/tow/requests/{id}/cash-received',
     received && received.status === 'CASH_RECEIVED',
     `payment status=${received && received.status}`
   );
   assertStep(
-    '(l) POST /api/tow/requests/{id}/cash-received',
+    '(k) POST /api/tow/requests/{id}/cash-received',
     received && String(received.amount_cents) === String(proposal.price.amount_cents),
     `amount_cents=${received && received.amount_cents} != proposed ${proposal.price.amount_cents}`
   );
-  pass('(l) POST /api/tow/requests/{id}/cash-received', `status=${received.status} amount_cents=${received.amount_cents}`);
+  pass('(k) POST /api/tow/requests/{id}/cash-received', `status=${received.status} amount_cents=${received.amount_cents}`);
 
-  // (m) the customer's final read: COMPLETED with CASH_RECEIVED.
-  const finalResponse = await call('(m) GET /api/tow/requests/{id}', {
+  // (l) the customer's final read: COMPLETED with CASH_RECEIVED.
+  const finalResponse = await call('(l) GET /api/tow/requests/{id}', {
     method: 'get',
     url: `/api/tow/requests/${requestId}`,
     token: customer.token,
   });
   const finalRequest = finalResponse.data && finalResponse.data.data;
-  assertStep('(m) GET /api/tow/requests/{id}', finalResponse.status === 200, `unexpected HTTP ${finalResponse.status}`);
+  assertStep('(l) GET /api/tow/requests/{id}', finalResponse.status === 200, `unexpected HTTP ${finalResponse.status}`);
   assertStep(
-    '(m) GET /api/tow/requests/{id}',
+    '(l) GET /api/tow/requests/{id}',
     finalRequest && finalRequest.state === 'COMPLETED',
     `state=${finalRequest && finalRequest.state}`
   );
   assertStep(
-    '(m) GET /api/tow/requests/{id}',
+    '(l) GET /api/tow/requests/{id}',
     finalRequest && finalRequest.payment && finalRequest.payment.status === 'CASH_RECEIVED',
     `payment status=${finalRequest && finalRequest.payment && finalRequest.payment.status}`
   );
-  pass('(m) GET /api/tow/requests/{id}', 'state=COMPLETED payment=CASH_RECEIVED');
+  pass('(l) GET /api/tow/requests/{id}', 'state=COMPLETED payment=CASH_RECEIVED');
 
   if (noReset) {
     console.log('[smoke] cleanup skipped (--no-reset)');

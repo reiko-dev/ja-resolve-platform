@@ -40,11 +40,9 @@ const {
 const { authFor, createProposal } = require('../../helpers/tow/mvp04');
 const { createTowCustomerAuth } = require('../../helpers/tow/auth');
 const {
-  PAYMENT_METHOD_IDEMPOTENCY_KEY,
   CASH_RECEIVED_IDEMPOTENCY_KEY,
   CASH_RECEIVED_ALTERNATE_KEY,
   createMvp06Services,
-  selectPaymentMethod,
   cashReceived,
   getPayment,
   paymentRows,
@@ -609,20 +607,22 @@ describe('MVP-06 readiness gate — S01..S20', () => {
     expect(winningProposal.id).toBeTruthy();
     expect(losingProposal.id).toBeTruthy();
 
-    // accept -> atomic assignment
+    // accept -> atomic assignment. TOW ROUND: the accept materializes the
+    // TowPayment from the commercial `payment_method=cash` chosen at creation —
+    // the first-party journey never calls `PUT /payment-method`.
     const assignedRequest = (await accept(owner, winningProposal.id)).body.data;
     expect(assignedRequest.state).toBe('ASSIGNED');
     const assignment = await testDb.db('tow_assignments').where({ tow_request_id: towRequest.id }).first();
 
-    // cash selected before execution
-    const selected = await selectPaymentMethod(app, towRequest.id, owner, {
-      key: PAYMENT_METHOD_IDEMPOTENCY_KEY,
-    });
-    expect(selected.status).toBe(200);
-    expect(selected.body.data.status).toBe('CASH_SELECTED');
-    expect(selected.body.data.amount_cents).toBe(
+    expect(assignedRequest.payment.status).toBe('CASH_SELECTED');
+    expect(assignedRequest.payment.amount_cents).toBe(
       Number(assignment.final_price_amount_cents)
     );
+    const materialized = await paymentRows(testDb.db, towRequest.id);
+    expect(materialized).toHaveLength(1);
+    expect(String(materialized[0].method)).toBe('CASH');
+    expect(String(materialized[0].status)).toBe('PENDING');
+    expect(Number(materialized[0].assignment_id)).toBe(Number(assignment.id));
 
     // execution + tracking
     expect((await milestone(assigned.auth, towRequest.id, 'en-route')).body.data.state).toBe('EN_ROUTE');

@@ -8,7 +8,8 @@
  *     are interchangeable at the application boundary (same quote out);
  *   - composition wires the port and stays constructible without a Google key;
  *   - Domain/Application never reach for HTTP, the environment or the network;
- *   - there is exactly one HTTP-aware place in the module (`adapters/routes`);
+ *   - the HTTP-aware places are exactly the two adapters (`adapters/routes` for
+ *     Google Routes and `adapters/address` for Google Geocoding);
  *   - the pricing policy never uses `ceil` and the module never uses Haversine;
  *   - the deterministic fake carries no pricing logic and no non-determinism;
  *   - the server-side key is documented in the env examples, never committed.
@@ -217,11 +218,18 @@ describe('MVP-02 ARCH — Domain/Application purity', () => {
     expect(offenders).toEqual([]);
   });
 
-  test('the Google adapter is the only HTTP-aware file in the module', () => {
+  test('HTTP-aware files are exactly the two Google adapters, never Domain/Application', () => {
+    // TOW ROUND added the second (and last) HTTP-aware file: the reverse
+    // geocoding adapter. The allowlist stays explicit on purpose — a third
+    // network dependency must be a reviewed decision, not an accident.
     const httpAware = ALL_TOW_SRC_FILES
       .filter((file) => /require\(\s*['"]axios['"]\s*\)/.test(read(file)))
-      .map(relative);
-    expect(httpAware).toEqual(['src/modules/tow/adapters/routes/google-routes-adapter.js']);
+      .map(relative)
+      .sort();
+    expect(httpAware).toEqual([
+      'src/modules/tow/adapters/address/google-geocoding-adapter.js',
+      'src/modules/tow/adapters/routes/google-routes-adapter.js',
+    ]);
   });
 
   test('the application service imports the port types, not the adapter', () => {

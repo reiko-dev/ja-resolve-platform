@@ -102,6 +102,7 @@ describePostgres('MVP-06 PostgreSQL — CASH payment authority and concurrency',
     vehicle: { class: 'light_vehicle', make: 'Fiat', model: 'Argo', year: 2021, weight_kg: 1200, plate: 'MVP6A11' },
     problem_description: 'Carro não liga na garagem do prédio',
     observations: null,
+    payment_method: 'cash',
   });
 
   const TARIFF = Object.freeze({
@@ -422,11 +423,15 @@ describePostgres('MVP-06 PostgreSQL — CASH payment authority and concurrency',
       const pending = cashReceived(fixture, 'pg-f5-cash-00000001').then((result) => result);
       expect(await waitForBlockedTransition()).toBe(true);
 
-      // The blocked confirmation cannot have decided anything yet, and no
-      // payment may exist while COMPLETED is uncommitted.
+      // The blocked confirmation cannot have decided anything yet. The payment
+      // already exists — materialized by the accept as PENDING — and the
+      // uncommitted COMPLETED must not have transitioned it.
       const beforeCommit = await db('tow_requests').where({ id: requestId }).first();
       expect(beforeCommit.state).toBe('IN_TRANSIT');
-      expect(await paymentRows(requestId)).toHaveLength(0);
+      const pendingRows = await paymentRows(requestId);
+      expect(pendingRows).toHaveLength(1);
+      expect(String(pendingRows[0].status)).toBe('PENDING');
+      expect(pendingRows[0].received_at).toBeNull();
 
       await writer.commit();
       response = await pending;

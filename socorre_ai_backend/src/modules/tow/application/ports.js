@@ -105,6 +105,7 @@
  *
  * @typedef {Object} TowRequestRepository
  * @property {(record: object, options: { fingerprintSource: string }) => Promise<{ row: object, created: boolean, same_payload: boolean }>} createIdempotent
+ * @property {(customerId: number|string, idempotencyKey: string) => Promise<object|null>} findByCustomerAndKey  The replay pre-read: used by the create path to skip address enrichment for a known retry (the atomic create-or-replay stays the authority).
  * @property {(id: number|string) => Promise<object|null>} findById
  * @property {(id: number|string, customerId: number|string) => Promise<object|null>} findByIdForCustomer
  * @property {(customerId: number|string, filters: { limit: number, offset: number, state?: string|null, from?: Date|null, to?: Date|null }) => Promise<{ rows: object[], total: number }>} listForCustomer
@@ -118,6 +119,19 @@
  * @typedef {Object} Clock
  * @property {() => Date} now
  *
+ * TOW ROUND — the realtime invalidation signal of the persisted tracking point.
+ *
+ * The socket is a FAST PATH, never an authority: the publisher receives the
+ * canonical request id and the backend instant of the stored point, and a
+ * consumer that misses the event recovers through
+ * `GET /tow/requests/{requestId}/tracking`. Publishing must never fail the
+ * write: the application calls it AFTER the transaction committed and swallows
+ * (with a safe log) any transport failure.
+ *
+ * @typedef {Object} TrackingEventPublisher
+ * @property {(event: { request_id: string, received_at: string }) => void} publishTrackingUpdated
+ *
+ *
  * MVP-02 — authoritative route distance.
  *
  * The application asks for the trip `origin -> pickup -> destination` and gets
@@ -127,6 +141,23 @@
  *
  * @typedef {Object} RouteProvider
  * @property {(request: { origin: { latitude: number, longitude: number }, destination: { latitude: number, longitude: number }, pickup?: { latitude: number, longitude: number } }) => Promise<{ provider_to_pickup: { distance_meters: number, duration_seconds: number }|null, pickup_to_destination: { distance_meters: number, duration_seconds: number }|null, encoded_polyline: string|null }>} computeRoute
+ *
+ * TOW ROUND — reverse geocoding (enrichment only).
+ *
+ * The application asks for the human address of a coordinate and gets a
+ * provider-neutral candidate (`street`, `number`, `neighborhood`, `city`,
+ * `state`, `state_code`, `postal_code`, `country`, `location_type`,
+ * `partial_match`) or `null` when the provider has no address for that point
+ * (`NO_ADDRESS`). Formatting, `S/N` inference and confidence rules live in
+ * `domain/address.js`.
+ *
+ * This port is OPTIONAL wiring: an unwired or `none` resolver simply means the
+ * request keeps whatever address the client sent (or `null`). A provider failure
+ * is NEVER allowed to fail `POST /tow/requests` — the caller logs a safe reason
+ * and persists `null`.
+ *
+ * @typedef {Object} AddressResolver
+ * @property {(point: { latitude: number, longitude: number }) => Promise<object|null>} resolve
  */
 'use strict';
 
@@ -144,6 +175,8 @@ const PORT_NAMES = Object.freeze([
   'FileStorage',
   'Clock',
   'RouteProvider',
+  'TrackingEventPublisher',
+  'AddressResolver',
 ]);
 
 module.exports = { PORT_NAMES };

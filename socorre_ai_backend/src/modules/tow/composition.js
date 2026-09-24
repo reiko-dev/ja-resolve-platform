@@ -11,6 +11,12 @@
  *          payment projection into every TowRequest DTO producer.
  * B5 — wires the route visualization read over the SAME RouteProvider port the
  *      quote uses (recompute on read; no geometry is persisted).
+ * TOW ROUND — wires the tracking invalidation publisher (Socket.IO adapter by
+ *      default; injectable for tests) into the tracking service.
+ * TOW ROUND — wires the optional reverse-geocoding enrichment
+ *      (`TOW_ADDRESS_RESOLVER=none|google`, default `none`) into the TowRequest
+ *      create path. A provider failure is best-effort only and never blocks a
+ *      create; the adapter requires its own `GOOGLE_GEOCODING_API_KEY`.
  * VALIDATION — the route adapter kind and the payment mode are resolved from
  *      guarded config: the deterministic fixture and `mock` are explicit-env,
  *      validation-only selections that production refuses at startup.
@@ -52,8 +58,11 @@ const { createLocalFileStorage } = require('./adapters/storage/local-file-storag
 const { createSystemClock } = require('./adapters/clock/system-clock');
 const { createGoogleRoutesAdapter } = require('./adapters/routes/google-routes-adapter');
 const { createValidationRoutesAdapter } = require('./adapters/routes/validation-routes-adapter');
+const { createGoogleGeocodingAdapter } = require('./adapters/address/google-geocoding-adapter');
+const { createSocketTrackingPublisher } = require('./adapters/events/socket-tracking-publisher');
 const { resolveTowPaymentMode } = require('../../config/towPaymentMode');
 const { assertTowRouteProviderSafe } = require('../../config/towRouteProvider');
+const { assertTowAddressResolverSafe } = require('../../config/towAddressResolver');
 
 /**
  * Maps the guarded `TOW_ROUTE_PROVIDER` kind to its adapter. `google` is the
@@ -69,6 +78,19 @@ function createConfiguredRouteProvider(routesOptions = {}, env = process.env) {
   return createGoogleRoutesAdapter(routesOptions);
 }
 
+/**
+ * Maps the guarded `TOW_ADDRESS_RESOLVER` kind to its adapter. `none` (the
+ * default) returns `null`: no resolver is wired and the create path keeps
+ * whatever address the client sent. `google` requires its dedicated
+ * `GOOGLE_GEOCODING_API_KEY` at startup (fail-fast) — the adapter never reuses
+ * another Google key.
+ */
+function createConfiguredAddressResolver(addressOptions = {}, env = process.env) {
+  const kind = assertTowAddressResolverSafe(env);
+  if (kind === 'none') return null;
+  return createGoogleGeocodingAdapter(addressOptions);
+}
+
 function buildTowServices(options = {}) {
   // eslint-disable-next-line global-require
   const db = options.db || require('../../config/database');
@@ -78,6 +100,16 @@ function buildTowServices(options = {}) {
   // GOOGLE_ROUTES_API_KEY degrades one operation instead of failing startup.
   const routeProvider = options.routeProvider || createConfiguredRouteProvider(options.routes);
   const paymentMode = options.paymentMode || resolveTowPaymentMode();
+  // TOW ROUND — optional reverse-geocoding enrichment for requests that arrive
+  // without an address. Default `none`; tests inject a fake or `null`.
+  const addressResolver = options.addressResolver === undefined
+    ? createConfiguredAddressResolver(options.address || {})
+    : options.addressResolver;
+  // TOW ROUND — the tracking invalidation publisher. Production uses the
+  // Socket.IO adapter; tests inject a spy (or `null` to disable publishing).
+  const trackingEvents = options.trackingEvents === undefined
+    ? createSocketTrackingPublisher()
+    : options.trackingEvents;
 
   const moduleRepository = createModuleRepository(db);
   const vehicleRepository = createVehicleRepository(db);
@@ -109,6 +141,8 @@ function buildTowServices(options = {}) {
     storage,
     routeProvider,
     paymentMode,
+    // TOW ROUND — `null` when `TOW_ADDRESS_RESOLVER=none` (the default).
+    addressResolver,
     moduleRepository,
     vehicleRepository,
     documentRepository,
@@ -139,10 +173,10 @@ function buildTowServices(options = {}) {
       towProposalRepository,
       assignmentRepository,
       paymentRepository: towPaymentRepository,
+      addressResolver,
       clock,
     }),
     matchingService: createMatchingService({
-      moduleService,
       settingsService,
       partnerRepository,
       vehicleRepository,
@@ -153,7 +187,6 @@ function buildTowServices(options = {}) {
       ...(options.matching || {}),
     }),
     proposalService: createProposalService({
-      moduleService,
       settingsService,
       partnerRepository,
       vehicleRepository,
@@ -164,7 +197,6 @@ function buildTowServices(options = {}) {
       clock,
     }),
     assignmentService: createAssignmentService({
-      moduleService,
       settingsService,
       towRequestRepository,
       towProposalRepository,
@@ -187,6 +219,7 @@ function buildTowServices(options = {}) {
       trackingRepository,
       unitOfWork,
       clock,
+      trackingEvents,
     }),
     cancellationService: createCancellationService({
       settingsService,
@@ -214,4 +247,4 @@ function buildTowServices(options = {}) {
   };
 }
 
-module.exports = { buildTowServices, createConfiguredRouteProvider };
+module.exports = { buildTowServices, createConfiguredRouteProvider, createConfiguredAddressResolver };

@@ -75,6 +75,8 @@ function createTowRouter({ services, uploadMiddleware }) {
   const routeController = createRouteController({ routeService: services.routeService });
 
   router.get('/module-status', moduleController.getPublicStatus);
+  // SERVICE CATALOG — the platform services catalog consumed by the apps.
+  router.get('/services', moduleController.listServices);
 
   // MVP-03 — canonical tow requests (customer side).
   router.post('/requests', auth, requireCustomer, towRequestController.create);

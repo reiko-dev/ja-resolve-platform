@@ -1,13 +1,26 @@
 # TOW LOCAL VALIDATION — MANUAL RUNBOOK (HUMAN OPERATOR)
 
 Status: `LOCAL_TOW_VALIDATION_READY_FOR_HUMAN_TEST`
-Contract: `1.0.0-draft.11`
-Date: 2026-09-22
+Contract: `1.0.0-draft.14` (Tow round — real routes, mandatory payment at creation, payment materialized
+at accept, background tracking)
+Date: 2026-09-23
 Repo: `socorre-system` (backend). Mobile apps consumed from `socorre-v2` (debug builds run locally).
 
 > **This is NOT a release.** No executables (APK/AAB/IPA) were produced in this phase. No PSP, no real
 > money, no production infrastructure. Human validation happens on locally run Flutter debug apps against
 > a disposable local Postgres and a local backend started in validation mode.
+
+> **Tow round (draft.13/.14) changes the script below:**
+> - the Cliente chooses the payment method BEFORE creating the request (`CASH` is the only method; the
+>   request cannot be created without it — the backend answers `422 validation_error`);
+> - the customer chooses the method exactly ONCE: when the proposal is accepted, the backend
+>   materializes `TowPayment = CASH_SELECTED` automatically (same transaction as the assignment). The
+>   first-party flow never calls `PUT /tow/requests/{id}/payment-method`;
+> - visual/device validation MUST run with a real road route:
+>   `TOW_ROUTE_PROVIDER=google` + `GOOGLE_ROUTES_API_KEY=<server-side key>` in `.env.validation`;
+>   the `validation-fixture` provider is for deterministic automated tests only;
+> - the Cliente now receives the socket event `tow_tracking_updated` (fast path) and reconciles through
+>   `GET /tow/requests/{id}/tracking` (authority); polling remains a fallback.
 
 ---
 
@@ -25,8 +38,9 @@ Repo: `socorre-system` (backend). Mobile apps consumed from `socorre-v2` (debug 
 | Destroy validation DB | `npm run tow:validation:down` |
 | Credentials | `cliente.validacao@socorre.com.br` / `parceiro.validacao@socorre.com.br` / `admin.validacao@socorre.com.br` — password `Validacao123!` |
 | Payment mode confirmation | Backend startup log prints the **MOCK** payment-mode line + the validation banner log; no endpoint was added |
+| Route provider (visual validation) | `TOW_ROUTE_PROVIDER=google` + `GOOGLE_ROUTES_API_KEY=<server-side key>` in `.env.validation`; startup banner prints `route provider: google`. Without the key, Google fails closed (503) — there is NO straight-line fallback |
 | Checklist | this file — §6 (script) and §7 (checklist) |
-| Known validation-only limits | simulated/CASH-only payment; fixture route distances unless `GOOGLE_ROUTES_API_KEY` set; customer vehicle typed in the Cliente app (no server-side catalog); seeded vehicle documents have no file bytes (download 404); no executables built |
+| Known validation-only limits | simulated/CASH-only payment; customer vehicle typed in the Cliente app (no server-side catalog); seeded vehicle documents have no file bytes (download 404); no executables built |
 
 ---
 
@@ -36,22 +50,24 @@ Repo: `socorre-system` (backend). Mobile apps consumed from `socorre-v2` (debug 
   +------------------+          +---------------------------+          +----------------------------+
   |  Cliente App     |  HTTP    |  Local backend            |  TCP     |  Disposable Postgres       |
   |  (Flutter debug) | -------> |  127.0.0.1:3000           | -------> |  127.0.0.1:55433           |
-  |                  |          |  /api/tow/*  (draft.11)   |          |  DB socorre_tow_validation_test |
-  +------------------+          |  TOW_PAYMENT_MODE=mock    |          +----------------------------+
+  |                  |  Socket  |  /api/tow/*  (draft.13)   |          |  DB socorre_tow_validation_test |
+  +------------------+ <------- |  TOW_PAYMENT_MODE=mock    |          +----------------------------+
                                 |  route provider:          |                 ^
   +------------------+  HTTP    |    fixture OR google      |                 |
-  |  Parceiro App    | -------> |                           |  TCP            |
+  |  Parceiro App    | -------> |  (visual: google real)    |  TCP            |
   |  (Flutter debug) |          +---------------------------+ ----------------+
   +------------------+                                                       |
                                                                             |
      payments: SIMULATED, CASH only              Postgres is disposable: reset recreates schema+seed
-     NOT_SELECTED -> CASH_SELECTED -> CASH_RECEIVED
+     TowRequest.payment_method = CASH at creation (commercial choice)
+     TowPayment (execution): NOT_SELECTED -> CASH_SELECTED -> CASH_RECEIVED
 ```
 
 - Real pricing policy runs server-side even when the route provider is the deterministic fixture.
-- Route provider: without `GOOGLE_ROUTES_API_KEY` the backend serves a deterministic validation fixture
-  (distances = geodesic x1.35, real encoded polyline). To use real Google Routes: set
+- Route provider: the `validation-fixture` (distances = geodesic x1.35, encoded polyline) exists ONLY for
+  deterministic automated tests. Visual/device validation requires real roads: set
   `GOOGLE_ROUTES_API_KEY` in `.env.validation` and `TOW_ROUTE_PROVIDER=google`, then restart the backend.
+  A Google failure is a fail-closed 503 — the backend never fabricates a straight line.
 - No external payment provider is contacted at any point.
 
 ---
@@ -165,9 +181,15 @@ key the map degrades to OSM/static, which is expected.
 
 ### Refresh behavior (important)
 
-Tow has no socket events on the backend, so the apps read the canonical state when the screen opens, when
-you tap **Atualizar**, and (Cliente) on the ~10 s tracking poll. After a transition made on the other
-device, tap **Atualizar** before judging the screen. The Parceiro also supports pull-to-refresh.
+Tow now has ONE socket event: `tow_tracking_updated` (minimal invalidation payload `{ request_id,
+received_at }`), emitted after a valid tracking write to the room `tow_request_<id>`. The Cliente joins
+that room with `join_tow_request` and refetches `GET /tow/requests/{id}/tracking` on the event; the ~10 s
+poll remains the recovery path. The socket is never the position authority.
+
+Every OTHER state change (proposal, assignment, milestones, payment) has no socket event, so the apps read
+the canonical state when the screen opens, when you tap **Atualizar**, and (Cliente) on the tracking poll.
+After a transition made on the other device, tap **Atualizar** before judging the screen. The Parceiro also
+supports pull-to-refresh.
 
 ---
 
@@ -183,9 +205,21 @@ device, tap **Atualizar** before judging the screen. The Parceiro also supports 
 
 ## 5. Payment semantics (validation)
 
-Canonical states only: `NOT_SELECTED -> CASH_SELECTED -> CASH_RECEIVED`.
+Two distinct authorities:
 
-- The Cliente selects the simulated/CASH payment per the app UX (step 17).
+- `TowRequest.payment_method` — the COMMERCIAL choice made by the Cliente BEFORE creating the request.
+  It is REQUIRED: without it the backend answers `422 validation_error` and creates nothing. Only `cash`
+  is implemented (`card`/`pix` answer `422 method_not_supported_in_mvp`).
+- `TowPayment` — the FINANCIAL execution, materialized AUTOMATICALLY by the accept
+  (same transaction as the assignment): `NOT_SELECTED -> CASH_SELECTED -> CASH_RECEIVED`.
+  The Cliente never selects the method a second time; `PUT /payment-method` is a legacy path
+  and is NOT used by the apps.
+
+- The Cliente selects CASH in the creation form (step 5) and the request is created carrying
+  `payment_method: cash`.
+- The Parceiro sees `payment_method` and the backend-calculated price on the opportunity BEFORE proposing.
+- On **Aceitar proposta**, the backend materializes `TowPayment = CASH_SELECTED` (PENDING) with the
+  frozen accepted amount. Before the accept, `TowRequest.payment` is truthfully `NOT_SELECTED`.
 - The Parceiro confirms cash received **after** `COMPLETED` (step 23).
 - No card, no PIX, no PSP, no real money, no settlement.
 
@@ -199,31 +233,33 @@ Canonical states only: `NOT_SELECTED -> CASH_SELECTED -> CASH_RECEIVED`.
 - [ ] 2. Dashboard/Home
 - [ ] 3. Guincho
 - [ ] 4. Selecionar veículo
-- [ ] 5. Permitir GPS
-- [ ] 6. Escolher destino no mapa
-- [ ] 7. Conferir rota
-- [ ] 8. Solicitar Guincho
+- [ ] 5. Escolher forma de pagamento **CASH** (o botão de solicitar deve ficar desabilitado sem método)
+- [ ] 6. Permitir GPS
+- [ ] 7. Escolher destino no mapa
+- [ ] 8. Conferir rota (polyline de ruas reais com `TOW_ROUTE_PROVIDER=google`)
+- [ ] 9. Solicitar Guincho
 
 **Parceiro**
 
-- [ ] 9. Login
-- [ ] 10. Dashboard
-- [ ] 11. Guincho
-- [ ] 12. Ver oportunidade
-- [ ] 13. Enviar proposta
+- [ ] 10. Login
+- [ ] 11. Dashboard
+- [ ] 12. Guincho
+- [ ] 13. Ver oportunidade — conferir origem, destino, veículo, **pagamento CASH**, distância e preço
+      calculado pelo backend (não editável)
+- [ ] 14. Enviar proposta
 
 **Cliente**
 
-- [ ] 14. Receber proposta — na tela do Cliente, toque em **Atualizar** (ícone no topo) para ler o
+- [ ] 15. Receber proposta — na tela do Cliente, toque em **Atualizar** (ícone no topo) para ler o
       estado canônico; o app não faz polling de propostas
-- [ ] 15. Conferir preço
-- [ ] 16. Aceitar proposta
-- [ ] 17. Selecionar pagamento simulado/CASH conforme a UX
+- [ ] 16. Conferir preço
+- [ ] 17. Aceitar proposta
 
 **Parceiro**
 
 - [ ] 18. A caminho
-- [ ] 19. Tracking
+- [ ] 19. Tracking (manter o app ativo; opcional: colocar em background e conferir que o Cliente continua
+      recebendo posição)
 - [ ] 20. Cheguei
 - [ ] 21. Iniciar transporte
 - [ ] 22. Finalizar
@@ -231,9 +267,10 @@ Canonical states only: `NOT_SELECTED -> CASH_SELECTED -> CASH_RECEIVED`.
 
 **Cliente**
 
-- [ ] 24. Ver COMPLETED — toque em **Atualizar** no Cliente para ler o estado final (o tracking é
-      atualizado sozinho a cada ~10 s, mas o estado/pagamento exigem o refresh explícito)
-- [ ] 25. Conferir estado financeiro final
+- [ ] 24. Ver o ícone do Guincho no mapa mover ao vivo (socket `tow_tracking_updated` + REST; sem refresh)
+- [ ] 25. Ver COMPLETED — toque em **Atualizar** no Cliente para ler o estado final (o tracking para no
+      estado terminal, mas o estado/pagamento exigem o refresh explícito)
+- [ ] 26. Conferir estado financeiro final
 
 ---
 
@@ -243,17 +280,20 @@ Canonical states only: `NOT_SELECTED -> CASH_SELECTED -> CASH_RECEIVED`.
 - [ ] Entrada Parceiro (login válido, sem erro de rede)
 - [ ] Visual das telas (sem cortes, overflow ou texto ilegível)
 - [ ] Escolha veículo (seleção/entrada no app)
+- [ ] Pagamento obrigatório (sem método o botão Solicitar Guincho fica desabilitado; backend rejeita 422)
 - [ ] GPS (permissão concedida e posição obtida)
 - [ ] Mapa (renderiza; fallback OSM/static se sem chave)
 - [ ] Destino (seleção no mapa funciona)
-- [ ] Route polyline (rota desenhada entre pontos)
+- [ ] Route polyline (rota de RUAS REAIS com `TOW_ROUTE_PROVIDER=google`; sem linha reta)
 - [ ] Preço do servidor (valor exibido bate com o backend; nada inventado no app)
-- [ ] Proposta (Parceiro envia; aparece para o Cliente)
+- [ ] Opportunity Parceiro (origem, destino, veículo, pagamento CASH, distância e preço calculado)
+- [ ] Proposta (Parceiro envia sem digitar preço; aparece para o Cliente)
 - [ ] Aceite (proposta aceita vira vencedora; demais somem/recusadas)
-- [ ] Payment UX (fluxo CASH/`NOT_SELECTED -> CASH_SELECTED -> CASH_RECEIVED`)
-- [ ] Tracking (posição do Parceiro atualiza para o Cliente)
+- [ ] Payment UX (`TowRequest.payment_method=cash` no create; `NOT_SELECTED` antes do aceite;
+      aceite materializa `CASH_SELECTED`; confirmação do Parceiro vira `CASH_RECEIVED`; sem PUT manual)
+- [ ] Tracking (posição do Parceiro atualiza para o Cliente via socket + REST)
 - [ ] Milestones (A caminho / Cheguei / Iniciar transporte / Finalizar)
-- [ ] Conclusão (COMPLETED visível no Cliente; confirmação de recebimento no Parceiro)
+- [ ] Conclusão (COMPLETED visível no Cliente; tracking encerra; confirmação de recebimento no Parceiro)
 - [ ] Mensagens de erro (claras, não travam o app)
 - [ ] Voltar/navegação (sem telas mortas ou loops)
 
@@ -266,17 +306,19 @@ Canonical states only: `NOT_SELECTED -> CASH_SELECTED -> CASH_RECEIVED`.
 | Item | Esperado | Observado | Veredito OK/Falha | Notas |
 | --- | --- | --- | --- | --- |
 | 1. Login Cliente | Entra no app com as credenciais da seção 4 | | | |
-| 2. Solicitar Guincho | Pedido criado; veículo, GPS e destino aceitos | | | |
-| 3. Rota exibida | Polyline desenhada; distância coerente com o backend | | | |
-| 4. Preço | Valor do servidor exibido sem edição no app | | | |
-| 5. Proposta Parceiro | Proposta criada e visível ao Cliente | | | |
-| 6. Aceite | Uma proposta vencedora; estado segue | | | |
-| 7. Pagamento CASH | Seleção simulada; estado muda para CASH_SELECTED | | | |
-| 8. Tracking | Posição atualiza no app do Cliente | | | |
-| 9. Milestones | A caminho / Cheguei / Iniciar / Finalizar funcionam | | | |
-| 10. Conclusão | COMPLETED no Cliente; CASH_RECEIVED após confirmação | | | |
-| 11. Erros | Mensagens claras; nenhum crash | | | |
-| 12. Navegação | Voltar e transições sem tela morta | | | |
+| 2. Pagamento na criação | Sem método o CTA fica desabilitado; CASH selecionado e `payment_method` aceito no create | | | |
+| 3. Solicitar Guincho | Pedido criado; veículo, GPS, destino e pagamento aceitos | | | |
+| 4. Rota exibida | Polyline de ruas reais (google); distância coerente com o backend | | | |
+| 5. Preço | Valor do servidor exibido sem edição no app | | | |
+| 6. Opportunity Parceiro | Mostra pagamento CASH, distância e preço calculado | | | |
+| 7. Proposta Parceiro | Proposta criada (sem preço digitado) e visível ao Cliente | | | |
+| 8. Aceite | Uma proposta vencedora; estado segue | | | |
+| 9. Pagamento CASH (execução) | Aceite materializa `TowPayment=CASH_SELECTED` automaticamente (sem PUT manual) | | | |
+| 10. Tracking | Posição atualiza no app do Cliente via socket e REST | | | |
+| 11. Milestones | A caminho / Cheguei / Iniciar / Finalizar funcionam | | | |
+| 12. Conclusão | COMPLETED no Cliente; tracking encerra; CASH_RECEIVED após confirmação | | | |
+| 13. Erros | Mensagens claras; nenhum crash | | | |
+| 14. Navegação | Voltar e transições sem tela morta | | | |
 
 ### 8.2 Bugs (texto livre)
 
@@ -303,16 +345,21 @@ Evidência: <foto/print/caminho, se houver>
 - Payment-mode proof: only the backend startup log (the MOCK payment-mode line and the validation banner
   log). No endpoint was added for this. To confirm the mode later, restart `npm run start:validation` and
   read the log.
-- Real Google Routes (optional): set `GOOGLE_ROUTES_API_KEY` and `TOW_ROUTE_PROVIDER=google` in
-  `.env.validation`, then restart the backend. Otherwise distances are fixture-derived (geodesic x1.35)
-  with a real polyline; pricing is always the real backend policy.
+- Real Google Routes (REQUIRED for visual validation): set `GOOGLE_ROUTES_API_KEY` and
+  `TOW_ROUTE_PROVIDER=google` in `.env.validation`, then restart the backend. The startup banner prints
+  `route provider: google`. The `validation-fixture` (geodesic x1.35) is acceptable only for deterministic
+  automated tests — it can produce a direct line between points and must NOT be used for device
+  validation. A Google failure is a fail-closed 503: no straight-line fallback is ever fabricated.
 - Teardown: stop the apps (`q`) and the backend (`Ctrl+C`), then `npm run tow:validation:down` to destroy
   the disposable Postgres.
 
 ### Known limitations (validate against this truth)
 
-- Payment is simulated and CASH-only; no card, no PIX, no PSP.
-- Route distances are fixture-derived unless the real `GOOGLE_ROUTES_API_KEY` is provided.
+- Payment is simulated and CASH-only; no card, no PIX, no PSP. The commercial choice (`payment_method`)
+  is required at creation; the financial execution (`TowPayment`) still starts after assignment.
+- Route distances/polyline are fixture-derived unless the real `GOOGLE_ROUTES_API_KEY` is provided;
+  visual validation requires the real provider.
+- Tracking is latest-position only (no trail) and stops at `COMPLETED`/`CANCELLED`.
 - The customer vehicle in the Cliente app is chosen/typed in the app; there is no server-side customer
   vehicle catalog.
 - Seeded vehicle document rows have no real file bytes; a document download would 404.

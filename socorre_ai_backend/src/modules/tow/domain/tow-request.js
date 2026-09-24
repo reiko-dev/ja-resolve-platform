@@ -28,7 +28,11 @@ const { VEHICLE_CLASSES, requiresWeight } = require('./vehicle-classes');
 const { validationError } = require('./errors');
 const { assertOperationalGeoPoint } = require('./geo');
 const { isRowId } = require('./ids');
-const { emptyPaymentSummary } = require('./tow-payment');
+const {
+  PAYMENT_METHOD,
+  PAYMENT_METHOD_DTO,
+  emptyPaymentSummary,
+} = require('./tow-payment');
 const {
   isCancellableTowRequestState,
   isTowExecutionState,
@@ -127,6 +131,7 @@ const CREATE_INPUT_KEYS = Object.freeze([
   'vehicle',
   'problem_description',
   'observations',
+  'payment_method',
 ]);
 
 const GEO_POINT_KEYS = Object.freeze(['latitude', 'longitude', 'formatted_address']);
@@ -292,10 +297,59 @@ function normalizeVehicle(value) {
 }
 
 /**
+ * The commercial payment choice is made BEFORE the request exists.
+ *
+ * The contract vocabulary is the consumer one (`PaymentMethod`), exactly like
+ * `PUT /tow/requests/{requestId}/payment-method`; the persisted value is the
+ * module's own `CASH` (the same vocabulary `tow_payments.method` uses). The
+ * choice is a REQUIRED input: a request without a method cannot be created, so
+ * a brand new Tow can never be born `NOT_SELECTED`.
+ *
+ * MVP implements exactly one member. `card` and `pix` are schema-valid in the
+ * frozen contract (they describe Phase 2 / #33) but are refused here with an
+ * explicit reason instead of being silently ignored, exactly like
+ * `validateSelectPaymentMethodInput`. No alias (`CASH`, `dinheiro`, ...) is
+ * accepted: the contract has one spelling and the runtime does not invent a
+ * second.
+ *
+ * @param {unknown} value raw `payment_method` from the create payload
+ * @returns {'CASH'} the persistence vocabulary member
+ */
+function normalizeTowRequestPaymentMethod(value) {
+  if (value === undefined || value === null) {
+    throw validationError('payment_method is required', { field: 'payment_method', reason: 'missing' });
+  }
+  if (typeof value !== 'string') {
+    throw validationError('payment_method must be a string', { field: 'payment_method' });
+  }
+  if (value !== PAYMENT_METHOD_DTO) {
+    throw validationError(
+      `payment_method "${value}" is not implemented by the Tow MVP subset; only "cash" is available`,
+      { field: 'payment_method', reason: 'method_not_supported_in_mvp', implemented: [PAYMENT_METHOD_DTO] }
+    );
+  }
+  return PAYMENT_METHOD;
+}
+
+/**
+ * The contract projection of the persisted commercial choice. Historical rows
+ * created before the field existed carry `null`; a NEW request always carries
+ * `cash` (creation rejects anything else). An unknown persisted value is a
+ * corrupt row and is refused rather than silently projected.
+ */
+function paymentMethodDto(paymentMethod) {
+  if (paymentMethod === null || paymentMethod === undefined) return null;
+  if (paymentMethod === PAYMENT_METHOD) return PAYMENT_METHOD_DTO;
+  throw validationError('payment_method is not part of the Tow payment vocabulary', {
+    field: 'payment_method',
+  });
+}
+
+/**
  * Normalizes and freezes the frozen creation payload.
  *
  * @param {object} payload raw `POST /tow/requests` body
- * @returns {{pickup: object, destination: object, vehicle: object, problem_description: string, observations: string|null}} frozen
+ * @returns {{pickup: object, destination: object, vehicle: object, problem_description: string, observations: string|null, payment_method: 'CASH'}} frozen
  */
 function validateCreateTowRequestInput(payload) {
   if (!isPlainObject(payload)) {
@@ -313,6 +367,7 @@ function validateCreateTowRequestInput(payload) {
       TOW_REQUEST_LIMITS.problem_description
     ),
     observations: optionalText(payload.observations, 'observations', TOW_REQUEST_LIMITS.observations),
+    payment_method: normalizeTowRequestPaymentMethod(payload.payment_method),
   });
 }
 
@@ -355,6 +410,7 @@ function buildTowRequestRecord({ input, customerId, radiusKm, idempotencyKey, no
     vehicle: input.vehicle,
     problem_description: input.problem_description,
     observations: input.observations,
+    payment_method: input.payment_method,
     matching_radius_km: assertPositiveRadius(radiusKm),
     idempotency_key: idempotencyKey,
     created_at: createdAt,
@@ -421,6 +477,12 @@ function buildTowRequestDto(record, options = {}) {
     }),
     problem_description: record.problem_description,
     observations: record.observations ?? null,
+    // The commercial choice made at creation. `null` only for historical rows
+    // created before the field existed; a new request always carries `cash`.
+    // This is NOT the financial execution state — `payment` (below) remains the
+    // projection of `tow_payments` and the two can never disagree in the MVP,
+    // because `cash` is the only implemented method.
+    payment_method: paymentMethodDto(record.payment_method),
     matching: Object.freeze({
       current_radius_km: Number(record.matching_radius_km),
       max_radius_km: Number.isFinite(maxRadius) ? maxRadius : null,
@@ -447,6 +509,8 @@ module.exports = {
   isTowRequestId,
   isOpenTowRequestState,
   allowedActionsForRequest,
+  normalizeTowRequestPaymentMethod,
+  paymentMethodDto,
   validateCreateTowRequestInput,
   buildTowRequestRecord,
   buildTowRequestDto,

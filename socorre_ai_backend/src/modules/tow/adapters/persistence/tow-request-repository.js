@@ -45,6 +45,9 @@ const COLUMNS = Object.freeze([
   'vehicle_plate',
   'problem_description',
   'observations',
+  // The commercial payment choice made at creation (CASH in this MVP). It is
+  // NOT the financial execution state: that one lives in `tow_payments`.
+  'payment_method',
   'matching_radius_km',
   'idempotency_key',
   'idempotency_fingerprint',
@@ -101,6 +104,7 @@ function toColumns(record) {
     vehicle_plate: record.vehicle.plate ?? null,
     problem_description: record.problem_description,
     observations: record.observations ?? null,
+    payment_method: record.payment_method ?? null,
     matching_radius_km: record.matching_radius_km,
     idempotency_key: record.idempotency_key,
     created_at: toIsoInstant(record.created_at),
@@ -135,6 +139,7 @@ function mapRow(row) {
     },
     problem_description: row.problem_description,
     observations: row.observations ?? null,
+    payment_method: row.payment_method ?? null,
     matching_radius_km: toNumber(row.matching_radius_km),
     idempotency_key: row.idempotency_key,
     idempotency_fingerprint: row.idempotency_fingerprint,

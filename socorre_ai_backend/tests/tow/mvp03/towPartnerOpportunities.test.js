@@ -48,10 +48,16 @@ const {
 const ENDPOINT = '/api/tow/partner/opportunities';
 const REQUESTS = '/api/tow/requests';
 
-/** ~14.45 km south of the canonical pickup: inside the frozen 15 km radius. */
+/** ~14.5 km south of the canonical pickup: inside the default 40 km radius. */
 const NEAR_PARTNER = Object.freeze({ latitude: PICKUP.latitude - 0.13, longitude: PICKUP.longitude });
-/** ~17.8 km south of the canonical pickup: outside the frozen 15 km radius. */
+/** ~17.8 km south of the canonical pickup: inside a frozen 30 km radius only. */
 const FAR_PARTNER = Object.freeze({ latitude: PICKUP.latitude - 0.16, longitude: PICKUP.longitude });
+/** ~50 km south of the canonical pickup: outside the default 40 km radius. */
+const VERY_FAR_PARTNER = Object.freeze({ latitude: PICKUP.latitude - 0.45, longitude: PICKUP.longitude });
+/** ~38.9 km south: inside the frozen 40 km radius (boundary proof). */
+const BOUNDARY_INSIDE_PARTNER = Object.freeze({ latitude: PICKUP.latitude - 0.35, longitude: PICKUP.longitude });
+/** ~41.1 km south: outside the frozen 40 km radius (boundary proof). */
+const BOUNDARY_OUTSIDE_PARTNER = Object.freeze({ latitude: PICKUP.latitude - 0.37, longitude: PICKUP.longitude });
 
 describe('MVP-03 — partner opportunities', () => {
   let app;
@@ -200,6 +206,54 @@ describe('MVP-03 — partner opportunities', () => {
       });
     });
 
+    test('two partners with different TowVehicle tariffs receive different backend prices', async () => {
+      await createRequest();
+      const cheap = await partnerWith({ partnerOverrides: NEAR_PARTNER });
+      const premiumTariff = {
+        minimum_charge_cents: 30000,
+        included_km: 5,
+        price_per_additional_km_cents: 1200,
+      };
+      const premium = await partnerWith({
+        partnerOverrides: { ...NEAR_PARTNER, cnpj: '11222333000199' },
+        vehicleOverrides: { plate: 'XYZ9Z99', pricing: premiumTariff },
+      });
+
+      const cheapFeed = await listOpportunities(cheap);
+      const premiumFeed = await listOpportunities(premium);
+      const cheapPrice = cheapFeed.body.data.items[0].proposed_price;
+      const premiumPrice = premiumFeed.body.data.items[0].proposed_price;
+
+      // Same request, same road distance, DIFFERENT TowVehicle tariff: the price
+      // is per-partner and computed only by the backend.
+      expect(cheapFeed.body.data.items[0].route_quote)
+        .toEqual(premiumFeed.body.data.items[0].route_quote);
+      expect(cheapPrice).toEqual({ amount_cents: 18480, currency: 'BRL' });
+      // 30000 + (14350 - 5000) * 1200 / 1000 = 30000 + 11220 = 41220
+      expect(premiumPrice).toEqual({ amount_cents: 41220, currency: 'BRL' });
+      expect(premiumPrice.amount_cents).not.toBe(cheapPrice.amount_cents);
+    });
+
+    test('the quoted distance is exactly provider -> pickup + pickup -> destination', async () => {
+      await createRequest();
+      const partner = await partnerWith({ partnerOverrides: NEAR_PARTNER });
+      routeProvider.providerToPickup = { distance_meters: 7000, duration_seconds: 900 };
+      routeProvider.pickupToDestination = { distance_meters: 7350, duration_seconds: 1200 };
+
+      const response = await listOpportunities(partner);
+      const quote = await services.quoteService.quoteTow({
+        provider: { latitude: NEAR_PARTNER.latitude, longitude: NEAR_PARTNER.longitude },
+        pickup: PICKUP,
+        destination: createTowRequestInput().destination,
+        tariff: TARIFF,
+      });
+
+      expect(quote.route_quote.provider_to_pickup.distance_meters).toBe(7000);
+      expect(quote.route_quote.pickup_to_destination.distance_meters).toBe(7350);
+      expect(response.body.data.items[0].route_quote.total_distance_meters).toBe(14350);
+      expect(response.body.data.items[0].proposed_price).toEqual(quote.calculated_price);
+    });
+
     test('exactly one RouteProvider call is made per eligible opportunity', async () => {
       await createRequest();
       const partner = await partnerWith({ partnerOverrides: NEAR_PARTNER });
@@ -237,7 +291,27 @@ describe('MVP-03 — partner opportunities', () => {
       const response = await listOpportunities(partner);
       expect(response.status).toBe(200);
       expect(response.body.data.items).toHaveLength(1);
-      await services.settingsService.patch({ tow_initial_radius_km: 15 });
+      await services.settingsService.patch({ tow_initial_radius_km: 40 });
+    });
+
+    test('a partner at ~39 km is inside the frozen 40 km radius', async () => {
+      const created = await createRequest({ key: 'idem-opportunity-boundary-in' });
+      const partner = await partnerWith({ partnerOverrides: BOUNDARY_INSIDE_PARTNER });
+
+      const response = await listOpportunities(partner);
+      expect(response.status).toBe(200);
+      expect(response.body.data.items).toHaveLength(1);
+      expect(response.body.data.items[0].request.id).toBe(created.id);
+    });
+
+    test('a partner at ~41 km is outside the frozen 40 km radius', async () => {
+      await createRequest({ key: 'idem-opportunity-boundary-out' });
+      const partner = await partnerWith({ partnerOverrides: BOUNDARY_OUTSIDE_PARTNER });
+
+      const response = await listOpportunities(partner);
+      expect(response.status).toBe(200);
+      expect(response.body.data.items).toEqual([]);
+      expect(routeProvider.callCount()).toBe(0);
     });
 
     test('opportunities are ordered by distance then request id', async () => {
@@ -322,7 +396,7 @@ describe('MVP-03 — partner opportunities', () => {
 
     test('an out-of-radius partner is excluded', async () => {
       await createRequest();
-      await expectExcluded(await partnerWith({ partnerOverrides: FAR_PARTNER }));
+      await expectExcluded(await partnerWith({ partnerOverrides: VERY_FAR_PARTNER }));
     });
 
     test('an unavailable partner is excluded', async () => {
@@ -444,7 +518,8 @@ describe('MVP-03 — partner opportunities', () => {
     test('only the in-radius eligible request reaches the provider among several', async () => {
       await createRequest({
         key: 'idem-opportunity-mix-01',
-        payload: createTowRequestInput({ pickup: { latitude: PICKUP.latitude - 0.4 } }),
+        // ~111 km south of the partner: outside the frozen 40 km radius.
+        payload: createTowRequestInput({ pickup: { latitude: PICKUP.latitude - 1.0 } }),
       });
       clock.advanceMinutes(1);
       const eligible = await createRequest({ key: 'idem-opportunity-mix-02' });
@@ -462,20 +537,23 @@ describe('MVP-03 — partner opportunities', () => {
 
       const response = await listOpportunities(partner);
       expect(response.body.data.items.map((item) => item.request.id)).toEqual([created.id]);
-      await services.settingsService.patch({ tow_initial_radius_km: 15 });
+      await services.settingsService.patch({ tow_initial_radius_km: 40 });
     });
   });
 
-  describe('module gate', () => {
-    test('a disabled module returns 409 and never quotes', async () => {
-      await createRequest();
+  describe('service catalog lifecycle', () => {
+    test('a disabled service does NOT gate the feed for an existing request', async () => {
+      // SERVICE CATALOG — the status gates NEW requests at creation only. A
+      // request created while ACTIVE keeps matching after the service is
+      // disabled, otherwise it would be stranded in SEARCHING forever.
+      const created = await createRequest();
       const partner = await partnerWith({ partnerOverrides: NEAR_PARTNER });
-      await services.moduleService.setEnabled({ enabled: false, reason: 'MVP-03 opportunity gate' });
+      await services.moduleService.setEnabled({ enabled: false, reason: 'MVP-03 lifecycle' });
 
       const response = await listOpportunities(partner);
-      expect(response.status).toBe(409);
-      expect(response.body.error.code).toBe('service_module_disabled');
-      expect(routeProvider.callCount()).toBe(0);
+      expect(response.status).toBe(200);
+      expect(response.body.data.items.map((item) => item.request.id)).toEqual([created.id]);
+      expect(routeProvider.callCount()).toBe(1);
     });
   });
 
