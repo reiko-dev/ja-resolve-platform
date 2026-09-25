@@ -67,17 +67,23 @@ The legacy generic path is still mounted and writable, so it cannot simply be de
 
 The Store mobile has a good internal cents authority, but the real backend boundary still converts it to decimal/double and sends client-calculated monetary totals to two independent write endpoints.
 
-**Phase 0 conclusion:**
+**Phase 0 conclusion, updated by project-stage execution policy:**
 
 ```text
 PHASE_0_STATUS = COMPLETE
-PHASE_1_READY = YES_WITH_CONSTRAINTS
-DESTRUCTIVE_MIGRATION_ALLOWED = NO
+PHASE_1_READY = YES
+REAL_USERS = NONE
+AUTHORITATIVE_PAYMENT_HISTORY_TO_PRESERVE = NONE
+DESTRUCTIVE_FINANCIAL_CLEANUP_ALLOWED = YES
 LEGACY_PAYMENTS_REUSE_AS_NEW_CORE = NO
+LEGACY_PAYMENT_BACKFILL_REQUIRED = NO
+DUAL_WRITE_REQUIRED = NO
 TOW_CASH_BEHAVIOR_CHANGE_ALLOWED = NO
 STORE_CLIENT_TOTAL_AS_BACKEND_AUTHORITY = NO
 SETTLEMENT_IMPLEMENTATION_ALLOWED = NO (until Gate S1)
 ```
+
+The permission to discard legacy payment data does **not** imply that destructive cleanup must happen before it is useful. The implementation plan intentionally keeps Phase 1 low-blast-radius: build the clean core without backfill or dual-write, migrate current consumers, then delete the obsolete financial stack immediately after the last consumer moves.
 
 ---
 
@@ -1076,38 +1082,26 @@ Phase 1 may now proceed, but it must obey these constraints.
 
 The table name is already occupied by an active, decimal, gateway-shaped API.
 
-Changing it in place would couple migration of:
+Even though legacy financial data may now be discarded, replacing that table in-place during Phase 1 would force unrelated cleanup of wallet, commission, dispute and subscription-history dependencies before the new core can even be exercised.
 
-- Store;
-- emergency legacy flow;
-- subscriptions;
-- commissions;
-- disputes;
-- wallets;
-- mobile payment history;
+That is unnecessary work on the critical path.
 
-to the creation of the new core.
+### Revised Phase 1 direction
 
-That is too risky.
-
-### Preferred Phase 1 direction
-
-Create the new canonical Payment storage **additively under a distinct physical table name**.
-
-Recommended:
+Create the new canonical Payment storage under a distinct physical table name:
 
 ```text
 payment_obligations
 payment_attempts
-payment_provider_events
-refunds
 ```
 
 The domain entity remains named `Payment`.
 
-The physical name `payment_obligations` avoids ambiguity with the legacy `payments` table and removes pressure for a destructive rename.
+No historical rows are migrated and no dual-write is introduced.
 
-This recommendation becomes the Phase 1 default unless new schema evidence proves a better additive name is required.
+`payment_provider_events` is deferred to Phase 6 and `refunds` to Phase 8 so Phase 1 contains only persistence needed by the immediate application core.
+
+The legacy financial tables may be deleted without preserving their rows as soon as Tow/Store/current consumers no longer depend on them.
 
 ---
 
