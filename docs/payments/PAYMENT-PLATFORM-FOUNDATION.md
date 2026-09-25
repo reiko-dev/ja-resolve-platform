@@ -222,6 +222,38 @@ created_at
 completed_at
 ~~~
 
+## 6.1 PAID requires durable settlement evidence
+
+D3 is CLOSED and authoritative:
+
+~~~text
+docs/payments/PAYMENT-SETTLEMENT-EVIDENCE-CONTRACT.md
+~~~
+
+A Payment does not become PAID through arbitrary status assignment.
+
+Accepted evidence types are:
+
+~~~text
+INTERNAL_CASH_CONFIRMATION
+PROCESSOR_PAYMENT_CONFIRMATION
+STORE_BILLING_VERIFICATION
+~~~
+
+The accepted evidence identity is durably and immutably bound to the canonical Payment in the same transaction that sets PAID.
+
+~~~text
+same evidence + same Payment
+-> idempotent replay
+
+same evidence + different Payment
+-> conflict
+~~~
+
+A PaymentAttempt marked SUCCEEDED is not by itself proof of final payment; processor orchestration must establish final collection/capture.
+
+Provider events remain a separate Phase 6 concept, and marketplace settlement/payout remains a separate lifecycle.
+
 ## 7. Processor adapter boundary
 
 All external rails sit behind a Payment Platform port.
