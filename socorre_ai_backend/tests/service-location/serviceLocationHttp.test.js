@@ -12,7 +12,7 @@ jest.mock('../../src/config/database', () => require('../helpers/testDb').db);
 
 const request = require('supertest');
 const testDb = require('../helpers/testDb');
-const { createApp } = require('../../src/app');
+const { createApp, redactSessionToken } = require('../../src/app');
 const { createTowCustomerAuth } = require('../helpers/tow/auth');
 const { PlacesProviderError } = require('../../src/modules/service-location/adapters/places/places-provider-error');
 
@@ -236,6 +236,19 @@ describe('SERVICE LOCATION — HTTP proxy', () => {
       } finally {
         await new Promise((resolve) => { limited.closeAllConnections?.(); limited.close(resolve); });
       }
+    });
+  });
+
+  describe('access log hygiene', () => {
+    test('the session token is redacted from every logged URL', () => {
+      expect(redactSessionToken(`/api/locations/places/ChIJabc?session_token=${TOKEN}`))
+        .toBe('/api/locations/places/ChIJabc?session_token=REDACTED');
+      expect(redactSessionToken(`/x?session_token=${TOKEN}&language_code=pt-BR`))
+        .toBe('/x?session_token=REDACTED&language_code=pt-BR');
+      expect(redactSessionToken(`/x?a=1&session_token=${TOKEN}`))
+        .toBe('/x?a=1&session_token=REDACTED');
+      expect(redactSessionToken('/api/tow/requests')).toBe('/api/tow/requests');
+      expect(redactSessionToken(undefined)).toBeUndefined();
     });
   });
 });
