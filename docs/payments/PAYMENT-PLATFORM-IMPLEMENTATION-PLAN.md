@@ -999,11 +999,15 @@ A production incident can be diagnosed without querying raw provider dashboards 
 
 ---
 
-# PHASE 11 — Legacy Payments Retirement
+# PHASE 11 — Legacy Payments Removal Verification
 
 ## Objective
 
-Remove the competing generic/legacy payment authority only after canonical replacements are proven.
+Verify that all legacy payment infrastructure has already been removed after its last consumer migrated.
+
+Because there are no real users and no authoritative legacy payment history to preserve, **legacy retirement is no longer a late compatibility project**.
+
+Removal should happen incrementally as soon as the relevant consumer replacement is complete.
 
 Target legacy area includes:
 
@@ -1011,32 +1015,33 @@ Target legacy area includes:
 src/services/paymentService.js
 src/routes/payments.js
 src/services/gateways/*
-legacy payments persistence/columns where applicable
+src/models/Payment.js
+legacy payments persistence
+legacy wallet/commission payment coupling
 legacy emergency payment coupling
+obsolete payment mocks/tests
 ```
 
 ## Rule
 
-Do not delete first and discover consumers later.
+Do not keep compatibility surfaces merely for historical reasons.
 
-For every legacy API/write path:
+The only precondition for deletion is:
 
 ```text
-consumer inventory
-→ replacement
-→ compatibility/migration window
-→ tests
-→ deprecation evidence
-→ removal
+identify current consumer
+→ replace current consumer
+→ prove replacement with tests
+→ delete legacy path
 ```
 
-Any historical data retained for audit must remain readable after write retirement.
+No data-backfill, read-only compatibility window or historical payment-ID preservation is required.
+
+Phase 11 is therefore a final **absence audit**, not the main removal phase.
 
 ## Exit gate
 
-There is exactly one active financial write architecture.
-
-Legacy code may remain only as an explicitly read-only compatibility surface with an owner and removal condition.
+There is exactly one active financial write architecture and repository search confirms no runtime consumer imports or mounts the legacy stack.
 
 ---
 
