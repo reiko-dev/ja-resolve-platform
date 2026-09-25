@@ -76,11 +76,16 @@ describe('MVP-03 domain — frozen input shape', () => {
     expect(Object.keys(input).sort()).toEqual([
       'destination', 'observations', 'payment_method', 'pickup', 'problem_description', 'vehicle',
     ]);
+    // SERVICE LOCATION — additive: a legacy payload normalizes to a null place
+    // id and, deliberately, NO durable `resolution_source` member (ADR §8).
     expect(input.pickup).toEqual({
       latitude: PICKUP.latitude,
       longitude: PICKUP.longitude,
       formatted_address: PICKUP.formatted_address,
+      place_id: null,
     });
+    expect(input.pickup).not.toHaveProperty('resolution_source');
+    expect(input.destination).not.toHaveProperty('resolution_source');
     expect(input.vehicle).toEqual({
       class: 'light_vehicle',
       make: 'Fiat',
@@ -372,7 +377,11 @@ describe('MVP-03 domain — persistence record', () => {
       latitude: PICKUP.latitude,
       longitude: PICKUP.longitude,
       formatted_address: PICKUP.formatted_address,
+      place_id: null,
     });
+    // SERVICE LOCATION — the source is validated but never carried into the
+    // record: there is no durable consumer for it (ADR §8).
+    expect(record.pickup).not.toHaveProperty('resolution_source');
     expect(record.created_at).toEqual(new Date('2026-01-15T12:00:00.000Z'));
     expect(record).not.toHaveProperty('estimated_price');
     expect(record).not.toHaveProperty('route_quote');

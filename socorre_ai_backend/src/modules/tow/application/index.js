@@ -27,6 +27,7 @@ const { createTrackingService } = require('./tracking-service');
 const { createCancellationService } = require('./cancellation-service');
 const { createPaymentService } = require('./payment-service');
 const { createRouteService } = require('./route-service');
+const { createPlaceNameEnricher } = require('./place-name-enrichment');
 const { lockJobForPartner, lockRequestForCustomer, requireCanonicalRequestId } = require('./job-lock');
 const { validateListQuery } = require('./list-query');
 
@@ -46,6 +47,7 @@ module.exports = {
   createCancellationService,
   createPaymentService,
   createRouteService,
+  createPlaceNameEnricher,
   lockJobForPartner,
   lockRequestForCustomer,
   requireCanonicalRequestId,

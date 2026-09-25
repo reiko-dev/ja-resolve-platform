@@ -43,6 +43,13 @@
  * occupancy — and `accept_proposal` is offered only while the request is open AND
  * at least one proposal is still actionable. A request with no live proposal
  * therefore advertises no action, which is the honest answer at that instant.
+ *
+ * SERVICE LOCATION: `getForCustomer` (the customer request DETAIL) may attach
+ * the EPHEMERAL `place_name` of an explicit selection through the optional
+ * `placeNameEnricher`. Every list — `listForCustomer`, `listJobsForPartner` and
+ * the partner opportunity feed — deliberately does NOT enrich: a page of N
+ * requests must never become N provider calls. `place_id` is persisted identity
+ * and is emitted by the DTO whenever present.
  */
 'use strict';
 
@@ -61,6 +68,15 @@ const {
 const { validateListQuery } = require('./list-query');
 const { paymentSummaryFor, paymentSummariesFor } = require('./payment-summary');
 
+/**
+ * SERVICE LOCATION — the truthful no-op enricher used when no `PlaceDetails`
+ * provider is wired. An absent provider resolves both names to `null` without
+ * any call, so every pre-Service-Location test keeps working unchanged.
+ */
+const DEFAULT_PLACE_NAME_ENRICHER = Object.freeze({
+  enrichPoints: async () => ({ pickup: null, destination: null }),
+});
+
 function createTowRequestService({
   moduleService,
   settingsService,
@@ -69,6 +85,7 @@ function createTowRequestService({
   assignmentRepository = null,
   paymentRepository = null,
   addressResolver = null,
+  placeNameEnricher = DEFAULT_PLACE_NAME_ENRICHER,
   clock,
 }) {
   if (!moduleService) throw new TypeError('createTowRequestService requires a moduleService');
@@ -77,6 +94,11 @@ function createTowRequestService({
   if (!clock) throw new TypeError('createTowRequestService requires a clock port');
   if (addressResolver !== null && typeof addressResolver.resolve !== 'function') {
     throw new TypeError('createTowRequestService addressResolver must expose resolve');
+  }
+  // A missing provider is the no-op enricher, never a crash on a detail read.
+  const enricher = placeNameEnricher ?? DEFAULT_PLACE_NAME_ENRICHER;
+  if (typeof enricher.enrichPoints !== 'function') {
+    throw new TypeError('createTowRequestService placeNameEnricher must expose enrichPoints');
   }
 
   /**
@@ -134,6 +156,10 @@ function createTowRequestService({
       assignment: extras.assignment ?? null,
       allowed_actions: extras.allowed_actions ?? [],
       payment: extras.payment ?? null,
+      // SERVICE LOCATION — read-time only, and only when a detailed surface
+      // asked for it. Lists never pass `placeNames`, so they never call the
+      // provider (no N+1, ADR §8).
+      placeNames: extras.placeNames,
     });
   }
 
@@ -248,10 +274,18 @@ function createTowRequestService({
         ? await assignmentRepository.findByRequestId(own.id)
         : null;
       const liveIds = await liveRequestIds([own]);
+      // SERVICE LOCATION — the customer request DETAIL is a detailed surface:
+      // it may attach the ephemeral `place_name` of an explicit selection. The
+      // enricher never throws, so a provider outage cannot fail this read.
+      const placeNames = await enricher.enrichPoints({
+        pickup: own.pickup,
+        destination: own.destination,
+      });
       return toDto(own, settings, {
         assignment: assignment ? buildAssignmentDto(assignment) : null,
         allowed_actions: actionsFor(own, liveIds),
         payment: await paymentSummaryFor(paymentRepository, own.id),
+        placeNames,
       });
     }
 

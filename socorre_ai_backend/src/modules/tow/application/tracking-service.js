@@ -47,6 +47,14 @@ const {
 } = require('../domain');
 const { requireCanonicalRequestId, lockJobForPartner } = require('./job-lock');
 
+/**
+ * SERVICE LOCATION — the truthful no-op enricher used when no `PlaceDetails`
+ * provider is wired (see `place-name-enrichment.js`).
+ */
+const DEFAULT_PLACE_NAME_ENRICHER = Object.freeze({
+  enrichPoints: async () => ({ pickup: null, destination: null }),
+});
+
 function createTrackingService({
   towRequestRepository,
   assignmentRepository,
@@ -54,6 +62,7 @@ function createTrackingService({
   unitOfWork,
   clock,
   trackingEvents = null,
+  placeNameEnricher = DEFAULT_PLACE_NAME_ENRICHER,
 }) {
   if (!towRequestRepository) throw new TypeError('createTrackingService requires a towRequestRepository port');
   if (!assignmentRepository) throw new TypeError('createTrackingService requires an assignmentRepository port');
@@ -62,6 +71,11 @@ function createTrackingService({
   if (!clock) throw new TypeError('createTrackingService requires a clock port');
   if (trackingEvents !== null && typeof trackingEvents.publishTrackingUpdated !== 'function') {
     throw new TypeError('createTrackingService trackingEvents must expose publishTrackingUpdated');
+  }
+  // A missing provider is the no-op enricher, never a crash on read.
+  const enricher = placeNameEnricher ?? DEFAULT_PLACE_NAME_ENRICHER;
+  if (typeof enricher.enrichPoints !== 'function') {
+    throw new TypeError('createTrackingService placeNameEnricher must expose enrichPoints');
   }
 
   /** The contract's `TrackingPoint`: the stored observation, never the backend clock. */
@@ -156,20 +170,35 @@ function createTrackingService({
 
     const latest = await trackingRepository.findByRequestId(request.id);
 
+    const pickup = {
+      latitude: Number(request.pickup.latitude),
+      longitude: Number(request.pickup.longitude),
+      formatted_address: request.pickup.formatted_address ?? null,
+    };
+    const destination = {
+      latitude: Number(request.destination.latitude),
+      longitude: Number(request.destination.longitude),
+      formatted_address: request.destination.formatted_address ?? null,
+    };
+
+    // SERVICE LOCATION — tracking is a DETAILED read: when a point carries a
+    // persisted `place_id`, the ephemeral `place_name` is attached best-effort.
+    // The enricher never throws and never runs on write; a provider outage
+    // simply leaves the point address-only, exactly like a legacy row.
+    const placeNames = await enricher.enrichPoints({
+      pickup: { place_id: request.pickup.place_id ?? null },
+      destination: { place_id: request.destination.place_id ?? null },
+    });
+    if (typeof placeNames.pickup === 'string' && placeNames.pickup.trim() !== '') {
+      pickup.place_name = placeNames.pickup.trim();
+    }
+    if (typeof placeNames.destination === 'string' && placeNames.destination.trim() !== '') {
+      destination.place_name = placeNames.destination.trim();
+    }
+
     return {
       latest: latest ? toPointDto(latest) : null,
-      route: {
-        pickup: {
-          latitude: Number(request.pickup.latitude),
-          longitude: Number(request.pickup.longitude),
-          formatted_address: request.pickup.formatted_address ?? null,
-        },
-        destination: {
-          latitude: Number(request.destination.latitude),
-          longitude: Number(request.destination.longitude),
-          formatted_address: request.destination.formatted_address ?? null,
-        },
-      },
+      route: { pickup, destination },
     };
   }
 

@@ -173,13 +173,6 @@ function createApp(options = {}) {
   app.use('/api/wallets', require('./routes/wallets'));
   app.use('/api/disputes', require('./routes/disputes'));
 
-  // MVP-01 — explicit Tow module (module registry, vehicles, documents,
-  // settings). See docs/tow/TOW-MODULE-CONTRACT.md.
-  const { createTowModule } = require('./modules/tow/http/mount');
-  const towModule = createTowModule(options.tow || {});
-  app.use('/api/tow', towModule.publicRouter);
-  app.use('/api/admin/tow', towModule.adminRouter);
-
   // PLATFORM SERVICE CATALOG — the platform-level lifecycle of every service,
   // consumed by the apps before login. `/api/service-catalog` is canonical;
   // `/api/tow/services` and `/api/tow/module-status` stay as compatibility
@@ -191,10 +184,25 @@ function createApp(options = {}) {
 
   // SERVICE LOCATION — platform-level Places (New) proxy. Autocomplete and Place
   // Details are backend-proxied with a server-only key; the mobile app never
-  // calls the Places Web Service. See docs/service-location/SERVICE-LOCATION-MVP.md.
+  // calls the Places Web Service. It is composed BEFORE Tow because Tow consumes
+  // its `PlaceDetails` provider (one-way edge only). See
+  // docs/service-location/SERVICE-LOCATION-MVP.md.
   const { createServiceLocationModule } = require('./modules/service-location/http/mount');
   const serviceLocationModule = createServiceLocationModule(options.serviceLocation || {});
   app.use('/api/locations', serviceLocationModule.publicRouter);
+
+  // MVP-01 — explicit Tow module (module registry, vehicles, documents,
+  // settings). See docs/tow/TOW-MODULE-CONTRACT.md.
+  // SERVICE LOCATION adoption — Tow reads place names through the platform
+  // provider; `SERVICE_LOCATION_PLACES=none` (the default) yields `null` and the
+  // enrichment simply does not happen. An explicit `options.tow` wins.
+  const { createTowModule } = require('./modules/tow/http/mount');
+  const towModule = createTowModule({
+    ...(options.tow || {}),
+    placeDetails: (options.tow && options.tow.placeDetails) ?? serviceLocationModule.services.placesProvider,
+  });
+  app.use('/api/tow', towModule.publicRouter);
+  app.use('/api/admin/tow', towModule.adminRouter);
 
   // Trilhas legadas mantidas por compatibilidade controlada.
   mountLegacyRoutes(app);

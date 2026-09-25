@@ -70,6 +70,7 @@ const PINNED_MIGRATIONS = Object.freeze([
   '009_service_catalog_status.js',
   '010_platform_service_catalog.js',
   '011_service_catalog_launch_policy.js',
+  '012_tow_request_place_id.js',
 ]);
 
 function directoryMigrations() {

@@ -250,6 +250,17 @@ info:
     `ErrorResponse.error.code` gains `upstream_unavailable`, `upstream_rejected`
     and `rate_limited`. No existing path, parameter, response shape or enum
     member is removed or narrowed, and the base contract stays byte-identical.
+    Tow adoption (additive, still draft.16): `CreateTowRequestInput.pickup` and
+    `.destination` accept optional `place_id` and optional `resolution_source`
+    (`USER_SELECTED_PLACE` | `USER_PIN` | `CURRENT_LOCATION`; `SAVED_ADDRESS` is
+    reserved and rejected in Phase 5). `place_id` requires
+    `USER_SELECTED_PLACE` (omitted source is normalized to it) and
+    `USER_SELECTED_PLACE` requires `place_id`. `place_name` is NEVER accepted
+    on any request. TowRequest response `pickup`/`destination` points gain
+    optional `place_id` and optional EPHEMERAL `place_name`, and the tracking
+    route points gain the same EPHEMERAL `place_name` (resolved best-effort at
+    read time through the provider, never persisted); coordinates remain the
+    operational authority.
 servers:
   - url: /api
 security: []
@@ -1415,6 +1426,79 @@ components:
         status: { $ref: '#/components/schemas/ServiceStatus' }
         reason: { type: string, minLength: 1 }
 
+    # draft.16 (Tow adoption) — the request point of `CreateTowRequestInput`.
+    # It is the base `GeoPoint` plus the ADDITIVE Service Location identity
+    # members. `place_name` is deliberately absent: strict unknown keys reject
+    # it on every request, and it is response-only presentation (below).
+    CreateTowRequestGeoPoint:
+      type: object
+      additionalProperties: false
+      required: [latitude, longitude]
+      properties:
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
+        formatted_address: { type: [string, 'null'] }
+        place_id:
+          type: string
+          maxLength: 500
+          description: >-
+            Optional provider place id of an EXPLICIT user selection. Persisted
+            (additive, nullable); when present, `resolution_source` must be
+            `USER_SELECTED_PLACE` (omitted source is normalized to it).
+        resolution_source:
+          type: string
+          enum: [USER_SELECTED_PLACE, USER_PIN, CURRENT_LOCATION]
+          description: >-
+            Optional origin of the coordinate. `USER_PIN`/`CURRENT_LOCATION` are
+            coordinate-only and must NOT carry a `place_id`;
+            `USER_SELECTED_PLACE` requires one. `SAVED_ADDRESS` is reserved for
+            the deferred saved-address flow and is rejected in Phase 5.
+
+    # draft.16 (Tow adoption) — the response point of a TowRequest. `place_name`
+    # is EPHEMERAL: resolved at read time through the provider for detailed
+    # surfaces only, never persisted and never accepted back. `place_id` is
+    # persisted identity.
+    TowRequestGeoPoint:
+      type: object
+      additionalProperties: false
+      required: [latitude, longitude]
+      properties:
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
+        formatted_address: { type: [string, 'null'] }
+        place_id:
+          type: string
+          description: >-
+            Persisted place id of an explicit selection; omitted for a generic
+            coordinate and for historical rows created before the adoption.
+        place_name:
+          type: [string, 'null']
+          description: >-
+            Response-only, EPHEMERAL display name resolved at read time through
+            the Service Location provider. Never persisted, never accepted as
+            identity, and omitted when unavailable or when the provider fails.
+        # NOTE: `resolution_source` is intentionally NOT a contract member: it
+        # is validated on input and deliberately never persisted.
+
+    # draft.16 (Tow adoption) — the tracking route point. The tracking read
+    # enriches ONLY the ephemeral `place_name`; the route projection keeps its
+    # base GeoPoint members (coordinates are the operational authority and no
+    # place identity is minted by tracking).
+    TrackingRouteGeoPoint:
+      type: object
+      additionalProperties: false
+      required: [latitude, longitude]
+      properties:
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
+        formatted_address: { type: [string, 'null'] }
+        place_name:
+          type: [string, 'null']
+          description: >-
+            Response-only, EPHEMERAL display name resolved best-effort at read
+            time through the Service Location provider for an explicit
+            selection. Never persisted; omitted when unavailable.
+
     # draft.13 — the canonical TowRequest with the commercial payment choice.
     # The composed document resolves every `TowRequest` reference here (the
     # canonical component overrides the base one), so the base artifact stays
@@ -1428,8 +1512,8 @@ components:
         terminal_reason: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TerminalReason' }
         module_key: { const: tow }
         customer_id: { type: string }
-        pickup: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/GeoPoint' }
-        destination: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/GeoPoint' }
+        pickup: { $ref: '#/components/schemas/TowRequestGeoPoint' }
+        destination: { $ref: '#/components/schemas/TowRequestGeoPoint' }
         vehicle: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/CustomerVehicle' }
         problem_description: { type: string }
         observations: { type: [string, 'null'] }
@@ -1484,8 +1568,8 @@ components:
       additionalProperties: false
       required: [pickup, destination, vehicle, problem_description, payment_method]
       properties:
-        pickup: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/GeoPoint' }
-        destination: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/GeoPoint' }
+        pickup: { $ref: '#/components/schemas/CreateTowRequestGeoPoint' }
+        destination: { $ref: '#/components/schemas/CreateTowRequestGeoPoint' }
         vehicle: { $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/CustomerVehicle' }
         problem_description: { type: string, minLength: 1, maxLength: 2000 }
         observations: { type: [string, 'null'], maxLength: 4000 }
@@ -1574,6 +1658,31 @@ components:
       properties:
         success: { const: true }
         data: { $ref: '#/components/schemas/LocationPlaceDetails' }
+
+    # draft.16 (Tow adoption) — the tracking READ is a detailed surface, so its
+    # canonical route points carry the additive, EPHEMERAL `place_name` in
+    # addition to the base GeoPoint members. The canonical component overrides
+    # the base one in the composed document, so the base artifact stays
+    # byte-identical. `resolution_source` never appears here (not persisted).
+    TrackingResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { const: true }
+        data:
+          type: object
+          required: [latest, route]
+          properties:
+            latest:
+              oneOf:
+                - $ref: './tow-api-contract.base.openapi.yaml#/components/schemas/TrackingPoint'
+                - type: 'null'
+            route:
+              type: object
+              required: [pickup, destination]
+              properties:
+                pickup: { $ref: '#/components/schemas/TrackingRouteGeoPoint' }
+                destination: { $ref: '#/components/schemas/TrackingRouteGeoPoint' }
 
     ErrorResponse:
       type: object

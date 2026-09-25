@@ -118,12 +118,35 @@ const TOW_REQUEST_LIMITS = Object.freeze({
   model: 100,
   plate: 10,
   formatted_address: 500,
+  place_id: 500,
   problem_description: 2000,
   observations: 4000,
 });
 
 const VEHICLE_YEAR_MIN = 1900;
 const VEHICLE_YEAR_MAX = 2200;
+
+/**
+ * SERVICE LOCATION — the resolution sources a TOW CLIENT may send.
+ *
+ * The frozen vocabulary has four members (ADR §2), but `SAVED_ADDRESS` is
+ * reserved for the deferred saved-address flow and no Phase 5 endpoint produces
+ * it, so a create payload carrying it is refused with the same 422 as any
+ * unknown value. The source is validated here and deliberately NEVER persisted
+ * (ADR §8): explicit identity is derivable from `place_id != null`, and the
+ * generic sources are address-only.
+ */
+const TOW_PLACE_RESOLUTION_SOURCES = Object.freeze([
+  'USER_SELECTED_PLACE',
+  'USER_PIN',
+  'CURRENT_LOCATION',
+]);
+
+/** The only source allowed to travel with a `place_id` (ADR §2 rule 1/2). */
+const EXPLICIT_PLACE_SOURCE = 'USER_SELECTED_PLACE';
+
+/** A provider resource id may arrive as `places/{id}`; storage is the bare id. */
+const PLACES_RESOURCE_PREFIX = 'places/';
 
 const CREATE_INPUT_KEYS = Object.freeze([
   'pickup',
@@ -134,7 +157,15 @@ const CREATE_INPUT_KEYS = Object.freeze([
   'payment_method',
 ]);
 
-const GEO_POINT_KEYS = Object.freeze(['latitude', 'longitude', 'formatted_address']);
+const GEO_POINT_KEYS = Object.freeze([
+  'latitude',
+  'longitude',
+  'formatted_address',
+  // SERVICE LOCATION — additive explicit-identity input. `place_name` is
+  // deliberately absent: strict unknown keys keep rejecting it (ADR §8).
+  'place_id',
+  'resolution_source',
+]);
 
 const VEHICLE_KEYS = Object.freeze(['class', 'make', 'model', 'year', 'weight_kg', 'plate']);
 
@@ -232,16 +263,98 @@ function requiredText(value, field, maxLength) {
   return text;
 }
 
+/**
+ * SERVICE LOCATION — optional explicit place id.
+ *
+ * `undefined`/`null`/blank are the generic-coordinate case (`place_id = null`).
+ * A non-empty string is trimmed, a leading `places/` resource prefix is
+ * stripped (the storage value is the bare provider id) and the result is
+ * bounded to the same 500 characters the Service Location proxy accepts.
+ */
+function optionalPlaceId(value, field) {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'string') {
+    throw validationError(`${field} must be a string`, { field });
+  }
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return null;
+  const bare = trimmed.startsWith(PLACES_RESOURCE_PREFIX)
+    ? trimmed.slice(PLACES_RESOURCE_PREFIX.length)
+    : trimmed;
+  if (bare.length === 0) return null;
+  if (bare.length > TOW_REQUEST_LIMITS.place_id) {
+    throw validationError(
+      `${field} must be at most ${TOW_REQUEST_LIMITS.place_id} characters`,
+      { field }
+    );
+  }
+  return bare;
+}
+
+/**
+ * SERVICE LOCATION — the explicit/generic pair invariant (ADR §2), enforced
+ * BEFORE anything is persisted:
+ *
+ *   - `place_id != null` requires `USER_SELECTED_PLACE`; any other source (or a
+ *     source that is not part of the frozen vocabulary, e.g. `SAVED_ADDRESS` in
+ *     Phase 5) is a 422;
+ *   - `USER_SELECTED_PLACE` requires `place_id`;
+ *   - a `place_id` with the source omitted is normalized to
+ *     `USER_SELECTED_PLACE` (the user did select a place — the client simply
+ *     did not repeat the reason);
+ *   - omitting both is the legacy/generic payload and stays valid.
+ *
+ * The source is intentionally not returned: it is not persisted (ADR §8).
+ */
+function validatePlaceResolutionSource(value, placeId, field) {
+  const sourceField = `${field}.resolution_source`;
+
+  if (value === undefined || value === null) {
+    if (placeId !== null) return EXPLICIT_PLACE_SOURCE;
+    return null;
+  }
+
+  if (typeof value !== 'string' || !TOW_PLACE_RESOLUTION_SOURCES.includes(value)) {
+    throw validationError(
+      `${sourceField} must be one of ${TOW_PLACE_RESOLUTION_SOURCES.join(', ')}`,
+      { field: sourceField }
+    );
+  }
+
+  if (placeId === null) {
+    if (value === EXPLICIT_PLACE_SOURCE) {
+      throw validationError(
+        `${sourceField} ${EXPLICIT_PLACE_SOURCE} requires ${field}.place_id`,
+        { field }
+      );
+    }
+    return value;
+  }
+
+  if (value !== EXPLICIT_PLACE_SOURCE) {
+    throw validationError(
+      `${field}.place_id requires ${sourceField} ${EXPLICIT_PLACE_SOURCE}`,
+      { field: sourceField }
+    );
+  }
+  return value;
+}
+
 function normalizeGeoPoint(value, field) {
   if (!isPlainObject(value)) {
     throw validationError(`${field} must be an object with latitude and longitude`, { field });
   }
   rejectUnknownKeys(value, GEO_POINT_KEYS, field);
   const coordinates = assertOperationalGeoPoint(value, field);
+  const placeId = optionalPlaceId(value.place_id, `${field}.place_id`);
+  // Validated (and rejected when incoherent) even though the source itself is
+  // NOT persisted: no durable consumer exists for it.
+  validatePlaceResolutionSource(value.resolution_source, placeId, field);
   return Object.freeze({
     latitude: coordinates.latitude,
     longitude: coordinates.longitude,
     formatted_address: optionalText(value.formatted_address, `${field}.formatted_address`, TOW_REQUEST_LIMITS.formatted_address),
+    place_id: placeId,
   });
 }
 
@@ -441,15 +554,38 @@ const { toIsoInstant } = require('./instants');
  *   - `assignment` is INJECTED for the same reason.
  *   - `allowed_actions` is INJECTED and viewer-aware; it defaults to the
  *     truthful empty list.
+ *   - `placeNames` is INJECTED (`{ pickup, destination }`). The place NAME is
+ *     ephemeral presentation data resolved at read time through the
+ *     `PlaceDetails` port; it is never persisted (ADR §3/§8). `place_id`, on the
+ *     other hand, IS persisted identity and is emitted whenever the record has
+ *     one. Both members are ADDITIVE and OMITTED when absent, so a legacy row
+ *     (or a legacy payload) serializes exactly as it did before Service
+ *     Location.
  *
  * @param {object} record
- * @param {{max_radius_km: number, assignment?: object|null, allowed_actions?: readonly string[], payment?: object|null}} options
+ * @param {{max_radius_km: number, assignment?: object|null, allowed_actions?: readonly string[], payment?: object|null, placeNames?: {pickup?: string|null, destination?: string|null}}} options
  */
+function buildGeoPointDto(point, placeName) {
+  const dto = {
+    latitude: Number(point.latitude),
+    longitude: Number(point.longitude),
+    formatted_address: point.formatted_address ?? null,
+  };
+  if (point.place_id !== null && point.place_id !== undefined) {
+    dto.place_id = point.place_id;
+  }
+  if (typeof placeName === 'string' && placeName.trim() !== '') {
+    dto.place_name = placeName.trim();
+  }
+  return Object.freeze(dto);
+}
+
 function buildTowRequestDto(record, options = {}) {
   if (!isPlainObject(record)) {
     throw validationError('record must be an object', { field: 'record' });
   }
   const maxRadius = Number(options.max_radius_km);
+  const placeNames = isPlainObject(options.placeNames) ? options.placeNames : {};
 
   return Object.freeze({
     id: String(record.id),
@@ -457,16 +593,8 @@ function buildTowRequestDto(record, options = {}) {
     state: record.state,
     terminal_reason: record.terminal_reason ?? null,
     customer_id: String(record.customer_id),
-    pickup: Object.freeze({
-      latitude: Number(record.pickup.latitude),
-      longitude: Number(record.pickup.longitude),
-      formatted_address: record.pickup.formatted_address ?? null,
-    }),
-    destination: Object.freeze({
-      latitude: Number(record.destination.latitude),
-      longitude: Number(record.destination.longitude),
-      formatted_address: record.destination.formatted_address ?? null,
-    }),
+    pickup: buildGeoPointDto(record.pickup, placeNames.pickup),
+    destination: buildGeoPointDto(record.destination, placeNames.destination),
     vehicle: Object.freeze({
       class: record.vehicle.class,
       make: record.vehicle.make,

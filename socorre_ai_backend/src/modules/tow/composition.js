@@ -43,6 +43,7 @@ const {
   createCancellationService,
   createPaymentService,
   createRouteService,
+  createPlaceNameEnricher,
 } = require('./application');
 const { buildServiceCatalogServices } = require('../service-catalog/composition');
 const { createVehicleRepository } = require('./adapters/persistence/vehicle-repository');
@@ -110,6 +111,13 @@ function buildTowServices(options = {}) {
   const trackingEvents = options.trackingEvents === undefined
     ? createSocketTrackingPublisher()
     : options.trackingEvents;
+  // SERVICE LOCATION — the optional read-time place-name provider. `undefined`
+  // means "not wired" (`null`): `createApp` injects the platform
+  // ServiceLocation provider, while tests inject a fake. The enricher built on
+  // it is deliberately no-op safe, so every existing
+  // `buildTowServices({ db, clock, routeProvider })` call keeps working.
+  const placeDetails = options.placeDetails === undefined ? null : options.placeDetails;
+  const placeNameEnricher = createPlaceNameEnricher({ placeDetails });
 
   // PLATFORM SERVICE CATALOG — the registry is platform-level; Tow consumes the
   // row for `service_key=tow` and never owns a second repository.
@@ -146,6 +154,9 @@ function buildTowServices(options = {}) {
     paymentMode,
     // TOW ROUND — `null` when `TOW_ADDRESS_RESOLVER=none` (the default).
     addressResolver,
+    // SERVICE LOCATION — `null` when no provider is wired.
+    placeDetails,
+    placeNameEnricher,
     catalogService,
     vehicleRepository,
     documentRepository,
@@ -177,6 +188,7 @@ function buildTowServices(options = {}) {
       assignmentRepository,
       paymentRepository: towPaymentRepository,
       addressResolver,
+      placeNameEnricher,
       clock,
     }),
     matchingService: createMatchingService({
@@ -223,6 +235,7 @@ function buildTowServices(options = {}) {
       unitOfWork,
       clock,
       trackingEvents,
+      placeNameEnricher,
     }),
     cancellationService: createCancellationService({
       settingsService,
