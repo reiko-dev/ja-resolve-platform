@@ -372,6 +372,10 @@ describe('SERVICE LOCATION — Tow adoption', () => {
       expect(asCustomer.status).toBe(200);
       expect(asCustomer.body.data.route.pickup.place_name).toBe(`Name ${PLACE_ID}`);
       expect(asCustomer.body.data.route.destination.place_name).toBe(`Name ${DESTINATION_PLACE_ID}`);
+      // The persisted identity travels WITH the ephemeral name: a client that
+      // never presents a name without its place id can still use it.
+      expect(asCustomer.body.data.route.pickup.place_id).toBe(PLACE_ID);
+      expect(asCustomer.body.data.route.destination.place_id).toBe(DESTINATION_PLACE_ID);
       // Coordinates stay the authority; the route is not recomputed.
       expect(asCustomer.body.data.route.pickup.latitude).toBe(PICKUP.latitude);
       expect(asCustomer.body.data.route.pickup.longitude).toBe(PICKUP.longitude);
@@ -382,7 +386,8 @@ describe('SERVICE LOCATION — Tow adoption', () => {
         .get(`${REQUESTS}/${fixture.request.id}/tracking`)
         .set(fixture.customerAuth.headers);
       expect(degraded.status).toBe(200);
-      expect(degraded.body.data.route.pickup.place_id).toBeUndefined();
+      // Identity is persisted, so it survives the outage; the NAME is not.
+      expect(degraded.body.data.route.pickup.place_id).toBe(PLACE_ID);
       expect(degraded.body.data.route.pickup).not.toHaveProperty('place_name');
     });
 
@@ -576,6 +581,15 @@ describe('SERVICE LOCATION — Tow adoption', () => {
       expect(columns).toHaveProperty('destination_place_id');
       expect(columns.pickup_place_id.nullable).toBe(true);
       expect(columns.destination_place_id.nullable).toBe(true);
+    });
+
+    test('a payload with an empty places/ resource id is rejected, never degraded', async () => {
+      const response = await post(createTowRequestInput({
+        pickup: withPlace(PICKUP, 'places/'),
+      }), { key: 'idem-svcloc-emptyprefix' });
+
+      expect(response.status).toBe(422);
+      expect(response.body).toMatchObject({ success: false, error: { code: 'validation_error' } });
     });
 
     test('up() adds nullable columns and leaves historical rows untouched', async () => {
