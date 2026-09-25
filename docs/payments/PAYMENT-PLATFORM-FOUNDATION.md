@@ -347,20 +347,30 @@ A cancelled Tow request or Store order may require no refund, a full refund, a p
 
 ## 14. Tow CASH migration invariant
 
-The validated first-party Tow CASH behavior must remain unchanged while it is migrated to the common Payment Platform:
+The validated first-party Tow CASH behavior is migrated under the CLOSED D1 contract:
 
-~~~text
+```text
+docs/payments/PHASE-3-TOW-CASH-MIGRATION-CONTRACT.md
+```
+
+Frozen direction:
+
+```text
 customer chooses CASH at Tow request creation
--> no second payment-method selection after acceptance
--> proposal accepted
--> assignment created with frozen final price
--> financial obligation materialized using that frozen price
--> service completes
--> assigned partner confirms cash receipt
--> financial state becomes paid/received
-~~~
+→ no Payment before assignment
+→ proposal accepted
+→ assignment freezes final price
+→ canonical Payment TOW_SERVICE:<assignment_id> is created atomically
+→ method CASH / processor INTERNAL_CASH / status PENDING
+→ service completes
+→ assigned partner confirms cash receipt
+→ INTERNAL_CASH_CONFIRMATION
+→ Payment PAID
+```
 
-The compatibility PUT payment-method path must not become a dependency of the modern first-party flow.
+The legacy post-assignment PUT payment-method path is removed in Phase 3 because there are no historical users to preserve.
+
+There is no Tow payment backfill, no final dual-write and no permanent compatibility authority. tow_payments is removed after canonical integration is proven.
 
 ## 15. Legacy payment code policy
 
@@ -413,16 +423,22 @@ This keeps the first commit behavior-neutral while giving subsequent implementat
 
 ## 17. Implementation sequence for the workhorse
 
-1. Audit current DB tables, migrations, OpenAPI, Tow payment repository/service, Store purchase-order model and legacy payments table before schema changes.
-2. Propose the canonical persistence schema and migration/compatibility strategy for Payment, PaymentAttempt, provider events and refunds.
-3. Add durable uniqueness/idempotency constraints and concurrency tests before wiring external processors.
-4. Migrate Tow CASH onto the common Payment core without changing its validated first-party behavior.
-5. Connect Store/Checkout using the frozen purchase-order total in cents; do not create a second total authority.
-6. Add Stripe adapter for eligible physical/real-world/Web flows using tokenized/provider-owned sensitive payment data.
-7. Add Apple App Store and Google Play server verification adapters for digital mobile purchases.
-8. Add authenticated/deduplicated provider-event processing and reconciliation.
-9. Add refund lifecycle.
-10. Only after the marketplace commercial/legal decision is recorded, implement Stripe Connect settlement/transfers/payout tracking.
+The detailed phased authority is `PAYMENT-PLATFORM-IMPLEMENTATION-PLAN.md`.
+
+Current sequence:
+
+1. Close Phase 1 persistence evidence on PostgreSQL.
+2. Close Phase 2 application-core semantics, including settlement-evidence validation.
+3. Implement the CLOSED D1 Tow CASH migration contract.
+4. Implement Store only after D2 closes its backend financial-authority contract.
+5. Add Stripe adapter for eligible physical/real-world/Web flows.
+6. Add provider-event persistence and reconciliation in Phase 6.
+7. Add Apple App Store / Google Play verification in Phase 7.
+8. Add first-class Refund persistence/lifecycle in Phase 8.
+9. Close merchant-of-record/settlement Gate S1.
+10. Only then implement Stripe Connect settlement/transfers/payout tracking.
+
+Provider events and Refund persistence are intentionally not part of Phase 1.
 
 Each phase must include focused unit tests, negative controls, idempotency tests and PostgreSQL/concurrency coverage where financial uniqueness is involved.
 
