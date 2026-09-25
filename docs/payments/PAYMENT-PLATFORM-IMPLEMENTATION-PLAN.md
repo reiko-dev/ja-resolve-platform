@@ -535,6 +535,14 @@ Detailed execution contract:
 docs/payments/PHASE-2-APPLICATION-CORE-PLAN.md
 ```
 
+PAID semantic authority:
+
+```text
+docs/payments/PAYMENT-SETTLEMENT-EVIDENCE-CONTRACT.md
+```
+
+D3 is CLOSED. Phase 2 must persist accepted settlement evidence and expose semantic markPaymentPaid rather than arbitrary PAID transitions.
+
 ## Objective
 
 Harden the shared Payment application layer so business domains can create, query and evolve canonical financial obligations without HTTP or a concrete PSP.
@@ -581,7 +589,7 @@ External rail:
 Payment PENDING
 → Attempt #1 FAILED
 → Attempt #2 SUCCEEDED
-→ accepted PROCESSOR_ATTEMPT evidence
+→ accepted PROCESSOR_PAYMENT_CONFIRMATION evidence
 → Payment PAID
 
 Internal cash:
