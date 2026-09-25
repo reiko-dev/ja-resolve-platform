@@ -296,8 +296,8 @@ describe('MVP-05 — operation-level OpenAPI contract == runtime', () => {
     });
 
     test('the canonical revision records the MVP-05 revision notes (draft.15 current)', () => {
-      expect(composed.info.version).toBe('1.0.0-draft.15');
-      expect(canonical.info.version).toBe('1.0.0-draft.15');
+      expect(composed.info.version).toBe('1.0.0-draft.16');
+      expect(canonical.info.version).toBe('1.0.0-draft.16');
       expect(canonical.info.description).toContain('draft.8');
       expect(canonical.info.description).toContain('draft.12');
       expect(canonical.info.description).toContain('draft.13');

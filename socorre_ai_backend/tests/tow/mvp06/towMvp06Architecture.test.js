@@ -285,7 +285,7 @@ describe('MVP-06 ARCH — contract authority', () => {
   const { composed } = composeDocument(documents);
 
   test('the canonical revision records the MVP-06 subset and the draft.10-.15 revisions', () => {
-    expect(documents.canonical.info.version).toBe('1.0.0-draft.15');
+    expect(documents.canonical.info.version).toBe('1.0.0-draft.16');
     expect(documents.canonical.info.description).toContain('draft.9');
     expect(documents.canonical.info.description).toContain('draft.10');
     expect(documents.canonical.info.description).toContain('draft.11');
@@ -328,6 +328,6 @@ describe('MVP-06 ARCH — contract authority', () => {
     expect(base).not.toContain('draft.11');
     expect(base).not.toContain('draft.12');
     expect(base).not.toContain('draft.13');
-    expect(read(OVERLAY_CONTRACT)).toContain('version: 1.0.0-draft.15');
+    expect(read(OVERLAY_CONTRACT)).toContain('version: 1.0.0-draft.16');
   });
 });

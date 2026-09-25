@@ -12,6 +12,20 @@ const { assertTowRouteProviderSafe } = require('./config/towRouteProvider');
 const db = require('./config/database');
 
 /**
+ * The Places session token is a short-lived search credential. It travels in a
+ * query string on `GET /api/locations/places/{placeId}`, and the default morgan
+ * `:url` token would write it to every access log. Redact it globally: logs
+ * must never carry a session token (see docs/service-location/... ADR §5.3).
+ */
+function redactSessionToken(url) {
+  if (typeof url !== 'string' || url === '') return url;
+  return url.replace(/([?&]session_token=)[^&#]*/gi, '$1REDACTED');
+}
+
+morgan.token('url', (req) => redactSessionToken(req.originalUrl || req.url));
+
+
+/**
  * Build the Express application (middleware + routes) without opening any
  * listener. server.js calls this before attaching Socket.IO and listening;
  * HTTP transport tests call the same factory so they exercise the real
@@ -175,6 +189,13 @@ function createApp(options = {}) {
   app.use('/api/service-catalog', serviceCatalogModule.publicRouter);
   app.use('/api/admin/service-catalog', serviceCatalogModule.adminRouter);
 
+  // SERVICE LOCATION — platform-level Places (New) proxy. Autocomplete and Place
+  // Details are backend-proxied with a server-only key; the mobile app never
+  // calls the Places Web Service. See docs/service-location/SERVICE-LOCATION-MVP.md.
+  const { createServiceLocationModule } = require('./modules/service-location/http/mount');
+  const serviceLocationModule = createServiceLocationModule(options.serviceLocation || {});
+  app.use('/api/locations', serviceLocationModule.publicRouter);
+
   // Trilhas legadas mantidas por compatibilidade controlada.
   mountLegacyRoutes(app);
 
@@ -199,4 +220,4 @@ function createApp(options = {}) {
   return app;
 }
 
-module.exports = { createApp };
+module.exports = { createApp, redactSessionToken };
