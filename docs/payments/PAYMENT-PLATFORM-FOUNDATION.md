@@ -455,52 +455,79 @@ Provider webhooks/server notifications are separate provider-authenticated Phase
 
 ## 15. Legacy payment code policy
 
-Existing generic payment files are legacy/experimental until reconciled with this foundation:
+Existing generic payment files are legacy/experimental until their current consumers are migrated:
 
 ~~~text
 src/services/paymentService.js
 src/routes/payments.js
 src/services/gateways/*
+legacy payments table and dependent financial structures
 ~~~
 
-They must not be treated as the new core merely because their names are generic.
+They are NOT a migration source or fallback for the canonical Payment Platform.
 
-Known architectural mismatches include decimal/float money authority, business-specific branches inside a generic service, mock processor behavior and lack of production-grade provider-event verification.
+Project-stage policy:
 
-Migration options are explicit and evidence-driven: refactor, wrap temporarily, migrate data or remove. No blind reuse.
+~~~text
+REAL_USERS = NONE
+AUTHORITATIVE_PAYMENT_HISTORY_TO_PRESERVE = NONE
+LEGACY_PAYMENT_BACKFILL = NONE
+NEW DUAL-WRITE = FORBIDDEN
+NEW LEGACY CONSUMERS = FORBIDDEN
+~~~
 
-## 16. Foundation code in this commit
+Required retirement pattern:
 
-This commit adds a pure, non-wired Payments module:
+~~~text
+identify current consumer
+-> replace with canonical source-domain + Payment Platform flow
+-> prove replacement
+-> remove legacy path
+~~~
+
+Do not extend legacy payment code merely to preserve compatibility.
+
+## 16. Current implementation baseline
+
+The Payment Platform now includes canonical domain/application/persistence foundations under:
 
 ~~~text
 src/modules/payments/
 ├── domain/
-│   ├── errors.js
-│   ├── money.js
-│   ├── payment.js
-│   ├── routing-policy.js
-│   ├── vocabulary.js
-│   └── index.js
+├── application/
 ├── ports/
-│   └── payment-processor.js
+├── adapters/persistence/
+├── composition.js
 └── index.js
 ~~~
 
-It also adds tests that freeze the current architectural choices.
+Canonical Phase 1 persistence is intentionally minimal:
 
-It intentionally does NOT yet add:
+~~~text
+payment_obligations
+payment_attempts
+~~~
 
-- HTTP routes;
-- database migrations;
-- Stripe SDK dependencies;
-- Stripe Connect charge model;
-- Apple/Google SDK/server verification implementation;
-- migration of existing Tow CASH persistence;
-- Store integration;
-- replacement/removal of the legacy /payments API.
+Provider-event persistence is deferred to Phase 6.
 
-This keeps the first commit behavior-neutral while giving subsequent implementation a hard target.
+Refund persistence is deferred to Phase 8.
+
+Settlement/transfer/payout persistence is deferred until Gate S1 / Phase 9.
+
+The current baseline also includes:
+
+- migration 011 for Payment/PaymentAttempt;
+- repositories and unit-of-work;
+- state-machine and idempotency primitives;
+- application-service baseline;
+- D1 Tow migration contract;
+- D2 Store authority contract;
+- D3 settlement-evidence contract;
+- D4 API-boundary contract.
+
+The accepted settlement evidence fields required by D3 are a Phase 2 persistence evolution of payment_obligations; they do not introduce provider-event storage.
+
+No historical legacy payment-data preservation is required.
 
 ## 17. Implementation sequence for the workhorse
 
