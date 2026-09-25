@@ -78,7 +78,7 @@ function canonicalFingerprintSource(payload) {
   const input = validateCreateTowRequestInput(payload);
   const { pickup, destination, vehicle } = input;
 
-  return JSON.stringify([
+  const source = [
     'tow-request-create-v2',
     [
       pickup.latitude,
@@ -101,7 +101,20 @@ function canonicalFingerprintSource(payload) {
     input.problem_description,
     input.observations ?? '',
     input.payment_method,
-  ]);
+  ];
+
+  // SERVICE LOCATION — place identity participates in the idempotency key when
+  // the payload actually carries one. The suffix is appended ONLY for explicit
+  // selections, so every legacy payload keeps producing the exact v2 string it
+  // produced before this delivery: a pre-upgrade retry still replays its
+  // original row instead of conflicting (TOW_BACKWARD_COMPATIBLE=YES). Without
+  // it, the same key with the same coordinates/address but a different selected
+  // place would silently replay the wrong intent.
+  if (pickup.place_id !== null || destination.place_id !== null) {
+    source.push([pickup.place_id ?? '', destination.place_id ?? '']);
+  }
+
+  return JSON.stringify(source);
 }
 
 module.exports = {

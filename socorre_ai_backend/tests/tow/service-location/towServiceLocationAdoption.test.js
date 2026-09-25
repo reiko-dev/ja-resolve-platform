@@ -46,6 +46,7 @@ const {
   postTracking,
 } = require('../../helpers/tow/mvp05');
 const { createPlaceNameEnricher } = require('../../../src/modules/tow/application/place-name-enrichment');
+const { canonicalFingerprintSource } = require('../../../src/modules/tow/domain');
 const migration012 = require('../../../database/migrations/012_tow_request_place_id');
 
 const REQUESTS = '/api/tow/requests';
@@ -487,6 +488,65 @@ describe('SERVICE LOCATION — Tow adoption', () => {
       pending.forEach((release) => release());
 
       await expect(result).resolves.toEqual({ pickup: PLACE_NAME, destination: null });
+    });
+  });
+
+  describe('idempotency fingerprint — place identity is additive', () => {
+    test('a legacy payload keeps the exact pre-adoption fingerprint string', () => {
+      const legacy = createTowRequestInput();
+
+      // The literal 7-element v2 array: the identity suffix must be appended
+      // ONLY for explicit selections, otherwise a pre-upgrade retry would get a
+      // 409 instead of replaying its original row.
+      const expected = JSON.stringify([
+        'tow-request-create-v2',
+        [legacy.pickup.latitude, legacy.pickup.longitude, legacy.pickup.formatted_address],
+        [legacy.destination.latitude, legacy.destination.longitude, legacy.destination.formatted_address],
+        [
+          legacy.vehicle.class,
+          legacy.vehicle.make,
+          legacy.vehicle.model,
+          legacy.vehicle.year,
+          legacy.vehicle.weight_kg,
+          legacy.vehicle.plate,
+        ],
+        legacy.problem_description,
+        legacy.observations,
+        // The commercial choice is normalized to its canonical spelling.
+        'CASH',
+      ]);
+
+      expect(canonicalFingerprintSource(legacy)).toBe(expected);
+    });
+
+    test('an explicit selection contributes place identity and stays deterministic', () => {
+      const generic = createTowRequestInput();
+      const explicit = createTowRequestInput({
+        pickup: { place_id: 'ChIJpickup' },
+        destination: { place_id: 'ChIJdestination' },
+      });
+      const otherPlace = createTowRequestInput({
+        pickup: { place_id: 'ChIJother' },
+        destination: { place_id: 'ChIJdestination' },
+      });
+      const repeated = createTowRequestInput({
+        pickup: { place_id: 'ChIJpickup' },
+        destination: { place_id: 'ChIJdestination' },
+      });
+
+      expect(canonicalFingerprintSource(explicit)).not.toBe(canonicalFingerprintSource(generic));
+      expect(canonicalFingerprintSource(explicit)).not.toBe(canonicalFingerprintSource(otherPlace));
+      expect(canonicalFingerprintSource(explicit)).toBe(canonicalFingerprintSource(repeated));
+    });
+
+    test('resolution_source alone does not change the fingerprint (not persisted)', () => {
+      const generic = createTowRequestInput();
+      const withSource = createTowRequestInput({
+        pickup: { resolution_source: 'USER_PIN' },
+        destination: { resolution_source: 'CURRENT_LOCATION' },
+      });
+
+      expect(canonicalFingerprintSource(withSource)).toBe(canonicalFingerprintSource(generic));
     });
   });
 
