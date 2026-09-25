@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 const DOMAIN_DIR = path.join(__dirname, '../../src/modules/payments/domain');
+const APPLICATION_DIR = path.join(__dirname, '../../src/modules/payments/application');
 
 function listJsFiles(dir) {
   return fs.readdirSync(dir)
@@ -12,7 +13,7 @@ function listJsFiles(dir) {
 }
 
 describe('Payments architecture boundaries', () => {
-  test('pure domain does not import HTTP, persistence, providers, or legacy payment services', () => {
+  test.each([DOMAIN_DIR, APPLICATION_DIR])('%s does not import HTTP, concrete providers, or legacy payment services', (targetDir) => {
     const forbidden = [
       "require('express')",
       'require("express")',
@@ -26,7 +27,7 @@ describe('Payments architecture boundaries', () => {
       'pagseguro',
     ];
 
-    for (const file of listJsFiles(DOMAIN_DIR)) {
+    for (const file of listJsFiles(targetDir)) {
       const source = fs.readFileSync(file, 'utf8').toLowerCase();
       for (const token of forbidden) {
         expect(source).not.toContain(token.toLowerCase());

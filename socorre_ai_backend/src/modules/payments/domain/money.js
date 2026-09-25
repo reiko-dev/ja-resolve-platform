@@ -3,8 +3,8 @@
 const { paymentValidationError } = require('./errors');
 
 function requireAmountCents(value, field = 'amount_cents') {
-  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
-    throw paymentValidationError(field + ' must be a non-negative safe integer of cents', { field });
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) {
+    throw paymentValidationError(field + ' must be a positive safe integer of cents', { field });
   }
   return value;
 }

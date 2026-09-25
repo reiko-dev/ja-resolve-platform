@@ -127,6 +127,10 @@ const TABLES = [
   // MVP-06. `tow_payments` references `tow_requests`, `tow_assignments` and
   // `partners`, so it is appended after all three.
   'tow_payments',
+  // Payment Platform Phase 1. Delete child attempts before obligations if FK
+  // enforcement is enabled in a future harness revision.
+  'payment_attempts',
+  'payment_obligations',
 ];
 
 const SCHEMA = [
@@ -956,6 +960,62 @@ const SCHEMA = [
     CHECK ((status = 'PENDING' AND received_at IS NULL AND received_by_partner_id IS NULL)
         OR (status = 'RECEIVED' AND received_at IS NOT NULL AND received_by_partner_id IS NOT NULL))
   )`,
+
+  // PAYMENT PLATFORM Phase 1 — mirrors migration 011. The offline harness keeps
+  // integer cents and the same uniqueness/state invariants as PostgreSQL.
+  `CREATE TABLE IF NOT EXISTS payment_obligations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    business_key VARCHAR(255) NOT NULL,
+    context_type VARCHAR(64) NOT NULL,
+    context_id VARCHAR(128) NOT NULL,
+    payer_id VARCHAR(128) NOT NULL,
+    commerce_type VARCHAR(40) NOT NULL,
+    sales_channel VARCHAR(24) NOT NULL,
+    amount_cents INTEGER NOT NULL,
+    currency VARCHAR(3) NOT NULL DEFAULT 'BRL',
+    method VARCHAR(32) NOT NULL,
+    processor VARCHAR(40) NOT NULL,
+    status VARCHAR(24) NOT NULL DEFAULT 'PENDING',
+    idempotency_key VARCHAR(128) NOT NULL,
+    idempotency_fingerprint VARCHAR(64) NOT NULL,
+    paid_at TEXT,
+    cancelled_at TEXT,
+    expires_at TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (business_key),
+    UNIQUE (payer_id, idempotency_key),
+    CHECK (amount_cents > 0),
+    CHECK (length(currency) = 3 AND currency = upper(currency)),
+    CHECK (commerce_type IN ('DIGITAL_GOOD','DIGITAL_SUBSCRIPTION','PHYSICAL_GOOD','REAL_WORLD_SERVICE')),
+    CHECK (sales_channel IN ('IOS_APP','ANDROID_APP','WEB')),
+    CHECK (method IN ('CASH','CARD','PIX','STORE_BILLING')),
+    CHECK (processor IN ('INTERNAL_CASH','STRIPE','APPLE_APP_STORE','GOOGLE_PLAY')),
+    CHECK (status IN ('PENDING','PROCESSING','PAID','FAILED','CANCELLED','EXPIRED')),
+    CHECK ((status = 'PAID' AND paid_at IS NOT NULL) OR (status <> 'PAID' AND paid_at IS NULL)),
+    CHECK ((status = 'CANCELLED' AND cancelled_at IS NOT NULL)
+        OR (status <> 'CANCELLED' AND cancelled_at IS NULL))
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS payment_attempts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    payment_id INTEGER NOT NULL,
+    attempt_number INTEGER NOT NULL,
+    processor VARCHAR(40) NOT NULL,
+    status VARCHAR(24) NOT NULL DEFAULT 'PENDING',
+    provider_idempotency_key VARCHAR(255) NOT NULL,
+    external_transaction_id VARCHAR(255),
+    failure_code VARCHAR(120),
+    failure_message TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (payment_id, attempt_number),
+    UNIQUE (processor, provider_idempotency_key),
+    UNIQUE (processor, external_transaction_id),
+    CHECK (attempt_number > 0),
+    CHECK (processor IN ('INTERNAL_CASH','STRIPE','APPLE_APP_STORE','GOOGLE_PLAY')),
+    CHECK (status IN ('PENDING','PROCESSING','SUCCEEDED','FAILED','CANCELLED'))
+  )`
 ];
 
 let schemaReady = null;
