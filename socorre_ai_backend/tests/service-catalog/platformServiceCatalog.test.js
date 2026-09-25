@@ -2,8 +2,11 @@
  * PLATFORM SERVICE CATALOG — provisioning, public catalog and the Tow gate.
  *
  * Proves the platform-level catalog end to end:
- *   - migration 010 provisions the initial services, is idempotent and never
- *     resets an existing Tow configuration;
+ *   - migration 010 (immutable history) provisions the initial services as
+ *     ACTIVE, is idempotent and never resets an existing Tow configuration;
+ *   - migration 011 corrects the launch policy on top of 010 (tow stays
+ *     ACTIVE, the other five become SOON), so the 010->011 sequence is the
+ *     production baseline;
  *   - `GET /api/service-catalog` is the canonical public catalog: a SUCCESSFUL
  *     response is the authoritative complete catalog, DELETED is omitted, and
  *     an empty registry answers `items: []` (the client must not invent
@@ -38,6 +41,7 @@ const {
   INITIAL_SERVICE_KEYS,
 } = require('../../src/modules/service-catalog/domain/initial-services');
 const migration010 = require('../../database/migrations/010_platform_service_catalog');
+const migration011 = require('../../database/migrations/011_service_catalog_launch_policy');
 
 const CATALOG = '/api/service-catalog';
 const ADMIN_CATALOG = '/api/admin/service-catalog';
@@ -64,6 +68,12 @@ describe('PLATFORM SERVICE CATALOG — provisioning, public catalog and the Tow 
 
   function provision() {
     return migration010.up(testDb.db);
+  }
+
+  /** The production baseline: migration 010 plus its 011 launch correction. */
+  async function provisionLaunchPolicy() {
+    await migration010.up(testDb.db);
+    await migration011.up(testDb.db);
   }
 
   function registryRows() {
@@ -127,12 +137,12 @@ describe('PLATFORM SERVICE CATALOG — provisioning, public catalog and the Tow 
     beforeEach(async () => {
       await testDb.db('tow_requests').del();
       await testDb.db('service_modules').del();
-      await provision();
+      await provisionLaunchPolicy();
       routeProvider.reset();
       clock.reset();
     });
 
-    test('returns every ACTIVE initial service in catalog order with its key', async () => {
+    test('returns every initial service with its launch status in catalog order with its key', async () => {
       const response = await request(app).get(CATALOG);
 
       expect(response.status).toBe(200);
@@ -143,12 +153,15 @@ describe('PLATFORM SERVICE CATALOG — provisioning, public catalog and the Tow 
             id: expect.any(String),
             key: service.key,
             name: service.name,
-            status: 'ACTIVE',
+            status: service.initialStatus,
             disabled_reason: null,
             sort_order: service.sortOrder,
           })),
         },
       });
+      // Only tow is launched; the other five are SOON (product-not-launched).
+      expect(response.body.data.items.filter((item) => item.status === 'ACTIVE').map((item) => item.key))
+        .toEqual(['tow']);
     });
 
     test('INACTIVE and SOON stay visible with their reason', async () => {
@@ -156,6 +169,10 @@ describe('PLATFORM SERVICE CATALOG — provisioning, public catalog and the Tow 
 
       await request(app).patch(`${ADMIN_CATALOG}/mechanic`).set(admin.headers)
         .send({ status: 'INACTIVE', reason: 'maintenance window' });
+      // `store` is SOON at boot: releasing it to ACTIVE and suspending it back
+      // to SOON must carry the suspension reason onto the row.
+      await request(app).patch(`${ADMIN_CATALOG}/store`).set(admin.headers)
+        .send({ status: 'ACTIVE', reason: 'released' });
       await request(app).patch(`${ADMIN_CATALOG}/store`).set(admin.headers)
         .send({ status: 'SOON', reason: 'launching next month' });
 
@@ -193,7 +210,7 @@ describe('PLATFORM SERVICE CATALOG — provisioning, public catalog and the Tow 
   describe('admin lifecycle — PATCH /api/admin/service-catalog/{key}', () => {
     beforeEach(async () => {
       await testDb.db('service_modules').del();
-      await provision();
+      await provisionLaunchPolicy();
     });
 
     test('requires an administrator', async () => {
@@ -217,7 +234,20 @@ describe('PLATFORM SERVICE CATALOG — provisioning, public catalog and the Tow 
     test('gets one service by key', async () => {
       const admin = await createTowAdminAuth();
       const response = await request(app).get(`${ADMIN_CATALOG}/tire_repair`).set(admin.headers);
-      expect(response.body.data).toMatchObject({ key: 'tire_repair', name: 'Borracheiro', status: 'ACTIVE' });
+      expect(response.body.data).toMatchObject({ key: 'tire_repair', name: 'Borracheiro', status: 'SOON' });
+    });
+
+    test('the SOON -> ACTIVE release path is an explicit admin decision', async () => {
+      const admin = await createTowAdminAuth();
+
+      // `mechanic` boots as SOON (product not launched).
+      const before = await request(app).get(`${ADMIN_CATALOG}/mechanic`).set(admin.headers);
+      expect(before.body.data).toMatchObject({ status: 'SOON', enabled: false });
+
+      const released = await request(app).patch(`${ADMIN_CATALOG}/mechanic`).set(admin.headers)
+        .send({ status: 'ACTIVE' });
+      expect(released.status).toBe(200);
+      expect(released.body.data).toMatchObject({ status: 'ACTIVE', enabled: true, disabled_reason: null });
     });
 
     test('unknown key answers 404', async () => {
@@ -245,11 +275,12 @@ describe('PLATFORM SERVICE CATALOG — provisioning, public catalog and the Tow 
     test('the released { enabled, reason } toggle still maps to ACTIVE/INACTIVE', async () => {
       const admin = await createTowAdminAuth();
 
-      const disabled = await request(app).patch(`${ADMIN_CATALOG}/store`).set(admin.headers)
+      // `tow` is the launched service (ACTIVE at boot).
+      const disabled = await request(app).patch(`${ADMIN_CATALOG}/tow`).set(admin.headers)
         .send({ enabled: false, reason: 'maintenance window' });
       expect(disabled.body.data).toMatchObject({ status: 'INACTIVE', enabled: false });
 
-      const enabled = await request(app).patch(`${ADMIN_CATALOG}/store`).set(admin.headers)
+      const enabled = await request(app).patch(`${ADMIN_CATALOG}/tow`).set(admin.headers)
         .send({ enabled: true, reason: 'back online' });
       expect(enabled.body.data).toMatchObject({ status: 'ACTIVE', enabled: true, disabled_reason: null });
     });
@@ -257,11 +288,11 @@ describe('PLATFORM SERVICE CATALOG — provisioning, public catalog and the Tow 
     test('a repeated status is a read (idempotent)', async () => {
       const admin = await createTowAdminAuth();
       await request(app).patch(`${ADMIN_CATALOG}/electrical`).set(admin.headers)
-        .send({ status: 'SOON', reason: 'launching' });
+        .send({ status: 'INACTIVE', reason: 'maintenance window' });
       const repeated = await request(app).patch(`${ADMIN_CATALOG}/electrical`).set(admin.headers)
-        .send({ status: 'SOON', reason: 'launching' });
+        .send({ status: 'INACTIVE', reason: 'ignored while already INACTIVE' });
       expect(repeated.status).toBe(200);
-      expect(repeated.body.data).toMatchObject({ status: 'SOON', disabled_reason: 'launching' });
+      expect(repeated.body.data).toMatchObject({ status: 'INACTIVE', disabled_reason: 'maintenance window' });
     });
 
     test('the Tow lifecycle is the SAME authority as /tow/module-status and /tow/services', async () => {
@@ -291,7 +322,7 @@ describe('PLATFORM SERVICE CATALOG — provisioning, public catalog and the Tow 
     beforeEach(async () => {
       await testDb.db('tow_requests').del();
       await testDb.db('service_modules').del();
-      await provision();
+      await provisionLaunchPolicy();
       routeProvider.reset();
       clock.reset();
     });

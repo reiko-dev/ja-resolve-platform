@@ -70,6 +70,7 @@ describe('MVP-01 EXT — eligibility via composition + persistence', () => {
       module_key: 'tow',
       service_key: 'tow',
       partner_type: 'tow',
+      status: 'ACTIVE',
       enabled: 1,
     });
 
@@ -84,6 +85,7 @@ describe('MVP-01 EXT — eligibility via composition + persistence', () => {
       module_key: 'tow',
       service_key: 'tow',
       partner_type: 'tow',
+      status: 'ACTIVE',
       enabled: 1,
     });
 
