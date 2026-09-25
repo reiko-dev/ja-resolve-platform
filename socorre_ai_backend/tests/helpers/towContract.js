@@ -17,15 +17,18 @@
  *   file. For those paths the canonical definition SHADOWS the base definition
  *   entirely; the composed document must therefore contain exactly one operation
  *   per (path, method) and must not double-count shadowed base operations.
- *   Verified shape on the current contract (draft.15): base 51 paths / 59
- *   operations, canonical 60 paths (30 `$ref` path items + 30 inline) / 35
- *   inline operations, 21 shadowed base paths (0 dropped methods), composed
- *   70 operations. (draft.13 adds the required `payment_method` to
+ *   Verified shape on the current contract (draft.16): base 51 paths / 59
+ *   operations, canonical 65 paths (30 `$ref` path items + 35 inline) / 41
+ *   canonical-owned operations, 21 shadowed base paths (0 dropped methods),
+ *   composed 76 operations. (draft.13 adds the required `payment_method` to
  *   `CreateTowRequestInput` and the commercial `payment_method` to `TowRequest`
  *   as component overrides; draft.14 documents the payment materialized at
  *   accept; draft.15 adds the public `GET /tow/services` service catalog path
  *   plus the `ServiceStatus`/catalog schemas and the `ModuleStatus`/
- *   `ToggleTowModuleInput` overrides.)
+ *   `ToggleTowModuleInput` overrides; draft.16 adds the Service Location proxy
+ *   `POST /locations/autocomplete` + `GET /locations/places/{placeId}` with the
+ *   location schemas and the `upstream_unavailable`/`upstream_rejected`/
+ *   `rate_limited` error codes.)
  *
  * No network access is required: every `$ref` is a local file reference.
  */
@@ -85,6 +88,7 @@ const CANONICAL_ERROR_CODES = [
   'payment_not_ready', 'payment_failed', 'payment_method_not_changeable',
   'customer_no_show_not_allowed_yet', 'idempotency_conflict', 'conflict',
   'validation_error', 'unauthorized', 'forbidden', 'not_found', 'external_dependency_unavailable',
+  'upstream_unavailable', 'upstream_rejected', 'rate_limited',
 ];
 
 /** Values that must never appear as a canonical enum value. */

@@ -250,8 +250,8 @@ describe('MVP-04 EXT — operation-level OpenAPI contract == runtime (EXT-MVP04-
     });
 
     test('the canonical revision still records the EXT-MVP04 corrections (draft.15 current)', () => {
-      expect(composed.info.version).toBe('1.0.0-draft.15');
-      expect(canonical.info.version).toBe('1.0.0-draft.15');
+      expect(composed.info.version).toBe('1.0.0-draft.16');
+      expect(canonical.info.version).toBe('1.0.0-draft.16');
       expect(canonical.info.description).toContain('draft.7');
       expect(canonical.info.description).toContain('draft.8');
       expect(canonical.info.description).toContain('draft.12');
