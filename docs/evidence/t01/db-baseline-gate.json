@@ -1,5 +1,5 @@
 {
-  "project": "socorre-tow-test-55432-72c15fd8",
+  "project": "socorre-tow-test-55432-152c6120",
   "target": "postgresql://tow_test@127.0.0.1:55432/socorre_ai_tow_test (purpose: test)",
   "run1": {
     "fingerprint": "e669dc4c85a7d2dc2cb22bccf3bc211759cf6b653bf36b561390341fdc4c9af9",
@@ -28,7 +28,7 @@
   "seed": {
     "created": true,
     "id": 1,
-    "email": "gate-admin-39711821@example.test"
+    "email": "gate-admin-43286440@example.test"
   },
   "report": {
     "tables": [
@@ -111,7 +111,7 @@
     },
     "admin": {
       "id": 1,
-      "email": "gate-admin-39711821@example.test",
+      "email": "gate-admin-43286440@example.test",
       "role": "admin",
       "isActive": true
     },

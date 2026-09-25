@@ -281,7 +281,11 @@ function optionalPlaceId(value, field) {
   const bare = trimmed.startsWith(PLACES_RESOURCE_PREFIX)
     ? trimmed.slice(PLACES_RESOURCE_PREFIX.length)
     : trimmed;
-  if (bare.length === 0) return null;
+  if (bare.length === 0) {
+    // Mirrors the platform domain: an empty resource name is a client bug,
+    // never a silently-dropped identity.
+    throw validationError(`${field} must not be an empty resource name`, { field });
+  }
   if (bare.length > TOW_REQUEST_LIMITS.place_id) {
     throw validationError(
       `${field} must be at most ${TOW_REQUEST_LIMITS.place_id} characters`,

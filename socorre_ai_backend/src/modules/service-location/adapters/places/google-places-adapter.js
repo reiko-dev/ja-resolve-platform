@@ -39,7 +39,7 @@
 'use strict';
 
 const axios = require('axios');
-const { validateGeoPoint } = require('../../../tow/domain/geo');
+const { validateGeoPoint, isOperationalGeoPoint } = require('../../domain/geo');
 const {
   PlacesProviderError,
   isRetryableReason,
@@ -64,6 +64,8 @@ const DEFAULT_LOCATION_BIAS_RADIUS_METERS = 50000;
 const MAX_LOCATION_BIAS_RADIUS_METERS = 50000;
 const MAX_INPUT_LENGTH = 200;
 const MAX_PLACE_ID_LENGTH = 500;
+/** Same ceiling as the domain/DB presentation fields; longer provider text is truncated, never fatal. */
+const MAX_PLACE_TEXT_LENGTH = 500;
 /** Google hard limit: ≤ 36 ASCII chars, URL/filename-safe base64 alphabet. */
 const SESSION_TOKEN_PATTERN = /^[A-Za-z0-9_-]{1,36}$/;
 const PLACES_RESOURCE_PREFIX = 'places/';
@@ -145,12 +147,30 @@ function readPlaceId(placeId) {
 }
 
 /** Trimmed non-empty string or null. Provider text is presentation-only. */
-function readText(container, key) {
+function readText(container, key, maxLength) {
   if (!container || typeof container !== 'object') return null;
   const value = container[key];
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
-  return trimmed === '' ? null : trimmed;
+  if (trimmed === '') return null;
+  return maxLength !== undefined && trimmed.length > maxLength
+    ? trimmed.slice(0, maxLength)
+    : trimmed;
+}
+
+/**
+ * Optional per-call language override (IETF BCP-47-ish). Google rejects an
+ * invalid `languageCode` with INVALID_ARGUMENT, so a caller bug is validated
+ * here before any provider call.
+ */
+function readLanguageCode(value) {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value !== 'string') throw invalidRequest('languageCode must be a string');
+  const trimmed = value.trim();
+  if (trimmed.length < 2 || trimmed.length > 35) {
+    throw invalidRequest('languageCode must be 2..35 characters');
+  }
+  return trimmed;
 }
 
 function readPredictionPlaceId(prediction) {
@@ -223,13 +243,14 @@ function normalizePlace(data, requestedPlaceId) {
     throw malformedResponse('Places provider returned an unusable place response', { field: 'place' });
   }
 
-  let location;
-  try {
-    location = validateGeoPoint({
-      latitude: Number(data.location?.latitude),
-      longitude: Number(data.location?.longitude),
-    }, 'place.location');
-  } catch {
+  // An explicit selection cannot be finalized without an OPERATIONAL
+  // coordinate: a missing, out-of-range or (0,0) provider point is a provider
+  // defect, never a client validation error (ADR §5.3).
+  const location = {
+    latitude: Number(data.location?.latitude),
+    longitude: Number(data.location?.longitude),
+  };
+  if (!isOperationalGeoPoint(location)) {
     throw malformedResponse('Places provider returned a place without a usable location', { field: 'location' });
   }
 
@@ -237,8 +258,8 @@ function normalizePlace(data, requestedPlaceId) {
 
   return {
     placeId: id === null ? requestedPlaceId : id,
-    placeName: readText(data.displayName, 'text'),
-    formattedAddress: readText(data, 'formattedAddress'),
+    placeName: readText(data.displayName, 'text', MAX_PLACE_TEXT_LENGTH),
+    formattedAddress: readText(data, 'formattedAddress', MAX_PLACE_TEXT_LENGTH),
     latitude: location.latitude,
     longitude: location.longitude,
   };
@@ -291,7 +312,7 @@ function createGooglePlacesAdapter(options = {}) {
   const timeoutMs = options.timeoutMs === undefined ? DEFAULT_TIMEOUT_MS : options.timeoutMs;
   const maxAttempts = options.maxAttempts === undefined ? DEFAULT_MAX_ATTEMPTS : options.maxAttempts;
   const retryDelayMs = options.retryDelayMs === undefined ? DEFAULT_RETRY_DELAY_MS : options.retryDelayMs;
-  const languageCode = options.languageCode === undefined ? DEFAULT_LANGUAGE_CODE : options.languageCode;
+  const languageCodeDefault = options.languageCode === undefined ? DEFAULT_LANGUAGE_CODE : options.languageCode;
   const regionCode = options.regionCode === undefined ? DEFAULT_REGION_CODE : options.regionCode;
 
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) {
@@ -350,7 +371,7 @@ function createGooglePlacesAdapter(options = {}) {
 
     const body = {
       input: normalizedInput,
-      languageCode,
+      languageCode: languageCodeDefault,
       regionCode,
     };
     if (normalizedToken !== null) body.sessionToken = normalizedToken;
@@ -380,15 +401,16 @@ function createGooglePlacesAdapter(options = {}) {
   }
 
   /**
-   * @param {{ placeId: string, sessionToken?: string }} params
+   * @param {{ placeId: string, sessionToken?: string, languageCode?: string }} params
    * @returns {Promise<{ placeId: string, placeName: string|null, formattedAddress: string|null, latitude: number, longitude: number }>}
    */
-  async function getPlace({ placeId, sessionToken } = {}) {
+  async function getPlace({ placeId, sessionToken, languageCode } = {}) {
     const normalizedPlaceId = readPlaceId(placeId);
     const normalizedToken = readSessionToken(sessionToken);
+    const effectiveLanguageCode = readLanguageCode(languageCode) || languageCodeDefault;
     const apiKey = resolveApiKey();
 
-    const params = { languageCode, regionCode };
+    const params = { languageCode: effectiveLanguageCode, regionCode };
     if (normalizedToken !== null) params.sessionToken = normalizedToken;
 
     const response = await withRetry(() => httpClient.get(

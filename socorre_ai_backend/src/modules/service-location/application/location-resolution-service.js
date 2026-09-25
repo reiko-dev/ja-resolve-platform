@@ -40,10 +40,10 @@ function createLocationResolutionService({ placeDetails, geocoding = null } = {}
    * A provider failure here cannot be recovered from text: it fails the
    * selection with a domain error.
    *
-   * @param {{ placeId: string, sessionToken?: string }} params
+   * @param {{ placeId: string, sessionToken?: string, languageCode?: string }} params
    * @returns {Promise<Readonly<object>>} ServiceLocation (USER_SELECTED_PLACE)
    */
-  async function resolveExplicitPlace({ placeId, sessionToken } = {}) {
+  async function resolveExplicitPlace({ placeId, sessionToken, languageCode } = {}) {
     if (!placeDetails) {
       throw upstreamUnavailableError('A busca de locais não está configurada', {
         reason: 'configuration_missing',
@@ -57,6 +57,7 @@ function createLocationResolutionService({ placeDetails, geocoding = null } = {}
       place = await placeDetails.getPlace({
         placeId: normalizedPlaceId,
         sessionToken: sessionToken || undefined,
+        languageCode: languageCode || undefined,
       });
     } catch (error) {
       if (isPlacesProviderError(error)) throw translatePlacesProviderError(error);
