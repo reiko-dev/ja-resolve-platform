@@ -401,7 +401,8 @@ D2 is DONE when a workhorse can implement Phase 4 without deciding:
 **Priority:** 3  
 **Blocks:** final Phase 2 semantic transition hardening and all later payment confirmations  
 **Target document:** `docs/payments/PAYMENT-SETTLEMENT-EVIDENCE-CONTRACT.md`  
-**Status:** TODO
+**Status:** DONE  
+**Closure commit:** `dfdec2cba14b9abadb8416e321d192755035bdaf`
 
 ## Objective
 
@@ -423,17 +424,11 @@ Freeze or refine:
 
 ```text
 INTERNAL_CASH_CONFIRMATION
-PROCESSOR_ATTEMPT
-STORE_VERIFICATION
+PROCESSOR_PAYMENT_CONFIRMATION
+STORE_BILLING_VERIFICATION
 ```
 
-If `STORE_VERIFICATION` is intended specifically for Apple/Google store billing, rename it now to remove ambiguity, for example:
-
-```text
-APP_STORE_VERIFICATION
-```
-
-Do not leave ambiguous terminology.
+`STORE_VERIFICATION` is retired; Apple/Google verification uses `STORE_BILLING_VERIFICATION`.
 
 ## Decisions to freeze
 
@@ -468,7 +463,7 @@ Define validity requirements:
 
 Payments should not itself decide whether Tow operational prerequisites are satisfied; the Tow integration contract supplies an already-authorized confirmation.
 
-### D3.3 PROCESSOR_ATTEMPT
+### D3.3 PROCESSOR_PAYMENT_CONFIRMATION
 
 Define validity requirements:
 
@@ -711,7 +706,7 @@ D3 may be drafted while D1/D2 are being discussed, but it should not be declared
 |---|---|---|
 | D1 — Tow CASH Migration Contract | DONE | `PHASE-3-TOW-CASH-MIGRATION-CONTRACT.md` / `34e76664c9e12b86305e71bdbbb4ba6d7fd4691b` |
 | D2 — Store Financial Authority Contract | DONE | `PHASE-4-STORE-FINANCIAL-AUTHORITY-CONTRACT.md` / `3ec425f62da4b8641ca98770a479f008c075f665` |
-| D3 — Settlement Evidence Contract | TODO | `PAYMENT-SETTLEMENT-EVIDENCE-CONTRACT.md` |
+| D3 — Settlement Evidence Contract | DONE | `PAYMENT-SETTLEMENT-EVIDENCE-CONTRACT.md` / `dfdec2cba14b9abadb8416e321d192755035bdaf` |
 | D4 — Payment API Boundary Decision | TODO | `PAYMENT-API-BOUNDARY-DECISION.md` |
 
 ---
@@ -733,12 +728,12 @@ Before declaring the preparation package closed, reconcile:
 
 - [x] replace Phase 3 migration alternatives with the closed D1 strategy;
 - [x] expand Phase 4 from a generic Store statement to the closed D2 authority contract;
-- [ ] reference D3 as the PAID semantic contract;
+- [x] reference D3 as the PAID semantic contract;
 - [ ] reference D4 before any new public Payment API is introduced.
 
 ## `PAYMENT-PLATFORM-CODE-CONTRACT.md`
 
-- [ ] reference settlement evidence after D3 closes;
+- [x] reference settlement evidence after D3 closes;
 - [ ] reference API boundary after D4 closes;
 - [ ] keep source-domain integrations application-service-only.
 
