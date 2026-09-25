@@ -429,6 +429,30 @@ PurchaseOrder and Payment financial state are separate. \`purchase_orders.paymen
 
 DeliveryOrder is fulfillment, not customer-payment authority.
 
+## 14.2 API boundary invariant
+
+D4 is CLOSED and authoritative:
+
+~~~text
+docs/payments/PAYMENT-API-BOUNDARY-DECISION.md
+~~~
+
+The Payment Platform is an internal application service in the current MVP, not a public CRUD resource.
+
+~~~text
+source-domain HTTP action
+-> source-domain authorization/business rules
+-> Payment application service
+~~~
+
+There is no canonical generic public endpoint that accepts client-supplied amount, processor, gateway, status or arbitrary business references.
+
+PAID can only be reached through D3 settlement evidence.
+
+Generic client confirm/cancel/refund Payment routes are not part of the target architecture.
+
+Provider webhooks/server notifications are separate provider-authenticated Phase 6 boundaries, not user-facing Payment APIs.
+
 ## 15. Legacy payment code policy
 
 Existing generic payment files are legacy/experimental until reconciled with this foundation:
