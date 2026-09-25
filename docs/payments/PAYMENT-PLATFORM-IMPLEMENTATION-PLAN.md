@@ -1128,6 +1128,37 @@ The PR can only leave draft when:
 
 ---
 
+# 4.1 Documentation closure track
+
+The remaining pre-integration documentation decisions for Tow + Store are tracked in:
+
+```text
+docs/payments/PAYMENT-DOCUMENTATION-CLOSURE-CHECKLIST.md
+```
+
+Mandatory closure order:
+
+```text
+D1 — Tow CASH Migration Contract
+D2 — Store Financial Authority Contract
+D3 — Settlement Evidence Contract
+D4 — Payment API Boundary Decision
+```
+
+These decisions are intentionally separated from provider-specific work.
+
+D1 blocks Phase 3.
+
+D2 blocks Phase 4.
+
+D3 defines the semantic PAID boundary used by Phase 2 hardening and later integrations.
+
+D4 must close before introducing any new public generic Payment HTTP surface.
+
+The checklist also records which older Foundation/Plan/Code Contract passages must be reconciled after each decision closes.
+
+---
+
 # 5. Phase dependency graph
 
 ```text
