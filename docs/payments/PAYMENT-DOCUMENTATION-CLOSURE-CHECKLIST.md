@@ -720,10 +720,10 @@ Before declaring the preparation package closed, reconcile:
 
 ## `PAYMENT-PLATFORM-FOUNDATION.md`
 
-- [ ] update implementation sequence that still groups provider events/refunds with early persistence work;
-- [ ] make the Phase 1 minimal-table strategy explicit;
-- [ ] reflect no legacy payment-data preservation requirement;
-- [ ] preserve the non-negotiable invariants.
+- [x] update implementation sequence that still groups provider events/refunds with early persistence work;
+- [x] make the Phase 1 minimal-table strategy explicit;
+- [x] reflect no legacy payment-data preservation requirement;
+- [x] preserve the non-negotiable invariants.
 
 ## `PAYMENT-PLATFORM-IMPLEMENTATION-PLAN.md`
 
@@ -736,7 +736,7 @@ Before declaring the preparation package closed, reconcile:
 
 - [x] reference settlement evidence after D3 closes;
 - [x] reference API boundary after D4 closes;
-- [ ] keep source-domain integrations application-service-only.
+- [x] keep source-domain integrations application-service-only.
 
 ---
 
