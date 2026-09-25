@@ -708,7 +708,10 @@ const SCHEMA = [
     partner_type VARCHAR(50) NOT NULL,
     enabled INTEGER NOT NULL DEFAULT 1,
     name VARCHAR(150),
-    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+    -- Mirror of migration 011: the DB default is SOON, so a row inserted
+    -- without an explicit status fails closed (never implicitly launched).
+    -- SQLite cannot ALTER a column default, hence the DDL mirror.
+    status VARCHAR(20) NOT NULL DEFAULT 'SOON',
     sort_order INTEGER NOT NULL DEFAULT 0,
     disabled_reason TEXT,
     updated_by INTEGER,
