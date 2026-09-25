@@ -9,9 +9,11 @@ describe('apiKeys', () => {
 
   it('resolves the key from REACT_APP_GOOGLE_MAPS_API_KEY and is empty otherwise', () => {
     expect(
-      resolveGoogleMapsApiKey({ REACT_APP_GOOGLE_MAPS_API_KEY: 'test-maps-key' } as NodeJS.ProcessEnv)
+      resolveGoogleMapsApiKey(
+        { REACT_APP_GOOGLE_MAPS_API_KEY: 'test-maps-key' } as unknown as NodeJS.ProcessEnv
+      )
     ).toBe('test-maps-key');
-    expect(resolveGoogleMapsApiKey({} as NodeJS.ProcessEnv)).toBe('');
+    expect(resolveGoogleMapsApiKey({} as unknown as NodeJS.ProcessEnv)).toBe('');
   });
 
   it('contains no Google API key literal in source', () => {
