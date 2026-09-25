@@ -599,64 +599,94 @@ See `PHASE-2-APPLICATION-CORE-PLAN.md` for the complete ordered checklist and ac
 
 # PHASE 3 — Migrate Tow CASH to the Shared Payment Core
 
-## Objective
+## Decision contract
 
-Use the existing validated Tow CASH flow as the first real consumer of the shared Payment Platform.
+D1 is CLOSED.
 
-This is deliberately the first integration because it exercises the common financial core without adding PSP uncertainty.
-
-## Behavior that MUST remain true
+Canonical implementation authority:
 
 ```text
-customer selects CASH when creating Tow request
-        ↓
-no payment row before assignment
-        ↓
-proposal accepted
-        ↓
-assignment created
-        ↓
-assignment final price is frozen
-        ↓
-Payment obligation materializes from that frozen price
-        ↓
-service completes
-        ↓
-assigned partner confirms cash received
-        ↓
-Payment becomes financially paid/received
+docs/payments/PHASE-3-TOW-CASH-MIGRATION-CONTRACT.md
 ```
 
-There must be no second first-party payment-method choice after proposal acceptance.
+Phase 3 must implement that contract without reopening its decisions unless a concrete code contradiction or new product requirement is found.
 
-The compatibility payment-method endpoint may remain for historical/recovery flows but cannot become the primary flow.
+## Frozen integration
 
-## Migration rule
+```text
+Payment identity  = TOW_SERVICE:<assignment_id>
+payer             = Tow customer
+commerce_type     = REAL_WORLD_SERVICE
+sales_channel     = frozen TowRequest.sales_channel
+amount_cents      = TowAssignment.final_price_amount_cents
+currency          = TowAssignment.final_price_currency
+method            = CASH
+processor         = INTERNAL_CASH
+initial status    = PENDING
+PaymentAttempt    = none
+```
 
-The workhorse must explicitly determine whether existing `tow_payments`:
+Proposal acceptance, assignment creation and Payment creation must commit in the same database transaction.
 
-- becomes the canonical `payments` storage through data migration;
-- becomes a compatibility projection;
-- is dual-read/dual-written temporarily;
-- is removed only after verified migration.
+The shared Payment application service must support transaction-bound creation; Tow must not import Payment persistence adapters.
 
-Silent duplication of both as competing financial authorities is forbidden.
+## Cash receipt
 
-## Tests
+```text
+Tow COMPLETED
++ assigned partner confirmation
++ INTERNAL_CASH_CONFIRMATION
+→ Payment PAID
+```
 
-Preserve existing Tow MVP payment tests and add shared-platform tests proving:
+Evidence identity:
 
-- exact assignment final-price amount;
-- no client-supplied amount;
-- one financial obligation;
-- retry safety;
-- concurrent accept does not duplicate payment;
-- cash receipt is idempotent;
-- payment state remains separate from Tow operational state.
+```text
+tow-cash-receipt:<assignment_id>:v1
+```
+
+Replay must preserve the original paid_at.
+
+## Greenfield retirement rule
+
+```text
+NO BACKFILL
+NO DATA COPY
+NO FINAL DUAL-WRITE
+NO PERMANENT DUAL-READ
+NO HISTORICAL ID PRESERVATION
+```
+
+The legacy post-assignment payment-method endpoint is removed in Phase 3.
+
+tow_payments is dropped after all runtime reads/writes have moved to canonical Payment and regressions are green.
+
+A missing Payment after an assignment exists is an integrity failure, not a lazy-create compatibility case.
+
+## Additional Tow requirement
+
+Phase 3 persists an immutable TowRequest.sales_channel using the canonical channel vocabulary:
+
+```text
+IOS_APP
+ANDROID_APP
+WEB
+```
+
+Do not hard-code Android or infer channel from User-Agent.
 
 ## Exit gate
 
-All existing Tow CASH behavior passes while the canonical financial authority is the shared Payment Platform or a documented transition layer with exactly one authority.
+Phase 3 is complete only when:
+
+- all tests required by the D1 contract are green;
+- the assignment + Payment atomicity is proven on PostgreSQL;
+- CASH creates no PaymentAttempt;
+- Tow PaymentSummary reads from canonical Payment;
+- cash receipt settles canonical Payment idempotently;
+- no production runtime consumer reads/writes tow_payments;
+- tow_payments and the compatibility selection path are removed;
+- complete Tow regressions remain green.
 
 ---
 
