@@ -206,30 +206,84 @@ Phase 0 is complete only when:
 
 ## Objective
 
-Define and implement durable persistence for the shared Payment Platform.
+Implement the smallest durable persistence contract required by the shared Payment Platform.
+
+This phase is now treated as **greenfield financial persistence**.
+
+Project-stage assumption:
+
+```text
+REAL_USERS = NONE
+AUTHORITATIVE_PRODUCTION_PAYMENT_HISTORY = NONE
+LEGACY_PAYMENT_DATA_RETENTION_REQUIRED = NO
+LEGACY_PAYMENT_API_COMPATIBILITY_REQUIRED = NO
+```
+
+This permission applies to payment/financial legacy only. It does not authorize deleting unrelated Tow, Store, user, partner or order-domain data.
 
 Do not wire Stripe/IAP yet.
 
-## Target core entities
+## Revised strategy
 
-Minimum target:
+The absence of real payment history removes the need for:
+
+- legacy financial backfill;
+- decimal-to-cents conversion of historical rows;
+- dual-write;
+- dual-read;
+- a payment compatibility window;
+- preserving legacy payment IDs;
+- preserving old mock gateway state.
+
+However, deleting the legacy stack **before it blocks us** would make Phase 1 slower because the legacy `payments` table is referenced by wallet, commission, dispute and subscription-history structures.
+
+Therefore Phase 1 uses the lowest-blast-radius strategy:
 
 ```text
-payments
-payment_attempts
-payment_provider_events
-refunds
+create clean canonical persistence
+        ↓
+do not write legacy from new code
+        ↓
+migrate Tow in Phase 3
+        ↓
+migrate Store in Phase 4
+        ↓
+delete legacy financial stack immediately after the last consumer moves
 ```
 
-Possible support tables may be added only if justified by idempotency, audit or outbox/reconciliation requirements.
+There is no backfill and no synchronization between the two architectures.
 
-Settlement tables are NOT part of this phase.
+Legacy is temporary dead-end compatibility, not a migration source.
 
-## Payment persistence requirements
+## Physical tables in Phase 1
 
-The canonical payment record must be able to represent:
+Implement exactly the persistence needed by the application core:
 
 ```text
+payment_obligations
+payment_attempts
+```
+
+Do **not** create speculative tables early.
+
+Moved to later phases:
+
+```text
+payment_provider_events -> Phase 6
+refunds                 -> Phase 8
+settlement tables       -> after Decision Gate S1
+```
+
+The domain entity remains named `Payment`. `payment_obligations` is the physical table name used to avoid coupling Phase 1 to the active legacy `payments` table.
+
+This name may remain permanently; a cosmetic rename is not a release requirement.
+
+## Canonical `payment_obligations`
+
+Minimum persisted fields:
+
+```text
+id
 business_key
 context_type
 context_id
@@ -242,58 +296,228 @@ method
 processor
 status
 idempotency_key
+idempotency_fingerprint
 paid_at
 cancelled_at
 expires_at
-timestamps
+created_at
+updated_at
 ```
 
-Exact database types are implementation details, except:
+### Rules
 
-- money must preserve exact integer cents;
-- externally visible identifiers must not rely on float conversion;
-- uniqueness/idempotency must be enforced durably.
+- `amount_cents` is an exact integer and MUST be greater than zero;
+- formatted/decimal money is never persisted as the canonical amount;
+- the originating business domain supplies the frozen amount;
+- `processor` must match the central routing vocabulary;
+- `status` must use the canonical Payment vocabulary;
+- no generic JSON field may become an alternate monetary or status authority;
+- payment rows are not physically deleted by normal runtime operations.
 
-## Expected durable constraints
+## Canonical `payment_attempts`
 
-At minimum investigate and implement the appropriate equivalents of:
+Minimum persisted fields:
 
 ```text
-UNIQUE(business_key)
-UNIQUE(idempotency_key)
-UNIQUE(payment_id, attempt_number)
-UNIQUE(processor, external_transaction_id) WHERE meaningful
-UNIQUE(processor, external_event_id)
+id
+payment_id
+attempt_number
+processor
+status
+provider_idempotency_key
+external_transaction_id
+failure_code
+failure_message
+created_at
+updated_at
 ```
 
-Do not add a uniqueness constraint blindly if the audit proves an existing business flow legitimately requires more than one obligation per source context. In that case, refine the business key rather than weakening idempotency.
+A PaymentAttempt represents one execution attempt against a payment rail.
 
-## Migration requirements
+It must not own or recalculate the business amount.
 
-Migrations must:
+## Durable constraints
 
-- be deterministic;
-- be reversible when technically reasonable;
-- not destroy existing Tow CASH data;
-- not silently coerce decimal legacy values into cents without a documented conversion strategy;
-- support existing production/historical rows;
-- include PostgreSQL validation.
+Phase 1 must enforce in PostgreSQL, at minimum:
 
-## Tests
+```text
+UNIQUE(payment_obligations.business_key)
+
+UNIQUE(
+  payment_obligations.payer_id,
+  payment_obligations.idempotency_key
+)
+
+UNIQUE(
+  payment_attempts.payment_id,
+  payment_attempts.attempt_number
+)
+
+UNIQUE(
+  payment_attempts.processor,
+  payment_attempts.provider_idempotency_key
+)
+
+UNIQUE(
+  payment_attempts.processor,
+  payment_attempts.external_transaction_id
+)
+WHERE external_transaction_id IS NOT NULL
+```
+
+Also enforce:
+
+- `amount_cents > 0`;
+- valid currency shape;
+- canonical enum/check vocabularies;
+- `attempt_number > 0`;
+- FK from attempt to Payment;
+- timestamp/status coherence where it can be expressed without making future processors impossible.
+
+## Idempotency contract
+
+`business_key` answers:
+
+```text
+Which business obligation is this?
+```
+
+Examples:
+
+```text
+TOW_SERVICE:<assignment-id>
+STORE_ORDER:<purchase-order-id>
+PREMIUM_SUBSCRIPTION:<billing-cycle-id>
+```
+
+`idempotency_key` answers:
+
+```text
+Is this the same create command being replayed?
+```
+
+`idempotency_fingerprint` allows Phase 2 to distinguish:
+
+```text
+same key + same command      -> replay existing Payment
+same key + different command -> idempotency_conflict
+```
+
+Do not weaken DB uniqueness to make retries easier.
+
+## Migration policy
+
+Use a new forward migration after the current migration head.
+
+Do not rewrite historical migrations merely because payment data is disposable.
+
+Phase 1 migration is additive and contains **no payment-data migration**.
+
+The reason is operational safety, not historical preservation: a forward migration keeps local/test/staging databases deterministic and avoids requiring a full database reset for unrelated domains.
+
+Legacy payment tables may be dropped later without retaining their rows.
+
+## Repository layer
+
+Implement persistence adapters under the shared Payments module.
+
+Minimum Payment repository capabilities:
+
+```text
+create
+findById
+findByBusinessKey
+findByIdempotencyKey
+guarded status transition
+withTransaction
+classify uniqueness conflict
+```
+
+Minimum PaymentAttempt repository capabilities:
+
+```text
+create
+findById
+findByPaymentAndAttempt
+attach external transaction id
+guarded status transition
+withTransaction
+classify uniqueness conflict
+```
+
+Repositories must not:
+
+- calculate prices;
+- choose a processor;
+- call a PSP;
+- mutate source-domain records;
+- parse formatted money.
+
+## Legacy policy during Phase 1
+
+No new code may depend on:
+
+```text
+src/services/paymentService.js
+src/routes/payments.js
+src/services/gateways/*
+src/models/Payment.js
+legacy payments table
+legacy wallet/commission payment coupling
+```
+
+Existing legacy code may remain temporarily mounted while this branch is being built, but it is frozen:
+
+```text
+NO NEW FEATURES
+NO NEW CONSUMERS
+NO NEW SCHEMA COUPLING
+NO BACKFILL
+NO DUAL-WRITE
+```
+
+Because there are no real users, once the last current consumer is replaced the old path can be deleted immediately. No compatibility window is required.
+
+## Required tests
+
+Use real PostgreSQL for persistence/concurrency evidence.
 
 Required:
 
 - migration up/down or repository migration convention equivalent;
-- unique-key enforcement;
-- duplicate idempotency attempt;
-- invalid money values;
-- processor/external event duplicate;
-- foreign-key behavior;
-- concurrency test for duplicate creation.
+- create/read canonical Payment;
+- create/read PaymentAttempt;
+- reject zero/negative/non-integer canonical money;
+- business-key uniqueness;
+- payer-scoped idempotency-key uniqueness;
+- duplicate attempt-number rejection;
+- duplicate provider-idempotency-key rejection;
+- duplicate external transaction rejection;
+- FK behavior;
+- guarded status transition;
+- concurrent duplicate Payment creation;
+- concurrent duplicate attempt creation;
+- transaction rollback leaves no partial financial write.
+
+Do not spend Phase 1 test effort on Stripe, webhooks, refunds, IAP or settlement.
 
 ## Exit gate
 
-Phase 1 is complete when PostgreSQL itself prevents the primary duplicate-payment classes that matter to the current model.
+Phase 1 is complete when all of the following are true:
+
+```text
+1. PostgreSQL contains a clean canonical Payment persistence model.
+2. Payment and PaymentAttempt repositories are implemented.
+3. Duplicate business obligations cannot be created concurrently.
+4. Duplicate processor attempts cannot be created concurrently.
+5. Canonical money is integer cents only.
+6. No data was migrated from legacy payments.
+7. No new runtime code depends on legacy payment infrastructure.
+8. Tow still behaves exactly as before; its migration has not started.
+9. No PSP is wired yet.
+```
+
+The next step is Phase 2 application orchestration over this persistence.
 
 ---
 
@@ -952,15 +1176,17 @@ The next implementation task is **Phase 1 — Canonical Persistence Contract**.
 
 Phase 0 is closed by `docs/payments/PAYMENT-CURRENT-STATE-AUDIT.md` and commit `feed5da5486d025b98d0b825263d2b7b6740ee5c`.
 
-Phase 1 must follow the audit constraints:
+Phase 1 now follows the greenfield financial policy established after the Phase 0 audit:
 
-- introduce canonical persistence additively;
-- do not repurpose the active legacy `payments` table in place;
-- use `payment_obligations` as the default physical table name for the canonical `Payment` entity unless implementation evidence forces an explicit revision;
-- use exact integer cents;
-- add durable business/idempotency uniqueness;
-- keep `tow_payments` untouched until Phase 3;
+- no legacy payment-data backfill;
+- no dual-write or dual-read;
+- no legacy payment compatibility requirement;
+- create only `payment_obligations` and `payment_attempts`;
+- defer provider-event persistence to Phase 6;
+- defer refund persistence to Phase 8;
+- keep `tow_payments` behavior untouched until Phase 3;
 - do not connect Store until Phase 4 establishes backend-frozen order cents;
-- do not implement wallet/commission/Stripe Connect settlement before Gate S1.
+- do not implement wallet/commission/Stripe Connect settlement before Gate S1;
+- delete the legacy financial stack as soon as its last consumer has migrated rather than preserving a compatibility window.
 
 Phase 1 should produce schema, repositories and PostgreSQL/concurrency evidence only for the shared financial core. It must not wire real PSPs yet.
