@@ -372,6 +372,31 @@ The legacy post-assignment PUT payment-method path is removed in Phase 3 because
 
 There is no Tow payment backfill, no final dual-write and no permanent compatibility authority. tow_payments is removed after canonical integration is proven.
 
+## 14.1 Store financial-authority invariant
+
+The Store integration follows the CLOSED D2 contract:
+
+\`\`\`text
+docs/payments/PHASE-4-STORE-FINANCIAL-AUTHORITY-CONTRACT.md
+\`\`\`
+
+Frozen direction:
+
+\`\`\`text
+client commercial intent
+→ backend loads trusted catalog/store state
+→ backend calculates integer cents
+→ immutable PurchaseOrder + PurchaseOrderItems snapshot
+→ canonical Payment STORE_ORDER:<purchase_order_id>
+→ Payment.amount_cents = PurchaseOrder.total_cents
+\`\`\`
+
+The client may submit \`expected_total_cents\` only as a consent/concurrency guard; a mismatch aborts checkout and requires reconfirmation.
+
+PurchaseOrder and Payment financial state are separate. \`purchase_orders.payment_status\`, \`paid_at\`, client-supplied totals and \`status=refunded\` are not canonical financial authorities.
+
+DeliveryOrder is fulfillment, not customer-payment authority.
+
 ## 15. Legacy payment code policy
 
 Existing generic payment files are legacy/experimental until reconciled with this foundation:
