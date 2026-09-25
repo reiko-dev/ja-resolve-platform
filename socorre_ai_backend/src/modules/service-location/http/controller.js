@@ -44,6 +44,19 @@ function optionalSessionToken(value) {
   return requireSessionToken(value);
 }
 
+/** Optional per-call language override; the adapter owns the provider default. */
+function optionalLanguageCode(value) {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value !== 'string') {
+    throw validationError('language_code must be a string', { field: 'language_code' });
+  }
+  const trimmed = value.trim();
+  if (trimmed.length < 2 || trimmed.length > 35) {
+    throw validationError('language_code must be 2..35 characters', { field: 'language_code' });
+  }
+  return trimmed;
+}
+
 function requireCoordinate(value, field, min, max) {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max) {
     throw validationError(`${field} must be a finite number between ${min} and ${max}`, { field });
@@ -109,8 +122,13 @@ function createServiceLocationController({ placeSearchService, locationResolutio
       throw validationError('placeId is required', { field: 'placeId' });
     }
     const sessionToken = optionalSessionToken(req.query.session_token);
+    const languageCode = optionalLanguageCode(req.query.language_code);
 
-    const location = await locationResolutionService.resolveExplicitPlace({ placeId, sessionToken });
+    const location = await locationResolutionService.resolveExplicitPlace({
+      placeId,
+      sessionToken,
+      languageCode,
+    });
 
     res.json({ success: true, data: serializePlaceDetails(location) });
   });

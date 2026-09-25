@@ -382,6 +382,9 @@ describe('SERVICE LOCATION UNIT — Google Places (New) adapter', () => {
         { latitude: 'x', longitude: 'y' },
         { latitude: 91, longitude: 0 },
         { latitude: -9.97 },
+        // The (0,0) sentinel is a PROVIDER defect, never a client validation
+        // error: an explicit selection cannot be finalized there.
+        { latitude: 0, longitude: 0 },
       ]) {
         const { adapter, httpClient } = createAdapter({
           httpClient: createStubHttpClient({
@@ -396,6 +399,44 @@ describe('SERVICE LOCATION UNIT — Google Places (New) adapter', () => {
         expect(error.reason).toBe('malformed_response');
         expect(httpClient.getCalls).toHaveLength(1);
       }
+    });
+
+    test('oversized provider text is truncated to the presentation ceiling, never fatal', async () => {
+      const longName = 'N'.repeat(900);
+      const longAddress = 'A'.repeat(900);
+      const { adapter } = createAdapter({
+        httpClient: createStubHttpClient({
+          get: {
+            status: 200,
+            data: {
+              id: PLACE_ID,
+              displayName: { text: longName },
+              formattedAddress: longAddress,
+              location: { latitude: -9.97, longitude: -67.8 },
+            },
+          },
+        }),
+      });
+
+      const place = await adapter.getPlace({ placeId: PLACE_ID });
+      expect(place.placeName).toHaveLength(500);
+      expect(place.formattedAddress).toHaveLength(500);
+    });
+
+    test('getPlace forwards an explicit languageCode and rejects an invalid one', async () => {
+      const { adapter, httpClient } = createAdapter();
+      await adapter.getPlace({ placeId: PLACE_ID, languageCode: 'en' });
+      expect(httpClient.getCalls[0].config.params.languageCode).toBe('en');
+
+      // An empty value is "absent", exactly like the session token.
+      await adapter.getPlace({ placeId: PLACE_ID, languageCode: '' });
+      expect(httpClient.getCalls[1].config.params.languageCode).toBe('pt-BR');
+
+      for (const languageCode of [42, 'x', 'x'.repeat(36)]) {
+        const error = await captureError(adapter.getPlace({ placeId: PLACE_ID, languageCode }));
+        expect(error.reason).toBe('invalid_request');
+      }
+      expect(httpClient.getCalls).toHaveLength(2);
     });
   });
 

@@ -187,6 +187,31 @@ describe('SERVICE LOCATION — HTTP proxy', () => {
       expect(places.getPlace).not.toHaveBeenCalled();
     });
 
+    test('forwards an optional language_code and rejects an invalid one', async () => {
+      places.getPlace.mockResolvedValue({
+        placeId: 'ChIJabc',
+        placeName: 'Contax',
+        formattedAddress: null,
+        latitude: -9.974,
+        longitude: -67.807,
+      });
+
+      const forwarded = await request(app)
+        .get(detailsPath('ChIJabc'))
+        .query({ language_code: 'en' })
+        .set(auth.headers);
+      expect(forwarded.status).toBe(200);
+      expect(places.getPlace).toHaveBeenCalledWith(expect.objectContaining({ languageCode: 'en' }));
+
+      places.getPlace.mockClear();
+      const invalid = await request(app)
+        .get(detailsPath('ChIJabc'))
+        .query({ language_code: 'x' })
+        .set(auth.headers);
+      expect(invalid.status).toBe(422);
+      expect(places.getPlace).not.toHaveBeenCalled();
+    });
+
     test('a provider outage is 503 and blocks the selection', async () => {
       places.getPlace.mockRejectedValue(new PlacesProviderError('network_failure', 'safe'));
 
@@ -237,10 +262,31 @@ describe('SERVICE LOCATION — HTTP proxy', () => {
         await new Promise((resolve) => { limited.closeAllConnections?.(); limited.close(resolve); });
       }
     });
+
+    test('the quota is keyed by user, not by IP', async () => {
+      places.searchPredictions.mockResolvedValue({ predictions: [] });
+      const limited = createApp({
+        serviceLocation: { placesProvider: places, rateLimit: { windowMs: 60_000, max: 2 } },
+      }).listen(0);
+      const otherUser = await createTowCustomerAuth();
+
+      try {
+        const body = { input: 'contax', session_token: TOKEN };
+        await request(limited).post(AUTOCOMPLETE).set(auth.headers).send(body);
+        await request(limited).post(AUTOCOMPLETE).set(auth.headers).send(body);
+        const exhausted = await request(limited).post(AUTOCOMPLETE).set(auth.headers).send(body);
+        const isolated = await request(limited).post(AUTOCOMPLETE).set(otherUser.headers).send(body);
+
+        expect(exhausted.status).toBe(429);
+        expect(isolated.status).toBe(200);
+      } finally {
+        await new Promise((resolve) => { limited.closeAllConnections?.(); limited.close(resolve); });
+      }
+    });
   });
 
   describe('access log hygiene', () => {
-    test('the session token is redacted from every logged URL', () => {
+    test('the session token is redacted from every rendered URL', () => {
       expect(redactSessionToken(`/api/locations/places/ChIJabc?session_token=${TOKEN}`))
         .toBe('/api/locations/places/ChIJabc?session_token=REDACTED');
       expect(redactSessionToken(`/x?session_token=${TOKEN}&language_code=pt-BR`))
@@ -249,6 +295,42 @@ describe('SERVICE LOCATION — HTTP proxy', () => {
         .toBe('/x?a=1&session_token=REDACTED');
       expect(redactSessionToken('/api/tow/requests')).toBe('/api/tow/requests');
       expect(redactSessionToken(undefined)).toBeUndefined();
+    });
+
+    test('morgan itself never writes the token to the access log', async () => {
+      places.getPlace.mockResolvedValue({
+        placeId: 'ChIJabc',
+        placeName: 'Contax',
+        formattedAddress: null,
+        latitude: -9.974,
+        longitude: -67.807,
+      });
+
+      const chunks = [];
+      const spy = jest.spyOn(process.stdout, 'write').mockImplementation((chunk) => {
+        chunks.push(String(chunk));
+        return true;
+      });
+
+      // The app must be built AFTER the spy: morgan captures its stream when
+      // the middleware is created.
+      const logged = createApp({
+        serviceLocation: { placesProvider: places, rateLimit: false },
+      }).listen(0);
+
+      try {
+        await request(logged)
+          .get(detailsPath('ChIJabc'))
+          .query({ session_token: TOKEN })
+          .set(auth.headers);
+      } finally {
+        await new Promise((resolve) => { logged.closeAllConnections?.(); logged.close(resolve); });
+        spy.mockRestore();
+      }
+
+      const output = chunks.join('');
+      expect(output).not.toContain(TOKEN);
+      expect(output).toContain('session_token=REDACTED');
     });
   });
 });

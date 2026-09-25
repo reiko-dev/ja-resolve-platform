@@ -117,6 +117,24 @@ describe('SERVICE LOCATION — LocationResolutionService', () => {
     });
   });
 
+  test('forwards an explicit language override to the provider', async () => {
+    const getPlace = jest.fn(async () => ({
+      placeId: 'ChIJabc',
+      placeName: 'Contax',
+      formattedAddress: null,
+      ...POINT,
+    }));
+    const service = createLocationResolutionService({ placeDetails: { getPlace } });
+
+    await service.resolveExplicitPlace({ placeId: 'ChIJabc', languageCode: 'en' });
+
+    expect(getPlace).toHaveBeenCalledWith({
+      placeId: 'ChIJabc',
+      sessionToken: undefined,
+      languageCode: 'en',
+    });
+  });
+
   test('a failed Details call fails the selection (no authoritative coordinate)', async () => {
     const service = createLocationResolutionService({
       placeDetails: {

@@ -8,7 +8,7 @@
  * @property {(params: { input: string, sessionToken?: string, locationBias?: { latitude: number, longitude: number, radius_meters?: number } }) => Promise<{ predictions: Array<{ placeId: string, primaryText: string, secondaryText: string|null }> }>} searchPredictions
  *
  * @typedef {Object} PlaceDetails
- * @property {(params: { placeId: string, sessionToken?: string }) => Promise<{ placeId: string, placeName: string|null, formattedAddress: string|null, latitude: number, longitude: number }>} getPlace
+ * @property {(params: { placeId: string, sessionToken?: string, languageCode?: string }) => Promise<{ placeId: string, placeName: string|null, formattedAddress: string|null, latitude: number, longitude: number }>} getPlace
  *
  * @typedef {Object} Geocoding
  * @property {(point: { latitude: number, longitude: number }) => Promise<{ formattedAddress: string|null }>} reverse

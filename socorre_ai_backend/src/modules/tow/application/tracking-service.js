@@ -180,6 +180,17 @@ function createTrackingService({
       longitude: Number(request.destination.longitude),
       formatted_address: request.destination.formatted_address ?? null,
     };
+    // SERVICE LOCATION — the persisted place identity travels WITH the
+    // ephemeral name: place_id is durable identity (indefinitely storable), and
+    // without it the clients' identity invariant drops the name (a place name
+    // is never presented without its place id). Omitted for generic points and
+    // historical rows, preserving the legacy response exactly.
+    if (request.pickup.place_id !== null && request.pickup.place_id !== undefined) {
+      pickup.place_id = request.pickup.place_id;
+    }
+    if (request.destination.place_id !== null && request.destination.place_id !== undefined) {
+      destination.place_id = request.destination.place_id;
+    }
 
     // SERVICE LOCATION — tracking is a DETAILED read: when a point carries a
     // persisted `place_id`, the ephemeral `place_name` is attached best-effort.
