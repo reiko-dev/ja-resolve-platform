@@ -776,6 +776,11 @@ const SCHEMA = [
   // TOW ROUND appends the commercial `payment_method` column and its CHECK
   // (mirrors database/migrations/008_tow_request_payment_method.js). It stays
   // nullable for historical rows; new rows are always `CASH`.
+  //
+  // SERVICE LOCATION appends the two additive place-id columns (mirrors
+  // database/migrations/012_tow_request_place_id.js). There is NO `place_name`
+  // column on purpose: a place name is response-only and never persisted (ADR
+  // §3).
   `CREATE TABLE IF NOT EXISTS tow_requests (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     customer_id INTEGER NOT NULL,
@@ -784,9 +789,11 @@ const SCHEMA = [
     pickup_latitude DECIMAL(10, 8) NOT NULL,
     pickup_longitude DECIMAL(11, 8) NOT NULL,
     pickup_formatted_address VARCHAR(500),
+    pickup_place_id TEXT,
     destination_latitude DECIMAL(10, 8) NOT NULL,
     destination_longitude DECIMAL(11, 8) NOT NULL,
     destination_formatted_address VARCHAR(500),
+    destination_place_id TEXT,
     vehicle_class VARCHAR(30) NOT NULL,
     vehicle_make VARCHAR(100) NOT NULL,
     vehicle_model VARCHAR(100) NOT NULL,

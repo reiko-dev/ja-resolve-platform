@@ -656,7 +656,7 @@ describe('T01 SAFETY — baseline eligibility is centralized', () => {
  * ------------------------------------------------------------------------- */
 
 describe('T01 SAFETY — the migration scope is pinned (no silent drift)', () => {
-  test('the exact pinned migration list is 001-011', () => {
+  test('the exact pinned migration list is 001-012', () => {
     expect(PINNED_MIGRATIONS).toEqual([
       '001_baseline_schema.js',
       '002_baseline_settings.js',
@@ -669,6 +669,7 @@ describe('T01 SAFETY — the migration scope is pinned (no silent drift)', () =>
       '009_service_catalog_status.js',
       '010_platform_service_catalog.js',
       '011_service_catalog_launch_policy.js',
+      '012_tow_request_place_id.js',
     ]);
   });
 
