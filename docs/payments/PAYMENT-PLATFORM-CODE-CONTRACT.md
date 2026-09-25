@@ -247,6 +247,30 @@ commerce_type = PHYSICAL_GOOD
 
 Store controllers/application code must not directly mutate Payment status or import Payment persistence adapters.
 
+## 9.2 HTTP/API boundary
+
+Canonical authority:
+
+```text
+docs/payments/PAYMENT-API-BOUNDARY-DECISION.md
+```
+
+Current MVP rules:
+
+```text
+generic public create Payment  = forbidden
+generic client confirm PAID    = forbidden
+generic client cancel Payment  = forbidden
+generic client refund Payment  = forbidden
+generic Payment CRUD/list      = not part of target API
+```
+
+Owning source-domain endpoints perform authorization/business validation and then invoke the Payment application service.
+
+Controllers must not import Payment repositories or mutate financial status directly.
+
+A provider-safe `payment_action` may later be projected by an authorized source-domain flow, but creating a token/QR/client secret never marks Payment PAID.
+
 ## 10. What the workhorse should implement next
 
 After this baseline:
