@@ -143,6 +143,36 @@ Attempt terminal states never transition.
 
 A failed attempt does not imply the business obligation disappeared.
 
+## 6.1 Settlement evidence / PAID contract
+
+Canonical authority:
+
+```text
+docs/payments/PAYMENT-SETTLEMENT-EVIDENCE-CONTRACT.md
+```
+
+The application integration surface must use:
+
+```text
+markPaymentPaid({ payment_id, evidence })
+```
+
+not arbitrary external `transitionPayment(..., PAID)`.
+
+Accepted evidence types:
+
+```text
+INTERNAL_CASH_CONFIRMATION
+PROCESSOR_PAYMENT_CONFIRMATION
+STORE_BILLING_VERIFICATION
+```
+
+Accepted evidence is persisted immutably on the Payment with durable uniqueness of `(settlement_evidence_type, settlement_evidence_id)`.
+
+A SUCCEEDED PaymentAttempt is necessary for processor-attempt settlement but is not sufficient by itself; the trusted adapter/orchestration must establish final collection/capture.
+
+Client timestamps, callbacks, QR generation, token creation and unverified receipts cannot mark Payment PAID.
+
 ## 7. Cash
 
 `INTERNAL_CASH` does not create an external PaymentAttempt.
