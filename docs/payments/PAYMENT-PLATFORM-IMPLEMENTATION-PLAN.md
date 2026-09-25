@@ -1250,9 +1250,32 @@ D2 blocks Phase 4.
 
 D3 defines the semantic PAID boundary used by Phase 2 hardening and later integrations.
 
-D4 must close before introducing any new public generic Payment HTTP surface.
+D4 is CLOSED. Any Payment HTTP surface must follow `docs/payments/PAYMENT-API-BOUNDARY-DECISION.md`; the current MVP has no generic public Payment CRUD.
 
 The checklist also records which older Foundation/Plan/Code Contract passages must be reconciled after each decision closes.
+
+---
+
+## Documentation preparation status
+
+The core Payments preparation package is CLOSED:
+
+```text
+D1 — Tow CASH Migration Contract      DONE
+D2 — Store Financial Authority        DONE
+D3 — Settlement Evidence              DONE
+D4 — Payment API Boundary             DONE
+```
+
+Canonical API-boundary authority:
+
+```text
+docs/payments/PAYMENT-API-BOUNDARY-DECISION.md
+```
+
+No additional generic architecture decision is required before finishing Phase 1/2 and then implementing Tow Phase 3 and Store Phase 4.
+
+Later Stripe, provider-event, IAP, refund and settlement documents remain phase-specific and intentionally deferred.
 
 ---
 
