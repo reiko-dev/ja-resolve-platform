@@ -916,7 +916,7 @@ This table is the canonical progress summary for this PR.
 | Stage | Status | Evidence / Commit |
 |---|---|---|
 | Foundation architecture | DONE | `28e6ce78d38153757577d0e7940604213970bf45` |
-| Phase 0 — Current-state audit | TODO | — |
+| Phase 0 — Current-state audit | DONE | `feed5da5486d025b98d0b825263d2b7b6740ee5c` / `PAYMENT-CURRENT-STATE-AUDIT.md` |
 | Phase 1 — Canonical persistence | TODO | — |
 | Phase 2 — Application core | TODO | — |
 | Phase 3 — Tow CASH migration | TODO | — |
@@ -948,8 +948,19 @@ Every phase-closing commit should update this ledger.
 
 # 7. Immediate next action
 
-The next implementation task is **Phase 0 — Current-State Persistence and Contract Audit**.
+The next implementation task is **Phase 1 — Canonical Persistence Contract**.
 
-Do not begin schema implementation until that audit is committed.
+Phase 0 is closed by `docs/payments/PAYMENT-CURRENT-STATE-AUDIT.md` and commit `feed5da5486d025b98d0b825263d2b7b6740ee5c`.
 
-The Phase 0 report must be factual and read-only. Its purpose is to ensure that Phase 1 migrations are designed from the real production-compatible schema rather than from the desired architecture alone.
+Phase 1 must follow the audit constraints:
+
+- introduce canonical persistence additively;
+- do not repurpose the active legacy `payments` table in place;
+- use `payment_obligations` as the default physical table name for the canonical `Payment` entity unless implementation evidence forces an explicit revision;
+- use exact integer cents;
+- add durable business/idempotency uniqueness;
+- keep `tow_payments` untouched until Phase 3;
+- do not connect Store until Phase 4 establishes backend-frozen order cents;
+- do not implement wallet/commission/Stripe Connect settlement before Gate S1.
+
+Phase 1 should produce schema, repositories and PostgreSQL/concurrency evidence only for the shared financial core. It must not wire real PSPs yet.
