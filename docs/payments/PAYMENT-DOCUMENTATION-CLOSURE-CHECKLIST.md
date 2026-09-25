@@ -211,7 +211,8 @@ D1 is DONE when a workhorse can implement Phase 3 without deciding:
 **Priority:** 2  
 **Blocks:** Phase 4 implementation  
 **Target document:** `docs/payments/PHASE-4-STORE-FINANCIAL-AUTHORITY-CONTRACT.md`  
-**Status:** TODO
+**Status:** DONE  
+**Closure commit:** `3ec425f62da4b8641ca98770a479f008c075f665`
 
 ## Objective
 
@@ -709,7 +710,7 @@ D3 may be drafted while D1/D2 are being discussed, but it should not be declared
 | Block | Status | Required artifact |
 |---|---|---|
 | D1 — Tow CASH Migration Contract | DONE | `PHASE-3-TOW-CASH-MIGRATION-CONTRACT.md` / `34e76664c9e12b86305e71bdbbb4ba6d7fd4691b` |
-| D2 — Store Financial Authority Contract | TODO | `PHASE-4-STORE-FINANCIAL-AUTHORITY-CONTRACT.md` |
+| D2 — Store Financial Authority Contract | DONE | `PHASE-4-STORE-FINANCIAL-AUTHORITY-CONTRACT.md` / `3ec425f62da4b8641ca98770a479f008c075f665` |
 | D3 — Settlement Evidence Contract | TODO | `PAYMENT-SETTLEMENT-EVIDENCE-CONTRACT.md` |
 | D4 — Payment API Boundary Decision | TODO | `PAYMENT-API-BOUNDARY-DECISION.md` |
 
@@ -731,7 +732,7 @@ Before declaring the preparation package closed, reconcile:
 ## `PAYMENT-PLATFORM-IMPLEMENTATION-PLAN.md`
 
 - [x] replace Phase 3 migration alternatives with the closed D1 strategy;
-- [ ] expand Phase 4 from a generic Store statement to the closed D2 authority contract;
+- [x] expand Phase 4 from a generic Store statement to the closed D2 authority contract;
 - [ ] reference D3 as the PAID semantic contract;
 - [ ] reference D4 before any new public Payment API is introduced.
 
