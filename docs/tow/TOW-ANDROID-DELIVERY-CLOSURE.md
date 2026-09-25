@@ -178,6 +178,31 @@ Build both apps against the demo VPS:
 
 FCM is optional for this milestone.
 
+### D3.1 — Known Android packaging gaps
+
+Current Mobile main still declares:
+
+```text
+Client applicationId  = com.socorre.socorre_client
+Partner applicationId = com.socorre.socorre_partner
+```
+
+The intended Firebase registrations are:
+
+```text
+Client  = br.com.jaresolve.client
+Partner = br.com.jaresolve.partner
+```
+
+For the fastest demo, Firebase/FCM can remain out of scope and the current IDs may still be used.
+For a near-final test package, align the Android `applicationId` values before distribution so the installed
+apps match the already-registered Firebase apps.
+
+Also verify the merged **release** Android manifest contains `android.permission.INTERNET`. The source tree
+currently declares it explicitly in debug/profile manifests, while the main manifests do not. A debug APK is
+therefore the lowest-risk immediate demo artifact; a release APK must pass a real network smoke test before it
+is handed to the client.
+
 ### D4 — Foreground synchronization
 
 For the demo, REST remains canonical.
