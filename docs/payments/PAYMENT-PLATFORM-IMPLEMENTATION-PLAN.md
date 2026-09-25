@@ -523,51 +523,77 @@ The next step is Phase 2 application orchestration over this persistence.
 
 # PHASE 2 — Payment Application Core
 
+## Status
+
+```text
+BLOCKED_BY_PHASE_1
+```
+
+Detailed execution contract:
+
+```text
+docs/payments/PHASE-2-APPLICATION-CORE-PLAN.md
+```
+
 ## Objective
 
-Introduce the application layer that creates and transitions canonical Payment obligations without depending on HTTP or a concrete PSP.
+Harden the shared Payment application layer so business domains can create, query and evolve canonical financial obligations without HTTP or a concrete PSP.
 
-## Required capabilities
-
-At minimum:
+Phase 2 owns:
 
 ```text
-create/retrieve canonical obligation
-create attempt
-resolve processor through central routing policy
-apply canonical financial transitions
-record provider event
-request refund record
-query payment projection
-idempotent command handling
+application command contracts
+canonical reads
+PaymentAttempt lifecycle
+semantic Payment transitions
+settlement-evidence validation
+Payment ↔ PaymentAttempt coordination
+application projections / DTOs
+stable error contract
+application-core lifecycle tests
 ```
 
-The application layer must consume repository/processor ports rather than importing Knex/Stripe directly.
-
-## State-machine rule
-
-Do not allow arbitrary status assignment.
-
-Transitions must be explicit and testable.
-
-Initial canonical states remain:
+Phase 2 explicitly does NOT own:
 
 ```text
-PENDING
-PROCESSING
-PAID
-FAILED
-CANCELLED
-EXPIRED
+provider events
+webhooks
+reconciliation
+refund persistence/execution
+Stripe integration
+Apple/Google verification
+Tow migration
+Store migration
+settlement / Stripe Connect
+public Payment HTTP routes
 ```
 
-If implementation proves that additional canonical states are required, stop and document why before changing the vocabulary.
+Provider events remain in Phase 6.
 
-Provider-specific states belong in adapter/event metadata, not the core state vocabulary.
+Refunds remain in Phase 8.
 
 ## Exit gate
 
-A complete in-memory/fake-adapter flow can exercise the Payment lifecycle without Express, Stripe, Apple or Google.
+Phase 2 is complete only when the two canonical lifecycle scenarios are proven without a concrete PSP:
+
+```text
+External rail:
+Payment PENDING
+→ Attempt #1 FAILED
+→ Attempt #2 SUCCEEDED
+→ accepted PROCESSOR_ATTEMPT evidence
+→ Payment PAID
+
+Internal cash:
+Payment PENDING
+→ no PaymentAttempt
+→ accepted INTERNAL_CASH_CONFIRMATION evidence
+→ Payment PAID
+```
+
+Application/domain code must remain independent from Express, Knex rows as public contracts, Stripe, Apple, Google and legacy payment services.
+
+See `PHASE-2-APPLICATION-CORE-PLAN.md` for the complete ordered checklist and acceptance matrix.
 
 ---
 
@@ -1147,7 +1173,7 @@ This table is the canonical progress summary for this PR.
 | Foundation architecture | DONE | `28e6ce78d38153757577d0e7940604213970bf45` |
 | Phase 0 — Current-state audit | DONE | `feed5da5486d025b98d0b825263d2b7b6740ee5c` / `PAYMENT-CURRENT-STATE-AUDIT.md` |
 | Phase 1 — Canonical persistence | IN_PROGRESS | `e11aea73e3241d30b071b501ea1fe9f2f4fe74c8` / `PHASE-1-IMPLEMENTATION-HANDOFF.md` |
-| Phase 2 — Application core | TODO | — |
+| Phase 2 — Application core | BLOCKED_BY_PHASE_1 | `PHASE-2-APPLICATION-CORE-PLAN.md` |
 | Phase 3 — Tow CASH migration | TODO | — |
 | Phase 4 — Store integration | TODO | — |
 | Phase 5 — Stripe adapter | TODO | — |
