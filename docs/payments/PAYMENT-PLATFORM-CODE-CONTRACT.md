@@ -195,6 +195,28 @@ Payments resolves the processor centrally.
 
 Payments must not accept source-domain calculation inputs such as distance, cart lines, discount rules or tariff tables.
 
+## 9.1 Store integration authority
+
+Phase 4 Store integration is governed by:
+
+\`\`\`text
+docs/payments/PHASE-4-STORE-FINANCIAL-AUTHORITY-CONTRACT.md
+\`\`\`
+
+Payments receives only the frozen PurchaseOrder financial facts.
+
+It must not accept Store calculation inputs or treat client-provided totals as authority.
+
+Canonical mapping:
+
+\`\`\`text
+business_key = STORE_ORDER:<purchase_order_id>
+amount_cents = PurchaseOrder.total_cents
+commerce_type = PHYSICAL_GOOD
+\`\`\`
+
+Store controllers/application code must not directly mutate Payment status or import Payment persistence adapters.
+
 ## 10. What the workhorse should implement next
 
 After this baseline:
