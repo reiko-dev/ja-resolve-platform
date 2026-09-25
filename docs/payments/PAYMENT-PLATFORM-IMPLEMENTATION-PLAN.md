@@ -1146,7 +1146,7 @@ This table is the canonical progress summary for this PR.
 |---|---|---|
 | Foundation architecture | DONE | `28e6ce78d38153757577d0e7940604213970bf45` |
 | Phase 0 — Current-state audit | DONE | `feed5da5486d025b98d0b825263d2b7b6740ee5c` / `PAYMENT-CURRENT-STATE-AUDIT.md` |
-| Phase 1 — Canonical persistence | TODO | — |
+| Phase 1 — Canonical persistence | IN_PROGRESS | `e11aea73e3241d30b071b501ea1fe9f2f4fe74c8` / `PHASE-1-IMPLEMENTATION-HANDOFF.md` |
 | Phase 2 — Application core | TODO | — |
 | Phase 3 — Tow CASH migration | TODO | — |
 | Phase 4 — Store integration | TODO | — |
@@ -1177,21 +1177,27 @@ Every phase-closing commit should update this ledger.
 
 # 7. Immediate next action
 
-The next implementation task is **Phase 1 — Canonical Persistence Contract**.
+The next task is to **validate and close Phase 1**, not to start provider integration.
 
-Phase 0 is closed by `docs/payments/PAYMENT-CURRENT-STATE-AUDIT.md` and commit `feed5da5486d025b98d0b825263d2b7b6740ee5c`.
+Implementation baseline:
 
-Phase 1 now follows the greenfield financial policy established after the Phase 0 audit:
+```text
+e11aea73e3241d30b071b501ea1fe9f2f4fe74c8
+```
 
-- no legacy payment-data backfill;
-- no dual-write or dual-read;
-- no legacy payment compatibility requirement;
-- create only `payment_obligations` and `payment_attempts`;
-- defer provider-event persistence to Phase 6;
-- defer refund persistence to Phase 8;
-- keep `tow_payments` behavior untouched until Phase 3;
-- do not connect Store until Phase 4 establishes backend-frozen order cents;
-- do not implement wallet/commission/Stripe Connect settlement before Gate S1;
-- delete the legacy financial stack as soon as its last consumer has migrated rather than preserving a compatibility window.
+Detailed handoff:
 
-Phase 1 should produce schema, repositories and PostgreSQL/concurrency evidence only for the shared financial core. It must not wire real PSPs yet.
+```text
+docs/payments/PHASE-1-IMPLEMENTATION-HANDOFF.md
+```
+
+Required next work:
+
+- run the focused Payments tests;
+- run the PostgreSQL gate;
+- validate migration 011 up/down/up;
+- add/run real PostgreSQL concurrency cases for duplicate Payment and PaymentAttempt creation;
+- fix only findings required to satisfy the existing contract;
+- keep Tow/Store/provider wiring out of Phase 1.
+
+Phase 1 becomes `DONE` only after that evidence is versioned.
