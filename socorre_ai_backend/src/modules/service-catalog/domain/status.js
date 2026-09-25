@@ -21,6 +21,7 @@ const { validationError } = require('./errors');
 
 const SERVICE_STATUSES = Object.freeze(['ACTIVE', 'INACTIVE', 'SOON', 'DELETED']);
 const ACTIVE_SERVICE_STATUS = 'ACTIVE';
+const SOON_SERVICE_STATUS = 'SOON';
 
 function isServiceStatus(value) {
   return typeof value === 'string' && SERVICE_STATUSES.includes(value);
@@ -53,6 +54,7 @@ function isServiceActive(row) {
 module.exports = {
   SERVICE_STATUSES,
   ACTIVE_SERVICE_STATUS,
+  SOON_SERVICE_STATUS,
   isServiceStatus,
   validateServiceStatus,
   serviceStatusToEnabled,

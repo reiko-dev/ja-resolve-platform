@@ -14,7 +14,7 @@
  */
 'use strict';
 
-const { serviceStatusToEnabled, serviceStatusOf } = require('../../domain');
+const { serviceStatusToEnabled, serviceStatusOf, SOON_SERVICE_STATUS } = require('../../domain');
 
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return null;
@@ -53,8 +53,14 @@ function createCatalogRepository(db) {
     return mapCatalogRow(await db('service_modules').where({ module_key: key }).first());
   }
 
+  /**
+   * The application boundary always passes an explicit `status` (the launch
+   * policy of INITIAL_SERVICES). If a caller ever omits it, persistence fails
+   * CLOSED: the row is provisioned as SOON, never as an implicitly launched
+   * ACTIVE service.
+   */
   async function createDefault(row) {
-    const status = row.status || 'ACTIVE';
+    const status = row.status ?? SOON_SERVICE_STATUS;
     try {
       const [created] = await db('service_modules')
         .insert({
@@ -79,17 +85,19 @@ function createCatalogRepository(db) {
   /**
    * Provisioning primitive: inserts the row only when the key is absent and
    * NEVER touches an existing row (status, name and ordering are preserved).
+   * Like `createDefault`, a missing `status` fails CLOSED to SOON.
    */
   async function insertIfMissing(row) {
+    const status = row.status ?? SOON_SERVICE_STATUS;
     await db('service_modules')
       .insert({
         module_key: row.key,
         service_key: row.service_key || row.key,
         partner_type: row.partner_type || row.key,
         name: row.name ?? null,
-        status: row.status || 'ACTIVE',
+        status,
         sort_order: row.sort_order ?? 0,
-        enabled: serviceStatusToEnabled(row.status || 'ACTIVE'),
+        enabled: serviceStatusToEnabled(status),
       })
       .onConflict('module_key')
       .ignore();

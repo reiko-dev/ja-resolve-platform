@@ -12,9 +12,12 @@
  *     substitute a local default.
  *   - `ensureService(key)` lazily creates the registry row for an INITIAL
  *     service key that is missing (the same lazy default the Tow module always
- *     had for `tow`). It never resets an existing row.
+ *     had for `tow`). The status is the launch policy declared by
+ *     INITIAL_SERVICES (`initialStatus`): ACTIVE only for `tow`, SOON for
+ *     every other initial service. It never resets an existing row.
  *   - `ensureInitialServices()` is the idempotent provisioning path used by
- *     migration 010; it only inserts missing rows.
+ *     migration 010; it only inserts missing rows and takes each service's
+ *     `initialStatus` from the same single authority.
  *   - `setStatus` requires a reason to move away from ACTIVE, clears it on
  *     ACTIVE, and is idempotent: a repeated status is a read.
  */
@@ -69,7 +72,7 @@ function createCatalogService({ catalogRepository }) {
     return catalogRepository.createDefault({
       key: initial.key,
       name: initial.name,
-      status: 'ACTIVE',
+      status: initial.initialStatus,
       sort_order: initial.sortOrder,
     });
   }
@@ -85,7 +88,7 @@ function createCatalogService({ catalogRepository }) {
       await catalogRepository.insertIfMissing({
         key: service.key,
         name: service.name,
-        status: 'ACTIVE',
+        status: service.initialStatus,
         sort_order: service.sortOrder,
       });
     }
