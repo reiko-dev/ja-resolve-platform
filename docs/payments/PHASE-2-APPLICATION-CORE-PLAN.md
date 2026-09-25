@@ -263,27 +263,37 @@ transitionPayment(paymentId, arbitraryStatus)
 
 without passing through semantic guards.
 
-### Settlement evidence concept
+### Settlement evidence contract
 
-Phase 2 should define an internal evidence vocabulary sufficient to explain why a Payment became PAID without implementing any provider.
+D3 is CLOSED and authoritative:
 
-Recommended initial conceptual vocabulary:
+```text
+docs/payments/PAYMENT-SETTLEMENT-EVIDENCE-CONTRACT.md
+```
+
+Canonical evidence vocabulary:
 
 ```text
 INTERNAL_CASH_CONFIRMATION
-PROCESSOR_ATTEMPT
-STORE_VERIFICATION
+PROCESSOR_PAYMENT_CONFIRMATION
+STORE_BILLING_VERIFICATION
 ```
 
-This is an application/domain concept only.
+Phase 2 must persist the accepted evidence binding on `payment_obligations` and implement semantic:
 
-Do not create provider-event persistence in this phase.
+```text
+markPaymentPaid({ payment_id, evidence })
+```
+
+A generic arbitrary `transitionPayment(..., PAID)` must not remain the integration contract.
+
+Do not create provider-event persistence in this phase; provider events remain Phase 6.
 
 ### Acceptance checklist
 
 - [ ] semantic transition methods exist;
 - [ ] direct arbitrary external status mutation is not the integration contract;
-- [ ] PAID requires accepted settlement evidence;
+- [ ] PAID requires accepted durable settlement evidence under D3;
 - [ ] CANCELLED stamps cancellation time internally;
 - [ ] PAID stamps paid time internally;
 - [ ] same semantic command replay does not restamp timestamps;
@@ -522,7 +532,7 @@ PROCESSING
       ↓
 SUCCEEDED
       ↓
-accepted PROCESSOR_ATTEMPT evidence
+accepted PROCESSOR_PAYMENT_CONFIRMATION evidence
       ↓
 Payment PAID
 ```
