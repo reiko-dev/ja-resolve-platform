@@ -692,49 +692,108 @@ Phase 3 is complete only when:
 
 # PHASE 4 — Connect Store / Checkout to the Shared Payment Core
 
-## Objective
+## Decision contract
 
-Make Store the second consumer and prove that the Payment Platform supports a different business context without learning Store pricing rules.
+D2 is CLOSED.
 
-## Store authority
+Canonical implementation authority:
 
-The source domain must provide the frozen order/checkout total in integer cents.
+\`\`\`text
+docs/payments/PHASE-4-STORE-FINANCIAL-AUTHORITY-CONTRACT.md
+\`\`\`
 
-Payments must never:
+Phase 4 must implement that contract without reopening its decisions unless current code proves a contradiction or a new product requirement is approved.
 
-- sum cart items;
-- apply discounts;
-- calculate delivery;
-- parse formatted BRL;
-- derive total from UI strings.
+## Frozen Store authority
 
-## Required flow
+\`\`\`text
+Catalog checkout price = products.price_cents
+Order lines            = immutable PurchaseOrderItems
+Order money            = integer cents only
 
-```text
-cart/checkout domain
-        ↓
-PurchaseOrder with authoritative total_cents
-        ↓
-Payment obligation
-        ↓
-processor routing
-```
+total_cents
+=
+subtotal_cents
++ delivery_fee_cents
++ tax_cents
+- discount_cents
+\`\`\`
 
-The Payment record should reference the order context but not duplicate Store pricing logic.
+For the Phase 4 MVP:
 
-## Tests
+\`\`\`text
+tax_cents = 0
+discount_cents = 0
+\`\`\`
 
-Required:
+unless a tested server-owned policy exists.
 
-- checkout total == purchase-order total == Payment amount;
-- quantity mutation cannot leave stale payment authority;
-- client cannot override payment amount;
-- repeated order-payment creation is idempotent;
-- Tow and Store can coexist without branching business logic inside Payments.
+The client may send \`expected_total_cents\` only as a customer-consent/concurrency guard. It is not financial authority.
+
+A mismatch returns a price-change conflict and creates no order, Payment or stock mutation.
+
+## Frozen Payment mapping
+
+\`\`\`text
+context_type  = STORE_ORDER
+context_id    = purchase_order.id
+business_key  = STORE_ORDER:<purchase_order.id>
+payer_id      = purchase_order.user_id
+commerce_type = PHYSICAL_GOOD
+sales_channel = purchase_order.sales_channel
+amount_cents  = purchase_order.total_cents
+currency      = purchase_order.currency
+method        = purchase_order.payment_method
+\`\`\`
+
+Processor remains centrally derived.
+
+## Atomic checkout
+
+\`\`\`text
+lock/validate products
+→ calculate canonical cents
+→ verify expected_total_cents
+→ reserve/decrement stock
+→ create PurchaseOrder
+→ create PurchaseOrderItems
+→ create canonical Payment using same transaction
+→ COMMIT
+\`\`\`
+
+Payment failure rolls back order and stock writes.
+
+## Legacy retirement
+
+The Phase 4 target removes these as financial authorities:
+
+\`\`\`text
+client subtotal/total/unit_price
+purchase_orders.payment_status
+purchase_orders.paid_at
+purchase_orders.payment_info
+purchase_orders status=refunded as a financial shortcut
+generic arbitrary financial order updates
+legacy decimal Store checkout money
+\`\`\`
+
+DeliveryOrder remains fulfillment authority only and cannot recalculate or overwrite the frozen PurchaseOrder/Payment customer total.
 
 ## Exit gate
 
-Tow and Store both create canonical Payment obligations through the same core while retaining independent business pricing logic.
+Phase 4 is complete only when:
+
+- backend pricing is authoritative;
+- product/order monetary authority is integer cents;
+- PurchaseOrder item snapshots are immutable;
+- concurrent stock consumption is safe;
+- checkout is idempotent;
+- price changes require reconfirmation instead of silently charging a new amount;
+- PurchaseOrder + stock + Payment atomicity is proven on PostgreSQL;
+- Payment.amount_cents equals PurchaseOrder.total_cents exactly;
+- no client/payment-status field can mark an order financially paid;
+- no canonical checkout path uses parseFloat money;
+- Store and Payments tests are green.
 
 ---
 
