@@ -543,7 +543,8 @@ D3 is DONE when `markPaymentPaid` can be implemented without a caller being able
 **Priority:** 4  
 **Blocks:** public payment API design and source-domain integration shape  
 **Target document:** `docs/payments/PAYMENT-API-BOUNDARY-DECISION.md`  
-**Status:** TODO
+**Status:** DONE  
+**Closure commit:** `6be9a6dab45c4b47b6ee7977c4bf3340a78baa3b`
 
 ## Objective
 
@@ -707,7 +708,7 @@ D3 may be drafted while D1/D2 are being discussed, but it should not be declared
 | D1 — Tow CASH Migration Contract | DONE | `PHASE-3-TOW-CASH-MIGRATION-CONTRACT.md` / `34e76664c9e12b86305e71bdbbb4ba6d7fd4691b` |
 | D2 — Store Financial Authority Contract | DONE | `PHASE-4-STORE-FINANCIAL-AUTHORITY-CONTRACT.md` / `3ec425f62da4b8641ca98770a479f008c075f665` |
 | D3 — Settlement Evidence Contract | DONE | `PAYMENT-SETTLEMENT-EVIDENCE-CONTRACT.md` / `dfdec2cba14b9abadb8416e321d192755035bdaf` |
-| D4 — Payment API Boundary Decision | TODO | `PAYMENT-API-BOUNDARY-DECISION.md` |
+| D4 — Payment API Boundary Decision | DONE | `PAYMENT-API-BOUNDARY-DECISION.md` / `6be9a6dab45c4b47b6ee7977c4bf3340a78baa3b` |
 
 ---
 
@@ -734,7 +735,7 @@ Before declaring the preparation package closed, reconcile:
 ## `PAYMENT-PLATFORM-CODE-CONTRACT.md`
 
 - [x] reference settlement evidence after D3 closes;
-- [ ] reference API boundary after D4 closes;
+- [x] reference API boundary after D4 closes;
 - [ ] keep source-domain integrations application-service-only.
 
 ---
@@ -763,6 +764,8 @@ They belong to their corresponding later phase/gate.
 ---
 
 # 6. Preparation package exit gate
+
+**STATUS: CLOSED**
 
 The Payments documentation/preparation package for Tow + Store is considered closed when:
 
