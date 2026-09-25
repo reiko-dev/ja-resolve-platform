@@ -158,6 +158,22 @@
  *
  * @typedef {Object} AddressResolver
  * @property {(point: { latitude: number, longitude: number }) => Promise<object|null>} resolve
+ *
+ * SERVICE LOCATION — read-time place presentation (OPTIONAL wiring).
+ *
+ * The enricher turns a persisted `place_id` into an EPHEMERAL `place_name` for
+ * a detailed surface. It is provider-neutral: the shape below is the Tow
+ * presentation vocabulary, and the composition may inject the Service Location
+ * provider directly, whose answer uses the module's camelCase port vocabulary
+ * (`placeName`/`formattedAddress`); the enricher normalizes both spellings.
+ *
+ * This port is NEVER called on create, lists or opportunity feeds: only
+ * `getForCustomer` (customer request detail) and the tracking read enrich, and
+ * every failure is swallowed to `null` so a provider outage can never block a
+ * read (ADR §8).
+ *
+ * @typedef {Object} PlaceDetails
+ * @property {(params: { placeId: string }) => Promise<{ place_id: string, place_name: string|null, formatted_address: string|null, latitude: number, longitude: number }>} getPlace
  */
 'use strict';
 
@@ -177,6 +193,7 @@ const PORT_NAMES = Object.freeze([
   'RouteProvider',
   'TrackingEventPublisher',
   'AddressResolver',
+  'PlaceDetails',
 ]);
 
 module.exports = { PORT_NAMES };
