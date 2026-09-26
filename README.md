@@ -1,4 +1,4 @@
-# 🚗 Socorre AI - Sistema de Assistência Automotiva
+# 🚗 Já Resolve - Sistema de Assistência Automotiva
 
 Sistema completo de assistência automotiva com aplicativos móveis para clientes e parceiros, backend API e dashboard administrativo.
 
@@ -127,12 +127,14 @@ Use os scripts na pasta `scripts/`:
 
 ## 📚 Documentação
 
+- **Escopo funcional vigente para validação da cliente (v1.0.0):** [`docs/product/JA-RESOLVE-SERVICE-SCOPE-v1.0.0.md`](docs/product/JA-RESOLVE-SERVICE-SCOPE-v1.0.0.md)
+- **Planejamento e acompanhamento:** [GitHub Project — Já Resolve](https://github.com/users/reiko-dev/projects/1/views/1?system_template=feature_release)
 - Visão de **produto e andamento** (o que já existe e o que falta): [`docs/O-QUE-JA-FOI-FEITO-E-O-QUE-FALTA.md`](docs/O-QUE-JA-FOI-FEITO-E-O-QUE-FALTA.md)
 - Referência **técnica** do que está implementado: [`docs/DOCUMENTACAO.md`](docs/DOCUMENTACAO.md)
 
 ## 👥 Equipe
 
-Desenvolvido pela equipe Socorre AI.
+Desenvolvido pela equipe Já Resolve.
 
 ---
 
